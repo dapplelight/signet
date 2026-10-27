@@ -1,0 +1,64 @@
+/* @dapplelight/signet-tokens — base styles. Import after a theme. */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Thin, warm scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+}
+
+@media print {
+  aside,
+  header,
+  [data-print-hide],
+  button {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  [data-print-show] {
+    display: block !important;
+  }
+  .grid {
+    display: block !important;
+  }
+  .grid > * {
+    margin-bottom: 0.75rem;
+    break-inside: avoid;
+  }
+  * {
+    color: black !important;
+  }
+}

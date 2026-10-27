@@ -1,0 +1,26 @@
+{
+  "name": "create-signet-app",
+  "version": "0.2.0",
+  "license": "MIT",
+  "description": "Scaffold a Vite + React + Tailwind app wired to Signet.",
+  "type": "module",
+  "bin": {
+    "create-signet-app": "./src/index.ts"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src",
+    "template",
+    "template-api"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "bun run test/scaffold.ts && bun run test/scaffold-api.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "typescript": "^7.0.2"
+  }
+}

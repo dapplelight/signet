@@ -1,0 +1,70 @@
+{
+  "name": "@dapplelight/signet-ai",
+  "version": "0.2.0",
+  "license": "MIT",
+  "description": "Provider-agnostic structured LLM calls with budget caps, caching and failover.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./extract": {
+      "types": "./dist/extract.d.ts",
+      "import": "./dist/extract.js"
+    },
+    "./fake": {
+      "types": "./dist/fake.d.ts",
+      "import": "./dist/fake.js"
+    },
+    "./budget": {
+      "types": "./dist/budget.d.ts",
+      "import": "./dist/budget.js"
+    },
+    "./cache": {
+      "types": "./dist/cache.d.ts",
+      "import": "./dist/cache.js"
+    },
+    "./errors": {
+      "types": "./dist/errors.d.ts",
+      "import": "./dist/errors.js"
+    },
+    "./providers/ai-sdk": {
+      "types": "./dist/providers/ai-sdk.d.ts",
+      "import": "./dist/providers/ai-sdk.js"
+    },
+    "./jev": {
+      "types": "./dist/jev.d.ts",
+      "import": "./dist/jev.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "bun run test/extract.ts && bun run test/jev.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "bun run build"
+  },
+  "peerDependencies": {
+    "@dapplelight/signet-lib": "^0.2.0",
+    "zod": ">=4.0.0",
+    "ai": ">=5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "ai": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@dapplelight/signet-lib": "^0.2.0",
+    "zod": "^4.6.5",
+    "typescript": "^7.0.2",
+    "@types/bun": "^1.4.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist"
+  ]
+}

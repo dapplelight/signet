@@ -1,0 +1,99 @@
+# Reusable CI for a bun repo: checkout, setup-bun, install, lint, typecheck,
+# test, and optionally build. Every step is a command the caller can override;
+# an empty string skips it.
+#
+#   # .github/workflows/ci.yml in the app repo
+#   jobs:
+#     ci:
+#       uses: dapplelight/signet/.github/workflows/ci-bun.yml@main
+#       with:
+#         bun-version: 1.3.11        # default: latest
+#         working-directory: .       # default: repo root
+#         build: true                # default: false
+#
+# The Signet repo is private. Before another repo can call this, open Signet on
+# GitHub: Settings -> Actions -> General -> Access, and choose "Accessible from
+# repositories owned by the user 'dapplelight'". Without it the caller fails with
+# "workflow was not found". Pin @main, a tag, or a commit SHA.
+#
+# Repo-specific jobs (app-a's e2e and type-ramp checks, app-b's Neon
+# integration) stay in the app: this covers the steps every repo repeats.
+name: ci-bun
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: Directory to run install and every command in.
+        type: string
+        default: "."
+      bun-version:
+        description: Passed to oven-sh/setup-bun. Pin it to match packageManager.
+        type: string
+        default: latest
+      fetch-depth:
+        description: Checkout depth. 0 for full history (diff-against-base lint scripts need it).
+        type: number
+        default: 1
+      runs-on:
+        type: string
+        default: ubuntu-latest
+      install:
+        type: string
+        default: bun install --frozen-lockfile
+      lint:
+        description: Lint command. Empty skips it.
+        type: string
+        default: bun run lint
+      typecheck:
+        description: Typecheck command. Empty skips it.
+        type: string
+        default: bun run typecheck
+      test:
+        description: Test command. Empty skips it.
+        type: string
+        default: bun run test
+      build:
+        description: Run build-command after the tests.
+        type: boolean
+        default: false
+      build-command:
+        type: string
+        default: bun run build
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ${{ inputs.runs-on }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ inputs.fetch-depth }}
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ inputs.bun-version }}
+
+      - name: Install
+        run: ${{ inputs.install }}
+
+      - name: Lint
+        if: inputs.lint != ''
+        run: ${{ inputs.lint }}
+
+      - name: Typecheck
+        if: inputs.typecheck != ''
+        run: ${{ inputs.typecheck }}
+
+      - name: Test
+        if: inputs.test != ''
+        run: ${{ inputs.test }}
+
+      - name: Build
+        if: inputs.build
+        run: ${{ inputs.build-command }}

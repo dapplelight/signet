@@ -1,0 +1,270 @@
+{
+  "name": "@dapplelight/signet-ui",
+  "version": "0.2.0",
+  "license": "MIT",
+  "description": "Signet component kit \u2014 token-driven React primitives.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./utils": {
+      "types": "./dist/lib/utils.d.ts",
+      "import": "./dist/lib/utils.js"
+    },
+    "./hooks/use-media-query": {
+      "types": "./dist/hooks/use-media-query.d.ts",
+      "import": "./dist/hooks/use-media-query.js"
+    },
+    "./components/alert": {
+      "types": "./dist/components/ui/alert.d.ts",
+      "import": "./dist/components/ui/alert.js"
+    },
+    "./components/answer-headline": {
+      "types": "./dist/components/ui/answer-headline.d.ts",
+      "import": "./dist/components/ui/answer-headline.js"
+    },
+    "./components/badge": {
+      "types": "./dist/components/ui/badge.d.ts",
+      "import": "./dist/components/ui/badge.js"
+    },
+    "./components/button": {
+      "types": "./dist/components/ui/button.d.ts",
+      "import": "./dist/components/ui/button.js"
+    },
+    "./components/calendar": {
+      "types": "./dist/components/ui/calendar.d.ts",
+      "import": "./dist/components/ui/calendar.js"
+    },
+    "./components/card": {
+      "types": "./dist/components/ui/card.d.ts",
+      "import": "./dist/components/ui/card.js"
+    },
+    "./components/chart": {
+      "types": "./dist/components/ui/chart.d.ts",
+      "import": "./dist/components/ui/chart.js"
+    },
+    "./components/checkbox": {
+      "types": "./dist/components/ui/checkbox.d.ts",
+      "import": "./dist/components/ui/checkbox.js"
+    },
+    "./components/combobox": {
+      "types": "./dist/components/ui/combobox.d.ts",
+      "import": "./dist/components/ui/combobox.js"
+    },
+    "./components/data-table": {
+      "types": "./dist/components/ui/data-table.d.ts",
+      "import": "./dist/components/ui/data-table.js"
+    },
+    "./components/dialog": {
+      "types": "./dist/components/ui/dialog.d.ts",
+      "import": "./dist/components/ui/dialog.js"
+    },
+    "./components/drawer": {
+      "types": "./dist/components/ui/drawer.d.ts",
+      "import": "./dist/components/ui/drawer.js"
+    },
+    "./components/dropdown-menu": {
+      "types": "./dist/components/ui/dropdown-menu.d.ts",
+      "import": "./dist/components/ui/dropdown-menu.js"
+    },
+    "./components/emoji-picker": {
+      "types": "./dist/components/ui/emoji-picker.d.ts",
+      "import": "./dist/components/ui/emoji-picker.js"
+    },
+    "./components/empty-state": {
+      "types": "./dist/components/ui/empty-state.d.ts",
+      "import": "./dist/components/ui/empty-state.js"
+    },
+    "./components/error-state": {
+      "types": "./dist/components/ui/error-state.d.ts",
+      "import": "./dist/components/ui/error-state.js"
+    },
+    "./components/input": {
+      "types": "./dist/components/ui/input.d.ts",
+      "import": "./dist/components/ui/input.js"
+    },
+    "./components/input-group": {
+      "types": "./dist/components/ui/input-group.d.ts",
+      "import": "./dist/components/ui/input-group.js"
+    },
+    "./components/input-otp": {
+      "types": "./dist/components/ui/input-otp.d.ts",
+      "import": "./dist/components/ui/input-otp.js"
+    },
+    "./components/kbd": {
+      "types": "./dist/components/ui/kbd.d.ts",
+      "import": "./dist/components/ui/kbd.js"
+    },
+    "./components/label": {
+      "types": "./dist/components/ui/label.d.ts",
+      "import": "./dist/components/ui/label.js"
+    },
+    "./components/markdown": {
+      "types": "./dist/components/ui/markdown.d.ts",
+      "import": "./dist/components/ui/markdown.js"
+    },
+    "./components/pagination": {
+      "types": "./dist/components/ui/pagination.d.ts",
+      "import": "./dist/components/ui/pagination.js"
+    },
+    "./components/pill-group": {
+      "types": "./dist/components/ui/pill-group.d.ts",
+      "import": "./dist/components/ui/pill-group.js"
+    },
+    "./components/popover": {
+      "types": "./dist/components/ui/popover.d.ts",
+      "import": "./dist/components/ui/popover.js"
+    },
+    "./components/privacy-mask": {
+      "types": "./dist/components/ui/privacy-mask.d.ts",
+      "import": "./dist/components/ui/privacy-mask.js"
+    },
+    "./components/progress": {
+      "types": "./dist/components/ui/progress.d.ts",
+      "import": "./dist/components/ui/progress.js"
+    },
+    "./components/responsive-sheet": {
+      "types": "./dist/components/ui/responsive-sheet.d.ts",
+      "import": "./dist/components/ui/responsive-sheet.js"
+    },
+    "./components/search-input": {
+      "types": "./dist/components/ui/search-input.d.ts",
+      "import": "./dist/components/ui/search-input.js"
+    },
+    "./components/select": {
+      "types": "./dist/components/ui/select.d.ts",
+      "import": "./dist/components/ui/select.js"
+    },
+    "./components/shortcuts": {
+      "types": "./dist/components/ui/shortcuts.d.ts",
+      "import": "./dist/components/ui/shortcuts.js"
+    },
+    "./components/skeleton": {
+      "types": "./dist/components/ui/skeleton.d.ts",
+      "import": "./dist/components/ui/skeleton.js"
+    },
+    "./components/slider": {
+      "types": "./dist/components/ui/slider.d.ts",
+      "import": "./dist/components/ui/slider.js"
+    },
+    "./components/stat-strip": {
+      "types": "./dist/components/ui/stat-strip.d.ts",
+      "import": "./dist/components/ui/stat-strip.js"
+    },
+    "./components/switch": {
+      "types": "./dist/components/ui/switch.d.ts",
+      "import": "./dist/components/ui/switch.js"
+    },
+    "./components/table": {
+      "types": "./dist/components/ui/table.d.ts",
+      "import": "./dist/components/ui/table.js"
+    },
+    "./components/tabs": {
+      "types": "./dist/components/ui/tabs.d.ts",
+      "import": "./dist/components/ui/tabs.js"
+    },
+    "./components/textarea": {
+      "types": "./dist/components/ui/textarea.d.ts",
+      "import": "./dist/components/ui/textarea.js"
+    },
+    "./components/tooltip": {
+      "types": "./dist/components/ui/tooltip.d.ts",
+      "import": "./dist/components/ui/tooltip.js"
+    },
+    "./domain/trend-chip": {
+      "types": "./dist/components/domain/trend-chip.d.ts",
+      "import": "./dist/components/domain/trend-chip.js"
+    },
+    "./components/theme-provider": {
+      "types": "./dist/components/ui/theme-provider.d.ts",
+      "import": "./dist/components/ui/theme-provider.js"
+    },
+    "./components/theme-toggle": {
+      "types": "./dist/components/ui/theme-toggle.d.ts",
+      "import": "./dist/components/ui/theme-toggle.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "bun run test/ui.tsx && bun run test/dom.tsx && bun run test/data-table.tsx && bun run test/shortcuts.tsx && bun run test/markdown.tsx && bun run test/dom2.tsx",
+    "build": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "bun run build"
+  },
+  "peerDependencies": {
+    "@base-ui/react": ">=1.3.0",
+    "@radix-ui/react-checkbox": ">=1.0.0",
+    "@radix-ui/react-dropdown-menu": ">=2.0.0",
+    "@radix-ui/react-popover": ">=1.0.0",
+    "@radix-ui/react-tooltip": ">=1.0.0",
+    "@tanstack/react-table": ">=9.0.0",
+    "class-variance-authority": ">=0.0.0",
+    "clsx": ">=2.0.0",
+    "input-otp": ">=1.4.0",
+    "lucide-react": ">=1.0.0",
+    "react": ">=19.0.0",
+    "react-day-picker": ">=10.0.0",
+    "react-dom": ">=19.0.0",
+    "recharts": ">=2.15.0 <3",
+    "tailwind-merge": ">=3.0.0",
+    "@dapplelight/signet-tokens": "^0.2.0",
+    "@tanstack/react-hotkeys": ">=0.12.0 <0.13.0",
+    "react-markdown": ">=10.0.0",
+    "remark-gfm": ">=4.0.0",
+    "remark-parse": ">=11.0.0",
+    "unified": ">=11.0.0",
+    "github-slugger": ">=2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "recharts": {
+      "optional": true
+    },
+    "@tanstack/react-hotkeys": {
+      "optional": true
+    },
+    "react-markdown": {
+      "optional": true
+    },
+    "remark-gfm": {
+      "optional": true
+    },
+    "remark-parse": {
+      "optional": true
+    },
+    "unified": {
+      "optional": true
+    },
+    "github-slugger": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^20.14.5",
+    "@radix-ui/react-checkbox": "^1.3.11",
+    "@tanstack/react-hotkeys": "0.12.0",
+    "@tanstack/react-table": "^9.2.4",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
+    "@types/mdast": "^4.0.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "github-slugger": "2.0.0",
+    "input-otp": "^1.5.0",
+    "react-day-picker": "^10.0.1",
+    "react-markdown": "10.1.0",
+    "recharts": "^2.15.3",
+    "remark-gfm": "4.0.1",
+    "remark-parse": "11.0.0",
+    "typescript": "^7.0.2",
+    "unified": "11.0.5"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist"
+  ]
+}

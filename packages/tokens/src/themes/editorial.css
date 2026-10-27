@@ -1,0 +1,391 @@
+/*
+ * @dapplelight/signet-tokens — "Editorial" theme
+ *
+ * Warm neutrals, green accent, dense data-first geometry.
+ * Satisfies CONTRACT.md. Copy this file to make another design system.
+ *
+ * Usage in consuming app:
+ *   @import "tailwindcss";
+ *   @import "@dapplelight/signet-tokens/editorial.css";
+ *   @import "@dapplelight/signet-tokens/base.css";
+ */
+
+/* Make Tailwind scan this package's components for class names regardless of
+   the consumer's CWD. Path is relative to this file, so it resolves the same
+   from local Bun and from CF Pages' build pipeline. */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ═══════════════════════════════════════════════════════════
+   RAW VALUES — semantic vars reference these
+   ═══════════════════════════════════════════════════════════ */
+
+@layer base {
+  /* ── Light mode ──────────────────────────────────────────── */
+  :root {
+    /* Color palette */
+    --color-warm-50: #faf9f7;
+    --color-warm-100: #f2f0ec;
+    --color-warm-200: #eae7e1;
+    --color-warm-300: #d8d4cc;
+    --color-warm-400: #c2bdb3;
+    --color-warm-500: #9d9590;
+    --color-warm-600: #7a736a;
+    --color-warm-700: #524e4a;
+    --color-warm-800: #2e2b28;
+    --color-warm-900: #1a1814;
+    --color-warm-950: #0d0d0b;
+
+    /* ── Surfaces ─────────────────────────────────────── */
+    --bg-base: var(--color-warm-50);
+    --bg-surface: var(--color-warm-100);
+    --bg-elevated: var(--color-warm-200);
+    --bg-overlay: rgba(26, 24, 20, 0.5);
+
+    /* ── Borders ─────────────────────────────────────── */
+    --border-default: var(--color-warm-300);
+    --border-subtle: var(--color-warm-200);
+    --border-strong: var(--color-warm-400);
+
+    /* ── Accent ──────────────────────────────────────── */
+    --accent-green: #16a34a;
+    --accent-blue: #2563eb;
+    --accent-amber: #c2860a;
+    --accent-red: #b91c1c;
+    --accent-green-subtle: rgba(22, 163, 74, 0.1);
+    --accent-red-subtle: rgba(185, 28, 28, 0.1);
+    --accent-amber-subtle: rgba(194, 134, 10, 0.1);
+    --accent-blue-subtle: rgba(37, 99, 235, 0.1);
+
+    /* ── Text ────────────────────────────────────────── */
+    --text-primary: var(--color-warm-900);
+    --text-secondary: var(--color-warm-700);
+    --text-muted: var(--color-warm-600);
+    --text-hint: var(--color-warm-500);
+    --text-disabled: var(--color-warm-400);
+    --text-inverse: var(--color-warm-50);
+
+    /* ── ShadCN bridge ───────────────────────────────── */
+    --background: var(--color-warm-50);
+    --foreground: var(--color-warm-900);
+    --card: var(--color-warm-100);
+    --card-fg: var(--color-warm-900);
+    --popover: var(--color-warm-50);
+    --popover-fg: var(--color-warm-900);
+    --primary: #16a34a;
+    --primary-fg: #ffffff;
+    --secondary: var(--color-warm-200);
+    --secondary-fg: var(--color-warm-900);
+    --muted: var(--color-warm-200);
+    --muted-fg: var(--color-warm-600);
+    --accent: var(--color-warm-200);
+    --accent-fg: var(--color-warm-900);
+    --destructive: #b91c1c;
+    --border: var(--color-warm-300);
+    --input: var(--color-warm-300);
+    --ring: #16a34a;
+
+    /* ── Optional slots (CONTRACT.md) — defaults a brand layer overrides ──
+       Repeated in the dark block so they re-resolve wherever .dark is set. */
+    --chart-1: var(--accent-blue);
+    --chart-2: var(--accent-green);
+    --chart-3: var(--accent-amber);
+    --chart-4: var(--accent-red);
+    --chart-5: var(--text-secondary);
+    --chart-6: var(--text-hint);
+    --focus-ring: var(--ring);
+    --focus-ring-offset: var(--bg-base);
+    --accent-primary: var(--primary);
+    --accent-primary-fg: var(--primary-fg);
+    --accent-primary-subtle: color-mix(in srgb, var(--primary) 10%, transparent);
+    --accent-red-fg: var(--primary-fg);
+
+    /* ── Shadows (light mode — subtle warm tints) ────── */
+    --shadow-xs: 0 1px 2px rgba(26, 24, 20, 0.06);
+    --shadow-sm: 0 1px 4px rgba(26, 24, 20, 0.08), 0 1px 2px rgba(26, 24, 20, 0.04);
+    --shadow-md: 0 2px 8px rgba(26, 24, 20, 0.1), 0 1px 3px rgba(26, 24, 20, 0.06);
+    --shadow-lg: 0 4px 16px rgba(26, 24, 20, 0.12), 0 2px 6px rgba(26, 24, 20, 0.08);
+    --shadow-xl: 0 8px 32px rgba(26, 24, 20, 0.14), 0 4px 12px rgba(26, 24, 20, 0.1);
+  }
+
+  /* ── Dark mode ───────────────────────────────────────────── */
+  /* Applied via .dark class OR [data-theme="ui"] for scoped use */
+  .dark,
+  [data-theme="ui"] {
+    /* ── Surfaces ─────────────────────────────────────── */
+    --bg-base: #0d0d0b; /* warm near-black */
+    --bg-surface: #171714; /* +1 step — clearly distinct */
+    --bg-elevated: #1d1d1a; /* +2 step — popovers, modals */
+    --bg-overlay: rgba(0, 0, 0, 0.6);
+
+    /* ── Borders ─────────────────────────────────────── */
+    --border-default: #2d2d29;
+    --border-subtle: #232320;
+    --border-strong: #3d3d38;
+
+    /* ── Accent ──────────────────────────────────────── */
+    --accent-green: #34d399; /* emerald-400: warm, sophisticated */
+    --accent-blue: #60a5fa;
+    --accent-amber: #f59e0b;
+    --accent-red: #f87171;
+    --accent-green-subtle: rgba(52, 211, 153, 0.12);
+    --accent-red-subtle: rgba(248, 113, 113, 0.12);
+    --accent-amber-subtle: rgba(245, 158, 11, 0.12);
+    --accent-blue-subtle: rgba(96, 165, 250, 0.12);
+
+    /* ── Text ────────────────────────────────────────── */
+    --text-primary: #f0ece6; /* warm white */
+    --text-secondary: #9d9590;
+    --text-muted: #6b6560;
+    --text-hint: #524e4a;
+    --text-disabled: #3d3a36;
+    --text-inverse: #0d0d0b;
+
+    /* ── ShadCN bridge ───────────────────────────────── */
+    --background: #0d0d0b;
+    --foreground: #f0ece6;
+    --card: #171714;
+    --card-fg: #f0ece6;
+    --popover: #1d1d1a;
+    --popover-fg: #f0ece6;
+    --primary: #34d399;
+    --primary-fg: #0d0d0b;
+    --secondary: #1d1d1a;
+    --secondary-fg: #f0ece6;
+    --muted: #222220;
+    --muted-fg: #9d9590;
+    --accent: #222220;
+    --accent-fg: #f0ece6;
+    --destructive: #f87171;
+    --border: #2d2d29;
+    --input: #1d1d1a;
+    --ring: #34d399;
+
+    /* ── Optional slots (CONTRACT.md) — defaults a brand layer overrides ──
+       Repeated in the dark block so they re-resolve wherever .dark is set. */
+    --chart-1: var(--accent-blue);
+    --chart-2: var(--accent-green);
+    --chart-3: var(--accent-amber);
+    --chart-4: var(--accent-red);
+    --chart-5: var(--text-secondary);
+    --chart-6: var(--text-hint);
+    --focus-ring: var(--ring);
+    --focus-ring-offset: var(--bg-base);
+    --accent-primary: var(--primary);
+    --accent-primary-fg: var(--primary-fg);
+    --accent-primary-subtle: color-mix(in srgb, var(--primary) 12%, transparent);
+    --accent-red-fg: var(--primary-fg);
+
+    /* ── Shadows (dark mode — almost invisible, use borders) */
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.25);
+    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.35);
+    --shadow-xl: 0 8px 32px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TAILWIND THEME — maps CSS vars → utility classes
+   ═══════════════════════════════════════════════════════════ */
+
+@theme inline {
+  /* ── Raw palette — generates bg-warm-*, text-warm-*, etc. ──
+     Only the theme's OWN scale. Tailwind's stock scales (red, green,
+     blue, amber, emerald …) are left alone: remapping them made an
+     app's bg-red-500 render as rose. Status colour goes through the
+     semantic tokens above (--destructive, --accent-red …), which
+     name their hex directly.                                  */
+
+  /* Warm neutral (primary palette) */
+  --color-warm-50: #faf9f7;
+  --color-warm-100: #f2f0ec;
+  --color-warm-200: #eae7e1;
+  --color-warm-300: #d8d4cc;
+  --color-warm-400: #c2bdb3;
+  --color-warm-500: #9d9590;
+  --color-warm-600: #7a736a;
+  --color-warm-700: #524e4a;
+  --color-warm-800: #2e2b28;
+  --color-warm-900: #1a1814;
+  --color-warm-950: #0d0d0b;
+
+  /* ── Semantic colors ─────────────────────────────────── */
+  --color-bg-base: var(--bg-base);
+  --color-bg-surface: var(--bg-surface);
+  --color-bg-elevated: var(--bg-elevated);
+
+  --color-border-default: var(--border-default);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+
+  --color-accent-green: var(--accent-green);
+  --color-accent-blue: var(--accent-blue);
+  --color-accent-amber: var(--accent-amber);
+  --color-accent-red: var(--accent-red);
+  --color-accent-green-subtle: var(--accent-green-subtle);
+  --color-accent-red-subtle: var(--accent-red-subtle);
+  --color-accent-amber-subtle: var(--accent-amber-subtle);
+  --color-accent-blue-subtle: var(--accent-blue-subtle);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-hint: var(--text-hint);
+  --color-text-disabled: var(--text-disabled);
+  --color-text-inverse: var(--text-inverse);
+
+  /* ShadCN */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-fg);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-fg);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-fg);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-fg);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-fg);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-fg);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* ── Optional slots (CONTRACT.md) ────────────────────── */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-focus-ring: var(--focus-ring);
+  --color-focus-ring-offset: var(--focus-ring-offset);
+  --color-accent-primary: var(--accent-primary);
+  --color-accent-primary-fg: var(--accent-primary-fg);
+  --color-accent-primary-subtle: var(--accent-primary-subtle);
+  --color-accent-red-fg: var(--accent-red-fg);
+
+  /* ── Typography ──────────────────────────────────────
+     Scale built on 13px base (body), stepping up musically.
+     Named semantically so components use intent, not size.  */
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Geist Variable", system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono", "Fira Code", ui-monospace, monospace;
+
+  /* ── Tailwind's default size scale, remapped ─────────
+     THIS is what the components actually use: text-sm x31,
+     text-xs x9, text-base x4. Overriding the semantic names
+     above alone changes nothing, because no component
+     references them. Verified by compiling both themes and
+     diffing the output.                                    */
+  --text-xs: 0.75rem; /* 12px */
+  --text-sm: 0.8125rem; /* 13px — editorial body */
+  --text-base: 0.875rem; /* 14px */
+  --text-lg: 1rem; /* 16px */
+  --text-xl: 1.125rem; /* 18px */
+
+  /* Badge uses rounded-4xl; without this it resolves to an
+     undefined var and silently produces no radius.          */
+  --radius-4xl: 1.75rem;
+
+  /* Sizes — px equivalents at 16px root */
+  --text-label: 0.6875rem; /* 11px — nav labels, micro copy */
+  --text-caption: 0.75rem; /* 12px — supporting metadata */
+  --text-body: 0.8125rem; /* 13px — default body */
+  --text-callout: 0.875rem; /* 14px — emphasized body */
+  --text-subhead: 1rem; /* 16px — section headings */
+  --text-title: 1.125rem; /* 18px — page sub-titles */
+  --text-headline: 1.375rem; /* 22px — page titles */
+  --text-stat: 1.75rem; /* 28px — KPI secondary values */
+  --text-display: 2.25rem; /* 36px — KPI hero numbers */
+  --text-hero: 3rem; /* 48px — largest display */
+
+  /* Weights */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Line heights */
+  --leading-tight: 1.15;
+  --leading-snug: 1.3;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+  --leading-display: 1.1; /* optional slot — text-display / text-hero */
+
+  /* Letter spacing */
+  --tracking-tighter: -0.03em;
+  --tracking-tight: -0.015em;
+  --tracking-normal: 0em;
+  --tracking-wide: 0.025em;
+  --tracking-wider: 0.05em;
+  --tracking-widest: 0.1em;
+
+  /* Base spacing unit — h-8 is calc(var(--spacing) * 8) at runtime, so this
+     scales every density literal in the components. Stated explicitly rather
+     than inherited from Tailwind's default. */
+  --spacing: 0.25rem;
+
+  /* ── Spacing ─────────────────────────────────────────
+     4px base grid. Custom tokens for semantic layout.    */
+  --space-sidebar: 240px;
+  --space-sidebar-sm: 56px; /* icon-only collapsed */
+  --space-header: 52px;
+  --space-panel: 320px;
+  --space-content-max: 1280px;
+  --space-gutter: 1.5rem; /* 24px — page-level padding */
+  --space-section: 2rem; /* 32px — between major sections */
+  --space-card-gap: 1rem; /* 16px — between cards */
+  --space-card-padding: 1.25rem; /* 20px — inside cards */
+
+  /* ── Radius ──────────────────────────────────────────
+     More generous than default — editorial feel.         */
+  --radius: 0.75rem; /* 12px — ShadCN compat default */
+  --radius-sm: 0.375rem; /* 6px  — small elements */
+  --radius-md: 0.625rem; /* 10px — buttons, inputs */
+  --radius-lg: 0.75rem; /* 12px — cards */
+  --radius-xl: 1rem; /* 16px — modals, large surfaces */
+  --radius-2xl: 1.25rem; /* 20px */
+  --radius-full: 9999px; /* pills, badges */
+
+  /* ── Shadows ─────────────────────────────────────────
+     Mapped from CSS vars so they switch with theme.      */
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+
+  /* ── Z-index ─────────────────────────────────────────
+     Explicit stacking — no magic numbers in components.  */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
+
+  /* ── Transitions ─────────────────────────────────────
+     Consistent animation timing across all components.   */
+  --duration-instant: 0ms;
+  --duration-fast: 100ms;
+  --duration-base: 150ms;
+  --duration-slow: 250ms;
+  --duration-slower: 400ms;
+
+  --ease-default: cubic-bezier(0.16, 1, 0.3, 1); /* snappy */
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* slight bounce */
+
+  --transition-fast: var(--duration-fast) var(--ease-default);
+  --transition-base: var(--duration-base) var(--ease-default);
+  --transition-slow: var(--duration-slow) var(--ease-default);
+}

@@ -1,0 +1,30 @@
+{
+  "name": "signet",
+  "private": true,
+  "version": "0.1.0",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "typecheck": "bun run --filter '*' typecheck",
+    "gen:api": "bun run scripts/gen-api.ts",
+    "build:all": "bun run --cwd packages/tokens build && bun run --cwd packages/lib build && bun run --cwd packages/ui build && bun run --cwd packages/server build && bun run --cwd packages/ai build",
+    "verify:publish": "bun run scripts/verify-publish.ts",
+    "release": "bun run scripts/release.ts",
+    "release:status": "bun run scripts/release-status.ts",
+    "lint": "biome check .",
+    "format": "biome check --write ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.14",
+    "@tailwindcss/cli": "^4.3.3",
+    "@tanstack/react-form": "^1.33.5",
+    "ai": "^7.0.109",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "zod": "^4.6.5"
+  }
+}

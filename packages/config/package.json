@@ -1,0 +1,29 @@
+{
+  "name": "@dapplelight/signet-config",
+  "version": "0.2.0",
+  "license": "MIT",
+  "description": "Signet's shared Biome preset and TypeScript bases.",
+  "type": "module",
+  "exports": {
+    "./biome": "./biome.json",
+    "./biome.json": "./biome.json",
+    "./tsconfig/*.json": "./tsconfig/*.json",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun run test/config.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.14",
+    "@types/bun": "^1.4.2",
+    "typescript": "^7.0.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "biome.json",
+    "tsconfig"
+  ]
+}

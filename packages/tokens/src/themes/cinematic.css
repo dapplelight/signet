@@ -1,0 +1,342 @@
+/*
+ * @dapplelight/signet-tokens — "Cinematic" theme
+ *
+ * Dark-first, cool neutrals, electric violet accent. Sharp architectural radii,
+ * a large editorial type scale, slow deliberate motion.
+ *
+ * Written as the proof that the contract works: this file changes geometry,
+ * typography and motion as well as colour, and the components need no edits.
+ * Deliberately omits the --cat-* finance taxonomy, which CONTRACT.md excludes.
+ *
+ * Usage:
+ *   @import "tailwindcss";
+ *   @import "@dapplelight/signet-tokens/cinematic.css";
+ *   @import "@dapplelight/signet-tokens/base.css";
+ */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  /* ── Light mode — paper-white, high contrast ─────────────── */
+  :root {
+    --bg-base: #ffffff;
+    --bg-surface: #f5f5f7;
+    --bg-elevated: #ebebf0;
+    --bg-overlay: rgba(10, 10, 15, 0.5);
+
+    --border-default: #d8d8e0;
+    --border-subtle: #e8e8ee;
+    --border-strong: #b8b8c4;
+
+    --accent-green: #0d9488;
+    --accent-blue: #4f46e5;
+    --accent-amber: #d97706;
+    --accent-red: #e11d48;
+    --accent-green-subtle: rgba(13, 148, 136, 0.1);
+    --accent-red-subtle: rgba(225, 29, 72, 0.1);
+    --accent-amber-subtle: rgba(217, 119, 6, 0.1);
+    --accent-blue-subtle: rgba(79, 70, 229, 0.1);
+
+    --text-primary: #0a0a0f;
+    --text-secondary: #3f3f52;
+    --text-muted: #6b6b80;
+    --text-hint: #9a9aad;
+    --text-disabled: #c4c4d0;
+    --text-inverse: #ffffff;
+
+    --background: #ffffff;
+    --foreground: #0a0a0f;
+    --card: #ffffff;
+    --card-fg: #0a0a0f;
+    --popover: #ffffff;
+    --popover-fg: #0a0a0f;
+    --primary: #6d28d9;
+    --primary-fg: #ffffff;
+    --secondary: #f5f5f7;
+    --secondary-fg: #0a0a0f;
+    --muted: #f0f0f4;
+    --muted-fg: #6b6b80;
+    --accent: #ede9fe;
+    --accent-fg: #4c1d95;
+    --destructive: #e11d48;
+    --border: #d8d8e0;
+    --input: #ffffff;
+    --ring: #6d28d9;
+
+    /* ── Optional slots (CONTRACT.md) — defaults a brand layer overrides ──
+       Repeated in the dark block so they re-resolve wherever .dark is set. */
+    --chart-1: var(--accent-blue);
+    --chart-2: var(--accent-green);
+    --chart-3: var(--accent-amber);
+    --chart-4: var(--accent-red);
+    --chart-5: var(--primary);
+    --chart-6: var(--text-muted);
+    --focus-ring: var(--ring);
+    --focus-ring-offset: var(--bg-base);
+    --accent-primary: var(--primary);
+    --accent-primary-fg: var(--primary-fg);
+    --accent-primary-subtle: color-mix(in srgb, var(--primary) 10%, transparent);
+    --accent-red-fg: var(--primary-fg);
+
+    --shadow-xs: 0 1px 2px rgba(10, 10, 15, 0.06);
+    --shadow-sm: 0 2px 4px rgba(10, 10, 15, 0.08);
+    --shadow-md: 0 6px 16px rgba(10, 10, 15, 0.1);
+    --shadow-lg: 0 12px 32px rgba(10, 10, 15, 0.14);
+    --shadow-xl: 0 24px 64px rgba(10, 10, 15, 0.2);
+  }
+
+  /* ── Dark mode — the default intent for this theme ───────── */
+  .dark,
+  [data-theme="cinematic"] {
+    --bg-base: #08080c;
+    --bg-surface: #101018;
+    --bg-elevated: #181822;
+    --bg-overlay: rgba(0, 0, 0, 0.75);
+
+    --border-default: #24242f;
+    --border-subtle: #1a1a24;
+    --border-strong: #35354a;
+
+    --accent-green: #2dd4bf;
+    --accent-blue: #818cf8;
+    --accent-amber: #fbbf24;
+    --accent-red: #fb7185;
+    --accent-green-subtle: rgba(45, 212, 191, 0.14);
+    --accent-red-subtle: rgba(251, 113, 133, 0.14);
+    --accent-amber-subtle: rgba(251, 191, 36, 0.14);
+    --accent-blue-subtle: rgba(129, 140, 248, 0.14);
+
+    --text-primary: #f4f4f8;
+    --text-secondary: #a8a8bd;
+    --text-muted: #70708a;
+    --text-hint: #4a4a60;
+    --text-disabled: #33334a;
+    --text-inverse: #08080c;
+
+    --background: #08080c;
+    --foreground: #f4f4f8;
+    --card: #101018;
+    --card-fg: #f4f4f8;
+    --popover: #181822;
+    --popover-fg: #f4f4f8;
+    --primary: #a78bfa;
+    --primary-fg: #08080c;
+    --secondary: #181822;
+    --secondary-fg: #f4f4f8;
+    --muted: #16161f;
+    --muted-fg: #a8a8bd;
+    --accent: #1e1b3a;
+    --accent-fg: #c4b5fd;
+    --destructive: #fb7185;
+    --border: #24242f;
+    --input: #181822;
+    --ring: #a78bfa;
+
+    /* ── Optional slots (CONTRACT.md) — defaults a brand layer overrides ──
+       Repeated in the dark block so they re-resolve wherever .dark is set. */
+    --chart-1: var(--accent-blue);
+    --chart-2: var(--accent-green);
+    --chart-3: var(--accent-amber);
+    --chart-4: var(--accent-red);
+    --chart-5: var(--primary);
+    --chart-6: var(--text-muted);
+    --focus-ring: var(--ring);
+    --focus-ring-offset: var(--bg-base);
+    --accent-primary: var(--primary);
+    --accent-primary-fg: var(--primary-fg);
+    --accent-primary-subtle: color-mix(in srgb, var(--primary) 14%, transparent);
+    --accent-red-fg: var(--primary-fg);
+
+    /* Glow rather than drop shadow — light sources, not paper */
+    --shadow-xs: 0 0 0 1px rgba(167, 139, 250, 0.06);
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.5);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(167, 139, 250, 0.05);
+    --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.7), 0 0 32px rgba(167, 139, 250, 0.08);
+    --shadow-xl: 0 32px 80px rgba(0, 0, 0, 0.8), 0 0 64px rgba(167, 139, 250, 0.12);
+  }
+}
+
+@theme inline {
+  /* ── Raw palette ───────────────────────────────────────── */
+  --color-ink-50: #f4f4f8;
+  --color-ink-100: #e8e8ee;
+  --color-ink-200: #c4c4d0;
+  --color-ink-300: #9a9aad;
+  --color-ink-400: #70708a;
+  --color-ink-500: #4a4a60;
+  --color-ink-600: #35354a;
+  --color-ink-700: #24242f;
+  --color-ink-800: #181822;
+  --color-ink-900: #101018;
+  --color-ink-950: #08080c;
+
+  /* No stock-scale overrides (violet, red …): the accent hexes are named
+     directly in the semantic tokens above, so an app's bg-violet-500 stays
+     Tailwind's violet. */
+
+  /* ── Semantic colors ─────────────────────────────────── */
+  --color-bg-base: var(--bg-base);
+  --color-bg-surface: var(--bg-surface);
+  --color-bg-elevated: var(--bg-elevated);
+
+  --color-border-default: var(--border-default);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+
+  --color-accent-green: var(--accent-green);
+  --color-accent-blue: var(--accent-blue);
+  --color-accent-amber: var(--accent-amber);
+  --color-accent-red: var(--accent-red);
+  --color-accent-green-subtle: var(--accent-green-subtle);
+  --color-accent-red-subtle: var(--accent-red-subtle);
+  --color-accent-amber-subtle: var(--accent-amber-subtle);
+  --color-accent-blue-subtle: var(--accent-blue-subtle);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-hint: var(--text-hint);
+  --color-text-disabled: var(--text-disabled);
+  --color-text-inverse: var(--text-inverse);
+
+  /* ShadCN bridge */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-fg);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-fg);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-fg);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-fg);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-fg);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-fg);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* ── Optional slots (CONTRACT.md) ────────────────────── */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-focus-ring: var(--focus-ring);
+  --color-focus-ring-offset: var(--focus-ring-offset);
+  --color-accent-primary: var(--accent-primary);
+  --color-accent-primary-fg: var(--accent-primary-fg);
+  --color-accent-primary-subtle: var(--accent-primary-subtle);
+  --color-accent-red-fg: var(--accent-red-fg);
+
+  /* ── Typography — 16px base, not 13px. Editorial scale. ──
+     This is the change that reshapes every component: the
+     components say text-sm / text-base, and those resolve here. */
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-display: "Playfair Display", Georgia, "Times New Roman", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* ── Tailwind's default size scale, remapped ─────────
+     The components use text-sm x31, text-xs x9, text-base x4.
+     These are the names that must move for type to reshape;
+     the semantic names above are for app-level use.         */
+  --text-xs: 0.875rem; /* 14px — was 12px in editorial */
+  --text-sm: 1rem; /* 16px — was 13px */
+  --text-base: 1.125rem; /* 18px — was 14px */
+  --text-lg: 1.375rem; /* 22px — was 16px */
+  --text-xl: 1.75rem; /* 28px — was 18px */
+
+  --radius-4xl: 0.5rem; /* sharp, matching this theme */
+
+  --text-label: 0.8125rem; /* 13px — was 11px */
+  --text-caption: 0.875rem; /* 14px — was 12px */
+  --text-body: 1rem; /* 16px — was 13px */
+  --text-callout: 1.125rem; /* 18px — was 14px */
+  --text-subhead: 1.375rem; /* 22px — was 16px */
+  --text-title: 1.75rem; /* 28px — was 18px */
+  --text-headline: 2.25rem; /* 36px — was 22px */
+  --text-stat: 3rem; /* 48px — was 28px */
+  --text-display: 4rem; /* 64px — was 36px */
+  --text-hero: 6rem; /* 96px — was 48px */
+
+  /* Lighter weights — large type needs less weight to read as bold */
+  --font-weight-normal: 300;
+  --font-weight-medium: 400;
+  --font-weight-semibold: 500;
+  --font-weight-bold: 600;
+
+  --leading-tight: 1.05;
+  --leading-snug: 1.2;
+  --leading-normal: 1.6;
+  --leading-relaxed: 1.8;
+  --leading-display: 1; /* optional slot — serif display sets solid */
+
+  --tracking-tighter: -0.04em;
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0em;
+  --tracking-wide: 0.04em;
+  --tracking-wider: 0.08em;
+  --tracking-widest: 0.2em;
+
+  /* Base spacing unit. Every h-*, px-*, gap-*, size-* in the components is
+     calc(var(--spacing) * n) at runtime, so this one value retunes the
+     density of all 207 of them at once. Editorial is 0.25rem. */
+  --spacing: 0.3rem;
+
+  /* ── Spacing — wider, more cinematic gutters ─────────── */
+  --space-sidebar: 280px;
+  --space-sidebar-sm: 64px;
+  --space-header: 72px;
+  --space-panel: 380px;
+  --space-content-max: 1440px;
+  --space-gutter: 2.5rem;
+  --space-section: 5rem;
+  --space-card-gap: 1.5rem;
+  --space-card-padding: 2rem;
+
+  /* ── Radius — SHARP. Architectural, not soft. ──────────
+     Editorial is 12px everywhere; this is 2px. Same class
+     names, completely different silhouette.                */
+  --radius: 0.125rem; /* 2px  — was 12px */
+  --radius-sm: 0.0625rem; /* 1px  — was 6px  */
+  --radius-md: 0.125rem; /* 2px  — was 10px */
+  --radius-lg: 0.1875rem; /* 3px  — was 12px */
+  --radius-xl: 0.25rem; /* 4px  — was 16px */
+  --radius-2xl: 0.375rem; /* 6px  — was 20px */
+  --radius-full: 9999px;
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+
+  --z-base: 0;
+  --z-raised: 10;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
+
+  /* ── Transitions — slow and deliberate, not snappy ───── */
+  --duration-instant: 0ms;
+  --duration-fast: 200ms; /* was 100ms */
+  --duration-base: 350ms; /* was 150ms */
+  --duration-slow: 600ms; /* was 250ms */
+  --duration-slower: 900ms; /* was 400ms */
+
+  --ease-default: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.55, 0, 1, 0.45);
+  --ease-out: cubic-bezier(0, 0.55, 0.45, 1);
+  --ease-spring: cubic-bezier(0.34, 1.8, 0.64, 1);
+
+  --transition-fast: var(--duration-fast) var(--ease-default);
+  --transition-base: var(--duration-base) var(--ease-default);
+  --transition-slow: var(--duration-slow) var(--ease-default);
+}

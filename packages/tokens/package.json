@@ -1,0 +1,29 @@
+{
+  "name": "@dapplelight/signet-tokens",
+  "version": "0.2.0",
+  "license": "MIT",
+  "description": "Signet design tokens. One theme file per design system; all themes satisfy CONTRACT.md.",
+  "type": "module",
+  "exports": {
+    "./base.css": "./dist/base.css",
+    "./editorial.css": "./dist/themes/editorial.css",
+    "./cinematic.css": "./dist/themes/cinematic.css",
+    "./finance.css": "./dist/themes/finance.css"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "test": "bun run test/themes.ts",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "build": "rm -rf dist && mkdir -p dist && cp -R src/* dist/",
+    "prepublishOnly": "bun run build"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "typescript": "^7.0.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

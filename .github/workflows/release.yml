@@ -1,0 +1,61 @@
+# Publishes every package whose version is not on npm yet, via npm Trusted
+# Publishing: no npm token, no login, no 2FA prompt. Each package must list
+# this repo + this workflow as a trusted publisher on npmjs.com (Settings ->
+# Trusted Publisher -> GitHub Actions: dapplelight/signet, release.yml).
+#
+# Release: bump a version in packages/*/package.json and push to main — that
+# alone publishes it. A release-* tag or a manual run from the Actions tab
+# also works.
+name: release
+
+on:
+  push:
+    tags: ["release-*"]
+    # A version bump on main is a release: the script publishes only versions
+    # npm does not have, so a push that bumps nothing publishes nothing.
+    branches: [main]
+    paths: ["packages/*/package.json"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # the OIDC token npm exchanges for a short-lived publish credential
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      # Trusted Publishing needs npm >= 11.5.1.
+      - run: npm install -g npm@latest
+
+      - uses: oven-sh/setup-bun@v2
+
+      - run: bun install --frozen-lockfile
+
+      # The checks CLAUDE.md requires, before anything leaves. The scaffolder's
+      # end-to-end tests (full installs + wrangler dev) stay local.
+      - run: bun run lint
+      # Packages import each other through their published `exports`, which
+      # point at dist/ — ai's tests load @dapplelight/signet-lib/api from there.
+      # Locally dist/ lingers from earlier builds; a fresh checkout has none.
+      - run: bun run build:all
+      - name: test + typecheck
+        run: |
+          for p in config tokens lib ui server ai; do
+            (cd packages/$p && bun run test && bun run typecheck)
+          done
+
+      # Skips versions already on npm, runs verify-publish, publishes in
+      # dependency order, then checks the tarballs are fetchable.
+      - run: bun run release

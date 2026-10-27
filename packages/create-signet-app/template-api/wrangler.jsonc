@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "__APP_NAME__",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-09-19",
+  "vars": { "APP_ENV": "development" },
+  "durable_objects": {
+    "bindings": [{ "name": "RATE_LIMIT", "class_name": "RateLimitCounter" }]
+  },
+  // Migration tags are this Worker's history: append new tags, never edit one
+  // that has been deployed.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RateLimitCounter"] }]
+}

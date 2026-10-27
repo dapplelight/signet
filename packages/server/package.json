@@ -1,0 +1,189 @@
+{
+  "name": "@dapplelight/signet-server",
+  "version": "0.3.0",
+  "license": "MIT",
+  "description": "Signet backend primitives. Auth first.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./auth": {
+      "types": "./dist/auth/index.d.ts",
+      "import": "./dist/auth/index.js"
+    },
+    "./auth/session": {
+      "types": "./dist/auth/session.d.ts",
+      "import": "./dist/auth/session.js"
+    },
+    "./auth/passcode": {
+      "types": "./dist/auth/passcode.d.ts",
+      "import": "./dist/auth/passcode.js"
+    },
+    "./auth/bearer": {
+      "types": "./dist/auth/bearer.d.ts",
+      "import": "./dist/auth/bearer.js"
+    },
+    "./auth/guards": {
+      "types": "./dist/auth/guards.d.ts",
+      "import": "./dist/auth/guards.js"
+    },
+    "./auth/better-auth": {
+      "types": "./dist/auth/better-auth.d.ts",
+      "import": "./dist/auth/better-auth.js"
+    },
+    "./auth/hono": {
+      "types": "./dist/auth/hono.d.ts",
+      "import": "./dist/auth/hono.js"
+    },
+    "./http": {
+      "types": "./dist/http/index.d.ts",
+      "import": "./dist/http/index.js"
+    },
+    "./http/errors": {
+      "types": "./dist/http/errors.d.ts",
+      "import": "./dist/http/errors.js"
+    },
+    "./http/validate": {
+      "types": "./dist/http/validate.d.ts",
+      "import": "./dist/http/validate.js"
+    },
+    "./env": {
+      "types": "./dist/env/index.d.ts",
+      "import": "./dist/env/index.js"
+    },
+    "./env/runtime": {
+      "types": "./dist/env/runtime.d.ts",
+      "import": "./dist/env/runtime.js"
+    },
+    "./env/schema": {
+      "types": "./dist/env/schema.d.ts",
+      "import": "./dist/env/schema.js"
+    },
+    "./middleware": {
+      "types": "./dist/middleware/index.d.ts",
+      "import": "./dist/middleware/index.js"
+    },
+    "./middleware/cors": {
+      "types": "./dist/middleware/cors.d.ts",
+      "import": "./dist/middleware/cors.js"
+    },
+    "./middleware/rate-limit": {
+      "types": "./dist/middleware/rate-limit.d.ts",
+      "import": "./dist/middleware/rate-limit.js"
+    },
+    "./middleware/rate-limit-do": {
+      "types": "./dist/middleware/rate-limit-do.d.ts",
+      "import": "./dist/middleware/rate-limit-do.js"
+    },
+    "./middleware/request-id": {
+      "types": "./dist/middleware/request-id.d.ts",
+      "import": "./dist/middleware/request-id.js"
+    },
+    "./middleware/secure-headers": {
+      "types": "./dist/middleware/secure-headers.d.ts",
+      "import": "./dist/middleware/secure-headers.js"
+    },
+    "./observability/sentry": {
+      "types": "./dist/observability/sentry.d.ts",
+      "import": "./dist/observability/sentry.js"
+    },
+    "./observability/logger": {
+      "types": "./dist/observability/logger.d.ts",
+      "import": "./dist/observability/logger.js"
+    },
+    "./notify": {
+      "types": "./dist/notify/index.d.ts",
+      "import": "./dist/notify/index.js"
+    },
+    "./notify/email": {
+      "types": "./dist/notify/email.d.ts",
+      "import": "./dist/notify/email.js"
+    },
+    "./notify/telegram": {
+      "types": "./dist/notify/telegram.d.ts",
+      "import": "./dist/notify/telegram.js"
+    },
+    "./notify/push": {
+      "types": "./dist/notify/push.d.ts",
+      "import": "./dist/notify/push.js"
+    },
+    "./analytics": {
+      "types": "./dist/analytics/index.d.ts",
+      "import": "./dist/analytics/index.js"
+    },
+    "./analytics/engine": {
+      "types": "./dist/analytics/engine.d.ts",
+      "import": "./dist/analytics/engine.js"
+    },
+    "./analytics/ingest": {
+      "types": "./dist/analytics/ingest.d.ts",
+      "import": "./dist/analytics/ingest.js"
+    },
+    "./oauth-rs": {
+      "types": "./dist/oauth-rs/index.d.ts",
+      "import": "./dist/oauth-rs/index.js"
+    },
+    "./oauth-rs/verify": {
+      "types": "./dist/oauth-rs/verify.d.ts",
+      "import": "./dist/oauth-rs/verify.js"
+    },
+    "./oauth-rs/metadata": {
+      "types": "./dist/oauth-rs/metadata.d.ts",
+      "import": "./dist/oauth-rs/metadata.js"
+    },
+    "./oauth-rs/jwks": {
+      "types": "./dist/oauth-rs/jwks.d.ts",
+      "import": "./dist/oauth-rs/jwks.js"
+    },
+    "./oauth-rs/hono": {
+      "types": "./dist/oauth-rs/hono.d.ts",
+      "import": "./dist/oauth-rs/hono.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp/index.d.ts",
+      "import": "./dist/mcp/index.js"
+    },
+    "./mcp/hono": {
+      "types": "./dist/mcp/hono.d.ts",
+      "import": "./dist/mcp/hono.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "bun run test/smoke.ts && bun run test/env-middleware.ts && bun run test/notify.ts && bun run test/analytics.ts && bun run test/oauth-rs.ts && bun run test/rate-limit.ts && bun run test/doctor.ts && bun run test/mcp.ts && bun run test/mcp-primitives.ts && bun run test/mcp-interaction.ts && bun run test/logger.ts",
+    "build": "tsc -p tsconfig.build.json && chmod +x dist/doctor/cli.js",
+    "prepublishOnly": "bun run build"
+  },
+  "peerDependencies": {
+    "@modelcontextprotocol/server": "^2.1.0",
+    "hono": ">=4.0.0",
+    "zod": ">=4.2.0"
+  },
+  "peerDependenciesMeta": {
+    "@modelcontextprotocol/server": {
+      "optional": true
+    },
+    "hono": {
+      "optional": true
+    },
+    "zod": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.1.0",
+    "@modelcontextprotocol/server": "^2.1.0",
+    "@types/node": "^26.6.2",
+    "hono": "^4.13.8",
+    "typescript": "^7.0.2",
+    "zod": "^4.6.5"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist"
+  ],
+  "bin": {
+    "signet-doctor": "./dist/doctor/cli.js"
+  }
+}

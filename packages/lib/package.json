@@ -1,0 +1,65 @@
+{
+  "name": "@dapplelight/signet-lib",
+  "version": "0.2.0",
+  "license": "MIT",
+  "description": "Signet client primitives. API client and the wire contract.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./api": {
+      "types": "./dist/api/index.d.ts",
+      "import": "./dist/api/index.js"
+    },
+    "./api/query-client": {
+      "types": "./dist/api/query-client.d.ts",
+      "import": "./dist/api/query-client.js"
+    },
+    "./format": {
+      "types": "./dist/format/index.d.ts",
+      "import": "./dist/format/index.js"
+    },
+    "./analytics": {
+      "types": "./dist/analytics/index.d.ts",
+      "import": "./dist/analytics/index.js"
+    },
+    "./crypto": {
+      "types": "./dist/crypto/index.d.ts",
+      "import": "./dist/crypto/index.js"
+    },
+    "./form": {
+      "types": "./dist/form/index.d.ts",
+      "import": "./dist/form/index.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "bun run test/smoke.ts && bun run test/format.ts && bun run test/date.ts && bun run test/date-only.ts America/Los_Angeles && bun run test/date-only.ts Asia/Kolkata && bun run test/analytics.ts && bun run test/form.ts && bun run test/copy.ts && bun run test/crypto.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "bun run build"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": ">=5.0.0",
+    "@tanstack/react-form": ">=1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@tanstack/react-query": {
+      "optional": true
+    },
+    "@tanstack/react-form": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@tanstack/react-form": "^1.33.5",
+    "@tanstack/react-query": "^5.103.2",
+    "@types/node": "^26.6.2",
+    "typescript": "^7.0.2",
+    "zod": "^4.6.5"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist"
+  ]
+}
