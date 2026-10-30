@@ -1,0 +1,4 @@
+---
+// No landing page: the docs are the site.
+return Astro.redirect(`${import.meta.env.BASE_URL.replace(/\/?$/, "/")}docs/`)
+---

@@ -11,7 +11,7 @@
     "cloudflare-workers",
     "oauth"
   ],
-  "homepage": "https://dapplelight.github.io/signet/",
+  "homepage": "https://signet.dapplelight.in/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dapplelight/signet.git",

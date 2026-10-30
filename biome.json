@@ -7,6 +7,7 @@
       "**",
       "!**/dist",
       "!apps",
+      "!site",
       "!packages/create-signet-app/template",
       "!packages/create-signet-app/template-api",
       "!.claude"

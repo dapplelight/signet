@@ -7,7 +7,7 @@
 Swap the theme file and every component changes; no component is edited.
 
 Part of [Signet](https://github.com/dapplelight/signet). Docs:
-https://dapplelight.github.io/signet/
+https://signet.dapplelight.in/
 
 ## Install
 

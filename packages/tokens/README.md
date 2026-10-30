@@ -6,7 +6,7 @@ Themes for [Signet](https://github.com/dapplelight/signet) as plain CSS
 variables: colour, radius, type, shadow and motion. A theme is one CSS file
 that defines the variables in the
 [theme contract](https://github.com/dapplelight/signet/blob/main/packages/tokens/CONTRACT.md).
-Docs: https://dapplelight.github.io/signet/
+Docs: https://signet.dapplelight.in/
 
 ## Themes
 
