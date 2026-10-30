@@ -117,7 +117,7 @@ const ai = createExtractor({ providers: [fakeProvider({ ok: true })] })
 const r = await ai.extract({ schema: z.object({ ok: z.boolean() }), input: "x", instructions: "y" })
 if (r.value.ok !== true) throw new Error("extract failed")
 if (createCompactCurrencyFormatter("INR","en-IN")(1200000) !== "₹12L") throw new Error("format failed")
-const o = { cookieName: "c", secret: "s".repeat(20) }
+const o = { cookieName: "c", secret: "s".repeat(32) }
 if ((await verifySession(await issueSession(o, "u1"), o))?.sub !== "u1") throw new Error("session failed")
 if (typeof ApiError !== "function" || typeof createApiClient !== "function") throw new Error("api failed")
 if (typeof createTokenVerifier !== "function" || typeof requireToken !== "function") throw new Error("oauth-rs failed")
