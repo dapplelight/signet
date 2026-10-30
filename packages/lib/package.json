@@ -1,8 +1,24 @@
 {
   "name": "@dapplelight/signet-lib",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "license": "MIT",
   "description": "Signet client primitives. API client and the wire contract.",
+  "keywords": [
+    "signet",
+    "api-client",
+    "fetch",
+    "format",
+    "react-query"
+  ],
+  "homepage": "https://dapplelight.github.io/signet/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dapplelight/signet.git",
+    "directory": "packages/lib"
+  },
+  "bugs": {
+    "url": "https://github.com/dapplelight/signet/issues"
+  },
   "type": "module",
   "sideEffects": false,
   "exports": {

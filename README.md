@@ -34,14 +34,9 @@ shadcn/ui directly.
 
 Needs [Bun](https://bun.sh) 1.3 or later.
 
-The scaffolder is not on npm yet, so run it from a clone. The app it creates
-installs the published `@dapplelight/*` packages and has no tie to the clone.
-
 ```bash
-git clone https://github.com/dapplelight/signet.git
-cd signet && bun install
-bun run packages/create-signet-app/src/index.ts ../my-app --theme cinematic
-cd ../my-app && bun install && bun dev
+bunx create-signet-app my-app --theme cinematic
+cd my-app && bun install && bun dev
 ```
 
 `--theme` is `editorial` (default) or `cinematic`; `--template api` scaffolds a

@@ -1,8 +1,24 @@
 {
   "name": "@dapplelight/signet-ui",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "license": "MIT",
-  "description": "Signet component kit \u2014 token-driven React primitives.",
+  "description": "Signet component kit — token-driven React primitives.",
+  "keywords": [
+    "signet",
+    "react",
+    "components",
+    "shadcn",
+    "tailwind"
+  ],
+  "homepage": "https://dapplelight.github.io/signet/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dapplelight/signet.git",
+    "directory": "packages/ui"
+  },
+  "bugs": {
+    "url": "https://github.com/dapplelight/signet/issues"
+  },
   "type": "module",
   "sideEffects": false,
   "exports": {

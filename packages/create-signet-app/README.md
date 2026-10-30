@@ -4,8 +4,8 @@ Scaffold a Vite + React 19 + TypeScript + Tailwind v4 app wired to
 `@dapplelight/signet-tokens`, `@dapplelight/signet-ui` and `@dapplelight/signet-lib`.
 
 ```bash
-bun run packages/create-signet-app/src/index.ts apps/my-app --theme cinematic
-cd apps/my-app && bun install && bun dev
+bunx create-signet-app my-app --theme cinematic
+cd my-app && bun install && bun dev
 ```
 
 `--theme` takes `editorial` or `cinematic` (default `editorial`).

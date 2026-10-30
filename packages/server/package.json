@@ -1,8 +1,25 @@
 {
   "name": "@dapplelight/signet-server",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "license": "MIT",
   "description": "Signet backend primitives. Auth first.",
+  "keywords": [
+    "signet",
+    "hono",
+    "auth",
+    "middleware",
+    "cloudflare-workers",
+    "oauth"
+  ],
+  "homepage": "https://dapplelight.github.io/signet/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dapplelight/signet.git",
+    "directory": "packages/server"
+  },
+  "bugs": {
+    "url": "https://github.com/dapplelight/signet/issues"
+  },
   "type": "module",
   "sideEffects": false,
   "exports": {

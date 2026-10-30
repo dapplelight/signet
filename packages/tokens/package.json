@@ -1,8 +1,24 @@
 {
   "name": "@dapplelight/signet-tokens",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "license": "MIT",
   "description": "Signet design tokens. One theme file per design system; all themes satisfy CONTRACT.md.",
+  "keywords": [
+    "signet",
+    "design-tokens",
+    "tailwind",
+    "theme",
+    "css-variables"
+  ],
+  "homepage": "https://dapplelight.github.io/signet/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dapplelight/signet.git",
+    "directory": "packages/tokens"
+  },
+  "bugs": {
+    "url": "https://github.com/dapplelight/signet/issues"
+  },
   "type": "module",
   "exports": {
     "./base.css": "./dist/base.css",
