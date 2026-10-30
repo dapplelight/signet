@@ -3,7 +3,7 @@
  * what they each got right, minus what they got wrong.
  *
  * Fixes carried from the audit:
- *   - ipl-fantasy-ui skipped `res.ok` on 5 of 9 endpoints, so a 500 HTML page
+ *   - app-d skipped `res.ok` on 5 of 9 endpoints, so a 500 HTML page
  *     reached `res.json()`. Every response is checked here.
  *   - app-a spread caller options AFTER computed headers, so passing any custom
  *     header silently dropped Content-Type. Headers are merged last here.
@@ -20,8 +20,27 @@ export type ApiClientOptions = {
   credentials?: RequestCredentials
   /** Headers added to every request — a bearer token, a locale. */
   headers?: () => Record<string, string> | Promise<Record<string, string>>
-  /** Called once on any 401, before AuthError is thrown. */
-  onAuthError?: () => void
+  /**
+   * Called once on any 401, before AuthError is thrown. Gets the error, whose
+   * message and code come from the server's envelope, so a wrong passcode on a
+   * login form can be told apart from an expired session.
+   */
+  onAuthError?: (error: AuthError) => void
+}
+
+/** Merge header sources (plain objects, Headers, or [name, value] pairs); later wins. */
+function mergeHeaders(...sources: (HeadersInit | undefined)[]): Headers {
+  const out = new Headers()
+  for (const src of sources) for (const [k, v] of new Headers(src ?? {})) out.set(k, v)
+  return out
+}
+
+const isJson = (contentType: string | null) => !!contentType && /[/+]json\b/i.test(contentType)
+
+/** AuthError from a 401, keeping the envelope's message and code when there is one. */
+async function toAuthError(res: Response): Promise<AuthError> {
+  const err = await toApiError(res)
+  return new AuthError(err.code || err.body ? err.message : undefined, err.code, err.body)
 }
 
 export type QueryValue = string | number | boolean | null | undefined
@@ -52,11 +71,12 @@ export function createApiClient(opts: ApiClientOptions = {}) {
     const res = await fetch(`${baseUrl}${path}`, {
       credentials: opts.credentials ?? "include",
       ...init,
-      headers: { ...extra, ...(init.headers as Record<string, string> | undefined) },
+      headers: mergeHeaders(extra, init.headers),
     })
     if (res.status === 401) {
-      opts.onAuthError?.()
-      throw new AuthError()
+      const err = await toAuthError(res)
+      opts.onAuthError?.(err)
+      throw err
     }
     return res
   }
@@ -69,26 +89,34 @@ export function createApiClient(opts: ApiClientOptions = {}) {
       // Merged last so caller headers extend the defaults instead of replacing
       // them. FormData deliberately sends no Content-Type — the browser must
       // set it with the multipart boundary.
-      headers: {
-        ...(isForm ? {} : { "Content-Type": "application/json" }),
-        ...extra,
-        ...(init.headers as Record<string, string> | undefined),
-      },
+      headers: mergeHeaders(
+        isForm ? {} : { "Content-Type": "application/json" },
+        extra,
+        init.headers,
+      ),
     })
 
     if (res.status === 401) {
-      opts.onAuthError?.()
-      throw new AuthError()
+      const err = await toAuthError(res)
+      opts.onAuthError?.(err)
+      throw err
     }
 
     if (!res.ok) throw await toApiError(res)
 
-    // 204, or any non-JSON body. Callers type these as void.
+    // 204 or an empty body: callers type these as void. A non-empty body that
+    // is not JSON (a proxy's HTML page served with 200) is an error, not
+    // `undefined` dressed up as T. Use raw() for PDFs and other binaries.
     if (res.status === 204) return undefined as T
-    if (!res.headers.get("content-type")?.includes("application/json")) {
-      return undefined as T
+    const text = await res.text()
+    if (!text) return undefined as T
+    if (!isJson(res.headers.get("content-type"))) {
+      throw new ApiError(
+        `Expected JSON, got ${res.headers.get("content-type") ?? "no content type"}`,
+        res.status,
+      )
     }
-    return (await res.json()) as T
+    return JSON.parse(text) as T
   }
 
   return {

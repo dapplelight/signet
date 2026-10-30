@@ -119,6 +119,22 @@ ok(
   "relaxed CSP on docs path",
   (await sh.request("/docs")).headers.get("Content-Security-Policy")?.includes("jsdelivr") === true,
 )
+ok(
+  "relaxed CSP covers sub-paths",
+  (await sh.request("/docs/index.html")).headers
+    .get("Content-Security-Policy")
+    ?.includes("jsdelivr") === true,
+)
+ok(
+  "relaxed CSP is not a bare prefix",
+  (await sh.request("/docsx")).headers.get("Content-Security-Policy")?.includes("jsdelivr") ===
+    false,
+)
+ok(
+  "COOP and CORP set",
+  (await sh.request("/docs")).headers.get("Cross-Origin-Opener-Policy") === "same-origin" &&
+    (await sh.request("/docs")).headers.get("Cross-Origin-Resource-Policy") === "same-site",
+)
 const noHsts = new Hono().use("*", secureHeaders({ hstsMaxAge: 0 })).get("/", (c) => c.text("x"))
 ok(
   "hstsMaxAge 0 omits HSTS",
@@ -153,12 +169,17 @@ ok(
   "does NOT reflect an unknown origin",
   evil.headers.get("Access-Control-Allow-Origin") !== "https://evil.com",
 )
-ok(
-  "dev origin allowed by default",
+const devOrigin = async () =>
   (await corsApp.request("/", { headers: { origin: "http://localhost:5173" } })).headers.get(
     "Access-Control-Allow-Origin",
-  ) === "http://localhost:5173",
-)
+  )
+ok("dev origin denied when APP_ENV is unset", (await devOrigin()) !== "http://localhost:5173")
+resetRuntimeEnv()
+initRuntimeEnv({ WEB_URL: "https://app.example.com", APP_ENV: "production" })
+ok("dev origin denied in production", (await devOrigin()) !== "http://localhost:5173")
+resetRuntimeEnv()
+initRuntimeEnv({ WEB_URL: "https://app.example.com", APP_ENV: "local" })
+ok("dev origin allowed when APP_ENV=local", (await devOrigin()) === "http://localhost:5173")
 resetRuntimeEnv()
 
 console.log(`\n${pass} passed, ${fail} failed`)

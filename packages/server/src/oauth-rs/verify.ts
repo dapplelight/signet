@@ -9,7 +9,13 @@
  * than optional.
  */
 
-import { createJwksCache, type JwksCache, SUPPORTED_ALGS, type SupportedAlg } from "./jwks.js"
+import {
+  algParams,
+  createJwksCache,
+  type JwksCache,
+  SUPPORTED_ALGS,
+  type SupportedAlg,
+} from "./jwks.js"
 
 export type Claims = {
   iss: string
@@ -41,6 +47,12 @@ export type VerifierOptions = {
   clockSkewSeconds?: number
   /** Restrict further if you know the issuer's algorithm. */
   allowedAlgs?: readonly SupportedAlg[]
+  /**
+   * Require the RFC 9068 access-token type (`typ: at+jwt`). Default false,
+   * since many issuers still send `JWT`; turn it on when yours sends at+jwt, so
+   * an ID token from the same issuer cannot be replayed as an access token.
+   */
+  requireAtJwt?: boolean
   jwks?: JwksCache
   now?: () => number
 }
@@ -66,6 +78,14 @@ const b64urlToBytes = (s: string): Uint8Array => {
 }
 
 const decodeJson = (s: string): unknown => JSON.parse(new TextDecoder().decode(b64urlToBytes(s)))
+
+function keyMatchesAlg(key: CryptoKey, alg: string): boolean {
+  const params = algParams(alg)
+  if (!params) return false
+  const a = key.algorithm as { name: string; hash?: { name: string }; namedCurve?: string }
+  if (a.name !== params.name) return false
+  return params.namedCurve ? a.namedCurve === params.namedCurve : a.hash?.name === params.hash
+}
 
 /** Normalise scopes from `scope` (string) or `scp` (string or array). */
 export function scopesOf(claims: Claims): string[] {
@@ -104,11 +124,28 @@ export function createTokenVerifier(options: VerifierOptions) {
         throw new TokenError(`Unsupported algorithm: ${alg || "missing"}`)
       }
 
-      const key = await jwks.get(header.kid)
+      if (options.requireAtJwt && !/^(application\/)?at\+jwt$/i.test(header.typ ?? "")) {
+        throw new TokenError("Not an access token (typ is not at+jwt)")
+      }
+
+      let key: CryptoKey | null
+      try {
+        key = await jwks.get(header.kid)
+      } catch {
+        throw new TokenError("Signing keys unavailable")
+      }
       if (!key) throw new TokenError("No matching signing key")
+      // The header's alg must match the key it selected: an ES256 header must
+      // not be checked against a P-384 key, nor RS512 against an RS256 key.
+      if (!keyMatchesAlg(key, alg)) throw new TokenError("Algorithm does not match the signing key")
 
       const data = new TextEncoder().encode(`${headerB64}.${payloadB64}`)
-      const sig = b64urlToBytes(sigB64)
+      let sig: Uint8Array
+      try {
+        sig = b64urlToBytes(sigB64)
+      } catch {
+        throw new TokenError("Malformed token")
+      }
       const params = alg.startsWith("ES")
         ? { name: "ECDSA", hash: alg === "ES384" ? "SHA-384" : "SHA-256" }
         : { name: "RSASSA-PKCS1-v1_5" }

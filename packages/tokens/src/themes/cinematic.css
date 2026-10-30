@@ -28,9 +28,9 @@
     --border-subtle: #e8e8ee;
     --border-strong: #b8b8c4;
 
-    --accent-green: #0d9488;
+    --accent-green: #0c847a;
     --accent-blue: #4f46e5;
-    --accent-amber: #d97706;
+    --accent-amber: #b16105;
     --accent-red: #e11d48;
     --accent-green-subtle: rgba(13, 148, 136, 0.1);
     --accent-red-subtle: rgba(225, 29, 72, 0.1);
@@ -40,7 +40,7 @@
     --text-primary: #0a0a0f;
     --text-secondary: #3f3f52;
     --text-muted: #6b6b80;
-    --text-hint: #9a9aad;
+    --text-hint: #747483;
     --text-disabled: #c4c4d0;
     --text-inverse: #ffffff;
 
@@ -60,7 +60,7 @@
     --accent-fg: #4c1d95;
     --destructive: #e11d48;
     --border: #d8d8e0;
-    --input: #ffffff;
+    --input: var(--border);
     --ring: #6d28d9;
 
     /* ── Optional slots (CONTRACT.md) — defaults a brand layer overrides ──
@@ -108,8 +108,8 @@
 
     --text-primary: #f4f4f8;
     --text-secondary: #a8a8bd;
-    --text-muted: #70708a;
-    --text-hint: #4a4a60;
+    --text-muted: #7b7b93;
+    --text-hint: #787889;
     --text-disabled: #33334a;
     --text-inverse: #08080c;
 
@@ -129,7 +129,7 @@
     --accent-fg: #c4b5fd;
     --destructive: #fb7185;
     --border: #24242f;
-    --input: #181822;
+    --input: #272730;
     --ring: #a78bfa;
 
     /* ── Optional slots (CONTRACT.md) — defaults a brand layer overrides ──

@@ -32,7 +32,7 @@ be public, and two things were found and fixed:
 
 - **Doc comments named private repos and their bugs.** Source comments carry the
   engineering history (`app-c compared signatures with !==`,
-  `ipl-fantasy-ui skipped res.ok on 5 of 9 endpoints`). Valuable in the repo,
+  `app-d skipped res.ok on 5 of 9 endpoints`). Valuable in the repo,
   not something to publish about live private projects. `removeComments` is now
   set in every build config: comments stay in source, never ship.
 - **`appA.css` was renamed `finance.css`** and its header genericised. The
@@ -45,7 +45,7 @@ release. The check is cheap and it has already caught a real leak.
 ## Release
 
 ```bash
-cd signet
+cd ~/projects/signet
 bun run release --dry-run      # pack everything, publish nothing
 bun run release                # verify, then publish in dependency order
 bun run release --otp 123456   # skip the interactive 2FA prompt

@@ -13,7 +13,7 @@ duplication:
 | app-j | 123 | own conventions |
 | app-c | 88 | handled non-JSON and 204 correctly; errors untyped (`Error` with `.status` bolted on) |
 | app-a | 59 | typed `ApiError`/`AuthError`, considered retry policy — **but custom headers silently dropped Content-Type** |
-| ipl-fantasy-ui | 49 | **no `res.ok` check on 5 of 9 endpoints** — a 500 HTML page reached `res.json()` |
+| app-d | 49 | **no `res.ok` check on 5 of 9 endpoints** — a 500 HTML page reached `res.json()` |
 | dhairya11 | 23 | minimal |
 | app-b | 2 | stub |
 

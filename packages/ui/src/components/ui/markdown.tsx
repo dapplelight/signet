@@ -68,7 +68,7 @@ const parser = unified().use(remarkParse).use(remarkGfm)
 /** The headings of a Markdown document, for a table of contents. */
 export function markdownToc(
   markdown: string,
-  { maxDepth = 3, idPrefix = "" }: { maxDepth?: number; idPrefix?: string } = {},
+  { maxDepth = 3, idPrefix = DEFAULT_ID_PREFIX }: { maxDepth?: number; idPrefix?: string } = {},
 ): TocEntry[] {
   const entries: TocEntry[] = []
   eachHeading(parser.parse(markdown) as Root, idPrefix, (h, id, text) => {
@@ -77,6 +77,8 @@ export function markdownToc(
   return entries
 }
 
+export const DEFAULT_ID_PREFIX = "user-content-"
+
 const isExternal = (href: string) => /^https?:\/\//i.test(href)
 
 export type MarkdownProps = {
@@ -84,7 +86,8 @@ export type MarkdownProps = {
   className?: string
   /**
    * Prefix for heading ids, when more than one document is on the page (the
-   * same prefix goes to MarkdownToc). Default none.
+   * same prefix goes to MarkdownToc). Default "user-content-", as on GitHub: an
+   * unprefixed id from untrusted text ("body", "location") can clobber DOM globals.
    */
   idPrefix?: string
   /**
@@ -139,7 +142,7 @@ function heading(depth: 1 | 2 | 3 | 4 | 5 | 6, anchors: boolean): Components["h1
 export function Markdown({
   children,
   className,
-  idPrefix = "",
+  idPrefix = DEFAULT_ID_PREFIX,
   images = false,
   headingAnchors = true,
 }: MarkdownProps) {

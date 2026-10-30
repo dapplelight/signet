@@ -149,7 +149,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "bun run test/smoke.ts && bun run test/env-middleware.ts && bun run test/notify.ts && bun run test/analytics.ts && bun run test/oauth-rs.ts && bun run test/rate-limit.ts && bun run test/doctor.ts && bun run test/mcp.ts && bun run test/mcp-primitives.ts && bun run test/mcp-interaction.ts && bun run test/logger.ts",
+    "test": "bun run test/smoke.ts && bun run test/env-middleware.ts && bun run test/auth-http.ts && bun run test/notify.ts && bun run test/analytics.ts && bun run test/oauth-rs.ts && bun run test/rate-limit.ts && bun run test/doctor.ts && bun run test/mcp.ts && bun run test/mcp-primitives.ts && bun run test/mcp-interaction.ts && bun run test/logger.ts",
     "build": "tsc -p tsconfig.build.json && chmod +x dist/doctor/cli.js",
     "prepublishOnly": "bun run build"
   },

@@ -19,7 +19,7 @@ const ok = (name: string, cond: boolean, detail = "") => {
 
 const opts = {
   cookieName: "sig_session",
-  secret: "test-secret-abc123",
+  secret: "test-secret-abc123-test-secret-abc123",
   ttlSeconds: 60,
   sameSite: "none" as const,
 }
@@ -35,7 +35,22 @@ ok(
   "tampered payload rejected",
   (await verifySession(`eyJhIjoxfQ.${t.split(".")[1]}`, opts)) === null,
 )
-ok("wrong secret rejected", (await verifySession(t, { ...opts, secret: "other" })) === null)
+ok(
+  "wrong secret rejected",
+  (await verifySession(t, { ...opts, secret: "other-secret-other-secret-other-secret" })) === null,
+)
+ok(
+  "short session secret throws",
+  await issueSession({ ...opts, secret: "short" }).then(
+    () => false,
+    () => true,
+  ),
+)
+ok(
+  "timingSafeEqual: length mismatch",
+  !timingSafeEqual("abc", "abcd") && !timingSafeEqual("abcd", "abc"),
+)
+ok("timingSafeEqual: equal", timingSafeEqual("abcd", "abcd"))
 ok("null token rejected", (await verifySession(null, opts)) === null)
 ok("garbage rejected", (await verifySession("not-a-token", opts)) === null)
 const expired = await issueSession({ ...opts, ttlSeconds: -10 })
@@ -57,7 +72,9 @@ ok("timingSafeEqual false", !timingSafeEqual("abc", "abd") && !timingSafeEqual("
 
 // passcode
 const stored = await hashPasscode("hunter2")
-ok("passcode stored as salt:hash", /^[0-9a-f]{32}:[0-9a-f]{64}$/.test(stored))
+ok("passcode stored as iterations:salt:hash", /^100000:[0-9a-f]{32}:[0-9a-f]{64}$/.test(stored))
+ok("old salt:hash format still verifies", await verifyPasscode("hunter2", stored.slice(7)))
+ok("bad iteration count rejected", !(await verifyPasscode("hunter2", `0${stored.slice(6)}`)))
 ok("correct passcode", await verifyPasscode("hunter2", stored))
 ok("wrong passcode", !(await verifyPasscode("hunter3", stored)))
 ok("empty passcode", !(await verifyPasscode("", stored)) && !(await verifyPasscode(null, stored)))
@@ -108,11 +125,11 @@ ok("checkEnv soft fail", checkEnv({}, ["X"]).ok === false)
 
 // better-auth defaults
 const d = betterAuthDefaults({ WEB_URL: "https://a.com", COOKIE_DOMAIN: ".a.com" })
-ok("cross-origin cookies default", d.advanced.defaultCookieAttributes.sameSite === "none")
+ok("same-origin cookies by default", d.advanced.defaultCookieAttributes.sameSite === "lax")
 ok(
-  "same-origin opt-out",
-  betterAuthDefaults({}, { crossOrigin: false }).advanced.defaultCookieAttributes.sameSite ===
-    "lax",
+  "cross-origin opt-in",
+  betterAuthDefaults({}, { crossOrigin: true }).advanced.defaultCookieAttributes.sameSite ===
+    "none",
 )
 ok("emailAndPassword off by default", d.emailAndPassword.enabled === false)
 ok("trustedOrigins drops empties", d.trustedOrigins.length === 1)

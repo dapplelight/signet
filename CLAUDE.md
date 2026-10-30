@@ -12,7 +12,7 @@ packages/server             auth, http, env, middleware, notify,
 packages/ai                 structured LLM calls: budget, cache, failover
 packages/config             Biome preset + tsconfig bases; ci-bun.yml is the CI half
 packages/create-signet-app  scaffolder
-apps/*                      scaffolded apps (gitignored)
+apps/showcase               theme switcher demo (other apps/* are gitignored)
 ```
 
 ## Finding things

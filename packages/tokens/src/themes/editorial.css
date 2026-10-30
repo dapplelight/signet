@@ -48,9 +48,9 @@
     --border-strong: var(--color-warm-400);
 
     /* ── Accent ──────────────────────────────────────── */
-    --accent-green: #16a34a;
+    --accent-green: #12833c;
     --accent-blue: #2563eb;
-    --accent-amber: #c2860a;
+    --accent-amber: #986908;
     --accent-red: #b91c1c;
     --accent-green-subtle: rgba(22, 163, 74, 0.1);
     --accent-red-subtle: rgba(185, 28, 28, 0.1);
@@ -60,8 +60,8 @@
     /* ── Text ────────────────────────────────────────── */
     --text-primary: var(--color-warm-900);
     --text-secondary: var(--color-warm-700);
-    --text-muted: var(--color-warm-600);
-    --text-hint: var(--color-warm-500);
+    --text-muted: #6d665e;
+    --text-hint: #77716d;
     --text-disabled: var(--color-warm-400);
     --text-inverse: var(--color-warm-50);
 
@@ -72,18 +72,18 @@
     --card-fg: var(--color-warm-900);
     --popover: var(--color-warm-50);
     --popover-fg: var(--color-warm-900);
-    --primary: #16a34a;
+    --primary: #12833c;
     --primary-fg: #ffffff;
     --secondary: var(--color-warm-200);
     --secondary-fg: var(--color-warm-900);
     --muted: var(--color-warm-200);
-    --muted-fg: var(--color-warm-600);
+    --muted-fg: #6d665e;
     --accent: var(--color-warm-200);
     --accent-fg: var(--color-warm-900);
     --destructive: #b91c1c;
     --border: var(--color-warm-300);
     --input: var(--color-warm-300);
-    --ring: #16a34a;
+    --ring: #12833c;
 
     /* ── Optional slots (CONTRACT.md) — defaults a brand layer overrides ──
        Repeated in the dark block so they re-resolve wherever .dark is set. */
@@ -136,8 +136,8 @@
     /* ── Text ────────────────────────────────────────── */
     --text-primary: #f0ece6; /* warm white */
     --text-secondary: #9d9590;
-    --text-muted: #6b6560;
-    --text-hint: #524e4a;
+    --text-muted: #85807c;
+    --text-hint: #7d7a77;
     --text-disabled: #3d3a36;
     --text-inverse: #0d0d0b;
 
@@ -158,7 +158,7 @@
     --accent-fg: #f0ece6;
     --destructive: #f87171;
     --border: #2d2d29;
-    --input: #1d1d1a;
+    --input: #2b2b28;
     --ring: #34d399;
 
     /* ── Optional slots (CONTRACT.md) — defaults a brand layer overrides ──

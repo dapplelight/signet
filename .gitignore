@@ -4,5 +4,6 @@ dist
 .DS_Store
 apps/*
 !apps/.gitkeep
+!apps/showcase/
 BACKLOG.md
 docs/audits/

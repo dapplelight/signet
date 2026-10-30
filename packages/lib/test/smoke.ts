@@ -21,7 +21,7 @@ const stub = (status: number, body: unknown, contentType = "application/json") =
     )
   }) as typeof fetch
 }
-const hdr = (k: string) => (lastInit?.headers as Record<string, string> | undefined)?.[k]
+const hdr = (k: string) => new Headers(lastInit?.headers).get(k) ?? undefined
 
 // --- res.ok is always checked (ipl bug: 5 of 9 endpoints skipped it) ---
 stub(500, "<html>Internal Error</html>", "text/html")
@@ -44,6 +44,11 @@ ok(
   "custom header keeps Content-Type",
   hdr("Content-Type") === "application/json" && hdr("X-Foo") === "1",
 )
+
+// --- a Headers object is merged, not dropped (spread of Headers is {}) ---
+stub(200, { ok: true })
+await createApiClient().get("/x", { headers: new Headers({ "X-Bar": "2" }) })
+ok("Headers object kept", hdr("X-Bar") === "2" && hdr("Content-Type") === "application/json")
 
 // --- FormData must NOT set Content-Type ---
 stub(200, { ok: true })
@@ -151,7 +156,45 @@ ok(
 stub(204, undefined, "")
 ok("204 returns undefined", (await createApiClient().delete("/x")) === undefined)
 stub(200, "%PDF-1.4", "application/pdf")
-ok("non-JSON 200 returns undefined", (await createApiClient().get("/x")) === undefined)
+caught = undefined
+await createApiClient()
+  .get("/x")
+  .catch((e) => {
+    caught = e
+  })
+ok("non-JSON 200 throws instead of returning undefined", caught instanceof ApiError)
+stub(200, "", "text/html")
+ok("empty 200 returns undefined", (await createApiClient().get("/x")) === undefined)
+stub(200, { title: "ok" }, "application/problem+json")
+ok(
+  "+json content type is parsed",
+  ((await createApiClient().get("/x")) as { title: string }).title === "ok",
+)
+
+// --- 401 keeps the server's message (wrong passcode is not "Session expired") ---
+stub(401, { success: false, error: "Wrong passcode", code: "invalid_passcode" })
+let hookErr: AuthError | undefined
+caught = undefined
+await createApiClient({ onAuthError: (e) => (hookErr = e) })
+  .post("/login", { passcode: "x" })
+  .catch((e) => {
+    caught = e
+  })
+ok(
+  "401 envelope message and code kept",
+  caught instanceof AuthError &&
+    (caught as AuthError).message === "Wrong passcode" &&
+    (caught as AuthError).code === "invalid_passcode",
+)
+ok("onAuthError gets the error", hookErr === caught)
+stub(401, undefined, "")
+caught = undefined
+await createApiClient()
+  .get("/me")
+  .catch((e) => {
+    caught = e
+  })
+ok("bare 401 still says Session expired", (caught as AuthError)?.message === "Session expired")
 
 // --- baseUrl + trailing slash ---
 stub(200, { ok: true })
@@ -311,7 +354,7 @@ ok(
 {
   let seenAuth: string | undefined
   globalThis.fetch = (async (_url: string, init?: RequestInit) => {
-    seenAuth = (init?.headers as Record<string, string>)?.Authorization
+    seenAuth = new Headers(init?.headers).get("Authorization") ?? undefined
     const res = new Response(
       JSON.stringify({ success: false, error: "Nope", code: "OFFER_GONE" }),
       {

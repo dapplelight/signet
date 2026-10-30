@@ -43,7 +43,14 @@ export class ApiError extends Error {
  */
 export class AuthError extends Error {
   readonly name = "AuthError"
-  constructor(message = "Session expired") {
+  readonly status = 401
+  constructor(
+    message = "Session expired",
+    /** The envelope's code, e.g. "invalid_passcode", when the server sent one. */
+    readonly code?: string,
+    /** The parsed JSON body, when there was one. */
+    readonly body?: unknown,
+  ) {
     super(message)
   }
 }

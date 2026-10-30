@@ -22,7 +22,11 @@ function fromHex(s: string): Uint8Array {
   return out
 }
 
-async function pbkdf2(passcode: string, salt: Uint8Array): Promise<string> {
+async function pbkdf2(
+  passcode: string,
+  salt: Uint8Array,
+  iterations = ITERATIONS,
+): Promise<string> {
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(passcode),
@@ -31,29 +35,36 @@ async function pbkdf2(passcode: string, salt: Uint8Array): Promise<string> {
     ["deriveBits"],
   )
   const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt: salt as BufferSource, iterations: ITERATIONS, hash: "SHA-256" },
+    { name: "PBKDF2", salt: salt as BufferSource, iterations, hash: "SHA-256" },
     key,
     256,
   )
   return toHex(new Uint8Array(bits))
 }
 
-/** Produce a `salt:hash` string to store in an env secret. Run this offline. */
+/**
+ * Produce an `iterations:salt:hash` string to store in an env secret. Run this
+ * offline. The iteration count is stored so it can rise later without breaking
+ * old hashes (Workers cap PBKDF2 at 100,000 today).
+ */
 export async function hashPasscode(passcode: string): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(16))
-  return `${toHex(salt)}:${await pbkdf2(passcode, salt)}`
+  return `${ITERATIONS}:${toHex(salt)}:${await pbkdf2(passcode, salt)}`
 }
 
-/** Verify a submitted passcode against a stored `salt:hash`. Constant-time. */
+/** Verify against a stored `iterations:salt:hash` (or the older `salt:hash`, 100,000 iterations). Constant-time. */
 export async function verifyPasscode(
   passcode: string | undefined | null,
   stored: string | undefined | null,
 ): Promise<boolean> {
   if (!passcode || !stored) return false
-  const [saltHex, hash] = stored.split(":")
-  if (!saltHex || !hash) return false
+  const parts = stored.split(":")
+  const [iter, saltHex, hash] = parts.length === 2 ? [String(ITERATIONS), ...parts] : parts
+  const iterations = Number(iter)
+  if (parts.length > 3 || !saltHex || !hash || !Number.isInteger(iterations) || iterations < 1)
+    return false
   try {
-    return timingSafeEqual(await pbkdf2(passcode, fromHex(saltHex)), hash)
+    return timingSafeEqual(await pbkdf2(passcode, fromHex(saltHex), iterations), hash)
   } catch {
     return false
   }

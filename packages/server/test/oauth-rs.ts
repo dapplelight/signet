@@ -290,5 +290,87 @@ ok(
   JSON.stringify(leaked).includes("user-1") && !JSON.stringify(leaked).includes("eyJhbGciOi"),
 )
 
+// --- audit hardening (20 Oct) ---
+ok(
+  "REJECTS a header alg that does not match the key (RS512 header, RS256 key)",
+  /does not match/.test(
+    (await reject(await mint({}, pair.privateKey, { alg: "RS512" })))?.message ?? "",
+  ),
+)
+{
+  const t = await mint()
+  const bad = `${t.slice(0, t.lastIndexOf(".") + 1)}!!!not-base64`
+  const e = await reject(bad)
+  ok("bad base64 signature is a TokenError", e?.name === "TokenError", String(e))
+}
+{
+  const strict = createTokenVerifier({
+    issuer: ISS,
+    audience: AUD,
+    jwksUri: "x",
+    jwks,
+    requireAtJwt: true,
+  })
+  const plain = await strict.verify(await mint()).then(
+    () => "accepted",
+    (e: TokenError) => e.message,
+  )
+  ok("requireAtJwt rejects typ JWT", /at\+jwt/.test(plain), plain)
+  const at = await strict.verify(await mint({}, pair.privateKey, { typ: "at+jwt" }))
+  ok("requireAtJwt accepts typ at+jwt", at.claims.sub === "user-1")
+}
+{
+  // P-384 key published without alg is inferred as ES384, not dropped.
+  const ec = (await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-384" }, true, [
+    "sign",
+    "verify",
+  ])) as CryptoKeyPair
+  const ecJwk = { ...(await crypto.subtle.exportKey("jwk", ec.publicKey)), kid: "ec-1" }
+  delete (ecJwk as { alg?: string }).alg
+  const ecFetch = (async () =>
+    new Response(JSON.stringify({ keys: [ecJwk] }), {
+      headers: { "content-type": "application/json" },
+    })) as typeof fetch
+  const ecVerifier = createTokenVerifier({
+    issuer: ISS,
+    audience: AUD,
+    jwksUri: "x",
+    jwks: createJwksCache({ jwksUri: "x", fetchImpl: ecFetch }),
+  })
+  const now = Math.floor(Date.now() / 1000)
+  const h = b64url(JSON.stringify({ alg: "ES384", typ: "JWT", kid: "ec-1" }))
+  const p = b64url(JSON.stringify({ iss: ISS, aud: AUD, sub: "ec-user", exp: now + 60 }))
+  const sig = await crypto.subtle.sign(
+    { name: "ECDSA", hash: "SHA-384" },
+    ec.privateKey,
+    new TextEncoder().encode(`${h}.${p}`),
+  )
+  const v = await ecVerifier.verify(`${h}.${p}.${b64url(new Uint8Array(sig))}`)
+  ok("P-384 JWK without alg verifies as ES384", v.claims.sub === "ec-user")
+}
+{
+  // A failed refresh keeps the cached keys instead of locking everyone out.
+  let t = 0
+  let up = true
+  const flaky = (async () => {
+    if (!up) throw new Error("issuer down")
+    return new Response(JSON.stringify({ keys: [jwk] }), {
+      headers: { "content-type": "application/json" },
+    })
+  }) as typeof fetch
+  const cache = createJwksCache({ jwksUri: "x", fetchImpl: flaky, ttlSeconds: 1, now: () => t })
+  ok("first fetch loads the key", (await cache.get("key-1")) !== null)
+  up = false
+  t = 5000
+  ok("stale keys still served when the refresh fails", (await cache.get("key-1")) !== null)
+  const empty = createJwksCache({ jwksUri: "x", fetchImpl: flaky })
+  const v = createTokenVerifier({ issuer: ISS, audience: AUD, jwksUri: "x", jwks: empty })
+  const e = await v.verify(await mint()).then(
+    () => null,
+    (err: TokenError) => err,
+  )
+  ok("no keys and issuer down is a TokenError", e?.name === "TokenError", String(e))
+}
+
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail) process.exit(1)

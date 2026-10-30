@@ -39,7 +39,7 @@ export function ThemeToggle({
           className={cn(
             "inline-flex items-center justify-center rounded-md transition-colors",
             showLabels ? "h-8 gap-1.5 px-3 text-sm" : "size-7",
-            "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+            "focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:outline-none",
             theme === value
               ? "bg-background text-foreground shadow-xs"
               : "text-muted-foreground hover:text-foreground",
@@ -64,7 +64,7 @@ export function ThemeToggleButton({ className }: { className?: string }) {
       className={cn(
         "inline-flex size-8 items-center justify-center rounded-md text-muted-foreground",
         "transition-colors hover:bg-muted hover:text-foreground",
-        "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+        "focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:outline-none",
         className,
       )}
     >

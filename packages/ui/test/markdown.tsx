@@ -49,7 +49,10 @@ t("gfm and headings", () => {
   const ids = [...container.querySelectorAll("h1,h2,h3,h4")].map((h) => h.id)
   ok(
     "headings get GitHub-style ids; repeats get -1",
-    ids.join() === "senior-engineer,requirements,requirements-1,nice-to-have,too-deep-for-the-toc",
+    ids.join() ===
+      ["senior-engineer", "requirements", "requirements-1", "nice-to-have", "too-deep-for-the-toc"]
+        .map((s) => `user-content-${s}`)
+        .join(),
     ids,
   )
   ok("tables render", container.querySelector("table td")?.textContent === "L5")
@@ -70,7 +73,7 @@ t("gfm and headings", () => {
       screen
         .getAllByRole("link", { name: "Link to Requirements" })
         .map((a) => a.getAttribute("href")),
-    ) === JSON.stringify(["#requirements", "#requirements-1"]),
+    ) === JSON.stringify(["#user-content-requirements", "#user-content-requirements-1"]),
   )
 })
 
@@ -80,10 +83,10 @@ t("toc", () => {
     "markdownToc: ids match the rendered headings, depth <= 3 by default",
     JSON.stringify(toc.map((e) => [e.id, e.depth])) ===
       JSON.stringify([
-        ["senior-engineer", 1],
-        ["requirements", 2],
-        ["requirements-1", 2],
-        ["nice-to-have", 3],
+        ["user-content-senior-engineer", 1],
+        ["user-content-requirements", 2],
+        ["user-content-requirements-1", 2],
+        ["user-content-nice-to-have", 3],
       ]),
     toc,
   )
@@ -193,7 +196,7 @@ t("anchors off", () => {
   const { container } = render(<Markdown headingAnchors={false}>{"## A"}</Markdown>)
   ok(
     "headingAnchors=false: id kept, no # link",
-    container.querySelector("h2")?.id === "a" && !container.querySelector("h2 a"),
+    container.querySelector("h2")?.id === "user-content-a" && !container.querySelector("h2 a"),
   )
 })
 

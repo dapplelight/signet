@@ -1,0 +1,4 @@
+@import "tailwindcss";
+@import "@dapplelight/signet-tokens/cinematic.css";
+@import "@dapplelight/signet-tokens/base.css";
+@source "../../node_modules/@dapplelight/signet-ui/dist";

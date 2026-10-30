@@ -46,6 +46,8 @@ export type JwksOptions = {
   ttlSeconds?: number
   /** Minimum gap between refetches triggered by an unknown kid. Default 60s. */
   minRefetchSeconds?: number
+  /** Abort a JWKS fetch after this long. Default 5 seconds. */
+  fetchTimeoutMs?: number
   fetchImpl?: typeof fetch
   now?: () => number
 }
@@ -66,7 +68,13 @@ export function createJwksCache(options: JwksOptions) {
     // something permissive.
     const resolved =
       alg ??
-      (jwk.kty === "RSA" ? "RS256" : jwk.kty === "EC" && jwk.crv === "P-256" ? "ES256" : null)
+      (jwk.kty === "RSA"
+        ? "RS256"
+        : jwk.kty === "EC" && jwk.crv === "P-256"
+          ? "ES256"
+          : jwk.kty === "EC" && jwk.crv === "P-384"
+            ? "ES384"
+            : null)
     if (!resolved) return null
     const params = algParams(resolved)
     if (!params) return null
@@ -88,7 +96,10 @@ export function createJwksCache(options: JwksOptions) {
   async function refresh(): Promise<void> {
     if (inFlight) return inFlight
     inFlight = (async () => {
-      const res = await doFetch(options.jwksUri, { headers: { accept: "application/json" } })
+      const res = await doFetch(options.jwksUri, {
+        headers: { accept: "application/json" },
+        signal: AbortSignal.timeout(options.fetchTimeoutMs ?? 5000),
+      })
       if (!res.ok) throw new Error(`JWKS fetch failed: ${res.status}`)
       const body = (await res.json()) as { keys?: Jwk[] }
       const next = new Map<string, CryptoKey>()
@@ -106,10 +117,19 @@ export function createJwksCache(options: JwksOptions) {
     return inFlight
   }
 
+  /** Refetch; when it fails, keep serving the keys we already have (an issuer outage must not lock everyone out). */
+  async function refreshOrKeep(): Promise<void> {
+    try {
+      await refresh()
+    } catch (e) {
+      if (!keys.size) throw e
+    }
+  }
+
   return {
     async get(kid: string | undefined): Promise<CryptoKey | null> {
       const stale = now() - fetchedAt > ttl
-      if (!keys.size || stale) await refresh()
+      if (!keys.size || stale) await refreshOrKeep()
 
       const lookup = kid ?? (keys.size === 1 ? [...keys.keys()][0] : undefined)
       if (lookup && keys.has(lookup)) return keys.get(lookup) ?? null
@@ -117,7 +137,7 @@ export function createJwksCache(options: JwksOptions) {
       // Unknown kid: the issuer may have rotated. Refetch at most once per
       // window so a stream of bogus kids cannot be turned into a fetch flood.
       if (now() - fetchedAt > minRefetch) {
-        await refresh()
+        await refreshOrKeep()
         const retry = kid ?? (keys.size === 1 ? [...keys.keys()][0] : undefined)
         if (retry && keys.has(retry)) return keys.get(retry) ?? null
       }

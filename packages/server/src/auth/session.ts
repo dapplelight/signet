@@ -53,7 +53,11 @@ function unb64url(input: string): Uint8Array {
   return out
 }
 
+const MIN_SECRET_LENGTH = 32
+
 async function hmac(secret: string, data: string): Promise<string> {
+  if (!secret || secret.length < MIN_SECRET_LENGTH)
+    throw new Error(`Session secret must be at least ${MIN_SECRET_LENGTH} characters.`)
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),
@@ -65,11 +69,14 @@ async function hmac(secret: string, data: string): Promise<string> {
   return b64url(new Uint8Array(sig))
 }
 
-/** Constant-time string compare. Prevents timing oracles on signature checks. */
+/**
+ * Constant-time string compare. Prevents timing oracles on signature checks.
+ * Pass the expected (secret) value as `b`: the loop runs over its length, so the
+ * time taken does not reveal how long the secret is.
+ */
 export function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false
-  let diff = 0
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  let diff = a.length ^ b.length
+  for (let i = 0; i < b.length; i++) diff |= (a.charCodeAt(i) || 0) ^ b.charCodeAt(i)
   return diff === 0
 }
 
@@ -109,7 +116,7 @@ function cookieAttrs(opts: SessionOptions): string[] {
   return [
     "HttpOnly",
     // SameSite=None is meaningless without Secure and browsers drop the cookie.
-    ...(sameSite === "none" ? ["Secure"] : ["Secure"]),
+    "Secure",
     `SameSite=${sameSite === "none" ? "None" : sameSite === "strict" ? "Strict" : "Lax"}`,
     "Path=/",
     ...(opts.domain ? [`Domain=${opts.domain}`] : []),

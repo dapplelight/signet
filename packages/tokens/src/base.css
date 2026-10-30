@@ -1,5 +1,8 @@
 /* @dapplelight/signet-tokens — base styles. Import after a theme. */
 
+/* animate-in, fade-in-0, zoom-in-95 and friends, used by the overlay components. */
+@import "tw-animate-css";
+
 * {
   box-sizing: border-box;
 }
@@ -17,15 +20,15 @@ body {
 
 /* Thin, warm scrollbar */
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: var(--border-default);
-  border-radius: 2px;
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
@@ -33,7 +36,19 @@ body {
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring;
+  }
+}
+
+/* Respect the OS setting: no slides, zooms or spins. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 

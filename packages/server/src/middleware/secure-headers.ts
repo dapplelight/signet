@@ -25,7 +25,7 @@ export const DOCS_CSP = [
 
 export type SecureHeadersOptions = {
   csp?: string
-  /** Paths served a relaxed CSP, e.g. ["/docs", "/openapi.json"]. */
+  /** Paths served a relaxed CSP, e.g. ["/docs", "/openapi.json"]. Each also covers its sub-paths ("/docs/"). */
   relaxedPaths?: string[]
   relaxedCsp?: string
   /**
@@ -37,7 +37,9 @@ export type SecureHeadersOptions = {
 }
 
 export function secureHeaders(opts: SecureHeadersOptions = {}): MiddlewareHandler {
-  const relaxed = new Set(opts.relaxedPaths ?? [])
+  const relaxedPaths = opts.relaxedPaths ?? []
+  const isRelaxed = (path: string) =>
+    relaxedPaths.some((p) => path === p || path.startsWith(p.endsWith("/") ? p : `${p}/`))
   const hsts = opts.hstsMaxAge ?? 31_536_000
 
   return async (c: Context, next: Next) => {
@@ -49,10 +51,12 @@ export function secureHeaders(opts: SecureHeadersOptions = {}): MiddlewareHandle
     c.header("X-XSS-Protection", "0")
     c.header("Referrer-Policy", "strict-origin-when-cross-origin")
     c.header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    c.header("Cross-Origin-Opener-Policy", "same-origin")
+    c.header("Cross-Origin-Resource-Policy", "same-site")
     if (hsts > 0) c.header("Strict-Transport-Security", `max-age=${hsts}; includeSubDomains`)
     c.header(
       "Content-Security-Policy",
-      relaxed.has(c.req.path) ? (opts.relaxedCsp ?? DOCS_CSP) : (opts.csp ?? STRICT_CSP),
+      isRelaxed(c.req.path) ? (opts.relaxedCsp ?? DOCS_CSP) : (opts.csp ?? STRICT_CSP),
     )
   }
 }

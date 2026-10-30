@@ -39,7 +39,8 @@ export type BetterAuthDefaultsOptions = {
   /**
    * True when the frontend is served from a different origin than the API
    * (Pages → Worker). Forces SameSite=None; Secure so the browser sends the
-   * session cookie on cross-origin fetches. Default true.
+   * session cookie on cross-origin fetches. Default false (SameSite=Lax): opt in
+   * only when the API really is on another origin.
    */
   crossOrigin?: boolean
   /** Default: env.BETTER_AUTH_URL, else WEB_URL, else WORKER_URL. */
@@ -69,7 +70,7 @@ export type BetterAuthDefaultsOptions = {
 }
 
 export function betterAuthDefaults(env: BetterAuthEnv, opts: BetterAuthDefaultsOptions = {}) {
-  const crossOrigin = opts.crossOrigin ?? true
+  const crossOrigin = opts.crossOrigin ?? false
   const sessionSeconds =
     opts.sessionSeconds ??
     (env.SESSION_DURATION_SECONDS ? Number(env.SESSION_DURATION_SECONDS) : undefined)
