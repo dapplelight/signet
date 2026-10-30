@@ -52,7 +52,7 @@ for (const [src, slug, title, group, order, description] of PAGES) {
 }
 writeFileSync(
   join(out, "llms.txt"),
-  `# Signet\n\n> One component kit, many design systems: React components, CSS-variable themes, and a Hono/Workers server kit.\n\n## Docs\n\n${PAGES.map(([, slug, title, , , d]) => `- [${title}](./${slug}.md): ${d}`).join("\n")}\n`,
+  `# Signet\n\n> TypeScript kit for web apps and their APIs: React components, CSS-variable themes, and a Hono/Workers server kit.\n\n## Docs\n\n${PAGES.map(([, slug, title, , , d]) => `- [${title}](./${slug}.md): ${d}`).join("\n")}\n`,
 )
 writeFileSync(join(out, "llms-full.txt"), full.join("\n\n"))
 console.log(`docs: ${PAGES.length} pages from ${relative(process.cwd(), repo) || "."}`)

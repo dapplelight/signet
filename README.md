@@ -7,7 +7,7 @@
 
 # Signet
 
-One component kit, many design systems.
+TypeScript kit for web apps and their APIs.
 
 Signet is a set of TypeScript packages for building web apps and their APIs:
 

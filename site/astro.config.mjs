@@ -16,7 +16,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: "Signet",
-      description: "One component kit, many design systems.",
+      description: "TypeScript kit for web apps and their APIs.",
       favicon: "/favicon.svg",
       sidebar: sidebarFrom(docs, { groups: ["Start", "Packages", "Reference"], fallbackGroup: "Docs" }),
       plugins: [

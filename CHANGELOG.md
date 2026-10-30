@@ -37,15 +37,16 @@ a package at the version it had when the repository was opened to the public.
 
 - npm pages: every package lists homepage, repository, issues and keywords; `ui` and
   `tokens` get their own README; `create-signet-app` runs from npm (`bunx`).
+- Docs site at https://signet.dapplelight.in; package homepages point there.
 
 ## Current versions
 
 | Package | Version |
 |---|---|
-| `@dapplelight/signet-ai` | 0.2.1 |
-| `@dapplelight/signet-config` | 0.2.1 |
-| `@dapplelight/signet-lib` | 0.2.1 |
-| `@dapplelight/signet-server` | 0.3.1 |
-| `@dapplelight/signet-tokens` | 0.2.1 |
-| `@dapplelight/signet-ui` | 0.2.1 |
-| `create-signet-app` | 0.2.1 |
+| `@dapplelight/signet-ai` | 0.2.2 |
+| `@dapplelight/signet-config` | 0.2.2 |
+| `@dapplelight/signet-lib` | 0.2.2 |
+| `@dapplelight/signet-server` | 0.3.2 |
+| `@dapplelight/signet-tokens` | 0.2.2 |
+| `@dapplelight/signet-ui` | 0.2.2 |
+| `create-signet-app` | 0.2.2 |
