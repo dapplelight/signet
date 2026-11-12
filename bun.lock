@@ -42,7 +42,7 @@
     },
     "packages/ai": {
       "name": "@dapplelight/signet-ai",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "devDependencies": {
         "@dapplelight/signet-lib": "^0.2.0",
         "@types/bun": "^1.4.2",
@@ -60,7 +60,7 @@
     },
     "packages/config": {
       "name": "@dapplelight/signet-config",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "devDependencies": {
         "@biomejs/biome": "^2.5.14",
         "@types/bun": "^1.4.2",
@@ -69,7 +69,7 @@
     },
     "packages/create-signet-app": {
       "name": "create-signet-app",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "bin": {
         "create-signet-app": "./src/index.ts",
       },
@@ -80,11 +80,13 @@
     },
     "packages/lib": {
       "name": "@dapplelight/signet-lib",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "devDependencies": {
         "@tanstack/react-form": "^1.33.5",
         "@tanstack/react-query": "^5.103.2",
+        "@types/bun": "^1.4.2",
         "@types/node": "^26.6.2",
+        "fast-check": "4.3.0",
         "typescript": "^7.0.2",
         "zod": "^4.6.5",
       },
@@ -99,7 +101,7 @@
     },
     "packages/server": {
       "name": "@dapplelight/signet-server",
-      "version": "0.3.1",
+      "version": "0.3.2",
       "bin": {
         "signet-doctor": "./dist/doctor/cli.js",
       },
@@ -124,7 +126,7 @@
     },
     "packages/tokens": {
       "name": "@dapplelight/signet-tokens",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "dependencies": {
         "tw-animate-css": "1.4.0",
       },
@@ -135,7 +137,7 @@
     },
     "packages/ui": {
       "name": "@dapplelight/signet-ui",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "devDependencies": {
         "@happy-dom/global-registrator": "^20.14.5",
         "@radix-ui/react-checkbox": "^1.3.11",
@@ -645,6 +647,8 @@
 
     "extend": ["extend@3.0.2", "", {}, "sha512-fjquC59cD7CyW6urNXK0FBufkZcoiGG80wTuPujX590cB5Ttln20E2UB4S/WARVqhXffZl2LNgS+gQdPIIim/g=="],
 
+    "fast-check": ["fast-check@4.3.0", "", { "dependencies": { "pure-rand": "^7.0.0" } }, "sha512-JVw/DJSxVKl8uhCb7GrwanT9VWsCIdBkK3WpP37B/Au4pyaspriSjtrY2ApbSFwTg3ViPfniT13n75PhzE7VEQ=="],
+
     "fast-equals": ["fast-equals@5.4.3", "", {}, "sha512-8unmvA0qrfpFWBYUate9BTGtQdKHWBYt+KdAIkag7Vvxe7wz8Q2nJg7fLMC0bJqe0bjP31kca7Ckaawrs4Istg=="],
 
     "fdir": ["fdir@6.5.0", "", { "peerDependencies": { "picomatch": "^3 || ^4" }, "optionalPeers": ["picomatch"] }, "sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg=="],
@@ -856,6 +860,8 @@
     "prop-types": ["prop-types@15.8.1", "", { "dependencies": { "loose-envify": "^1.4.0", "object-assign": "^4.1.1", "react-is": "^16.13.1" } }, "sha512-oj87CgZICdulUohogVAR7AjlC0327U4el4L6eAvOqCeudMDVU0NThNaV+b9Df4dXgSP1gXMTnPdhfe/2qDH5cg=="],
 
     "property-information": ["property-information@7.2.0", "", {}, "sha512-IAtzIB6sUiWaJYrX9smp3V46pBGbBeLFRGdh25kg1334VcBlD8HzhPeNIWQH9zhGmo2itIe25EHt9dQP7G5hmg=="],
+
+    "pure-rand": ["pure-rand@7.0.1", "", {}, "sha512-oTUZM/NAZS8p7ANR3SHh30kXB+zK2r2BPcEn/awJIbOvq82WoMN4p62AWWp3Hhw50G0xMsw1mhIBLqHw64EcNQ=="],
 
     "react": ["react@19.3.0", "", {}, "sha512-E8LUcbtBWt20bbl2YoHfx4ZDBdxVTfOKtCZn9cDSJ4l6/nuoApcpIBcj47t2wZoVX8g2ZHuMHbiShgCR1T5Sog=="],
 

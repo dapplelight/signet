@@ -2,7 +2,7 @@
   "name": "@dapplelight/signet-lib",
   "version": "0.2.2",
   "license": "MIT",
-  "description": "Signet client primitives. API client and the wire contract.",
+  "description": "Signet client primitives. API client, the wire contract, and search.",
   "keywords": [
     "signet",
     "api-client",
@@ -45,11 +45,15 @@
     "./form": {
       "types": "./dist/form/index.d.ts",
       "import": "./dist/form/index.js"
+    },
+    "./search": {
+      "types": "./dist/search/index.d.ts",
+      "import": "./dist/search/index.js"
     }
   },
   "scripts": {
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "bun run test/smoke.ts && bun run test/format.ts && bun run test/date.ts && bun run test/date-only.ts America/Los_Angeles && bun run test/date-only.ts Asia/Kolkata && bun run test/analytics.ts && bun run test/form.ts && bun run test/copy.ts && bun run test/crypto.ts",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json && tsc --noEmit -p tsconfig.search.json",
+    "test": "bun run test/smoke.ts && bun run test/format.ts && bun run test/date.ts && bun run test/date-only.ts America/Los_Angeles && bun run test/date-only.ts Asia/Kolkata && bun run test/analytics.ts && bun run test/form.ts && bun run test/copy.ts && bun run test/crypto.ts && bun test test/search",
     "build": "tsc -p tsconfig.build.json",
     "prepublishOnly": "bun run build"
   },
@@ -68,7 +72,9 @@
   "devDependencies": {
     "@tanstack/react-form": "^1.33.5",
     "@tanstack/react-query": "^5.103.2",
+    "@types/bun": "^1.4.2",
     "@types/node": "^26.6.2",
+    "fast-check": "4.3.0",
     "typescript": "^7.0.2",
     "zod": "^4.6.5"
   },

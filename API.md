@@ -32,7 +32,7 @@ Signet's shared Biome preset and TypeScript bases.
 
 ## @dapplelight/signet-lib
 
-Signet client primitives. API client and the wire contract.
+Signet client primitives. API client, the wire contract, and search.
 
 | Import | Exports | What |
 |---|---|---|
@@ -42,6 +42,7 @@ Signet client primitives. API client and the wire contract.
 | `@dapplelight/signet-lib/crypto` | decryptFields, DecryptFieldsOptions, DecryptFieldsResult | Fail-closed field decryption for apps that encrypt user data on the client (app-a's private mode) |
 | `@dapplelight/signet-lib/form` | errorMessages, firstError, applyServerErrors, clearServerErrors, submitWithServerErrors, FieldError, … | TanStack Form integration |
 | `@dapplelight/signet-lib/format` | createCurrencyFormatter, createCompactCurrencyFormatter, formatPercent, createDateFormatter, createDateShortFormatter, createDateTimeFormatter, … | Currency, number and date formatting, plus date arithmetic (./date.ts) |
+| `@dapplelight/signet-lib/search` | source, createSearch, Query, Source, Hit, Section, … | re-exports engine, readers, text, usage |
 
 ## @dapplelight/signet-server
 
