@@ -1,0 +1,49 @@
+# Runs the checks CLAUDE.md requires on every PR and push to main, so a bad
+# change is caught before release.yml tries to publish it. The scaffolder's
+# end-to-end tests (full installs + wrangler dev) are slow, so they run nightly
+# and on demand instead of per PR.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 21 * * *" # nightly scaffolder e2e
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+      # Packages import each other through dist/ (see release.yml).
+      - run: bun run build:all
+      - name: test + typecheck
+        run: |
+          for p in config tokens lib ui server ai; do
+            (cd packages/$p && bun run test && bun run typecheck)
+          done
+      - run: bun run typecheck
+        working-directory: packages/create-signet-app
+
+  scaffolder-e2e:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run build:all
+      - run: bun run test
+        working-directory: packages/create-signet-app
