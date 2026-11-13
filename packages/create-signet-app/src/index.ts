@@ -22,7 +22,7 @@ type Template = (typeof TEMPLATES)[number]
 // The api template: a Hono Worker with Signet's request id, error envelope,
 // validation and exact Durable Object rate limiting already wired.
 const API_DEPS = {
-  "@dapplelight/signet-server": "^0.3.0",
+  "@dapplelight/signet-server": "^0.4.0",
   hono: "^4.13.8",
   zod: "^4.6.5",
 }
@@ -38,7 +38,7 @@ const DEPS = {
   // Real ranges, not workspace:* — the packages are published, so a scaffolded
   // app installs from npm and works anywhere. Inside this monorepo bun still
   // links the local copies, because the range matches the workspace version.
-  "@dapplelight/signet-lib": "^0.2.0",
+  "@dapplelight/signet-lib": "^0.3.0",
   "@dapplelight/signet-tokens": "^0.2.0",
   "@dapplelight/signet-ui": "^0.2.0",
   "@tanstack/react-query": "^5.103.2",
