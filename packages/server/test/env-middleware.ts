@@ -149,7 +149,12 @@ ok(
 )
 ok("ipv6: another /64 differs", (await v6("2001:db8:0:2::1")) === "2001:db8:0:2::/64")
 ok("ipv6: ::1 loopback", (await v6("::1")) === "0:0:0:0::/64")
-ok("ipv6: mapped ipv4 groups by its hex", (await v6("::ffff:1.2.3.4")) === "0:0:0:0::/64")
+ok("ipv6: mapped ipv4 unmaps to plain ipv4", (await v6("::ffff:1.2.3.4")) === "1.2.3.4")
+ok("ipv6: mapped ipv4 in hex unmaps too", (await v6("::ffff:102:304")) === "1.2.3.4")
+ok(
+  "ipv6: different mapped clients get different keys",
+  (await v6("::ffff:1.2.3.4")) !== (await v6("::ffff:5.6.7.8")),
+)
 ok("ipv6: too many groups is no IP", (await v6("1:2:3:4:5:6:7:8:9")) === "null")
 ok("ipv6: two :: is no IP", (await v6("1::2::3")) === "null")
 

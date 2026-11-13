@@ -80,7 +80,7 @@ export type ClientIpTrust = "cloudflare" | { forwardedHops: number } | "none"
 
 const V4 = /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)$/
 
-/** The first 4 groups of an IPv6 address (its /64), or null if not valid IPv6. */
+/** The first 4 groups of an IPv6 address (its /64), the IPv4 if it is IPv4-mapped, or null if not valid IPv6. */
 function v6Prefix(ip: string): string | null {
   const [addr = "", zone] = ip.split("%")
   if (zone === "" || !/^[0-9a-f:.]+$/i.test(addr)) return null
@@ -101,6 +101,12 @@ function v6Prefix(ip: string): string | null {
   if (halves.length === 2 ? missing < 1 : missing !== 0) return null
   const groups = [...head, ...Array<string>(halves.length === 2 ? missing : 0).fill("0"), ...tail]
   if (!groups.every((g) => /^[0-9a-f]{1,4}$/.test(g))) return null
+  // IPv4-mapped (::ffff:a.b.c.d, either spelling) is an IPv4 client: unmap it
+  // so mapped clients neither share one /64 bucket nor split from their plain IPv4 key.
+  const n = groups.map((g) => Number.parseInt(g, 16))
+  if (n.slice(0, 5).every((x) => x === 0) && n[5] === 0xffff) {
+    return `${(n[6] ?? 0) >> 8}.${(n[6] ?? 0) & 255}.${(n[7] ?? 0) >> 8}.${(n[7] ?? 0) & 255}`
+  }
   return `${groups
     .slice(0, 4)
     .map((g) => Number.parseInt(g, 16).toString(16))

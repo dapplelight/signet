@@ -20,7 +20,7 @@ a package at the version it had when the repository was opened to the public.
 - **Breaking:** `clientIp` returns `string | null`, never `"unknown"`. A missing
   IP gets the key `no-ip` inside the limiter's own scope instead of a bucket
   shared by every limiter.
-- IPv6 clients are keyed by their /64 (`2001:db8:0:1::/64`).
+- IPv6 clients are keyed by their /64 (`2001:db8:0:1::/64`); IPv4-mapped addresses (`::ffff:1.2.3.4`) are keyed as the plain IPv4.
 - The `memoryStore` doc said sliding window; it is a fixed window.
 
 ### signet-ai 0.3.0
