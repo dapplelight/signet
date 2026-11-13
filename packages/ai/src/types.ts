@@ -7,8 +7,11 @@
 
 import type { z } from "zod"
 
-/** Per-million-token pricing, used to compute and cap spend. */
-export type Pricing = { inputPerMTokens: number; outputPerMTokens: number }
+/**
+ * Used to compute and cap spend. Per-million-token rates, plus `perCallUsd` for
+ * flat-rate providers or ones that report no usage.
+ */
+export type Pricing = { inputPerMTokens?: number; outputPerMTokens?: number; perCallUsd?: number }
 
 export type Usage = { inputTokens: number; outputTokens: number }
 
@@ -37,7 +40,7 @@ export type Provider = {
   /** Identifies this entry in `meta` and in logs. */
   name: string
   model: string
-  /** Omit when the provider is free at the point of use. */
+  /** Required when the extractor has a ledger, unless `allowUnpriced` is set. */
   pricing?: Pricing
   generate<T>(args: GenerateArgs<T>): Promise<{ value: T; usage?: Usage }>
 }
@@ -53,9 +56,11 @@ export type Cache = {
 export type BudgetOptions = {
   /** Hard ceiling for this call. Estimated before spending, enforced after. */
   maxCostUsd?: number
-  /** Ceiling across a rolling window. Fails closed once exhausted. */
-  windowUsd?: number
-  windowSeconds?: number
+  /**
+   * Charge this call to a key (a user id, an API key) as well as the global
+   * window. Capped by the ledger's `perKeyUsd`.
+   */
+  key?: string
 }
 
 export type ExtractMeta = {

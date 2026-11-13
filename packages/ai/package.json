@@ -1,6 +1,6 @@
 {
   "name": "@dapplelight/signet-ai",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "license": "MIT",
   "description": "Provider-agnostic structured LLM calls with budget caps, caching and failover.",
   "keywords": [
@@ -37,6 +37,10 @@
     "./budget": {
       "types": "./dist/budget.d.ts",
       "import": "./dist/budget.js"
+    },
+    "./budget-do": {
+      "types": "./dist/budget-do.d.ts",
+      "import": "./dist/budget-do.js"
     },
     "./cache": {
       "types": "./dist/cache.d.ts",

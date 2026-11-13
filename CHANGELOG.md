@@ -5,6 +5,24 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-ai 0.3.0
+
+- **Breaking:** the budget ledger is async and takes a `BudgetStore`:
+  `createBudgetLedger(windowUsd, windowSeconds, { store, perKeyUsd })`. Await
+  `spentUsd`, `remainingUsd`, `canSpend` and `record`. `reset()` is gone.
+- New stores: `durableObjectBudgetStore` + `BudgetCounter` at
+  `@dapplelight/signet-ai/budget-do` (exact, global) and `kvBudgetStore`
+  (approximate). The default `memoryBudgetStore` is per isolate, as before.
+- **Breaking:** with a ledger, `createExtractor` throws `AI_UNPRICED_PROVIDER`
+  when a provider has no `pricing`; pass `allowUnpriced: true` to opt out.
+  Unpriced providers used to count as $0, so the cap never filled.
+- **Breaking:** the ledger is checked on every call. It used to be checked only
+  when the call passed `budget.windowUsd`; `windowUsd` and `windowSeconds` are
+  removed from `BudgetOptions` (the ledger owns the window).
+- `budget.key` charges a call to a per-user or per-key cap (`perKeyUsd`).
+- `Pricing` fields are optional and add `perCallUsd`, for flat-rate providers.
+  `workersAiProvider` takes an optional `pricing`.
+
 - Open-source preparation: MIT license, package metadata, README,
   CONTRIBUTING, and the move to the `@dapplelight` npm scope (was `@nimit9`).
 - **Breaking (server):** `betterAuthDefaults` now defaults `crossOrigin` to false

@@ -18,12 +18,14 @@ const workersAi = createWorkersAI({ binding: env.AI })
 
 const ai = createExtractor({
   providers: [
-    aiSdkProvider({ name: "workers-ai", model: workersAi("@cf/meta/llama-3.3-70b-instruct-fp8-fast") }),
+    aiSdkProvider({ name: "workers-ai", model: workersAi("@cf/meta/llama-3.3-70b-instruct-fp8-fast"),
+      pricing: { perCallUsd: 0.0005 } }),  // an estimate: Workers AI bills in Neurons
     aiSdkProvider({ name: "backup", model: someOtherModel,
       pricing: { inputPerMTokens: 0.15, outputPerMTokens: 0.6 } }),
   ],
   cache: memoryCache(),
-  ledger: createBudgetLedger(5, 86_400),  // $5/day, fails closed
+  // $5/day, fails closed. Memory is per isolate: see "Budgets across isolates".
+  ledger: createBudgetLedger(5, 86_400),
 })
 
 const { value, meta } = await ai.extract({
@@ -83,6 +85,11 @@ fails over to the next entry with no product change.
 `fallback` value does **not** mask a budget refusal — running out of money is a
 configuration problem the caller must see, not a soft failure.
 
+**A ledger needs prices.** With a ledger set, `createExtractor` throws
+`AI_UNPRICED_PROVIDER` if any provider has no `pricing`, because an unpriced
+provider counts as $0 and the cap never fills. Use `perCallUsd` for flat-rate
+providers, or pass `allowUnpriced: true` when one really is free.
+
 **Only transient errors retry.** A schema violation or a bad key fails
 identically every time; retrying spends budget and latency for a guaranteed
 failure. Unknown error shapes are treated as *permanent* — "retry on doubt" is
@@ -98,6 +105,38 @@ this package exists to prevent.
 **The schema is part of the cache key.** The same prompt against a changed
 schema is a different question; reusing the old answer returns data that no
 longer validates.
+
+## Budgets across isolates
+
+The default ledger keeps spend in memory, in one isolate. On Workers each
+isolate has its own and a cold start empties it, so "$5/day" really means $5
+per isolate per cold start. Give the ledger a shared store:
+
+```ts
+// Exact: one Durable Object per budget key. Free-plan Workers include Durable Objects.
+import { BudgetCounter, durableObjectBudgetStore } from "@dapplelight/signet-ai/budget-do"
+export { BudgetCounter } // from the worker entry, so the binding finds the class
+
+const ledger = createBudgetLedger(5, 86_400, {
+  store: durableObjectBudgetStore(env.AI_BUDGET),
+  perKeyUsd: 0.5, // each user gets $0.50/day within the $5
+})
+await ai.extract({ ...args, budget: { key: userId } })
+```
+
+```jsonc
+// wrangler.jsonc
+"durable_objects": { "bindings": [{ "name": "AI_BUDGET", "class_name": "BudgetCounter" }] },
+"migrations": [{ "tag": "v1", "new_sqlite_classes": ["BudgetCounter"] }]
+```
+
+`kvBudgetStore(env.KV)` is the cheap alternative, and it is approximate: its
+window is fixed (it resets on the boundary) and concurrent writes can lose a
+record. Any object with `spent` and `record` is a `BudgetStore`, for Redis or a
+database off Workers.
+
+Calls in flight are not reserved, so concurrent calls can overshoot a cap by
+their own cost.
 
 ## Why the adapter is a separate import
 
@@ -250,7 +289,7 @@ product needs them, not before.
 
 ## Test
 
-`bun run test` runs 42 extractor assertions (failover, retry classification,
+`bun run test` runs 54 extractor assertions (failover, retry classification,
 budget fail-closed, cache keying and schema enforcement) and 59 Jev assertions
 (the confident path, every fallback reason, the privacy gate, batch, and the
 key never leaking), all against a fake fetch with no network.

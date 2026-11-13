@@ -17,7 +17,7 @@ export type AiSdkProviderOptions = {
   name: string
   /** A model from any AI SDK provider package. */
   model: LanguageModel
-  /** Shown in meta; omit when free at point of use, like Workers AI's allocation. */
+  /** Required with a budget ledger, unless the extractor sets `allowUnpriced`. */
   pricing?: Pricing
   /** Label for `meta.model` when the model object does not expose an id. */
   modelId?: string
@@ -69,6 +69,10 @@ export function aiSdkProvider(options: AiSdkProviderOptions): Provider {
  * Pass the model from `workers-ai-provider`:
  *   createWorkersAI({ binding: env.AI })("@cf/zai-org/glm-4.7-flash")
  */
-export function workersAiProvider(model: LanguageModel, modelId?: string): Provider {
-  return aiSdkProvider({ name: "workers-ai", model, modelId, pricing: undefined })
+export function workersAiProvider(
+  model: LanguageModel,
+  modelId?: string,
+  pricing?: Pricing,
+): Provider {
+  return aiSdkProvider({ name: "workers-ai", model, modelId, pricing })
 }
