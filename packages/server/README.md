@@ -429,8 +429,10 @@ deprecated Store API. The stack is sent as parsed frames (`function`, `filename`
 `lineno`, `colno`, `in_app`), oldest call first, and scrubbed like the message.
 `captureException(err, context, scope)` takes the per-event context as a third
 argument: `scope.tags` (merged over `createSentry({ tags })`), `scope.request`
-(`url`, `method`, `query_string`, `headers`; `authorization`, `cookie` and
-`set-cookie` headers are dropped and the url is scrubbed) and `scope.user`
+(`url`, `method`, `query_string`, `headers`; headers whose name matches
+`/key|token|secret|auth|cookie|session|password/i` are dropped, such as
+`authorization`, `cookie`, `x-api-key` and `x-csrf-token`; the values of the
+other headers, the url and the query string are scrubbed) and `scope.user`
 (`id`, `username`, `ip_address`). `context` still lands in `extra`. Tags and user
 values are not scrubbed — pass only what you mean to send.
 

@@ -33,7 +33,8 @@ a package at the version it had when the repository was opened to the public.
   (parsed, oldest first). Read frames there, and parse the request body as an
   envelope (three newline-separated JSON lines) if you stub `fetch`.
 - `captureException(err, context, scope)`: `scope` carries `tags`, `request`
-  (credential headers dropped) and `user`; `createSentry({ tags })` adds tags to
+  (headers named like `key|token|secret|auth|cookie|session|password` dropped,
+  other header values scrubbed) and `user`; `createSentry({ tags })` adds tags to
   every event. `parseStack` is exported.
 
 ### signet-lib

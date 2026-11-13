@@ -231,7 +231,15 @@ ok(
       request: {
         url: "https://app.test/pay?token=abc123",
         method: "POST",
-        headers: { Authorization: "Bearer s3cret", "X-Forwarded-For": "1.2.3.4", cookie: "sid=9" },
+        headers: {
+          Authorization: "Bearer s3cret",
+          "X-Forwarded-For": "1.2.3.4",
+          cookie: "sid=9",
+          "x-api-key": "k-111",
+          "X-Auth-Token": "t-222",
+          "x-csrf-token": "c-333",
+          "x-custom": "Bearer eyJhbGciOi.payload.sig-444",
+        },
       },
       user: { id: "u1", ip_address: "1.2.3.4" },
     },
@@ -251,6 +259,7 @@ ok(
       "request: credential headers are dropped, others kept",
       !JSON.stringify(ev.request).includes("s3cret") &&
         !JSON.stringify(ev.request).includes("sid=9") &&
+        !/k-111|t-222|c-333|sig-444/.test(JSON.stringify(ev.request)) &&
         ev.request.headers["X-Forwarded-For"] === "1.2.3.4",
     )
     ok("user", ev.user.id === "u1" && ev.user.ip_address === "1.2.3.4")

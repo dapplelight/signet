@@ -55,7 +55,11 @@ export type SentryUser = { id?: string; username?: string; ip_address?: string }
 export type SentryScope = {
   /** Searchable key/value pairs; merged over `SentryConfig.tags`. */
   tags?: Record<string, string>
-  /** The failing request. `authorization`, `cookie` and `set-cookie` headers are dropped. */
+  /**
+   * The failing request. Headers whose name matches
+   * `/key|token|secret|auth|cookie|session|password/i` are dropped; the
+   * values of the rest go through `scrub`.
+   */
   request?: SentryRequest
   user?: SentryUser
 }
@@ -147,15 +151,17 @@ function serialize(err: unknown): { type: string; value: string; stack?: string 
   return { type: "Error", value: String(err) }
 }
 
-/** Headers that carry credentials; never sent as request context. */
-const SECRET_HEADERS = new Set(["authorization", "cookie", "set-cookie", "proxy-authorization"])
+/** Header names that look like credentials; never sent as request context. */
+const SECRET_HEADER = /key|token|secret|auth|cookie|session|password/i
 
-/** The request with credential headers dropped; url and query string go through `scrub`. */
+/** The request with credential headers dropped; url, query string and header values go through `scrub`. */
 function cleanRequest(r: SentryRequest, scrub: (text: string) => string): SentryRequest {
   const { headers, url, query_string, ...rest } = r
   const kept = headers
     ? Object.fromEntries(
-        Object.entries(headers).filter(([k]) => !SECRET_HEADERS.has(k.toLowerCase())),
+        Object.entries(headers)
+          .filter(([k]) => !SECRET_HEADER.test(k))
+          .map(([k, v]) => [k, scrub(v)]),
       )
     : undefined
   return {
