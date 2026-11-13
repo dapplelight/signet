@@ -7,6 +7,7 @@ import {
   AiError,
   ALL_PROVIDERS_FAILED,
   BUDGET_EXCEEDED,
+  BUDGET_STORE_FAILED,
   isTransient,
   NO_PROVIDERS,
   SCHEMA_INVALID,
@@ -285,6 +286,49 @@ ok("durable object store shares spend", Math.abs((await d2.spentUsd()) - 0.4) < 
 ok("durable object store keeps a counter per key", !(await d2.canSpend(0.2, Date.now(), "u1")))
 await d1.record(0.5, Date.now() - 7_200_000)
 ok("durable object store prunes outside the window", Math.abs((await d2.spentUsd()) - 0.4) < 1e-9)
+const busy = createBudgetLedger(1000, 86_400, { store: durableObjectBudgetStore(ns) })
+const t0 = Date.now()
+for (let i = 0; i < 500; i++) await busy.record(0.001, t0 + i * 1000)
+const stored =
+  (await (
+    objects.get("global") as unknown as {
+      state: { storage: { get: (k: string) => Promise<object> } }
+    }
+  ).state.storage.get("buckets")) ?? {}
+ok(
+  "durable object storage stays bounded by the window",
+  Object.keys(stored).length <= 61,
+  `${Object.keys(stored).length} buckets`,
+)
+
+// a store that fails on record must not fail over, pay again, or use the fallback
+let paid = 0
+const payOnce = {
+  name: "p",
+  model: "m",
+  pricing: { inputPerMTokens: 1 },
+  async generate() {
+    paid++
+    return { value: good, usage: { inputTokens: 1000, outputTokens: 0 } }
+  },
+}
+const brokenStore = {
+  spent: () => 0,
+  record: () => {
+    throw new Error("store down")
+  },
+}
+try {
+  await createExtractor({
+    providers: [payOnce as never, payOnce as never],
+    ledger: createBudgetLedger(1, 3600, { store: brokenStore }),
+  }).extract({ ...base, fallback: { value: good } })
+  caught = null
+} catch (e) {
+  caught = e
+}
+ok("store failure fails closed", (caught as AiError)?.code === BUDGET_STORE_FAILED)
+ok("store failure does not pay a second provider", paid === 1, `paid=${paid}`)
 
 // --- cache ---
 const cache = memoryCache()

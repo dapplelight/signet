@@ -36,7 +36,8 @@ export type BudgetNamespace = {
   get(id: never): { fetch(input: string, init?: RequestInit): Promise<Response> }
 }
 
-type Spend = { at: number; usd: number }
+/** Bucket start (ms) to USD. Stored size is bounded by the window, not by call volume. */
+type Buckets = Record<string, number>
 type Body = { op: "spent" | "record"; windowSeconds: number; usd?: number; now: number }
 
 export class BudgetCounter {
@@ -44,17 +45,22 @@ export class BudgetCounter {
 
   async fetch(request: Request): Promise<Response> {
     const { op, windowSeconds, usd, now } = (await request.json()) as Body
+    // 60 buckets per window: the rolling window is exact to 1/60th of its length.
+    const bucketMs = Math.max(1000, Math.floor((windowSeconds * 1000) / 60))
     const cutoff = now - windowSeconds * 1000
-    const spends = ((await this.state.storage.get<Spend[]>("spends")) ?? []).filter(
-      (s) => s.at > cutoff,
-    )
-    if (op === "record" && usd && usd > 0) {
-      spends.push({ at: now, usd })
-      // Empty the object once its newest spend leaves the window.
-      await this.state.storage.setAlarm(now + windowSeconds * 1000)
+    const all = (await this.state.storage.get<Buckets>("buckets")) ?? {}
+    const buckets: Buckets = {}
+    for (const [start, total] of Object.entries(all)) {
+      if (Number(start) + bucketMs > cutoff) buckets[start] = total
     }
-    await this.state.storage.put("spends", spends)
-    return Response.json({ spent: spends.reduce((n, s) => n + s.usd, 0) })
+    if (op === "record" && usd && usd > 0) {
+      const start = String(Math.floor(now / bucketMs) * bucketMs)
+      buckets[start] = (buckets[start] ?? 0) + usd
+      // Empty the object once its newest spend leaves the window.
+      await this.state.storage.setAlarm(now + windowSeconds * 1000 + bucketMs)
+    }
+    await this.state.storage.put("buckets", buckets)
+    return Response.json({ spent: Object.values(buckets).reduce((n, v) => n + v, 0) })
   }
 
   async alarm(): Promise<void> {

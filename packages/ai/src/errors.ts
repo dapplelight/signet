@@ -20,6 +20,8 @@ export const ALL_PROVIDERS_FAILED = "AI_ALL_PROVIDERS_FAILED"
 export const SCHEMA_INVALID = "AI_SCHEMA_INVALID"
 export const NO_PROVIDERS = "AI_NO_PROVIDERS"
 export const UNPRICED_PROVIDER = "AI_UNPRICED_PROVIDER"
+/** The budget store could not be read or written. The call fails closed. */
+export const BUDGET_STORE_FAILED = "AI_BUDGET_STORE_FAILED"
 
 /**
  * Only transient failures are retried.

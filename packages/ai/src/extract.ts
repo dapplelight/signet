@@ -5,6 +5,7 @@ import {
   AiError,
   ALL_PROVIDERS_FAILED,
   BUDGET_EXCEEDED,
+  BUDGET_STORE_FAILED,
   isTransient,
   NO_PROVIDERS,
   SCHEMA_INVALID,
@@ -59,6 +60,18 @@ export type ExtractArgs<S extends z.ZodType> = {
   cache?: boolean
 }
 
+/**
+ * A store failure must not look like a provider failure: that would fail over
+ * and pay another provider, or return the fallback without recording the spend.
+ */
+async function budgetStore<T>(op: () => Promise<T>): Promise<T> {
+  try {
+    return await op()
+  } catch (err) {
+    throw new AiError("AI budget store unavailable", BUDGET_STORE_FAILED, 503, err)
+  }
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 export function createExtractor(config: ExtractConfig) {
@@ -104,7 +117,11 @@ export function createExtractor(config: ExtractConfig) {
     // closed, including when the store cannot be reached.
     const budgetKey = args.budget?.key
     if (config.ledger) {
-      if (!(await config.ledger.canSpend(args.budget?.maxCostUsd ?? 0, now(), budgetKey))) {
+      const ledger = config.ledger
+      const room = await budgetStore(() =>
+        ledger.canSpend(args.budget?.maxCostUsd ?? 0, now(), budgetKey),
+      )
+      if (!room) {
         throw new AiError(
           `AI budget window exhausted (${(await config.ledger.spentUsd(now())).toFixed(4)} USD spent)`,
           BUDGET_EXCEEDED,
@@ -146,7 +163,8 @@ export function createExtractor(config: ExtractConfig) {
           // Per-call ceiling is enforced AFTER the spend, because the true cost
           // is only known from usage. It is recorded either way — the money is
           // already gone, and hiding it would corrupt the window ledger.
-          await config.ledger?.record(costUsd, now(), budgetKey)
+          const ledger = config.ledger
+          if (ledger) await budgetStore(() => ledger.record(costUsd, now(), budgetKey))
           if (args.budget?.maxCostUsd !== undefined && costUsd > args.budget.maxCostUsd) {
             throw new AiError(
               `Call cost ${costUsd.toFixed(6)} USD exceeded cap ${args.budget.maxCostUsd} USD`,
@@ -171,7 +189,11 @@ export function createExtractor(config: ExtractConfig) {
           lastError = err
           // A budget refusal is the caller's answer, not something to retry or
           // fail over — every other provider would be refused identically.
-          if (err instanceof AiError && err.code === BUDGET_EXCEEDED) throw err
+          if (
+            err instanceof AiError &&
+            (err.code === BUDGET_EXCEEDED || err.code === BUDGET_STORE_FAILED)
+          )
+            throw err
 
           const transient = isTransient(err)
           config.onEvent?.("ai.attempt_failed", {
