@@ -69,15 +69,16 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/http/validate` | parseBody, parseQuery, parseParams | Zod request validation |
 | `@dapplelight/signet-server/mcp` | toolResult, defineTool, createMcpServer, ToolAnnotations, ToolContext, CallToolResult, … | re-exports server |
 | `@dapplelight/signet-server/mcp/hono` | mcpHandler, mountMcp, McpHandlerOptions | Serve MCP over streamable HTTP from a Hono route |
-| `@dapplelight/signet-server/middleware` | corsMiddleware, CorsOptions, memoryStore, clientIp, rateLimit, RateLimitResult, … | re-exports cors, rate-limit, request-id, secure-headers |
-| `@dapplelight/signet-server/middleware/cors` | corsMiddleware, CorsOptions | CORS |
+| `@dapplelight/signet-server/middleware` | allowedOrigins, corsMiddleware, CorsOptions, csrfMiddleware, CsrfOptions, memoryStore, … | re-exports cors, csrf, rate-limit, request-id, secure-headers |
+| `@dapplelight/signet-server/middleware/cors` | allowedOrigins, corsMiddleware, CorsOptions | CORS |
+| `@dapplelight/signet-server/middleware/csrf` | csrfMiddleware, CsrfOptions | CSRF guard for cookie-authenticated APIs |
 | `@dapplelight/signet-server/middleware/rate-limit` | memoryStore, clientIp, rateLimit, RateLimitResult, RateLimitStore, RateLimitOptions | Rate limiting with a pluggable store |
 | `@dapplelight/signet-server/middleware/rate-limit-do` | RateLimitCounter, durableObjectStore, RateLimitCounterState, RateLimitNamespace | Exact rate limiting on Cloudflare Workers, backed by a Durable Object |
 | `@dapplelight/signet-server/middleware/request-id` | requestId, RequestIdOptions |  |
 | `@dapplelight/signet-server/middleware/secure-headers` | STRICT_CSP, DOCS_CSP, secureHeaders, SecureHeadersOptions | Security headers |
-| `@dapplelight/signet-server/notify` | createEmailer, EmailConfig, EmailMessage, isGone, createPusher, PushSubscription, … | re-exports email, push, telegram |
+| `@dapplelight/signet-server/notify` | createEmailer, EmailConfig, EmailMessage, b64urlDecode, b64urlEncode, encryptAes128gcm, … | re-exports email, push, telegram |
 | `@dapplelight/signet-server/notify/email` | createEmailer, EmailConfig, EmailMessage | Transactional email via Resend |
-| `@dapplelight/signet-server/notify/push` | isGone, createPusher, PushSubscription, PushPayload, PushSender, PushConfig | Web push fan-out with dead-subscription pruning |
+| `@dapplelight/signet-server/notify/push` | b64urlDecode, b64urlEncode, encryptAes128gcm, vapidJwt, webCryptoPushSender, isGone, … | Web push fan-out with dead-subscription pruning |
 | `@dapplelight/signet-server/notify/telegram` | escapeMarkdown, createTelegram, TelegramConfig | Telegram messages |
 | `@dapplelight/signet-server/oauth-rs` | SUPPORTED_ALGS, createJwksCache, Jwk, SupportedAlg, JwksOptions, JwksCache, … | re-exports jwks, metadata, verify |
 | `@dapplelight/signet-server/oauth-rs/hono` | METADATA_PATH, registerProtectedResourceMetadata, requireToken, requireScopes, RequireTokenOptions | Hono bindings for the resource server |

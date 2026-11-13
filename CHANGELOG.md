@@ -7,6 +7,25 @@ a package at the version it had when the repository was opened to the public.
 
 ### signet-server
 
+- New `csrfMiddleware` at `@dapplelight/signet-server/middleware/csrf`: Hono's
+  `csrf()` (Origin + Sec-Fetch-Site) with origins from the same env keys as
+  `corsMiddleware`, bearer-token requests skipped, and a 403 `FORBIDDEN` envelope.
+  `corsMiddleware` now shares `allowedOrigins()` with it. The create-signet-app
+  API template enables it on `/api/*`; existing apps need no migration, and apps
+  with `sameSite: "none"` cookies should add it.
+
+### signet-server (version bump pending)
+
+- New `webCryptoPushSender` at `@dapplelight/signet-server/notify/push`: a
+  `PushSender` for Workers that signs VAPID (ES256 JWT, RFC 8292) and encrypts
+  the payload with aes128gcm (RFC 8291) on Web Crypto only, with no Node APIs
+  and no new dependency. Pass it as `createPusher({ send })`. Also exported:
+  `encryptAes128gcm`, `vapidJwt`. Tested against the RFC 8291 test vector.
+  Not breaking: injecting your own sender (for example `web-push` on Node)
+  still works.
+
+### signet-server
+
 - `createSentry` posts to the envelope endpoint (`/api/<project>/envelope/`),
   not the deprecated Store API, so it keeps working when Sentry retires it.
   **Breaking for `beforeSend` and tests:** the stack is no longer
