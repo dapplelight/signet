@@ -3,7 +3,7 @@ import { errorHandler } from "../src/http/errors"
 import { createEmailer } from "../src/notify/email"
 import { createPusher, isGone, type PushSubscription } from "../src/notify/push"
 import { createTelegram, escapeMarkdown } from "../src/notify/telegram"
-import { createSentry } from "../src/observability/sentry"
+import { createSentry, parseStack } from "../src/observability/sentry"
 
 let pass = 0,
   fail = 0
@@ -11,11 +11,25 @@ const ok = (n: string, c: boolean, d = "") => {
   c ? (pass++, console.log("  PASS", n)) : (fail++, console.log("  FAIL", n, d))
 }
 
-let calls: Array<{ url: string; body: unknown }> = []
+let calls: Array<{ url: string; body: unknown; raw: string; headers: Record<string, string> }> = []
+/** JSON body as is; an envelope (header, item header, payload lines) as its payload. */
+const parseBody = (raw: string): unknown => {
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return JSON.parse(raw.split("\n")[2] ?? "null")
+  }
+}
 const stubFetch = (status = 200) => {
   calls = []
   globalThis.fetch = (async (url: string, init?: RequestInit) => {
-    calls.push({ url: String(url), body: init?.body ? JSON.parse(String(init.body)) : null })
+    const raw = init?.body ? String(init.body) : ""
+    calls.push({
+      url: String(url),
+      body: raw ? parseBody(raw) : null,
+      raw,
+      headers: (init?.headers ?? {}) as Record<string, string>,
+    })
     return new Response(status === 200 ? "{}" : "error", { status })
   }) as typeof fetch
 }
@@ -27,10 +41,26 @@ createSentry({ dsn: "https://key@o1.ingest.sentry.io/123", enabled: true }).capt
 )
 await new Promise((r) => setTimeout(r, 10))
 ok(
-  "sentry posts to store endpoint",
-  calls[0]?.url === "https://o1.ingest.sentry.io/api/123/store/",
+  "sentry posts to the envelope endpoint, not the deprecated store",
+  calls[0]?.url === "https://o1.ingest.sentry.io/api/123/envelope/",
   calls[0]?.url,
 )
+{
+  const [header, item, payload, ...rest] = (calls[0]?.raw ?? "").split("\n")
+  const h = JSON.parse(header ?? "{}")
+  const p = JSON.parse(payload ?? "{}")
+  ok("envelope: three lines", rest.length === 0 && !!payload)
+  ok("envelope: item header is an event", JSON.parse(item ?? "{}").type === "event")
+  ok(
+    "envelope: header carries the event id and sent_at",
+    h.event_id === p.event_id && !Number.isNaN(Date.parse(h.sent_at)),
+  )
+  ok(
+    "envelope: content type and auth",
+    calls[0]?.headers["Content-Type"] === "application/x-sentry-envelope" &&
+      calls[0]?.headers["X-Sentry-Auth"]?.includes("sentry_key=key") === true,
+  )
+}
 ok("sentry sends exception", (calls[0]?.body as any)?.exception?.values?.[0]?.value === "boom")
 stubFetch()
 createSentry({ dsn: "https://key@h/1", enabled: false }).captureException(new Error("x"))
@@ -94,8 +124,24 @@ ok(
     !JSON.stringify(sent).includes("hunter2") && !JSON.stringify(sent).includes("a.b@x.com"),
   )
   ok(
-    "stack scrubbed by default",
-    typeof sent?.extra?.stacktrace === "string" && !sent.extra.stacktrace.includes("hunter2"),
+    "stack frames are parsed",
+    sent?.exception?.values?.[0]?.stacktrace?.frames?.length > 0 &&
+      sent.exception.values[0].stacktrace.frames.every(
+        (f: any) => typeof f.filename === "string" && Number.isInteger(f.lineno),
+      ),
+  )
+  ok(
+    "last frame is where the error was thrown",
+    sent.exception.values[0].stacktrace.frames.at(-1).filename.includes("notify.ts"),
+  )
+  stubFetch()
+  const leaky = new Error("x")
+  leaky.stack = "Error: x\n    at login (/srv/app/user=a.b@x.com/run.ts:3:9)"
+  await createSentry({ dsn: "https://k@h/1", enabled: true }).captureException(leaky)
+  ok(
+    "frames are scrubbed by default",
+    !JSON.stringify(calls[0]?.body).includes("a.b@x.com") &&
+      JSON.stringify(calls[0]?.body).includes("[redacted-email]"),
   )
 
   stubFetch()
@@ -121,7 +167,104 @@ ok(
   await createSentry({ dsn: "https://k@h/1", enabled: true, includeStack: false }).captureException(
     new Error("x"),
   )
-  ok("includeStack:false omits the stack", (calls[0]?.body as any)?.extra?.stacktrace === undefined)
+  ok(
+    "includeStack:false omits the stack",
+    (calls[0]?.body as any)?.exception?.values?.[0]?.stacktrace === undefined &&
+      !calls[0]?.raw.includes("notify.ts"),
+  )
+
+  // parseStack: both engines' formats, oldest call first
+  const frames = parseStack(
+    [
+      "    at async handler (file:///srv/app/src/a.ts:10:5)",
+      "    at new Thing (/srv/app/node_modules/lib/b.js:2:3)",
+      "    at /srv/app/src/anon.ts:7:1",
+      "    at node:internal/process:1:1",
+    ].join("\n"),
+  )
+  ok(
+    "parseStack: oldest first",
+    frames[0]?.filename === "node:internal/process" && frames.length === 4,
+  )
+  ok(
+    "parseStack: function, file, line, column",
+    frames[3]?.function === "async handler" &&
+      frames[3].filename === "file:///srv/app/src/a.ts" &&
+      frames[3].lineno === 10 &&
+      frames[3].colno === 5,
+  )
+  ok(
+    "parseStack: anonymous frame has no function",
+    frames[1]?.function === undefined && frames[1]?.filename === "/srv/app/src/anon.ts",
+  )
+  ok(
+    "parseStack: in_app false for node_modules and node:",
+    frames[0]?.in_app === false && frames[2]?.in_app === false && frames[3]?.in_app === true,
+  )
+  const gecko = parseStack(
+    "run@https://x.test/app.js:12:34\n@https://x.test/app.js:5\nnative@[native code]",
+  )
+  ok(
+    "parseStack: Firefox/Safari format",
+    gecko.length === 2 &&
+      gecko[1]?.function === "run" &&
+      gecko[1].colno === 34 &&
+      gecko[0]?.lineno === 5 &&
+      gecko[0].colno === undefined,
+  )
+  ok(
+    "parseStack: empty and junk give no frames",
+    parseStack("").length === 0 && parseStack("Error: x").length === 0,
+  )
+
+  // tags, request and user context
+  stubFetch()
+  await createSentry({
+    dsn: "https://k@h/1",
+    enabled: true,
+    tags: { service: "api", region: "eu" },
+  }).captureException(
+    new Error("x"),
+    { job: "sync" },
+    {
+      tags: { region: "us", route: "/pay" },
+      request: {
+        url: "https://app.test/pay?token=abc123",
+        method: "POST",
+        headers: { Authorization: "Bearer s3cret", "X-Forwarded-For": "1.2.3.4", cookie: "sid=9" },
+      },
+      user: { id: "u1", ip_address: "1.2.3.4" },
+    },
+  )
+  {
+    const ev = calls[0]?.body as any
+    ok(
+      "tags: scope overrides config",
+      ev.tags.service === "api" && ev.tags.region === "us" && ev.tags.route === "/pay",
+    )
+    ok(
+      "request: method and url",
+      ev.request.method === "POST" && ev.request.url.startsWith("https://app.test/pay"),
+    )
+    ok("request: url is scrubbed", !JSON.stringify(ev.request).includes("abc123"))
+    ok(
+      "request: credential headers are dropped, others kept",
+      !JSON.stringify(ev.request).includes("s3cret") &&
+        !JSON.stringify(ev.request).includes("sid=9") &&
+        ev.request.headers["X-Forwarded-For"] === "1.2.3.4",
+    )
+    ok("user", ev.user.id === "u1" && ev.user.ip_address === "1.2.3.4")
+    ok("context still goes in extra", ev.extra.job === "sync" && ev.extra.stacktrace === undefined)
+  }
+  stubFetch()
+  await createSentry({ dsn: "https://k@h/1", enabled: true }).captureException(new Error("x"))
+  {
+    const ev = calls[0]?.body as any
+    ok(
+      "no scope: no tags, request or user keys",
+      !("tags" in ev) && !("request" in ev) && !("user" in ev),
+    )
+  }
 
   stubFetch()
   const dropped = await createSentry({

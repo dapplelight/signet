@@ -384,6 +384,24 @@ extend it, `includeStack: false` to drop stacks, and `beforeSend` to allowlist
 context or drop an event (`return null`). Context values are not scrubbed —
 pass only what you mean to send.
 
+**Events go to Sentry's envelope endpoint** (`/api/<project>/envelope/`), not the
+deprecated Store API. The stack is sent as parsed frames (`function`, `filename`,
+`lineno`, `colno`, `in_app`), oldest call first, and scrubbed like the message.
+`captureException(err, context, scope)` takes the per-event context as a third
+argument: `scope.tags` (merged over `createSentry({ tags })`), `scope.request`
+(`url`, `method`, `query_string`, `headers`; `authorization`, `cookie` and
+`set-cookie` headers are dropped and the url is scrubbed) and `scope.user`
+(`id`, `username`, `ip_address`). `context` still lands in `extra`. Tags and user
+values are not scrubbed — pass only what you mean to send.
+
+```ts
+sentry.captureException(err, { job: "sync" }, {
+  tags: { route: "/pay" },
+  request: { url: c.req.url, method: c.req.method },
+  user: { id: session.userId },
+})
+```
+
 **`captureException` returns its request — keep it alive on Workers.** It
 resolves to whether Sentry accepted the event and never rejects. A Worker's
 isolate is frozen once the response is sent, so an unawaited report is cut off

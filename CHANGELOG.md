@@ -5,6 +5,28 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-server
+
+- `createSentry` posts to the envelope endpoint (`/api/<project>/envelope/`),
+  not the deprecated Store API, so it keeps working when Sentry retires it.
+  **Breaking for `beforeSend` and tests:** the stack is no longer
+  `event.extra.stacktrace` (a string); it is `exception.values[0].stacktrace.frames`
+  (parsed, oldest first). Read frames there, and parse the request body as an
+  envelope (three newline-separated JSON lines) if you stub `fetch`.
+- `captureException(err, context, scope)`: `scope` carries `tags`, `request`
+  (credential headers dropped) and `user`; `createSentry({ tags })` adds tags to
+  every event. `parseStack` is exported.
+
+### signet-lib
+
+- The date formatters take `{ timeZone }`. Date-only strings are not shifted.
+- Currency formatters use each currency's own fraction digits when `exact`:
+  JPY 0, KWD and BHD 3. **Behaviour change:** `exact` was always 2 decimals, so
+  JPY and KWD output differs; USD and INR are unchanged.
+- `Amount` accepts `bigint`; `{ minorUnits: true }` reads integer minor units
+  (exact for a bigint). Migration: none for existing calls.
+- Compact currency treats `or` (Odia) and `as` (Assamese) locales as lakh/crore.
+
 ### signet-ai 0.3.0
 
 - **Breaking:** the budget ledger is async and takes a `BudgetStore`:
