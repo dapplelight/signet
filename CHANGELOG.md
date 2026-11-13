@@ -24,6 +24,29 @@ a package at the version it had when the repository was opened to the public.
   Not breaking: injecting your own sender (for example `web-push` on Node)
   still works.
 
+### signet-server
+
+- `createSentry` posts to the envelope endpoint (`/api/<project>/envelope/`),
+  not the deprecated Store API, so it keeps working when Sentry retires it.
+  **Breaking for `beforeSend` and tests:** the stack is no longer
+  `event.extra.stacktrace` (a string); it is `exception.values[0].stacktrace.frames`
+  (parsed, oldest first). Read frames there, and parse the request body as an
+  envelope (three newline-separated JSON lines) if you stub `fetch`.
+- `captureException(err, context, scope)`: `scope` carries `tags`, `request`
+  (headers named like `key|token|secret|auth|cookie|session|password` dropped,
+  other header values scrubbed) and `user`; `createSentry({ tags })` adds tags to
+  every event. `parseStack` is exported.
+
+### signet-lib
+
+- The date formatters take `{ timeZone }`. Date-only strings are not shifted.
+- Currency formatters use each currency's own fraction digits when `exact`:
+  JPY 0, KWD and BHD 3. **Behaviour change:** `exact` was always 2 decimals, so
+  JPY and KWD output differs; USD and INR are unchanged.
+- `Amount` accepts `bigint`; `{ minorUnits: true }` reads integer minor units
+  (exact for a bigint). Migration: none for existing calls.
+- Compact currency treats `or` (Odia) and `as` (Assamese) locales as lakh/crore.
+
 ### signet-ai 0.3.0
 
 - **Breaking:** the budget ledger is async and takes a `BudgetStore`:
@@ -79,7 +102,11 @@ a package at the version it had when the repository was opened to the public.
   Headers you set still win.
 - lib: `qs({ tag: ["a", "b"] })` gives `?tag=a&tag=b`, which `parseQuery` reads
   back as an array. Null, undefined and empty items are skipped; an empty array
-  adds nothing.
+  adds nothing. A one-item array gives `?tag=a`, which `parseQuery` reads as the
+  string `"a"`, because a URL cannot tell the two apart. A route whose schema is
+  a bare `z.array(z.string())` then answers 400 VALIDATION_FAILED. Migration:
+  wrap a lone string in the schema,
+  `z.preprocess((v) => (typeof v === "string" ? [v] : v), z.array(z.string()))`.
 - **Breaking (server):** `parseBody`, `parseQuery` and `parseParams` key
   `fieldErrors` by the full dotted path (`address.city`, `guests.2.name`), not
   by the first segment. Top-level keys (`email`) are unchanged. Migration: a

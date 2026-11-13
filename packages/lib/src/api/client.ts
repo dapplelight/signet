@@ -47,8 +47,11 @@ export type QueryValue = string | number | boolean | null | undefined
 
 /**
  * Build a query string, dropping empty values. From app-c. An array appends one
- * `k=v` per item (`tag=a&tag=b`), which the server's `parseQuery` reads back as
- * an array; empty items are skipped by the same rule as scalars.
+ * `k=v` per item (`tag=a&tag=b`); empty items are skipped by the same rule as
+ * scalars. A URL cannot tell a one-item array from a scalar: `tag=a` is the same
+ * either way, so the server's `parseQuery` reads 2+ items as an array but one
+ * item as a string. Array-typed query fields must accept a lone string there,
+ * e.g. `z.preprocess((v) => (typeof v === "string" ? [v] : v), z.array(z.string()))`.
  */
 export function qs(params: Record<string, QueryValue | readonly QueryValue[]>): string {
   const search = new URLSearchParams()

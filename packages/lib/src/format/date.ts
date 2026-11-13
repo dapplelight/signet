@@ -15,7 +15,8 @@ const clone = (date: DateInput): Date => new Date(date instanceof Date ? date.ge
 
 const invalid = (): Date => new Date(Number.NaN)
 
-const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/
+/** Internal to `format`: not re-exported from the barrel. */
+export const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/
 
 /**
  * Local midnight for a "YYYY-MM-DD" string. An invalid Date for anything else,
