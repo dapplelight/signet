@@ -116,6 +116,29 @@ ok(
   errorMessages(f6.getFieldMeta("email")?.errors as never).includes("Taken"),
 )
 
+// nested + array paths: server `guests.2.name` must reach TanStack's `guests[2].name`
+const nestedForm = new FormApi({
+  defaultValues: { address: { city: "" }, guests: [{ name: "" }, { name: "" }, { name: "" }] },
+})
+nestedForm.mount()
+const nestedLeft = applyServerErrors(
+  nestedForm as never,
+  new ApiError("v", 400, "VALIDATION_FAILED", {
+    formErrors: ["Check the form"],
+    fieldErrors: {
+      "address.city": ["City required", "second ignored"],
+      "guests.2.name": ["Name required"],
+    },
+  }),
+)
+const nestedErrors = (name: string) =>
+  errorMessages(nestedForm.getFieldMeta(name as never)?.errors as never)
+ok("nested path lands on address.city", nestedErrors("address.city")[0] === "City required")
+ok("first message wins on a path", !nestedErrors("address.city").includes("second ignored"))
+ok("array path lands on guests[2].name", nestedErrors("guests[2].name")[0] === "Name required")
+ok("array path leaves siblings clean", nestedErrors("guests[1].name").length === 0)
+ok("nested errors still return formErrors", nestedLeft[0] === "Check the form")
+
 // --- submitWithServerErrors ---
 const f4 = makeForm()
 const handler = submitWithServerErrors(
