@@ -16,10 +16,10 @@ function fail(result: { error: z.ZodError }): never {
   const formErrors: string[] = []
   const fieldErrors: Record<string, string[]> = {}
   for (const issue of result.error.issues) {
-    const key = issue.path[0]
-    if (key === undefined) formErrors.push(issue.message)
+    if (issue.path.length === 0) formErrors.push(issue.message)
     else {
-      const k = String(key)
+      // Full dotted path (`address.city`, `guests.2.name`); one segment stays flat.
+      const k = issue.path.map(String).join(".")
       fieldErrors[k] = [...(fieldErrors[k] ?? []), issue.message]
     }
   }

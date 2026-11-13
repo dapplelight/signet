@@ -64,6 +64,12 @@ export type ServerErrorTarget = {
 const withMeta = (meta: FieldMeta | undefined): FieldMeta =>
   meta ?? { errorMap: {}, isTouched: false }
 
+/**
+ * The server keys errors by dotted path (`guests.2.name`); TanStack registers
+ * array fields as `guests[2].name` and looks meta up by that exact string.
+ */
+const toFieldName = (path: string) => path.replace(/\.(\d+)(?=\.|$)/g, "[$1]")
+
 export type ServerErrorOptions = {
   /**
    * errorMap key for server errors. Kept separate from validator keys
@@ -102,8 +108,9 @@ export function applyServerErrors(
     return messages
   }
 
-  for (const [field, messages] of Object.entries(details.fieldErrors ?? {})) {
+  for (const [path, messages] of Object.entries(details.fieldErrors ?? {})) {
     if (!messages?.length) continue
+    const field = toFieldName(path)
     form.setFieldMeta(field as never, (raw) => {
       const meta = withMeta(raw)
       return {

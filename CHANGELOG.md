@@ -72,6 +72,21 @@ a package at the version it had when the repository was opened to the public.
   run; motion is off under `prefers-reduced-motion`. `test/contrast.ts` checks
   every theme.
 
+### Audit medium bugs: Content-Type, `qs` arrays, nested validation paths
+
+- lib: the API client sends `Content-Type: application/json` only when a body is
+  sent. A GET or body-less DELETE no longer makes a cross-origin preflight.
+  Headers you set still win.
+- lib: `qs({ tag: ["a", "b"] })` gives `?tag=a&tag=b`, which `parseQuery` reads
+  back as an array. Null, undefined and empty items are skipped; an empty array
+  adds nothing.
+- **Breaking (server):** `parseBody`, `parseQuery` and `parseParams` key
+  `fieldErrors` by the full dotted path (`address.city`, `guests.2.name`), not
+  by the first segment. Top-level keys (`email`) are unchanged. Migration: a
+  client that read `fieldErrors.address` for a nested object now reads
+  `fieldErrors["address.city"]`. `signet-lib/form` `applyServerErrors` already
+  matches the new keys, turning `guests.2.name` into TanStack's `guests[2].name`.
+
 - npm pages: every package lists homepage, repository, issues and keywords; `ui` and
   `tokens` get their own README; `create-signet-app` runs from npm (`bunx`).
 - Docs site at https://signet.dapplelight.in; package homepages point there.
