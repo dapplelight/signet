@@ -263,6 +263,41 @@ built-in `memoryStore` is a fixed window, not a sliding one.
 429s use the same error envelope as everything else, so the client's `ApiError`
 path handles them without a special case.
 
+## Portability adapters
+
+Server pieces default to Cloudflare. These plugs let the same app run on
+Node/Bun (Docker included), Upstash, Supabase and Netlify. Four interfaces in
+`@dapplelight/signet-server/adapters`: `KeyValue`, `Queue<T>`, `BlobStore` and
+`Defer`. No adapter adds a dependency (each is fetch or a structural binding
+type) and each takes its config as an argument, never from env at import.
+
+| Import | Adapter | Runtime |
+|---|---|---|
+| `…/adapters` | `memoryKv`, `memoryQueue(handler)` | one process: tests, dev, a single container |
+| `…/adapters` | `processDefer()` | Node/Bun: run work after the response, errors caught |
+| `…/adapters` | `waitUntilDefer(ctx)` | Workers `ctx`, Netlify Functions `context`: anything with `waitUntil` |
+| `…/adapters` | `kvRateLimitStore(kv)` | any `KeyValue`; exact with `incr`, approximate without |
+| `…/adapters/node` | `fsBlobStore(dir)` | Node/Bun/Docker (mount a volume); rejects `..` and absolute keys |
+| `…/adapters/cloudflare` | `cloudflareKv(ns)`, `r2BlobStore(bucket)` | Workers KV, R2 |
+| `…/adapters/upstash` | `upstashKv`, `upstashRateLimitStore`, `qstashQueue` | anywhere fetch runs |
+| `…/adapters/supabase` | `supabaseBlobStore` | Supabase Storage, incl. signed GET and upload URLs |
+
+```ts
+// Exact shared rate limiting off Cloudflare
+rateLimit({ store: (c) => upstashRateLimitStore({ url: c.env.UPSTASH_URL, token: c.env.UPSTASH_TOKEN }), trust: { forwardedHops: 1 } })
+```
+
+A Cloudflare Queues binding already is a `Queue<T>`, so it needs no wrapper.
+Workers KV has no atomic increment, so `kvRateLimitStore(cloudflareKv(ns))` is
+approximate; use the Durable Object store for an exact count there.
+`@dapplelight/signet-ai`'s `kvCache` and `kvBudgetStore` take any of these
+`KeyValue`s.
+
+**No Netlify Blobs adapter.** Netlify documents Blobs only through its
+`@netlify/blobs` SDK, not as an HTTP API, so there is nothing stable to call
+without that dependency. On Netlify, use Upstash or Supabase for storage, and
+`waitUntilDefer(context)` for background work.
+
 ## Logging
 
 ```ts

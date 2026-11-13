@@ -2,7 +2,7 @@ import { ApiError } from "@dapplelight/signet-lib/api"
 import { z } from "zod"
 import { costOf, createBudgetLedger, kvBudgetStore, memoryBudgetStore } from "../src/budget"
 import { BudgetCounter, durableObjectBudgetStore } from "../src/budget-do"
-import { cacheKey, fingerprintSchema, memoryCache } from "../src/cache"
+import { cacheKey, fingerprintSchema, kvCache, memoryCache } from "../src/cache"
 import {
   AiError,
   ALL_PROVIDERS_FAILED,
@@ -259,6 +259,21 @@ const k2 = createBudgetLedger(1, 3600, { store: kvBudgetStore(kv) })
 await k1.record(0.7)
 ok("kv store shares spend across ledgers", !(await k2.canSpend(0.5)))
 
+// The same store over a KeyValue (set + ttlSeconds), e.g. upstashKv
+const kvSets: Array<[string, string, number | undefined]> = []
+const keyValue = {
+  get: async (k: string) => kvData.get(k) ?? null,
+  set: async (k: string, v: string, o?: { ttlSeconds?: number }) => {
+    kvSets.push([k, v, o?.ttlSeconds])
+    kvData.set(k, v)
+  },
+}
+await createBudgetLedger(1, 3600, { store: kvBudgetStore(keyValue) }).record(0.2)
+ok(
+  "kv store accepts a KeyValue (set with ttlSeconds)",
+  Math.abs(Number(kvSets[0]?.[1]) - 0.9) < 1e-9 && kvSets[0]?.[2] === 7200,
+)
+
 // Durable Object store: one counter per key, reached through a fake namespace
 const objects = new Map<string, BudgetCounter>()
 const storage = () => {
@@ -384,6 +399,27 @@ ok(
     (k) => k in barrel,
   ),
 )
+// kvCache: JSON round trip through a string store, expiry checked on read
+{
+  const store = new Map<string, string>()
+  const kc = kvCache({
+    get: async (k) => store.get(k) ?? null,
+    set: async (k, v) => void store.set(k, v),
+  })
+  const entry = { value: { a: 1 }, meta: { cacheHit: false } as never }
+  await kc.set("k", entry, 60)
+  ok("kvCache round trip", JSON.stringify(await kc.get("k")) === JSON.stringify(entry))
+  ok("kvCache miss", (await kc.get("absent")) === undefined)
+  await kc.set("short", entry, 0.01)
+  await Bun.sleep(20)
+  ok(
+    "kvCache entry expires even if the store keeps it",
+    (await kc.get("short")) === undefined && store.size === 2,
+  )
+  store.set("signet-ai-cache:bad", "{not json")
+  ok("kvCache unreadable entry is a miss", (await kc.get("bad")) === undefined)
+}
+
 const src = await Bun.file(new URL("../src/index.ts", import.meta.url)).text()
 ok("barrel imports no provider adapter", !/providers\//.test(src), src)
 

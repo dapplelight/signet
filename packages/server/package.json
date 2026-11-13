@@ -166,11 +166,31 @@
     "./mcp/hono": {
       "types": "./dist/mcp/hono.d.ts",
       "import": "./dist/mcp/hono.js"
+    },
+    "./adapters": {
+      "types": "./dist/adapters/index.d.ts",
+      "import": "./dist/adapters/index.js"
+    },
+    "./adapters/node": {
+      "types": "./dist/adapters/node.d.ts",
+      "import": "./dist/adapters/node.js"
+    },
+    "./adapters/cloudflare": {
+      "types": "./dist/adapters/cloudflare.d.ts",
+      "import": "./dist/adapters/cloudflare.js"
+    },
+    "./adapters/upstash": {
+      "types": "./dist/adapters/upstash.d.ts",
+      "import": "./dist/adapters/upstash.js"
+    },
+    "./adapters/supabase": {
+      "types": "./dist/adapters/supabase.d.ts",
+      "import": "./dist/adapters/supabase.js"
     }
   },
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "bun run test/smoke.ts && bun run test/env-middleware.ts && bun run test/auth-http.ts && bun run test/notify.ts && bun run test/web-push.ts && bun run test/analytics.ts && bun run test/oauth-rs.ts && bun run test/rate-limit.ts && bun run test/doctor.ts && bun run test/mcp.ts && bun run test/mcp-primitives.ts && bun run test/mcp-interaction.ts && bun run test/logger.ts",
+    "test": "bun run test/smoke.ts && bun run test/env-middleware.ts && bun run test/auth-http.ts && bun run test/notify.ts && bun run test/web-push.ts && bun run test/analytics.ts && bun run test/oauth-rs.ts && bun run test/rate-limit.ts && bun run test/doctor.ts && bun run test/mcp.ts && bun run test/mcp-primitives.ts && bun run test/mcp-interaction.ts && bun run test/logger.ts && bun run test/adapters.ts",
     "build": "tsc -p tsconfig.build.json && chmod +x dist/doctor/cli.js",
     "prepublishOnly": "bun run build"
   },

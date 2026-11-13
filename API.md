@@ -13,7 +13,7 @@ Provider-agnostic structured LLM calls with budget caps, caching and failover.
 | `@dapplelight/signet-ai` | costOf, memoryBudgetStore, kvBudgetStore, createBudgetLedger, BudgetStore, BudgetKv, … | re-exports budget, cache, errors, extract, fake, types |
 | `@dapplelight/signet-ai/budget` | costOf, memoryBudgetStore, kvBudgetStore, createBudgetLedger, BudgetStore, BudgetKv, … |  |
 | `@dapplelight/signet-ai/budget-do` | BudgetCounter, durableObjectBudgetStore, BudgetCounterState, BudgetNamespace | An exact, global AI budget on Cloudflare Workers, backed by a Durable Object |
-| `@dapplelight/signet-ai/cache` | cacheKey, fingerprintSchema, memoryCache |  |
+| `@dapplelight/signet-ai/cache` | cacheKey, fingerprintSchema, memoryCache, kvCache |  |
 | `@dapplelight/signet-ai/errors` | AiError, BUDGET_EXCEEDED, ALL_PROVIDERS_FAILED, SCHEMA_INVALID, NO_PROVIDERS, UNPRICED_PROVIDER, … |  |
 | `@dapplelight/signet-ai/extract` | createExtractor, ExtractConfig, ExtractArgs, Extractor |  |
 | `@dapplelight/signet-ai/fake` | fakeProvider |  |
@@ -51,6 +51,11 @@ Signet backend primitives. Auth first.
 
 | Import | Exports | What |
 |---|---|---|
+| `@dapplelight/signet-server/adapters` | memoryKv, memoryQueue, processDefer, waitUntilDefer, kvRateLimitStore, assertBlobKey, … | Small plug interfaces so server code runs off Cloudflare too, plus in-memory and Node/Bun versions |
+| `@dapplelight/signet-server/adapters/cloudflare` | cloudflareKv, r2BlobStore, KvNamespaceLike, R2BucketLike | Cloudflare bindings as Signet adapters: Workers KV and R2 |
+| `@dapplelight/signet-server/adapters/node` | fsBlobStore | Filesystem `BlobStore` for Node, Bun and Docker (mount a volume at `dir`) |
+| `@dapplelight/signet-server/adapters/supabase` | supabaseBlobStore, SupabaseStorageConfig | Supabase Storage as a `BlobStore`, over its REST API with plain fetch |
+| `@dapplelight/signet-server/adapters/upstash` | upstashKv, upstashRateLimitStore, qstashQueue, UpstashConfig, QstashConfig | Upstash over plain fetch: Redis REST as a `KeyValue` (atomic `incr`), and QStash as a `Queue` |
 | `@dapplelight/signet-server/analytics` | LIMITS, truncateBytes, toDataPoint, createAnalyticsEngine, AnalyticsEngineDataset, TrackedEvent, … | re-exports engine, ingest |
 | `@dapplelight/signet-server/analytics/engine` | LIMITS, truncateBytes, toDataPoint, createAnalyticsEngine, AnalyticsEngineDataset, TrackedEvent, … | Cloudflare Workers Analytics Engine writer |
 | `@dapplelight/signet-server/analytics/ingest` | registerIngest, cloudflareEnrichment, IngestOptions | Hono ingest route for browser events |

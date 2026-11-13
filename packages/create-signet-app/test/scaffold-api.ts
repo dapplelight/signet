@@ -58,8 +58,17 @@ try {
     ciScripts.join(","),
   )
 
+  ok(
+    "Dockerfile ships with the app name, _dockerignore renamed",
+    readFileSync(join(DIR, "Dockerfile"), "utf8").includes(
+      "docker build -t __scaffold_api_test__",
+    ) &&
+      existsSync(join(DIR, ".dockerignore")) &&
+      !existsSync(join(DIR, "_dockerignore")),
+  )
+
   const envTs = readFileSync(join(DIR, "src/env.ts"), "utf8")
-  const indexTs = readFileSync(join(DIR, "src/index.ts"), "utf8")
+  const indexTs = readFileSync(join(DIR, "src/app.ts"), "utf8")
   ok(
     "env schema via createEnv includes APP_ENV",
     envTs.includes("createEnv(envSchema)") && envTs.includes("APP_ENV:"),
@@ -78,6 +87,41 @@ try {
     test.exitCode === 0,
     (test.stdout.toString() + test.stderr.toString()).slice(-800),
   )
+  // The Bun/Docker entry: same app under Bun.serve, keyed by the socket address.
+  {
+    const port = 8890 + Math.floor(Math.random() * 100)
+    const proc = Bun.spawn(["bun", "src/server.ts"], {
+      cwd: DIR,
+      env: { ...process.env, PORT: String(port) },
+      stdout: "ignore",
+      stderr: "ignore",
+    })
+    try {
+      let up = false
+      for (let i = 0; i < 40 && !up; i++) {
+        up = await fetch(`http://127.0.0.1:${port}/api/health`)
+          .then((r) => r.ok)
+          .catch(() => false)
+        if (!up) await Bun.sleep(250)
+      }
+      const statuses: number[] = []
+      for (let i = 0; up && i < 60; i++) {
+        // A client-set x-forwarded-for must not pick its own bucket.
+        const res = await fetch(`http://127.0.0.1:${port}/api/health`, {
+          headers: { "x-forwarded-for": `203.0.113.${i}` },
+        })
+        statuses.push(res.status)
+      }
+      ok(
+        "src/server.ts serves under Bun and limits at 60",
+        up && statuses.filter((s) => s === 200).length === 59 && statuses.at(-1) === 429,
+        statuses.join(","),
+      )
+    } finally {
+      proc.kill()
+    }
+  }
+
   const bundle = await $`bunx wrangler deploy --dry-run --outdir .out`.cwd(DIR).nothrow().quiet()
   ok("wrangler bundles it", bundle.exitCode === 0, bundle.stderr.toString().slice(0, 400))
 

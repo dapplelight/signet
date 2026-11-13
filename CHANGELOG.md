@@ -5,6 +5,33 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-server: portability adapters
+
+- New `@dapplelight/signet-server/adapters` with `KeyValue`, `Queue<T>`,
+  `BlobStore` and `Defer` interfaces, plus `memoryKv`, `memoryQueue`,
+  `processDefer`, `waitUntilDefer` and `kvRateLimitStore` (exact over a store
+  with atomic `incr`, approximate without).
+- `./adapters/node`: `fsBlobStore(dir)`, path-traversal safe.
+- `./adapters/cloudflare`: `cloudflareKv`, `r2BlobStore`.
+- `./adapters/upstash`: `upstashKv` (atomic `incr` via MULTI/EXEC),
+  `upstashRateLimitStore`, `qstashQueue`.
+- `./adapters/supabase`: `supabaseBlobStore` with signed download and upload URLs.
+- No Netlify Blobs adapter: Netlify documents Blobs only through its SDK, not as
+  an HTTP API. `waitUntilDefer(context)` covers Netlify background work.
+- No new dependencies; every adapter is fetch or a structural binding type.
+
+### signet-ai
+
+- `kvCache(kv)`: the `Cache` interface over a shared key-value store.
+- `kvBudgetStore` also accepts a `KeyValueLike` (`set` with `ttlSeconds`), so an
+  Upstash store fits as well as a raw Workers KV namespace.
+
+### create-signet-app
+
+- The api template runs off Cloudflare too: `src/server.ts` serves the same app
+  with `Bun.serve` (`bun run start`), and a `Dockerfile` on `oven/bun` runs it.
+  The app moved to `src/app.ts`; `src/index.ts` is the Worker entry.
+
 ### signet-server 0.4.0
 
 - **Breaking:** `clientIp(c, trust)` and `rateLimit({ trust })` take a trust
