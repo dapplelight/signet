@@ -74,7 +74,8 @@ export function memoryStore(): RateLimitStore {
  *   saw to `x-forwarded-for`; the client is the n-th entry from the right.
  *   Entries further left are client-supplied and ignored, and so is
  *   `cf-connecting-ip`.
- * - `"none"`: trust nothing; there is no client IP (the default).
+ * - `"none"`: trust nothing; there is no client IP. `clientIp` defaults to it;
+ *   `rateLimit` has no default and makes you choose.
  */
 export type ClientIpTrust = "cloudflare" | { forwardedHops: number } | "none"
 
@@ -166,9 +167,9 @@ export type RateLimitOptions<E extends Env = any> = {
   max?: number
   windowSeconds?: number
   /**
-   * Which proxy to believe about the client IP, see `ClientIpTrust`. Default
-   * `"none"`: no IP, so every request shares one bucket per limiter. Set it to
-   * match the deployment. Ignored when `keyFor` is given.
+   * Which proxy to believe about the client IP, see `ClientIpTrust`. Required
+   * unless `keyFor` is given (`rateLimit` throws otherwise). `"none"` is an
+   * explicit opt-in to one shared bucket per limiter. Ignored when `keyFor` is given.
    */
   trust?: ClientIpTrust
   /** Defaults to the client IP. Use a user id for per-account limits. */
@@ -195,6 +196,11 @@ export function rateLimit<E extends Env = any>(
   const scope = opts.scope ?? "api"
   const max = opts.max ?? 100
   const windowSeconds = opts.windowSeconds ?? 60
+  if (!opts.keyFor && opts.trust === undefined) {
+    throw new Error(
+      'rateLimit: set `trust` ("cloudflare", { forwardedHops }, or "none" for one shared bucket) or `keyFor`',
+    )
+  }
   const trust = opts.trust ?? "none"
   if (typeof trust === "object") assertHops(trust.forwardedHops) // fail at startup, not on request 1
 

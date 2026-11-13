@@ -140,6 +140,24 @@ ok(
   }
   ok("forwardedHops 0 throws at construction", threw)
 }
+{
+  const build = (opts: Parameters<typeof rateLimit>[0]) => () => rateLimit(opts)
+  const throws = (f: () => unknown) => {
+    try {
+      f()
+      return false
+    } catch {
+      return true
+    }
+  }
+  ok("no trust and no keyFor throws at construction", throws(build({ scope: "login" })))
+  ok(
+    "no options at all throws at construction",
+    throws(() => rateLimit()),
+  )
+  ok("trust none is an explicit opt-in", !throws(build({ trust: "none" })))
+  ok("keyFor alone is enough", !throws(build({ keyFor: () => "u1" })))
+}
 // IPv6 grouped by /64
 const v6 = (ip: string) => ipFor("cloudflare", { "cf-connecting-ip": ip })
 ok(

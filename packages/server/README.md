@@ -231,8 +231,9 @@ accepts 502, 503 and 504 for this, and does not go to `onError`.
 `clientIp(c, trust)`) takes `"cloudflare"` (read `cf-connecting-ip`, only
 correct when every request comes through Cloudflare), `{ forwardedHops: n }`
 (`n` proxies of yours append to `x-forwarded-for`; the client is the n-th entry
-from the right, and `cf-connecting-ip` is ignored) or `"none"`. The default is
-`"none"`: every client then shares one bucket per limiter, so set it. A client
+from the right, and `cf-connecting-ip` is ignored) or `"none"`. `rateLimit`
+throws at construction unless you give `trust` or `keyFor`, because `"none"`
+makes every client share one bucket per limiter; pass it only if you want that. A client
 can set `cf-connecting-ip` itself anywhere but behind Cloudflare, which is why
 it is never read unless you say `"cloudflare"`.
 

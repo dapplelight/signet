@@ -134,7 +134,10 @@ function fakeNamespace() {
 {
   const { ns } = fakeNamespace()
   const app = new Hono<{ Bindings: { RATE_LIMIT: RateLimitNamespace } }>()
-    .use("*", rateLimit({ store: (c) => durableObjectStore(c.env.RATE_LIMIT), max: 2 }))
+    .use(
+      "*",
+      rateLimit({ store: (c) => durableObjectStore(c.env.RATE_LIMIT), max: 2, trust: "none" }),
+    )
     .get("/", (c) => c.text("ok"))
   const env = { RATE_LIMIT: ns }
   const codes = [
@@ -155,7 +158,7 @@ const throwing: RateLimitStore = {
   let runs = 0
   const reported: unknown[] = []
   const app = new Hono()
-    .use("*", rateLimit({ store: throwing, onStoreError: (e) => reported.push(e) }))
+    .use("*", rateLimit({ store: throwing, trust: "none", onStoreError: (e) => reported.push(e) }))
     .get("/", (c) => {
       runs++
       return c.text("ok")
@@ -169,7 +172,7 @@ const throwing: RateLimitStore = {
   let runs = 0
   const app = new Hono()
     .use("*", requestId())
-    .use("*", rateLimit({ store: throwing, failOpen: false }))
+    .use("*", rateLimit({ store: throwing, trust: "none", failOpen: false }))
     .get("/", (c) => {
       runs++
       return c.text("ok")
@@ -185,7 +188,10 @@ const throwing: RateLimitStore = {
   let runs = 0
   const reported: unknown[] = []
   const app = new Hono()
-    .use("*", rateLimit({ store: memoryStore(), onStoreError: (e) => reported.push(e) }))
+    .use(
+      "*",
+      rateLimit({ store: memoryStore(), trust: "none", onStoreError: (e) => reported.push(e) }),
+    )
     .get("/", () => {
       runs++
       throw new Error("handler broke")
@@ -200,7 +206,7 @@ const throwing: RateLimitStore = {
 {
   const app = new Hono()
     .use("*", requestId())
-    .use("*", rateLimit({ store: memoryStore(), max: 1 }))
+    .use("*", rateLimit({ store: memoryStore(), max: 1, trust: "none" }))
     .get("/", (c) => c.text("ok"))
   await app.request("/")
   const res = await app.request("/", { headers: { "x-request-id": "trace-me" } })
@@ -297,6 +303,7 @@ const throwing: RateLimitStore = {
       "*",
       rateLimit<AppEnv>({
         store,
+        trust: "none",
         failOpen: false,
         getRequestId: (c) => c.get("requestId"),
         // Typed: c.get("log") is string[] here with no cast.
