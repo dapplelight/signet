@@ -83,6 +83,10 @@
       "types": "./dist/middleware/cors.d.ts",
       "import": "./dist/middleware/cors.js"
     },
+    "./middleware/csrf": {
+      "types": "./dist/middleware/csrf.d.ts",
+      "import": "./dist/middleware/csrf.js"
+    },
     "./middleware/rate-limit": {
       "types": "./dist/middleware/rate-limit.d.ts",
       "import": "./dist/middleware/rate-limit.js"

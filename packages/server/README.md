@@ -173,6 +173,7 @@ silently discarded injected values when running a Worker locally under Bun.
 app.use("*", requestId({ childLogger: (id) => logger.child({ reqId: id }) }))
 app.use("*", secureHeaders({ relaxedPaths: ["/docs", "/openapi.json"] }))
 app.use("*", corsMiddleware({ originEnvKeys: ["WEB_URL", "ADMIN_URL"] }))
+app.use("/api/*", csrfMiddleware({ originEnvKeys: ["WEB_URL", "ADMIN_URL"] }))
 app.use("/api/*", rateLimit({ max: 100, windowSeconds: 60 }))
 app.use("/api/auth/login", rateLimit({
   scope: "login", max: 5, windowSeconds: 60,
@@ -180,6 +181,24 @@ app.use("/api/auth/login", rateLimit({
   failOpen: false,                                      // a login limit is a security control
 }))
 ```
+
+### CSRF: turn it on with `sameSite: "none"`
+
+`csrfMiddleware` (`@dapplelight/signet-server/middleware/csrf`) wraps Hono's
+`csrf()`. A POST, PUT, PATCH or DELETE that a browser form could send
+(`application/x-www-form-urlencoded`, `multipart/form-data`, `text/plain`) must
+carry `Sec-Fetch-Site: same-origin` or an `Origin` the app trusts, or it gets a
+403 with the standard envelope (`code: "FORBIDDEN"`). Trusted origins are the
+request's own plus the env keys you pass as `originEnvKeys` (the same option
+`corsMiddleware` takes, plus `extraOrigins` and `devOrigins`). A request with an
+`Authorization: Bearer` header is skipped: browsers do not attach one on their own.
+
+`sameSite: "lax"` already keeps the session cookie off cross-site POSTs. A cookie
+with `sameSite: "none"` (frontend and API on different origins, as in the
+passcode example above) loses that protection, so mount `csrfMiddleware` before
+any route that reads the cookie. The create-signet-app API template enables it.
+JSON requests are not checked: a cross-site page cannot send one without a CORS
+preflight, which `corsMiddleware` refuses for unknown origins.
 
 ### Rate limiting has a pluggable store, on purpose
 

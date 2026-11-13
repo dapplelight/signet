@@ -2,7 +2,9 @@ import { Hono } from "hono"
 import { z } from "zod"
 import { getRuntimeEnv, initRuntimeEnv, resetRuntimeEnv } from "../src/env/runtime"
 import { createEnv } from "../src/env/schema"
+import { errorHandler } from "../src/http/errors"
 import { corsMiddleware } from "../src/middleware/cors"
+import { csrfMiddleware } from "../src/middleware/csrf"
 import { clientIp, memoryStore, rateLimit } from "../src/middleware/rate-limit"
 import { requestId } from "../src/middleware/request-id"
 import { STRICT_CSP, secureHeaders } from "../src/middleware/secure-headers"
@@ -180,6 +182,32 @@ ok("dev origin denied in production", (await devOrigin()) !== "http://localhost:
 resetRuntimeEnv()
 initRuntimeEnv({ WEB_URL: "https://app.example.com", APP_ENV: "local" })
 ok("dev origin allowed when APP_ENV=local", (await devOrigin()) === "http://localhost:5173")
+resetRuntimeEnv()
+
+// --- csrf ---
+initRuntimeEnv({ WEB_URL: "https://app.example.com" })
+const csrfApp = new Hono()
+  .use("*", csrfMiddleware({ originEnvKeys: ["WEB_URL"] }))
+  .post("/", (c) => c.json({ ok: true }))
+  .get("/", (c) => c.json({ ok: true }))
+  .onError(errorHandler({ isProduction: () => true }))
+const form = { "content-type": "application/x-www-form-urlencoded", cookie: "session=abc" }
+const post = (headers: Record<string, string>) =>
+  csrfApp.request("http://api.example.com/", { method: "POST", headers: { ...form, ...headers } })
+const blocked = await post({ origin: "https://evil.com", "sec-fetch-site": "cross-site" })
+const blockedBody = (await blocked.json()) as { success: boolean; code: string }
+ok(
+  "cross-site POST with a session cookie gets 403 FORBIDDEN envelope",
+  blocked.status === 403 && blockedBody.success === false && blockedBody.code === "FORBIDDEN",
+)
+ok("POST with no Origin or Sec-Fetch-Site is blocked", (await post({})).status === 403)
+ok("same-origin POST passes", (await post({ "sec-fetch-site": "same-origin" })).status === 200)
+ok("configured origin passes", (await post({ origin: "https://app.example.com" })).status === 200)
+ok(
+  "bearer token skips the check",
+  (await post({ origin: "https://evil.com", authorization: "Bearer tok" })).status === 200,
+)
+ok("GET is never checked", (await csrfApp.request("http://api.example.com/")).status === 200)
 resetRuntimeEnv()
 
 console.log(`\n${pass} passed, ${fail} failed`)

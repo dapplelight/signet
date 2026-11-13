@@ -24,23 +24,28 @@ export type CorsOptions = {
   credentials?: boolean
 }
 
-export function corsMiddleware(opts: CorsOptions = {}) {
+/**
+ * The origins `opts` allows right now. Read per request, never at module scope.
+ * Shared with `csrf` so both middlewares trust the same set.
+ */
+export function allowedOrigins(
+  opts: Pick<CorsOptions, "originEnvKeys" | "extraOrigins" | "devOrigins">,
+): string[] {
   const devOrigins = opts.devOrigins ?? ["http://localhost:5173", "http://localhost:5174"]
-  const isDev = (env: Record<string, string | undefined>) =>
-    ["local", "development", "test"].includes(env.APP_ENV ?? env.NODE_ENV ?? "")
+  const env = getRuntimeEnv()
+  const isDev = ["local", "development", "test"].includes(env.APP_ENV ?? env.NODE_ENV ?? "")
+  return [
+    ...(opts.originEnvKeys ?? []).map((k) => env[k] ?? ""),
+    ...(opts.extraOrigins ?? []),
+    ...(isDev ? devOrigins : []),
+  ].filter(Boolean)
+}
 
+export function corsMiddleware(opts: CorsOptions = {}) {
   return cors({
-    origin: (origin) => {
-      const env = getRuntimeEnv()
-      const allowed = [
-        ...(opts.originEnvKeys ?? []).map((k) => env[k] ?? ""),
-        ...(opts.extraOrigins ?? []),
-        ...(isDev(env) ? devOrigins : []),
-      ].filter(Boolean)
-      // Returning "" denies. Never reflect an arbitrary origin back with
-      // credentials:true — that defeats the same-origin policy entirely.
-      return allowed.includes(origin) ? origin : ""
-    },
+    // Returning "" denies. Never reflect an arbitrary origin back with
+    // credentials:true — that defeats the same-origin policy entirely.
+    origin: (origin) => (allowedOrigins(opts).includes(origin) ? origin : ""),
     credentials: opts.credentials ?? true,
   })
 }

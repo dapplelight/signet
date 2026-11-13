@@ -5,6 +5,15 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-server
+
+- New `csrfMiddleware` at `@dapplelight/signet-server/middleware/csrf`: Hono's
+  `csrf()` (Origin + Sec-Fetch-Site) with origins from the same env keys as
+  `corsMiddleware`, bearer-token requests skipped, and a 403 `FORBIDDEN` envelope.
+  `corsMiddleware` now shares `allowedOrigins()` with it. The create-signet-app
+  API template enables it on `/api/*`; existing apps need no migration, and apps
+  with `sameSite: "none"` cookies should add it.
+
 ### signet-server (version bump pending)
 
 - New `webCryptoPushSender` at `@dapplelight/signet-server/notify/push`: a
