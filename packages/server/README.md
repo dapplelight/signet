@@ -364,9 +364,30 @@ request that triggered it.
 
 **`createPusher` prunes dead subscriptions.** A push endpoint returning 404 or
 410 is permanently gone, and one that is never pruned is retried on every future
-notification forever. A transient 500 is *not* pruned. VAPID signing is injected
-rather than implemented, because `web-push` is Node-only and would make this
-module unusable on Workers.
+notification forever. A transient 500 is *not* pruned.
+
+**`webCryptoPushSender` sends on Workers.** It implements VAPID (ES256 JWT) and
+RFC 8291 `aes128gcm` payload encryption on Web Crypto only: no Node APIs, no
+dependency. Pass VAPID keys as base64url (public: the 65-byte uncompressed
+point you give `pushManager.subscribe`; private: the 32-byte scalar), read from
+your env by the caller:
+
+```ts
+import { createPusher, webCryptoPushSender } from "@dapplelight/signet-server/notify/push"
+
+const pusher = createPusher({
+  send: webCryptoPushSender({
+    vapid: { subject: "mailto:ops@example.com", publicKey, privateKey },
+    // ttl (seconds, default 86400), urgency, fetch are optional
+  }),
+  removeSubscription: (id) => db.deleteSubscription(id),
+})
+await pusher.sendTo(subscriptions, { title: "Hi", message: "Hello" })
+```
+
+A non-2xx response throws with `statusCode`, which is how 404/410 get pruned.
+The sender is still injectable, so Node apps can wrap `web-push` instead.
+Payloads over 3993 bytes are rejected (the RFC 8291 single-record limit).
 
 **`createTelegram` is operator-level only.** The chat is a single owned channel,
 so no user or household data belongs in it — amounts, names, account

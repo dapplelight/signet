@@ -5,6 +5,16 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-server (version bump pending)
+
+- New `webCryptoPushSender` at `@dapplelight/signet-server/notify/push`: a
+  `PushSender` for Workers that signs VAPID (ES256 JWT, RFC 8292) and encrypts
+  the payload with aes128gcm (RFC 8291) on Web Crypto only, with no Node APIs
+  and no new dependency. Pass it as `createPusher({ send })`. Also exported:
+  `encryptAes128gcm`, `vapidJwt`. Tested against the RFC 8291 test vector.
+  Not breaking: injecting your own sender (for example `web-push` on Node)
+  still works.
+
 ### signet-ai 0.3.0
 
 - **Breaking:** the budget ledger is async and takes a `BudgetStore`:
