@@ -5,7 +5,7 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
-### signet-server (next minor)
+### signet-server 0.4.0
 
 - **Breaking:** `clientIp(c, trust)` and `rateLimit({ trust })` take a trust
   setting: `"cloudflare"`, `{ forwardedHops: n }` or `"none"`. The old
@@ -24,7 +24,7 @@ a package at the version it had when the repository was opened to the public.
 - IPv6 clients are keyed by their /64 (`2001:db8:0:1::/64`); IPv4-mapped addresses (`::ffff:1.2.3.4`) are keyed as the plain IPv4.
 - The `memoryStore` doc said sliding window; it is a fixed window.
 
-### signet-server
+### signet-server 0.4.0
 
 - New `csrfMiddleware` at `@dapplelight/signet-server/middleware/csrf`: Hono's
   `csrf()` (Origin + Sec-Fetch-Site) with origins from the same env keys as
@@ -33,7 +33,7 @@ a package at the version it had when the repository was opened to the public.
   API template enables it on `/api/*`; existing apps need no migration, and apps
   with `sameSite: "none"` cookies should add it.
 
-### signet-server (version bump pending)
+### signet-server 0.4.0 (web push)
 
 - New `webCryptoPushSender` at `@dapplelight/signet-server/notify/push`: a
   `PushSender` for Workers that signs VAPID (ES256 JWT, RFC 8292) and encrypts
@@ -43,7 +43,7 @@ a package at the version it had when the repository was opened to the public.
   Not breaking: injecting your own sender (for example `web-push` on Node)
   still works.
 
-### signet-server
+### signet-server 0.4.0
 
 - `createSentry` posts to the envelope endpoint (`/api/<project>/envelope/`),
   not the deprecated Store API, so it keeps working when Sentry retires it.
@@ -56,7 +56,9 @@ a package at the version it had when the repository was opened to the public.
   other header values scrubbed) and `user`; `createSentry({ tags })` adds tags to
   every event. `parseStack` is exported.
 
-### signet-lib
+### signet-lib 0.3.0
+
+- create-signet-app 0.3.0: new apps depend on signet-server ^0.4.0 and signet-lib ^0.3.0; the API template turns on `csrfMiddleware` and passes `trust: "cloudflare"` to `rateLimit`.
 
 - The date formatters take `{ timeZone }`. Date-only strings are not shifted.
 - Currency formatters use each currency's own fraction digits when `exact`:
@@ -65,6 +67,10 @@ a package at the version it had when the repository was opened to the public.
 - `Amount` accepts `bigint`; `{ minorUnits: true }` reads integer minor units
   (exact for a bigint). Migration: none for existing calls.
 - Compact currency treats `or` (Odia) and `as` (Assamese) locales as lakh/crore.
+
+### signet-ai 0.3.1
+
+- Accepts signet-lib 0.3 as a peer (`^0.2.0 || ^0.3.0`).
 
 ### signet-ai 0.3.0
 
@@ -114,7 +120,7 @@ a package at the version it had when the repository was opened to the public.
   run; motion is off under `prefers-reduced-motion`. `test/contrast.ts` checks
   every theme.
 
-### Audit medium bugs: Content-Type, `qs` arrays, nested validation paths
+### signet-lib 0.3.0 and signet-server 0.4.0: Content-Type, `qs` arrays, nested validation paths
 
 - lib: the API client sends `Content-Type: application/json` only when a body is
   sent. A GET or body-less DELETE no longer makes a cross-origin preflight.
@@ -141,10 +147,10 @@ a package at the version it had when the repository was opened to the public.
 
 | Package | Version |
 |---|---|
-| `@dapplelight/signet-ai` | 0.2.2 |
+| `@dapplelight/signet-ai` | 0.3.1 |
 | `@dapplelight/signet-config` | 0.2.2 |
-| `@dapplelight/signet-lib` | 0.2.2 |
-| `@dapplelight/signet-server` | 0.3.2 |
+| `@dapplelight/signet-lib` | 0.3.0 |
+| `@dapplelight/signet-server` | 0.4.0 |
 | `@dapplelight/signet-tokens` | 0.2.2 |
 | `@dapplelight/signet-ui` | 0.2.2 |
-| `create-signet-app` | 0.2.2 |
+| `create-signet-app` | 0.3.0 |
