@@ -38,7 +38,12 @@ export async function parseBody<T>(c: Context, schema: z.ZodType<T>): Promise<T>
   return result.data
 }
 
-/** A key given once is a string; a repeated key (`?tag=a&tag=b`) is an array. */
+/**
+ * A key given once is a string; a repeated key (`?tag=a&tag=b`) is an array.
+ * So a one-item array (`qs({ tag: ["a"] })` is `?tag=a`) arrives as a string:
+ * an array-typed field needs `z.preprocess` to wrap a lone string, or it fails
+ * with 400 VALIDATION_FAILED.
+ */
 export function parseQuery<T>(c: Context, schema: z.ZodType<T>): T {
   const query = Object.fromEntries(
     Object.entries(c.req.queries()).map(([k, v]) => [k, v.length === 1 ? v[0] : v]),

@@ -239,6 +239,8 @@ ok(
   qs({ tag: ["a", null, undefined, "", "b"], n: [1] }) === "?tag=a&tag=b&n=1",
 )
 ok("qs empty array adds nothing", qs({ tag: [] }) === "")
+// A one-item array is the same URL as a scalar; the server cannot tell them apart.
+ok("qs one-item array is the same as a scalar", qs({ tag: ["a"] }) === qs({ tag: "a" }))
 
 // --- contract guard ---
 ok("isErrorEnvelope true", isErrorEnvelope({ success: false, error: "x" }))

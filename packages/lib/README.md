@@ -98,6 +98,11 @@ await api.postForm<ImportResult>("/import", formData)
 const pdf = await api.raw("/receipt/42/pdf")
 ```
 
+`qs` appends one `k=v` per array item (`tag=a&tag=b`). A one-item array is
+`tag=a`, which the server's `parseQuery` reads as a string, not an array, so give
+an array-typed query field a schema that accepts a lone string:
+`z.preprocess((v) => (typeof v === "string" ? [v] : v), z.array(z.string()))`.
+
 Validation errors arrive structured, not as a JSON string inside a message:
 
 ```ts

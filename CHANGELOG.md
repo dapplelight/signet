@@ -102,7 +102,11 @@ a package at the version it had when the repository was opened to the public.
   Headers you set still win.
 - lib: `qs({ tag: ["a", "b"] })` gives `?tag=a&tag=b`, which `parseQuery` reads
   back as an array. Null, undefined and empty items are skipped; an empty array
-  adds nothing.
+  adds nothing. A one-item array gives `?tag=a`, which `parseQuery` reads as the
+  string `"a"`, because a URL cannot tell the two apart. A route whose schema is
+  a bare `z.array(z.string())` then answers 400 VALIDATION_FAILED. Migration:
+  wrap a lone string in the schema,
+  `z.preprocess((v) => (typeof v === "string" ? [v] : v), z.array(z.string()))`.
 - **Breaking (server):** `parseBody`, `parseQuery` and `parseParams` key
   `fieldErrors` by the full dotted path (`address.city`, `guests.2.name`), not
   by the first segment. Top-level keys (`email`) are unchanged. Migration: a
