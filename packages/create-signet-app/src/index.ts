@@ -156,6 +156,7 @@ async function main() {
   // the CI workflow ships under _github.
   await rename(join(target, "_gitignore"), join(target, ".gitignore"))
   await rename(join(target, "_github"), join(target, ".github"))
+  if (template === "api") await rename(join(target, "_dockerignore"), join(target, ".dockerignore"))
 
   await substitute(target, { __APP_NAME__: appName, __THEME__: theme })
 
@@ -172,6 +173,7 @@ async function main() {
             ? {
                 dev: "wrangler dev",
                 deploy: "wrangler deploy",
+                start: "bun src/server.ts",
                 lint: "biome check .",
                 format: "biome check --write .",
                 typecheck: "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
@@ -205,6 +207,8 @@ async function main() {
 
   Rate limiting is exact and per IP, backed by the RateLimitCounter Durable
   Object in wrangler.jsonc. Append migration tags; never edit a deployed one.
+
+  Off Cloudflare: bun run start (src/server.ts), or build the Dockerfile.
 `
       : `
   Created ${appName} with the ${theme} theme.

@@ -1,4 +1,4 @@
-import type { Cache, CacheEntry } from "./types.js"
+import type { Cache, CacheEntry, KeyValueLike } from "./types.js"
 
 /**
  * Cache key: a hash of the schema shape, the instructions and the input.
@@ -58,6 +58,31 @@ export function memoryCache(maxEntries = 500): Cache {
         if (oldest) map.delete(oldest)
       }
       map.set(key, { entry, expiresAt: Date.now() + ttlSeconds * 1000 })
+    },
+  }
+}
+
+/**
+ * Cache over a shared key-value store (Upstash, Workers KV), so every isolate
+ * or process sees the same entries. Entries are JSON with their own expiry,
+ * checked on read, because a store may keep a key past the TTL asked for
+ * (Workers KV's minimum is 60s). An unreadable entry is a miss.
+ */
+export function kvCache(kv: KeyValueLike, prefix = "signet-ai-cache"): Cache {
+  return {
+    async get(key) {
+      const raw = await kv.get(`${prefix}:${key}`)
+      if (!raw) return undefined
+      try {
+        const { entry, expiresAt } = JSON.parse(raw) as { entry: CacheEntry; expiresAt: number }
+        return expiresAt > Date.now() ? entry : undefined
+      } catch {
+        return undefined
+      }
+    },
+    async set(key, entry, ttlSeconds) {
+      const value = JSON.stringify({ entry, expiresAt: Date.now() + ttlSeconds * 1000 })
+      await kv.set(`${prefix}:${key}`, value, { ttlSeconds })
     },
   }
 }

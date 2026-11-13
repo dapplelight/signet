@@ -1,4 +1,4 @@
-import type { Pricing, Usage } from "./types.js"
+import type { KeyValueLike, Pricing, Usage } from "./types.js"
 
 export function costOf(usage: Usage | undefined, pricing: Pricing | undefined): number {
   if (!pricing) return 0
@@ -48,9 +48,12 @@ export type BudgetKv = {
  * the window is fixed (it resets on the boundary, so up to 2× the cap can pass
  * across one), and concurrent records read-modify-write the same key, so one can
  * be lost. Use it as a cheap backstop; use `durableObjectBudgetStore` when the
- * cap must hold.
+ * cap must hold. Takes a raw KV namespace or a `KeyValueLike` (`upstashKv`).
  */
-export function kvBudgetStore(kv: BudgetKv, prefix = "signet-ai-budget"): BudgetStore {
+export function kvBudgetStore(
+  kv: BudgetKv | KeyValueLike,
+  prefix = "signet-ai-budget",
+): BudgetStore {
   const bucket = (key: string, windowSeconds: number, now: number) =>
     `${prefix}:${key}:${Math.floor(now / (windowSeconds * 1000))}`
   return {
@@ -61,7 +64,9 @@ export function kvBudgetStore(kv: BudgetKv, prefix = "signet-ai-budget"): Budget
       const k = bucket(key, windowSeconds, now)
       const total = Number((await kv.get(k)) ?? 0) + usd
       // KV's minimum TTL is 60s.
-      await kv.put(k, String(total), { expirationTtl: Math.max(60, windowSeconds * 2) })
+      const ttl = Math.max(60, windowSeconds * 2)
+      if ("put" in kv) await kv.put(k, String(total), { expirationTtl: ttl })
+      else await kv.set(k, String(total), { ttlSeconds: ttl })
     },
   }
 }

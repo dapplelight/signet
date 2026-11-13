@@ -47,6 +47,16 @@ export type Provider = {
 
 export type CacheEntry = { value: unknown; meta: ExtractMeta }
 
+/**
+ * A string key-value store with TTLs, e.g. `upstashKv` or `cloudflareKv` from
+ * `@dapplelight/signet-server/adapters`. Structural, so this package does not
+ * depend on the server one.
+ */
+export type KeyValueLike = {
+  get(key: string): Promise<string | null>
+  set(key: string, value: string, opts?: { ttlSeconds?: number }): Promise<void>
+}
+
 /** Pluggable so Workers can use the Cache API and Node something else. */
 export type Cache = {
   get(key: string): Promise<CacheEntry | undefined> | CacheEntry | undefined

@@ -66,6 +66,11 @@ copy-paste, not configuration.
 - `test/env.test.ts` (`bun test`) and `.github/workflows/ci.yml`: lint,
   typecheck, test and `wrangler deploy --dry-run`
 
+- `src/server.ts` and a `Dockerfile`: the same app (`src/app.ts`) under
+  `Bun.serve` for Node/Bun hosts and containers. `bun run start` runs it;
+  rate limiting there is in-process, keyed by the socket address, or by
+  `x-forwarded-for` when `TRUSTED_PROXY_HOPS` is set
+
 Append migration tags; never edit one that has been deployed. A Worker entry
 may export only handlers and classes (workerd: "Incorrect type for map entry").
 
