@@ -69,8 +69,9 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/http/validate` | parseBody, parseQuery, parseParams | Zod request validation |
 | `@dapplelight/signet-server/mcp` | toolResult, defineTool, createMcpServer, ToolAnnotations, ToolContext, CallToolResult, … | re-exports server |
 | `@dapplelight/signet-server/mcp/hono` | mcpHandler, mountMcp, McpHandlerOptions | Serve MCP over streamable HTTP from a Hono route |
-| `@dapplelight/signet-server/middleware` | corsMiddleware, CorsOptions, memoryStore, clientIp, rateLimit, RateLimitResult, … | re-exports cors, rate-limit, request-id, secure-headers |
-| `@dapplelight/signet-server/middleware/cors` | corsMiddleware, CorsOptions | CORS |
+| `@dapplelight/signet-server/middleware` | allowedOrigins, corsMiddleware, CorsOptions, csrfMiddleware, CsrfOptions, memoryStore, … | re-exports cors, csrf, rate-limit, request-id, secure-headers |
+| `@dapplelight/signet-server/middleware/cors` | allowedOrigins, corsMiddleware, CorsOptions | CORS |
+| `@dapplelight/signet-server/middleware/csrf` | csrfMiddleware, CsrfOptions | CSRF guard for cookie-authenticated APIs |
 | `@dapplelight/signet-server/middleware/rate-limit` | memoryStore, clientIp, rateLimit, RateLimitResult, RateLimitStore, RateLimitOptions | Rate limiting with a pluggable store |
 | `@dapplelight/signet-server/middleware/rate-limit-do` | RateLimitCounter, durableObjectStore, RateLimitCounterState, RateLimitNamespace | Exact rate limiting on Cloudflare Workers, backed by a Durable Object |
 | `@dapplelight/signet-server/middleware/request-id` | requestId, RequestIdOptions |  |
