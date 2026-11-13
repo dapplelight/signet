@@ -19,6 +19,7 @@ export const BUDGET_EXCEEDED = "AI_BUDGET_EXCEEDED"
 export const ALL_PROVIDERS_FAILED = "AI_ALL_PROVIDERS_FAILED"
 export const SCHEMA_INVALID = "AI_SCHEMA_INVALID"
 export const NO_PROVIDERS = "AI_NO_PROVIDERS"
+export const UNPRICED_PROVIDER = "AI_UNPRICED_PROVIDER"
 
 /**
  * Only transient failures are retried.

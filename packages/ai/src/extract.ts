@@ -8,6 +8,7 @@ import {
   isTransient,
   NO_PROVIDERS,
   SCHEMA_INVALID,
+  UNPRICED_PROVIDER,
 } from "./errors.js"
 import type { BudgetOptions, Cache, ExtractResult, Provider } from "./types.js"
 
@@ -20,6 +21,12 @@ export type ExtractConfig = {
   cache?: Cache
   cacheTtlSeconds?: number
   ledger?: BudgetLedger
+  /**
+   * With a ledger, every provider must have `pricing`: an unpriced one costs $0
+   * to the ledger, so the cap never fills. Set true only when a provider really
+   * is free at the point of use.
+   */
+  allowUnpriced?: boolean
   /** Per-attempt timeout. Default 20s. */
   timeoutMs?: number
   /** Retries of the SAME provider before failing over. Default 1. */
@@ -59,6 +66,16 @@ export function createExtractor(config: ExtractConfig) {
   const maxRetries = config.maxRetriesPerProvider ?? 1
   const ttl = config.cacheTtlSeconds ?? 3600
   const now = config.now ?? (() => Date.now())
+  if (config.ledger && !config.allowUnpriced) {
+    const unpriced = config.providers.filter((p) => !p.pricing).map((p) => p.name)
+    if (unpriced.length) {
+      throw new AiError(
+        `Budget ledger set but provider(s) ${unpriced.join(", ")} have no pricing, so their spend counts as $0. Add pricing (perCallUsd for flat-rate) or pass allowUnpriced: true.`,
+        UNPRICED_PROVIDER,
+        500,
+      )
+    }
+  }
 
   async function extract<S extends z.ZodType>(
     args: ExtractArgs<S>,
@@ -83,11 +100,13 @@ export function createExtractor(config: ExtractConfig) {
       }
     }
 
-    // Window budget is checked BEFORE spending. Fails closed.
-    if (args.budget?.windowUsd && config.ledger) {
-      if (!config.ledger.canSpend(args.budget.maxCostUsd ?? 0, now())) {
+    // Window budget is checked BEFORE spending, whenever a ledger is set. Fails
+    // closed, including when the store cannot be reached.
+    const budgetKey = args.budget?.key
+    if (config.ledger) {
+      if (!(await config.ledger.canSpend(args.budget?.maxCostUsd ?? 0, now(), budgetKey))) {
         throw new AiError(
-          `AI budget window exhausted (${config.ledger.spentUsd(now()).toFixed(4)} USD spent)`,
+          `AI budget window exhausted (${(await config.ledger.spentUsd(now())).toFixed(4)} USD spent)`,
           BUDGET_EXCEEDED,
           429,
         )
@@ -127,7 +146,7 @@ export function createExtractor(config: ExtractConfig) {
           // Per-call ceiling is enforced AFTER the spend, because the true cost
           // is only known from usage. It is recorded either way — the money is
           // already gone, and hiding it would corrupt the window ledger.
-          config.ledger?.record(costUsd, now())
+          await config.ledger?.record(costUsd, now(), budgetKey)
           if (args.budget?.maxCostUsd !== undefined && costUsd > args.budget.maxCostUsd) {
             throw new AiError(
               `Call cost ${costUsd.toFixed(6)} USD exceeded cap ${args.budget.maxCostUsd} USD`,

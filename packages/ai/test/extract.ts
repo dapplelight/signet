@@ -1,6 +1,7 @@
 import { ApiError } from "@dapplelight/signet-lib/api"
 import { z } from "zod"
-import { costOf, createBudgetLedger } from "../src/budget"
+import { costOf, createBudgetLedger, kvBudgetStore, memoryBudgetStore } from "../src/budget"
+import { BudgetCounter, durableObjectBudgetStore } from "../src/budget-do"
 import { cacheKey, fingerprintSchema, memoryCache } from "../src/cache"
 import {
   AiError,
@@ -9,6 +10,7 @@ import {
   isTransient,
   NO_PROVIDERS,
   SCHEMA_INVALID,
+  UNPRICED_PROVIDER,
 } from "../src/errors"
 import { createExtractor } from "../src/extract"
 import { fakeProvider } from "../src/fake"
@@ -153,26 +155,136 @@ try {
 }
 ok("fallback does NOT swallow a budget refusal", (caught as AiError)?.code === BUDGET_EXCEEDED)
 
+ok(
+  "costOf adds a flat per-call price, even with no usage",
+  costOf(undefined, { perCallUsd: 0.01 }) === 0.01 &&
+    costOf({ inputTokens: 1_000_000, outputTokens: 0 }, { inputPerMTokens: 2, perCallUsd: 1 }) ===
+      3,
+)
+
 const ledger = createBudgetLedger(1.0, 3600)
-ledger.record(0.6)
-ok("ledger tracks spend", Math.abs(ledger.spentUsd() - 0.6) < 1e-9)
-ok("ledger reports remaining", Math.abs(ledger.remainingUsd() - 0.4) < 1e-9)
-ok("ledger allows within window", ledger.canSpend(0.3))
-ok("ledger refuses beyond window", !ledger.canSpend(0.5))
-ledger.record(0.5)
+await ledger.record(0.6)
+ok("ledger tracks spend", Math.abs((await ledger.spentUsd()) - 0.6) < 1e-9)
+ok("ledger reports remaining", Math.abs((await ledger.remainingUsd()) - 0.4) < 1e-9)
+ok("ledger allows within window", await ledger.canSpend(0.3))
+ok("ledger refuses beyond window", !(await ledger.canSpend(0.5)))
+await ledger.record(0.5)
 try {
   await createExtractor({ providers: [fakeProvider(good)], ledger }).extract({
     ...base,
-    budget: { windowUsd: 1.0, maxCostUsd: 0.01 },
+    budget: { maxCostUsd: 0.01 },
   })
   caught = null
 } catch (e) {
   caught = e
 }
 ok("window exhaustion fails CLOSED", (caught as AiError)?.code === BUDGET_EXCEEDED)
+try {
+  await createExtractor({ providers: [fakeProvider(good)], ledger }).extract(base)
+  caught = null
+} catch (e) {
+  caught = e
+}
+ok(
+  "ledger refuses even when the call passes no budget",
+  (caught as AiError)?.code === BUDGET_EXCEEDED,
+)
 const old = createBudgetLedger(1.0, 60)
-old.record(0.9, Date.now() - 120_000)
-ok("ledger prunes outside the window", old.spentUsd() === 0)
+await old.record(0.9, Date.now() - 120_000)
+ok("ledger prunes outside the window", (await old.spentUsd()) === 0)
+
+// two isolates (two extractors) sharing one store hit the cap together
+const shared = memoryBudgetStore()
+const dollar = {
+  ...fakeProvider(good, { usage: { inputTokens: 1_000_000, outputTokens: 0 } }),
+  pricing: { inputPerMTokens: 0.6 },
+}
+const a = createExtractor({
+  providers: [dollar],
+  ledger: createBudgetLedger(1, 3600, { store: shared }),
+})
+const b = createExtractor({
+  providers: [dollar],
+  ledger: createBudgetLedger(1, 3600, { store: shared }),
+})
+await a.extract(base)
+try {
+  await b.extract({ ...base, cache: false })
+  await b.extract({ ...base, cache: false })
+  caught = null
+} catch (e) {
+  caught = e
+}
+ok("a shared store caps across extractors", (caught as AiError)?.code === BUDGET_EXCEEDED)
+
+// per-key cap: one user runs out, another still has room
+const perUser = createBudgetLedger(10, 3600, { perKeyUsd: 1 })
+await perUser.record(0.9, Date.now(), "u1")
+ok("per-key cap refuses the spent key", !(await perUser.canSpend(0.2, Date.now(), "u1")))
+ok("per-key cap leaves other keys alone", await perUser.canSpend(0.2, Date.now(), "u2"))
+ok("per-key spend also counts globally", Math.abs((await perUser.spentUsd()) - 0.9) < 1e-9)
+
+// an unpriced provider with a ledger would count as $0 forever
+try {
+  createExtractor({
+    providers: [{ ...fakeProvider(good), pricing: undefined }],
+    ledger: createBudgetLedger(1),
+  })
+  caught = null
+} catch (e) {
+  caught = e
+}
+ok("unpriced provider with a ledger throws", (caught as AiError)?.code === UNPRICED_PROVIDER)
+let built = true
+try {
+  createExtractor({
+    providers: [{ ...fakeProvider(good), pricing: undefined }],
+    ledger: createBudgetLedger(1),
+    allowUnpriced: true,
+  })
+} catch {
+  built = false
+}
+ok("allowUnpriced opts out", built)
+
+// KV store: shared through the namespace, fixed window
+const kvData = new Map<string, string>()
+const kv = {
+  get: async (k: string) => kvData.get(k) ?? null,
+  put: async (k: string, v: string) => void kvData.set(k, v),
+}
+const k1 = createBudgetLedger(1, 3600, { store: kvBudgetStore(kv) })
+const k2 = createBudgetLedger(1, 3600, { store: kvBudgetStore(kv) })
+await k1.record(0.7)
+ok("kv store shares spend across ledgers", !(await k2.canSpend(0.5)))
+
+// Durable Object store: one counter per key, reached through a fake namespace
+const objects = new Map<string, BudgetCounter>()
+const storage = () => {
+  const m = new Map<string, unknown>()
+  return {
+    get: async <T>(k: string) => m.get(k) as T | undefined,
+    put: async <T>(k: string, v: T) => void m.set(k, v),
+    deleteAll: async () => m.clear(),
+    setAlarm: async () => {},
+  }
+}
+const ns = {
+  idFromName: (name: string) => name,
+  get: (id: never) => {
+    const name = id as unknown as string
+    if (!objects.has(name)) objects.set(name, new BudgetCounter({ storage: storage() }))
+    const obj = objects.get(name) as BudgetCounter
+    return { fetch: (url: string, init?: RequestInit) => obj.fetch(new Request(url, init)) }
+  },
+}
+const d1 = createBudgetLedger(1, 3600, { store: durableObjectBudgetStore(ns), perKeyUsd: 0.5 })
+const d2 = createBudgetLedger(1, 3600, { store: durableObjectBudgetStore(ns), perKeyUsd: 0.5 })
+await d1.record(0.4, Date.now(), "u1")
+ok("durable object store shares spend", Math.abs((await d2.spentUsd()) - 0.4) < 1e-9)
+ok("durable object store keeps a counter per key", !(await d2.canSpend(0.2, Date.now(), "u1")))
+await d1.record(0.5, Date.now() - 7_200_000)
+ok("durable object store prunes outside the window", Math.abs((await d2.spentUsd()) - 0.4) < 1e-9)
 
 // --- cache ---
 const cache = memoryCache()
