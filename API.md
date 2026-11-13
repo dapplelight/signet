@@ -76,9 +76,9 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/middleware/rate-limit-do` | RateLimitCounter, durableObjectStore, RateLimitCounterState, RateLimitNamespace | Exact rate limiting on Cloudflare Workers, backed by a Durable Object |
 | `@dapplelight/signet-server/middleware/request-id` | requestId, RequestIdOptions |  |
 | `@dapplelight/signet-server/middleware/secure-headers` | STRICT_CSP, DOCS_CSP, secureHeaders, SecureHeadersOptions | Security headers |
-| `@dapplelight/signet-server/notify` | createEmailer, EmailConfig, EmailMessage, isGone, createPusher, PushSubscription, … | re-exports email, push, telegram |
+| `@dapplelight/signet-server/notify` | createEmailer, EmailConfig, EmailMessage, b64urlDecode, b64urlEncode, encryptAes128gcm, … | re-exports email, push, telegram |
 | `@dapplelight/signet-server/notify/email` | createEmailer, EmailConfig, EmailMessage | Transactional email via Resend |
-| `@dapplelight/signet-server/notify/push` | isGone, createPusher, PushSubscription, PushPayload, PushSender, PushConfig | Web push fan-out with dead-subscription pruning |
+| `@dapplelight/signet-server/notify/push` | b64urlDecode, b64urlEncode, encryptAes128gcm, vapidJwt, webCryptoPushSender, isGone, … | Web push fan-out with dead-subscription pruning |
 | `@dapplelight/signet-server/notify/telegram` | escapeMarkdown, createTelegram, TelegramConfig | Telegram messages |
 | `@dapplelight/signet-server/oauth-rs` | SUPPORTED_ALGS, createJwksCache, Jwk, SupportedAlg, JwksOptions, JwksCache, … | re-exports jwks, metadata, verify |
 | `@dapplelight/signet-server/oauth-rs/hono` | METADATA_PATH, registerProtectedResourceMetadata, requireToken, requireScopes, RequireTokenOptions | Hono bindings for the resource server |
