@@ -26,7 +26,9 @@ export type RateLimitStore = {
 }
 
 /**
- * In-memory sliding window.
+ * In-memory fixed window: the counter starts at a client's first hit and
+ * resets whole when the window ends, so up to 2× `max` can land across a
+ * boundary. It is not a sliding window.
  *
  * NOT shared across Workers isolates — each POP keeps its own counter, so the
  * effective limit is `max × isolates`. Use for smoothing, never as a security
@@ -62,19 +64,85 @@ export function memoryStore(): RateLimitStore {
 }
 
 /**
- * The client IP.
+ * Which proxy in front of the app to believe about the client IP. Headers a
+ * client can set itself are never read, so a spoofed one cannot pick its own
+ * rate-limit bucket.
  *
- * On Cloudflare, `CF-Connecting-IP` is set by the edge and cannot be spoofed.
- * `x-forwarded-for` **can** be spoofed by the client, so it is only a fallback
- * for non-CF deployments — do not reorder these.
+ * - `"cloudflare"`: read `cf-connecting-ip`, which the Cloudflare edge sets.
+ *   Only correct when every request really comes through Cloudflare.
+ * - `{ forwardedHops: n }`: `n` trusted proxies each append the address they
+ *   saw to `x-forwarded-for`; the client is the n-th entry from the right.
+ *   Entries further left are client-supplied and ignored, and so is
+ *   `cf-connecting-ip`.
+ * - `"none"`: trust nothing; there is no client IP (the default).
+ */
+export type ClientIpTrust = "cloudflare" | { forwardedHops: number } | "none"
+
+const V4 = /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)$/
+
+/** The first 4 groups of an IPv6 address (its /64), or null if not valid IPv6. */
+function v6Prefix(ip: string): string | null {
+  const [addr = "", zone] = ip.split("%")
+  if (zone === "" || !/^[0-9a-f:.]+$/i.test(addr)) return null
+  let s = addr.toLowerCase()
+  const dot = s.lastIndexOf(":") + 1
+  if (s.includes(".")) {
+    // embedded IPv4 (::ffff:1.2.3.4) takes the place of the last two groups
+    const v4 = s.slice(dot)
+    if (!V4.test(v4)) return null
+    const [a = 0, b = 0, c = 0, d = 0] = v4.split(".").map(Number)
+    s = `${s.slice(0, dot)}${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`
+  }
+  const halves = s.split("::")
+  if (halves.length > 2) return null
+  const head = halves[0] ? halves[0].split(":") : []
+  const tail = halves[1] ? halves[1].split(":") : []
+  const missing = 8 - head.length - tail.length
+  if (halves.length === 2 ? missing < 1 : missing !== 0) return null
+  const groups = [...head, ...Array<string>(halves.length === 2 ? missing : 0).fill("0"), ...tail]
+  if (!groups.every((g) => /^[0-9a-f]{1,4}$/.test(g))) return null
+  return `${groups
+    .slice(0, 4)
+    .map((g) => Number.parseInt(g, 16).toString(16))
+    .join(":")}::/64`
+}
+
+/** IPv4 as is; IPv6 grouped by /64 (one subscriber holds a whole /64); else null. */
+function normalizeIp(raw: string | undefined): string | null {
+  const ip = raw?.trim()
+  if (!ip) return null
+  if (V4.test(ip)) return ip
+  return v6Prefix(ip)
+}
+
+function assertHops(hops: number) {
+  if (!Number.isInteger(hops) || hops < 1) {
+    throw new Error("forwardedHops must be an integer >= 1")
+  }
+}
+
+/**
+ * The client IP under a trust setting, or null when there is none: the header
+ * the setting trusts is missing or not an IP, or `"none"`. IPv6 comes back as
+ * its /64 (`2001:db8:0:1::/64`), so a client cannot dodge a limit by rotating
+ * through the addresses of its own prefix.
+ *
+ * Never returns a shared placeholder. `rateLimit` gives a null IP its own
+ * bucket per limiter instead.
  */
 // biome-ignore lint/suspicious/noExplicitAny: Hono's own Context defaults to any; `Env` breaks c.env.BINDING
-export function clientIp<E extends Env = any>(c: Context<E>): string {
-  return (
-    c.req.header("cf-connecting-ip") ||
-    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
-    "unknown"
-  )
+export function clientIp<E extends Env = any>(
+  c: Context<E>,
+  trust: ClientIpTrust = "none",
+): string | null {
+  if (trust === "cloudflare") return normalizeIp(c.req.header("cf-connecting-ip"))
+  if (typeof trust === "object" && trust !== null) {
+    const hops = trust.forwardedHops
+    assertHops(hops)
+    const entries = c.req.header("x-forwarded-for")?.split(",") ?? []
+    return normalizeIp(entries[entries.length - hops])
+  }
+  return null
 }
 
 // E defaults to `any`, not `Env`: with `Env`, c.env is `object` and the documented
@@ -91,6 +159,12 @@ export type RateLimitOptions<E extends Env = any> = {
   scope?: string
   max?: number
   windowSeconds?: number
+  /**
+   * Which proxy to believe about the client IP, see `ClientIpTrust`. Default
+   * `"none"`: no IP, so every request shares one bucket per limiter. Set it to
+   * match the deployment. Ignored when `keyFor` is given.
+   */
+  trust?: ClientIpTrust
   /** Defaults to the client IP. Use a user id for per-account limits. */
   keyFor?: (c: Context<E>) => string
   /**
@@ -115,12 +189,17 @@ export function rateLimit<E extends Env = any>(
   const scope = opts.scope ?? "api"
   const max = opts.max ?? 100
   const windowSeconds = opts.windowSeconds ?? 60
+  const trust = opts.trust ?? "none"
+  if (typeof trust === "object") assertHops(trust.forwardedHops) // fail at startup, not on request 1
 
   return async (c: Context<E>, next: Next) => {
     const store = fixed ?? (opts.store as (c: Context<E>) => RateLimitStore)(c)
     let result: RateLimitResult
     try {
-      result = await store.hit(scope, (opts.keyFor ?? clientIp)(c), max, windowSeconds)
+      // No IP: one "no-ip" bucket inside this limiter's scope, never a key shared
+      // with other limiters or with a real address.
+      const key = opts.keyFor ? opts.keyFor(c) : (clientIp(c, trust) ?? "no-ip")
+      result = await store.hit(scope, key, max, windowSeconds)
     } catch (err) {
       opts.onStoreError?.(err, c)
       // Only the store call is guarded. next() is outside the try, so an error

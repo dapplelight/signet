@@ -5,6 +5,24 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-server (next minor)
+
+- **Breaking:** `clientIp(c, trust)` and `rateLimit({ trust })` take a trust
+  setting: `"cloudflare"`, `{ forwardedHops: n }` or `"none"`. The old
+  `clientIp` read `cf-connecting-ip` first and fell back to `x-forwarded-for`,
+  so off Cloudflare a client could set `cf-connecting-ip` and pick its own
+  bucket. Now `cf-connecting-ip` is read only under `"cloudflare"`;
+  `forwardedHops: n` takes the n-th `x-forwarded-for` entry from the right.
+  **Migration:** on Cloudflare pass `trust: "cloudflare"`; behind `n` proxies
+  of your own pass `trust: { forwardedHops: n }`. The default is `"none"`, so
+  without it all clients share one bucket per limiter (too strict, not too
+  loose). Custom `keyFor` is unaffected.
+- **Breaking:** `clientIp` returns `string | null`, never `"unknown"`. A missing
+  IP gets the key `no-ip` inside the limiter's own scope instead of a bucket
+  shared by every limiter.
+- IPv6 clients are keyed by their /64 (`2001:db8:0:1::/64`).
+- The `memoryStore` doc said sliding window; it is a fixed window.
+
 ### signet-ai 0.3.0
 
 - **Breaking:** the budget ledger is async and takes a `BudgetStore`:

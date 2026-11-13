@@ -3,7 +3,13 @@ import { z } from "zod"
 import { getRuntimeEnv, initRuntimeEnv, resetRuntimeEnv } from "../src/env/runtime"
 import { createEnv } from "../src/env/schema"
 import { corsMiddleware } from "../src/middleware/cors"
-import { clientIp, memoryStore, rateLimit } from "../src/middleware/rate-limit"
+import {
+  type ClientIpTrust,
+  clientIp,
+  memoryStore,
+  type RateLimitStore,
+  rateLimit,
+} from "../src/middleware/rate-limit"
 import { requestId } from "../src/middleware/request-id"
 import { STRICT_CSP, secureHeaders } from "../src/middleware/secure-headers"
 
@@ -59,7 +65,7 @@ ok(
 // --- rate limit ---
 const store = memoryStore()
 const app = new Hono()
-  .use("*", rateLimit({ store, max: 2, windowSeconds: 60 }))
+  .use("*", rateLimit({ store, max: 2, windowSeconds: 60, trust: "cloudflare" }))
   .get("/", (c) => c.json({ ok: true }))
 const call = () => app.request("/", { headers: { "cf-connecting-ip": "1.2.3.4" } })
 const r1 = await call(),
@@ -76,31 +82,97 @@ ok("sets X-RateLimit-Remaining", r1.headers.get("X-RateLimit-Remaining") === "1"
 const other = await app.request("/", { headers: { "cf-connecting-ip": "9.9.9.9" } })
 ok("different IP has its own counter", other.status === 200)
 const scoped = new Hono()
-  .use("*", rateLimit({ store, scope: "login", max: 2 }))
+  .use("*", rateLimit({ store, scope: "login", max: 2, trust: "cloudflare" }))
   .get("/", (c) => c.text("x"))
 ok(
   "different scope has its own counter",
   (await scoped.request("/", { headers: { "cf-connecting-ip": "1.2.3.4" } })).status === 200,
 )
 
-// clientIp precedence — cf-connecting-ip is unspoofable, xff is not
-const ipApp = new Hono().get("/", (c) => c.text(clientIp(c)))
+// clientIp trust — only the header the setting names is read
+const ipFor = async (trust: ClientIpTrust, headers: Record<string, string>) =>
+  await (
+    await new Hono().get("/", (c) => c.text(String(clientIp(c, trust)))).request("/", { headers })
+  ).text()
 ok(
-  "prefers cf-connecting-ip over spoofable xff",
-  (await (
-    await ipApp.request("/", {
-      headers: { "cf-connecting-ip": "real", "x-forwarded-for": "spoofed" },
-    })
-  ).text()) === "real",
+  "cloudflare: reads cf-connecting-ip, ignores xff",
+  (await ipFor("cloudflare", { "cf-connecting-ip": "1.1.1.1", "x-forwarded-for": "6.6.6.6" })) ===
+    "1.1.1.1",
 )
 ok(
-  "falls back to first xff entry",
-  (await (
-    await ipApp.request("/", {
-      headers: { "x-forwarded-for": "a, b, c" },
-    })
-  ).text()) === "a",
+  "cloudflare: xff alone is no IP",
+  (await ipFor("cloudflare", { "x-forwarded-for": "6.6.6.6" })) === "null",
 )
+ok(
+  "forwardedHops 1: spoofed cf-connecting-ip is ignored",
+  (await ipFor(
+    { forwardedHops: 1 },
+    { "cf-connecting-ip": "6.6.6.6", "x-forwarded-for": "9.9.9.9" },
+  )) === "9.9.9.9",
+)
+ok(
+  "forwardedHops 1: spoofed left xff entries are ignored",
+  (await ipFor({ forwardedHops: 1 }, { "x-forwarded-for": "6.6.6.6, 9.9.9.9" })) === "9.9.9.9",
+)
+ok(
+  "forwardedHops 2: client is 2nd from the right",
+  (await ipFor({ forwardedHops: 2 }, { "x-forwarded-for": "6.6.6.6, 9.9.9.9, 10.0.0.1" })) ===
+    "9.9.9.9",
+)
+ok(
+  "forwardedHops 2 with one entry: no IP",
+  (await ipFor({ forwardedHops: 2 }, { "x-forwarded-for": "9.9.9.9" })) === "null",
+)
+ok(
+  "forwardedHops: garbage entry is no IP",
+  (await ipFor({ forwardedHops: 1 }, { "x-forwarded-for": "not-an-ip" })) === "null",
+)
+ok(
+  "none: trusts nothing",
+  (await ipFor("none", { "cf-connecting-ip": "1.1.1.1", "x-forwarded-for": "2.2.2.2" })) === "null",
+)
+{
+  let threw = false
+  try {
+    rateLimit({ trust: { forwardedHops: 0 } })
+  } catch {
+    threw = true
+  }
+  ok("forwardedHops 0 throws at construction", threw)
+}
+// IPv6 grouped by /64
+const v6 = (ip: string) => ipFor("cloudflare", { "cf-connecting-ip": ip })
+ok(
+  "ipv6: addresses in one /64 share a key",
+  (await v6("2001:db8:0:1::1")) === "2001:db8:0:1::/64" &&
+    (await v6("2001:0DB8:0:1:aaaa:bbbb:cccc:dddd")) === "2001:db8:0:1::/64",
+)
+ok("ipv6: another /64 differs", (await v6("2001:db8:0:2::1")) === "2001:db8:0:2::/64")
+ok("ipv6: ::1 loopback", (await v6("::1")) === "0:0:0:0::/64")
+ok("ipv6: mapped ipv4 groups by its hex", (await v6("::ffff:1.2.3.4")) === "0:0:0:0::/64")
+ok("ipv6: too many groups is no IP", (await v6("1:2:3:4:5:6:7:8:9")) === "null")
+ok("ipv6: two :: is no IP", (await v6("1::2::3")) === "null")
+
+// a missing IP never lands in a shared "unknown" bucket with real clients
+{
+  const seen: string[] = []
+  const spy: RateLimitStore = {
+    async hit(scope, key) {
+      seen.push(`${scope}/${key}`)
+      return { ok: true, remaining: 1, resetSeconds: 1 }
+    },
+  }
+  const app = new Hono()
+    .use("/a", rateLimit({ store: spy, scope: "a", trust: "cloudflare" }))
+    .use("/b", rateLimit({ store: spy, scope: "b", trust: "cloudflare" }))
+    .get("/a", (c) => c.text("a"))
+    .get("/b", (c) => c.text("b"))
+  await app.request("/a")
+  await app.request("/b")
+  await app.request("/a", { headers: { "cf-connecting-ip": "no-ip" } })
+  ok("no IP: keyed per limiter scope", seen[0] === "a/no-ip" && seen[1] === "b/no-ip")
+  ok("no IP: a non-IP header value does not become a real key", seen[2] === "a/no-ip")
+}
 
 // --- secure headers ---
 const sh = new Hono()

@@ -71,7 +71,7 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/mcp/hono` | mcpHandler, mountMcp, McpHandlerOptions | Serve MCP over streamable HTTP from a Hono route |
 | `@dapplelight/signet-server/middleware` | corsMiddleware, CorsOptions, memoryStore, clientIp, rateLimit, RateLimitResult, … | re-exports cors, rate-limit, request-id, secure-headers |
 | `@dapplelight/signet-server/middleware/cors` | corsMiddleware, CorsOptions | CORS |
-| `@dapplelight/signet-server/middleware/rate-limit` | memoryStore, clientIp, rateLimit, RateLimitResult, RateLimitStore, RateLimitOptions | Rate limiting with a pluggable store |
+| `@dapplelight/signet-server/middleware/rate-limit` | memoryStore, clientIp, rateLimit, RateLimitResult, RateLimitStore, ClientIpTrust, … | Rate limiting with a pluggable store |
 | `@dapplelight/signet-server/middleware/rate-limit-do` | RateLimitCounter, durableObjectStore, RateLimitCounterState, RateLimitNamespace | Exact rate limiting on Cloudflare Workers, backed by a Durable Object |
 | `@dapplelight/signet-server/middleware/request-id` | requestId, RequestIdOptions |  |
 | `@dapplelight/signet-server/middleware/secure-headers` | STRICT_CSP, DOCS_CSP, secureHeaders, SecureHeadersOptions | Security headers |

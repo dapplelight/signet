@@ -24,7 +24,7 @@
  *   "durable_objects": { "bindings": [{ "name": "RATE_LIMIT", "class_name": "RateLimitCounter" }] },
  *   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RateLimitCounter"] }]
  *
- *   app.use("/api/*", rateLimit({ store: (c) => durableObjectStore(c.env.RATE_LIMIT), max: 60 }))
+ *   app.use("/api/*", rateLimit({ store: (c) => durableObjectStore(c.env.RATE_LIMIT), max: 60, trust: "cloudflare" }))
  */
 
 import type { RateLimitResult, RateLimitStore } from "./rate-limit.js"

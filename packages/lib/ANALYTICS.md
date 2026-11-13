@@ -38,7 +38,7 @@ registerIngest(app, "/api/events", {
   engine: createAnalyticsEngine({ dataset: env.ANALYTICS }),
   enrich: cloudflareEnrichment,
 })
-app.use("/api/events", rateLimit({ scope: "ingest", max: 60 }))
+app.use("/api/events", rateLimit({ scope: "ingest", max: 60, trust: "cloudflare" }))
 ```
 
 ```toml

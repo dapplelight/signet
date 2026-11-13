@@ -173,9 +173,9 @@ silently discarded injected values when running a Worker locally under Bun.
 app.use("*", requestId({ childLogger: (id) => logger.child({ reqId: id }) }))
 app.use("*", secureHeaders({ relaxedPaths: ["/docs", "/openapi.json"] }))
 app.use("*", corsMiddleware({ originEnvKeys: ["WEB_URL", "ADMIN_URL"] }))
-app.use("/api/*", rateLimit({ max: 100, windowSeconds: 60 }))
+app.use("/api/*", rateLimit({ max: 100, windowSeconds: 60, trust: "cloudflare" }))
 app.use("/api/auth/login", rateLimit({
-  scope: "login", max: 5, windowSeconds: 60,
+  scope: "login", max: 5, windowSeconds: 60, trust: "cloudflare",
   store: (c) => durableObjectStore(c.env.RATE_LIMIT),   // built per request: bindings live on c.env
   failOpen: false,                                      // a login limit is a security control
 }))
@@ -227,9 +227,18 @@ convention), not the IETF draft's seconds-from-now `RateLimit-Reset`.
 ApiException(503, "Store unreachable", "STORE_UNAVAILABLE")`. `ApiException`
 accepts 502, 503 and 504 for this, and does not go to `onError`.
 
-`clientIp()` prefers `CF-Connecting-IP`, which the edge sets and a client cannot
-spoof, and only falls back to `x-forwarded-for`, which a client *can*. Do not
-reorder those.
+**Tell the limiter which proxy to believe.** `rateLimit({ trust })` (and
+`clientIp(c, trust)`) takes `"cloudflare"` (read `cf-connecting-ip`, only
+correct when every request comes through Cloudflare), `{ forwardedHops: n }`
+(`n` proxies of yours append to `x-forwarded-for`; the client is the n-th entry
+from the right, and `cf-connecting-ip` is ignored) or `"none"`. The default is
+`"none"`: every client then shares one bucket per limiter, so set it. A client
+can set `cf-connecting-ip` itself anywhere but behind Cloudflare, which is why
+it is never read unless you say `"cloudflare"`.
+
+A request with no usable IP is keyed `no-ip` within its limiter's `scope`, never
+a bucket shared with other limiters. IPv6 clients are keyed by their /64. The
+built-in `memoryStore` is a fixed window, not a sliding one.
 
 429s use the same error envelope as everything else, so the client's `ApiError`
 path handles them without a special case.
