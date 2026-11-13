@@ -5,6 +5,25 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-server (next minor)
+
+- **Breaking:** `clientIp(c, trust)` and `rateLimit({ trust })` take a trust
+  setting: `"cloudflare"`, `{ forwardedHops: n }` or `"none"`. The old
+  `clientIp` read `cf-connecting-ip` first and fell back to `x-forwarded-for`,
+  so off Cloudflare a client could set `cf-connecting-ip` and pick its own
+  bucket. Now `cf-connecting-ip` is read only under `"cloudflare"`;
+  `forwardedHops: n` takes the n-th `x-forwarded-for` entry from the right.
+  **Migration:** on Cloudflare pass `trust: "cloudflare"`; behind `n` proxies
+  of your own pass `trust: { forwardedHops: n }`. `rateLimit` throws at
+  construction when neither `trust` nor `keyFor` is given, rather than quietly
+  putting all clients in one bucket; `trust: "none"` is the explicit opt-in to
+  that. Custom `keyFor` is unaffected.
+- **Breaking:** `clientIp` returns `string | null`, never `"unknown"`. A missing
+  IP gets the key `no-ip` inside the limiter's own scope instead of a bucket
+  shared by every limiter.
+- IPv6 clients are keyed by their /64 (`2001:db8:0:1::/64`); IPv4-mapped addresses (`::ffff:1.2.3.4`) are keyed as the plain IPv4.
+- The `memoryStore` doc said sliding window; it is a fixed window.
+
 ### signet-server
 
 - New `csrfMiddleware` at `@dapplelight/signet-server/middleware/csrf`: Hono's

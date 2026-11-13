@@ -40,7 +40,7 @@ const app = new Hono<AppEnv>()
   // give corsMiddleware.
   .use("/api/*", csrfMiddleware())
   // Exact per-IP limit: one Durable Object per scope:key.
-  .use("/api/*", rateLimit<AppEnv>({ store: (c) => durableObjectStore(c.env.RATE_LIMIT), max: 60 }))
+  .use("/api/*", rateLimit<AppEnv>({ store: (c) => durableObjectStore(c.env.RATE_LIMIT), max: 60, trust: "cloudflare" }))
   .get("/api/health", (c) => c.json({ ok: true }))
   .post("/api/echo", async (c) => {
     const { message } = await parseBody(c, z.object({ message: z.string().min(1) }))
