@@ -106,7 +106,11 @@ try {
       }
       const statuses: number[] = []
       for (let i = 0; up && i < 60; i++) {
-        statuses.push((await fetch(`http://127.0.0.1:${port}/api/health`)).status)
+        // A client-set x-forwarded-for must not pick its own bucket.
+        const res = await fetch(`http://127.0.0.1:${port}/api/health`, {
+          headers: { "x-forwarded-for": `203.0.113.${i}` },
+        })
+        statuses.push(res.status)
       }
       ok(
         "src/server.ts serves under Bun and limits at 60",
