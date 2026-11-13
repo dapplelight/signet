@@ -35,10 +35,13 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
 
 ## What is in it
 
-- The shadcn set: button, input, dialog, sheet, popover, select, tabs, table,
-  toast and the rest.
+- The shadcn set: button, input, dialog, drawer, popover, select, tabs, table
+  and the rest. There is no `sheet` or `toast` component: use `drawer` or
+  `responsive-sheet` for sheets.
 - Extras: a virtualised `data-table`, `combobox`, `stat-strip`,
   `responsive-sheet`, `markdown` (safe by default), `emoji-picker`.
+- The Toaster (sonner) lives in the `create-signet-app` template for now, not
+  in this package.
 - `domain/` components that carry product vocabulary, such as `trend-chip`,
   kept out of the main barrel.
 
