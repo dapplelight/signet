@@ -98,6 +98,11 @@ await api.postForm<ImportResult>("/import", formData)
 const pdf = await api.raw("/receipt/42/pdf")
 ```
 
+`qs` appends one `k=v` per array item (`tag=a&tag=b`). A one-item array is
+`tag=a`, which the server's `parseQuery` reads as a string, not an array, so give
+an array-typed query field a schema that accepts a lone string:
+`z.preprocess((v) => (typeof v === "string" ? [v] : v), z.array(z.string()))`.
+
 Validation errors arrive structured, not as a JSON string inside a message:
 
 ```ts
@@ -167,6 +172,27 @@ compact(35_000_000) // ₹3.5Cr
 numbering. Locales using the lakh/crore system get that scale; every other
 locale falls through to `Intl`. Detection is by locale, not by currency — the
 earlier version hardcoded it to INR.
+
+The lakh/crore locales are `en-IN`, `hi`, `bn`, `ta`, `te`, `mr`, `gu`, `kn`,
+`ml`, `pa`, `or` and `as`.
+
+Currency formatters use each currency's own fraction digits when `exact` is
+true: JPY 0, USD and INR 2, KWD and BHD 3. Amounts may be a number, a decimal
+string or a `bigint`. For integer minor units (cents, paise, fils) pass
+`{ minorUnits: true }`; a `bigint` is then formatted exactly, with no float:
+
+```ts
+const usd = createCurrencyFormatter("USD", "en-US", { minorUnits: true })
+usd(12345, true)               // $123.45
+usd(900719925474099312345n, true) // $9,007,199,254,740,993,123.45
+createCurrencyFormatter("KWD", "en-US")(1.2345, true) // KWD 1.235
+createCompactCurrencyFormatter("INR", "en-IN", 1, { minorUnits: true })(120_000_000n) // ₹12L
+```
+
+The date formatters take `{ timeZone }` (an IANA zone) as a second argument,
+to show an instant in the user's zone rather than the server's:
+`createDateTimeFormatter("en-IN", { timeZone: "Asia/Kolkata" })`. A date-only
+`"YYYY-MM-DD"` string is a calendar date and is not shifted by it.
 
 Dates use `Intl` throughout. app-a pulled in `date-fns` for what the platform
 already does.

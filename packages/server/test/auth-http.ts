@@ -115,6 +115,38 @@ ok(
   invalid.code === "VALIDATION_FAILED" && invalid.details?.fieldErrors?.name?.length === 1,
   invalid,
 )
+const nested = new Hono()
+  .post("/n", async (c) =>
+    c.json(
+      await parseBody(
+        c,
+        z.object({
+          email: z.string().min(2),
+          address: z.object({ city: z.string().min(2) }),
+          guests: z.array(z.object({ name: z.string().min(2) })),
+        }),
+      ),
+    ),
+  )
+  .onError(errorHandler({ isProduction: () => true }))
+const nestedRes = await nested.request("/n", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    email: "x",
+    address: { city: "" },
+    guests: [{ name: "Ann" }, { name: "Bo" }, { name: "" }],
+  }),
+})
+const nestedBody = await nestedRes.json()
+const nestedKeys = Object.keys(nestedBody.details?.fieldErrors ?? {}).sort()
+ok(
+  "parseBody: nested issues keyed by full dotted path, flat keys unchanged",
+  nestedRes.status === 400 &&
+    nestedKeys.join("|") === "address.city|email|guests.2.name" &&
+    nestedBody.details.formErrors.length === 0,
+  nestedBody,
+)
 const formLevel = await (await post("[]")).json()
 ok(
   "parseBody: a root-level issue lands in formErrors",
@@ -126,6 +158,32 @@ ok(
   JSON.stringify((await (await v.request("/q?tag=a&tag=b")).json()).tag) === '["a","b"]',
 )
 ok("parseQuery: a single key is a string", (await (await v.request("/q?tag=a")).json()).tag === "a")
+// `qs({ tag: ["a"] })` is `?tag=a`: a one-item array does not round-trip as an array.
+const wrapped = new Hono()
+  .get("/strict", (c) => c.json(parseQuery(c, z.object({ tag: z.array(z.string()) }))))
+  .get("/wrap", (c) =>
+    c.json(
+      parseQuery(
+        c,
+        z.object({
+          tag: z.preprocess((x) => (typeof x === "string" ? [x] : x), z.array(z.string())),
+        }),
+      ),
+    ),
+  )
+  .onError(errorHandler({ isProduction: () => true }))
+ok(
+  "parseQuery: a bare z.array rejects a one-item array (?tag=a) with 400",
+  (await wrapped.request("/strict?tag=a")).status === 400,
+)
+ok(
+  "parseQuery: a bare z.array takes 2+ items",
+  (await wrapped.request("/strict?tag=a&tag=b")).status === 200,
+)
+ok(
+  "parseQuery: z.preprocess wraps a lone string into a one-item array",
+  JSON.stringify((await (await wrapped.request("/wrap?tag=a")).json()).tag) === '["a"]',
+)
 ok("parseParams: bad uuid is 400", (await v.request("/p/not-a-uuid")).status === 400)
 ok(
   "parseParams: good uuid passes",

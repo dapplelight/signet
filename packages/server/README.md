@@ -173,6 +173,7 @@ silently discarded injected values when running a Worker locally under Bun.
 app.use("*", requestId({ childLogger: (id) => logger.child({ reqId: id }) }))
 app.use("*", secureHeaders({ relaxedPaths: ["/docs", "/openapi.json"] }))
 app.use("*", corsMiddleware({ originEnvKeys: ["WEB_URL", "ADMIN_URL"] }))
+app.use("/api/*", csrfMiddleware({ originEnvKeys: ["WEB_URL", "ADMIN_URL"] }))
 app.use("/api/*", rateLimit({ max: 100, windowSeconds: 60, trust: "cloudflare" }))
 app.use("/api/auth/login", rateLimit({
   scope: "login", max: 5, windowSeconds: 60, trust: "cloudflare",
@@ -180,6 +181,24 @@ app.use("/api/auth/login", rateLimit({
   failOpen: false,                                      // a login limit is a security control
 }))
 ```
+
+### CSRF: turn it on with `sameSite: "none"`
+
+`csrfMiddleware` (`@dapplelight/signet-server/middleware/csrf`) wraps Hono's
+`csrf()`. A POST, PUT, PATCH or DELETE that a browser form could send
+(`application/x-www-form-urlencoded`, `multipart/form-data`, `text/plain`) must
+carry `Sec-Fetch-Site: same-origin` or an `Origin` the app trusts, or it gets a
+403 with the standard envelope (`code: "FORBIDDEN"`). Trusted origins are the
+request's own plus the env keys you pass as `originEnvKeys` (the same option
+`corsMiddleware` takes, plus `extraOrigins` and `devOrigins`). A request with an
+`Authorization: Bearer` header is skipped: browsers do not attach one on their own.
+
+`sameSite: "lax"` already keeps the session cookie off cross-site POSTs. A cookie
+with `sameSite: "none"` (frontend and API on different origins, as in the
+passcode example above) loses that protection, so mount `csrfMiddleware` before
+any route that reads the cookie. The create-signet-app API template enables it.
+JSON requests are not checked: a cross-site page cannot send one without a CORS
+preflight, which `corsMiddleware` refuses for unknown origins.
 
 ### Rate limiting has a pluggable store, on purpose
 
@@ -374,9 +393,30 @@ request that triggered it.
 
 **`createPusher` prunes dead subscriptions.** A push endpoint returning 404 or
 410 is permanently gone, and one that is never pruned is retried on every future
-notification forever. A transient 500 is *not* pruned. VAPID signing is injected
-rather than implemented, because `web-push` is Node-only and would make this
-module unusable on Workers.
+notification forever. A transient 500 is *not* pruned.
+
+**`webCryptoPushSender` sends on Workers.** It implements VAPID (ES256 JWT) and
+RFC 8291 `aes128gcm` payload encryption on Web Crypto only: no Node APIs, no
+dependency. Pass VAPID keys as base64url (public: the 65-byte uncompressed
+point you give `pushManager.subscribe`; private: the 32-byte scalar), read from
+your env by the caller:
+
+```ts
+import { createPusher, webCryptoPushSender } from "@dapplelight/signet-server/notify/push"
+
+const pusher = createPusher({
+  send: webCryptoPushSender({
+    vapid: { subject: "mailto:ops@example.com", publicKey, privateKey },
+    // ttl (seconds, default 86400), urgency, fetch are optional
+  }),
+  removeSubscription: (id) => db.deleteSubscription(id),
+})
+await pusher.sendTo(subscriptions, { title: "Hi", message: "Hello" })
+```
+
+A non-2xx response throws with `statusCode`, which is how 404/410 get pruned.
+The sender is still injectable, so Node apps can wrap `web-push` instead.
+Payloads over 3993 bytes are rejected (the RFC 8291 single-record limit).
 
 **`createTelegram` is operator-level only.** The chat is a single owned channel,
 so no user or household data belongs in it — amounts, names, account
@@ -393,6 +433,26 @@ with a token. `redactSecrets` runs over both by default (bearer tokens, JWTs,
 extend it, `includeStack: false` to drop stacks, and `beforeSend` to allowlist
 context or drop an event (`return null`). Context values are not scrubbed —
 pass only what you mean to send.
+
+**Events go to Sentry's envelope endpoint** (`/api/<project>/envelope/`), not the
+deprecated Store API. The stack is sent as parsed frames (`function`, `filename`,
+`lineno`, `colno`, `in_app`), oldest call first, and scrubbed like the message.
+`captureException(err, context, scope)` takes the per-event context as a third
+argument: `scope.tags` (merged over `createSentry({ tags })`), `scope.request`
+(`url`, `method`, `query_string`, `headers`; headers whose name matches
+`/key|token|secret|auth|cookie|session|password/i` are dropped, such as
+`authorization`, `cookie`, `x-api-key` and `x-csrf-token`; the values of the
+other headers, the url and the query string are scrubbed) and `scope.user`
+(`id`, `username`, `ip_address`). `context` still lands in `extra`. Tags and user
+values are not scrubbed — pass only what you mean to send.
+
+```ts
+sentry.captureException(err, { job: "sync" }, {
+  tags: { route: "/pay" },
+  request: { url: c.req.url, method: c.req.method },
+  user: { id: session.userId },
+})
+```
 
 **`captureException` returns its request — keep it alive on Workers.** It
 resolves to whether Sentry accepted the event and never rejects. A Worker's

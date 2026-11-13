@@ -24,6 +24,48 @@ a package at the version it had when the repository was opened to the public.
 - IPv6 clients are keyed by their /64 (`2001:db8:0:1::/64`); IPv4-mapped addresses (`::ffff:1.2.3.4`) are keyed as the plain IPv4.
 - The `memoryStore` doc said sliding window; it is a fixed window.
 
+### signet-server
+
+- New `csrfMiddleware` at `@dapplelight/signet-server/middleware/csrf`: Hono's
+  `csrf()` (Origin + Sec-Fetch-Site) with origins from the same env keys as
+  `corsMiddleware`, bearer-token requests skipped, and a 403 `FORBIDDEN` envelope.
+  `corsMiddleware` now shares `allowedOrigins()` with it. The create-signet-app
+  API template enables it on `/api/*`; existing apps need no migration, and apps
+  with `sameSite: "none"` cookies should add it.
+
+### signet-server (version bump pending)
+
+- New `webCryptoPushSender` at `@dapplelight/signet-server/notify/push`: a
+  `PushSender` for Workers that signs VAPID (ES256 JWT, RFC 8292) and encrypts
+  the payload with aes128gcm (RFC 8291) on Web Crypto only, with no Node APIs
+  and no new dependency. Pass it as `createPusher({ send })`. Also exported:
+  `encryptAes128gcm`, `vapidJwt`. Tested against the RFC 8291 test vector.
+  Not breaking: injecting your own sender (for example `web-push` on Node)
+  still works.
+
+### signet-server
+
+- `createSentry` posts to the envelope endpoint (`/api/<project>/envelope/`),
+  not the deprecated Store API, so it keeps working when Sentry retires it.
+  **Breaking for `beforeSend` and tests:** the stack is no longer
+  `event.extra.stacktrace` (a string); it is `exception.values[0].stacktrace.frames`
+  (parsed, oldest first). Read frames there, and parse the request body as an
+  envelope (three newline-separated JSON lines) if you stub `fetch`.
+- `captureException(err, context, scope)`: `scope` carries `tags`, `request`
+  (headers named like `key|token|secret|auth|cookie|session|password` dropped,
+  other header values scrubbed) and `user`; `createSentry({ tags })` adds tags to
+  every event. `parseStack` is exported.
+
+### signet-lib
+
+- The date formatters take `{ timeZone }`. Date-only strings are not shifted.
+- Currency formatters use each currency's own fraction digits when `exact`:
+  JPY 0, KWD and BHD 3. **Behaviour change:** `exact` was always 2 decimals, so
+  JPY and KWD output differs; USD and INR are unchanged.
+- `Amount` accepts `bigint`; `{ minorUnits: true }` reads integer minor units
+  (exact for a bigint). Migration: none for existing calls.
+- Compact currency treats `or` (Odia) and `as` (Assamese) locales as lakh/crore.
+
 ### signet-ai 0.3.0
 
 - **Breaking:** the budget ledger is async and takes a `BudgetStore`:
@@ -71,6 +113,25 @@ a package at the version it had when the repository was opened to the public.
   strength; 8px scrollbars; `tw-animate-css` ships so the overlay animations
   run; motion is off under `prefers-reduced-motion`. `test/contrast.ts` checks
   every theme.
+
+### Audit medium bugs: Content-Type, `qs` arrays, nested validation paths
+
+- lib: the API client sends `Content-Type: application/json` only when a body is
+  sent. A GET or body-less DELETE no longer makes a cross-origin preflight.
+  Headers you set still win.
+- lib: `qs({ tag: ["a", "b"] })` gives `?tag=a&tag=b`, which `parseQuery` reads
+  back as an array. Null, undefined and empty items are skipped; an empty array
+  adds nothing. A one-item array gives `?tag=a`, which `parseQuery` reads as the
+  string `"a"`, because a URL cannot tell the two apart. A route whose schema is
+  a bare `z.array(z.string())` then answers 400 VALIDATION_FAILED. Migration:
+  wrap a lone string in the schema,
+  `z.preprocess((v) => (typeof v === "string" ? [v] : v), z.array(z.string()))`.
+- **Breaking (server):** `parseBody`, `parseQuery` and `parseParams` key
+  `fieldErrors` by the full dotted path (`address.city`, `guests.2.name`), not
+  by the first segment. Top-level keys (`email`) are unchanged. Migration: a
+  client that read `fieldErrors.address` for a nested object now reads
+  `fieldErrors["address.city"]`. `signet-lib/form` `applyServerErrors` already
+  matches the new keys, turning `guests.2.name` into TanStack's `guests[2].name`.
 
 - npm pages: every package lists homepage, repository, issues and keywords; `ui` and
   `tokens` get their own README; `create-signet-app` runs from npm (`bunx`).

@@ -45,12 +45,21 @@ async function toAuthError(res: Response): Promise<AuthError> {
 
 export type QueryValue = string | number | boolean | null | undefined
 
-/** Build a query string, dropping empty values. From app-c. */
-export function qs(params: Record<string, QueryValue>): string {
+/**
+ * Build a query string, dropping empty values. From app-c. An array appends one
+ * `k=v` per item (`tag=a&tag=b`); empty items are skipped by the same rule as
+ * scalars. A URL cannot tell a one-item array from a scalar: `tag=a` is the same
+ * either way, so the server's `parseQuery` reads 2+ items as an array but one
+ * item as a string. Array-typed query fields must accept a lone string there,
+ * e.g. `z.preprocess((v) => (typeof v === "string" ? [v] : v), z.array(z.string()))`.
+ */
+export function qs(params: Record<string, QueryValue | readonly QueryValue[]>): string {
   const search = new URLSearchParams()
   for (const [k, v] of Object.entries(params)) {
-    if (v === undefined || v === null || v === "") continue
-    search.set(k, String(v))
+    for (const item of Array.isArray(v) ? v : [v]) {
+      if (item === undefined || item === null || item === "") continue
+      search.append(k, String(item))
+    }
   }
   const s = search.toString()
   return s ? `?${s}` : ""
@@ -88,9 +97,10 @@ export function createApiClient(opts: ApiClientOptions = {}) {
       ...init,
       // Merged last so caller headers extend the defaults instead of replacing
       // them. FormData deliberately sends no Content-Type — the browser must
-      // set it with the multipart boundary.
+      // set it with the multipart boundary. No body, no Content-Type: it would
+      // make a cross-origin GET or body-less DELETE trigger a preflight.
       headers: mergeHeaders(
-        isForm ? {} : { "Content-Type": "application/json" },
+        isForm || init.body == null ? {} : { "Content-Type": "application/json" },
         extra,
         init.headers,
       ),

@@ -1,5 +1,5 @@
 /**
- * Sentry reporting over the Store HTTP API. Zero dependencies — runs on Bun,
+ * Sentry reporting over the Envelope HTTP API. Zero dependencies — runs on Bun,
  * Node and Cloudflare Workers, where the official SDK does not.
  *
  * From app-a. Generalised so configuration is injected rather than read from a
@@ -13,6 +13,8 @@ export type SentryConfig = {
   enabled: boolean
   release?: string
   environment?: string
+  /** Tags on every event. */
+  tags?: Record<string, string>
   /** Identifies the reporting client to Sentry. */
   clientName?: string
   /**
@@ -31,6 +33,37 @@ export type SentryConfig = {
   beforeSend?: (event: SentryEvent) => SentryEvent | null
 }
 
+export type StackFrame = {
+  function?: string
+  filename: string
+  lineno: number
+  colno?: number
+  /** False for `node:` internals and `node_modules`. */
+  in_app: boolean
+}
+
+export type SentryRequest = {
+  url?: string
+  method?: string
+  query_string?: string
+  headers?: Record<string, string>
+}
+
+export type SentryUser = { id?: string; username?: string; ip_address?: string }
+
+/** Per-event context, the third argument of `captureException`. */
+export type SentryScope = {
+  /** Searchable key/value pairs; merged over `SentryConfig.tags`. */
+  tags?: Record<string, string>
+  /**
+   * The failing request. Headers whose name matches
+   * `/key|token|secret|auth|cookie|session|password/i` are dropped; the
+   * values of the rest go through `scrub`.
+   */
+  request?: SentryRequest
+  user?: SentryUser
+}
+
 export type SentryEvent = {
   event_id: string
   timestamp: string
@@ -38,7 +71,12 @@ export type SentryEvent = {
   level: string
   release?: string
   environment?: string
-  exception: { values: { type: string; value: string }[] }
+  exception: {
+    values: { type: string; value: string; stacktrace?: { frames: StackFrame[] } }[]
+  }
+  tags?: Record<string, string>
+  request?: SentryRequest
+  user?: SentryUser
   extra?: Record<string, unknown>
 }
 
@@ -61,22 +99,77 @@ export function redactSecrets(text: string): string {
     .replace(/\d{9,}/g, "[redacted-number]")
 }
 
-function parseDsn(raw: string): { key: string; storeUrl: string } | null {
+function parseDsn(raw: string): { key: string; envelopeUrl: string } | null {
   try {
     const url = new URL(raw)
     const projectId = url.pathname.replace(/^\//, "")
     if (!url.username || !projectId) return null
-    return { key: url.username, storeUrl: `${url.protocol}//${url.host}/api/${projectId}/store/` }
+    return {
+      key: url.username,
+      envelopeUrl: `${url.protocol}//${url.host}/api/${projectId}/envelope/`,
+    }
   } catch {
     return null
   }
 }
 
-function serialize(err: unknown): { type: string; value: string; stacktrace?: unknown } {
+/**
+ * Frames from a JS stack string, oldest call first (Sentry's order). Reads the
+ * V8 form `at fn (file:line:col)` and the Firefox/Safari form `fn@file:line:col`;
+ * lines that are neither (the message, `[native code]`) are skipped. Text goes
+ * through `scrub` before it leaves.
+ */
+export function parseStack(
+  stack: string,
+  scrub: (text: string) => string = (t) => t,
+): StackFrame[] {
+  const frames: StackFrame[] = []
+  for (const line of stack.split("\n")) {
+    const v8 = /^\s*at (?:(.*?) \()?(.+?):(\d+):(\d+)\)?\s*$/.exec(line)
+    const gecko = v8 ? null : /^\s*(.*?)@(.+?):(\d+)(?::(\d+))?\s*$/.exec(line)
+    const m = v8 ?? gecko
+    if (!m) continue
+    const [, fn, file = "", lineno, colno] = m
+    frames.push({
+      ...(fn ? { function: scrub(fn) } : {}),
+      filename: scrub(file),
+      lineno: Number(lineno),
+      ...(colno ? { colno: Number(colno) } : {}),
+      in_app: !file.startsWith("node:") && !file.includes("node_modules"),
+    })
+  }
+  return frames.reverse()
+}
+
+function serialize(err: unknown): { type: string; value: string; stack?: string } {
   if (err instanceof Error) {
-    return { type: err.name, value: err.message, stacktrace: err.stack }
+    // V8 puts "Name: message" first; a message such as "a@b:80" must not read as a frame.
+    const head = `${err.name}: ${err.message}`
+    const stack = err.stack?.startsWith(head) ? err.stack.slice(head.length) : err.stack
+    return { type: err.name, value: err.message, stack }
   }
   return { type: "Error", value: String(err) }
+}
+
+/** Header names that look like credentials; never sent as request context. */
+const SECRET_HEADER = /key|token|secret|auth|cookie|session|password/i
+
+/** The request with credential headers dropped; url, query string and header values go through `scrub`. */
+function cleanRequest(r: SentryRequest, scrub: (text: string) => string): SentryRequest {
+  const { headers, url, query_string, ...rest } = r
+  const kept = headers
+    ? Object.fromEntries(
+        Object.entries(headers)
+          .filter(([k]) => !SECRET_HEADER.test(k))
+          .map(([k, v]) => [k, scrub(v)]),
+      )
+    : undefined
+  return {
+    ...rest,
+    ...(url ? { url: scrub(url) } : {}),
+    ...(query_string ? { query_string: scrub(query_string) } : {}),
+    ...(kept ? { headers: kept } : {}),
+  }
 }
 
 export function createSentry(config: SentryConfig) {
@@ -88,10 +181,14 @@ export function createSentry(config: SentryConfig) {
      * hand it to `ctx.waitUntil` — the isolate is frozen once the response is
      * sent, and an unawaited report is cut off mid-flight.
      */
-    captureException(err: unknown, context?: Record<string, unknown>): Promise<boolean> {
+    captureException(
+      err: unknown,
+      context?: Record<string, unknown>,
+      scope?: SentryScope,
+    ): Promise<boolean> {
       if (!parsed || !config.enabled) {
         // Visible locally instead of vanishing.
-        if (!config.enabled) console.error("[sentry:dev]", err, context)
+        if (!config.enabled) console.error("[sentry:dev]", err, context, scope)
         return Promise.resolve(false)
       }
       const scrub = config.scrub ?? redactSecrets
@@ -102,10 +199,12 @@ export function createSentry(config: SentryConfig) {
         ? scrub(serialized.type)
         : "Error"
       const value = scrub(serialized.value)
-      const stacktrace =
-        config.includeStack === false || typeof serialized.stacktrace !== "string"
-          ? undefined
-          : scrub(serialized.stacktrace)
+      const frames =
+        config.includeStack === false || typeof serialized.stack !== "string"
+          ? []
+          : parseStack(serialized.stack, scrub)
+      const tags = { ...config.tags, ...scope?.tags }
+      const request = scope?.request && cleanRequest(scope.request, scrub)
       const built: SentryEvent = {
         event_id: crypto.randomUUID().replaceAll("-", ""),
         timestamp: new Date().toISOString(),
@@ -113,22 +212,32 @@ export function createSentry(config: SentryConfig) {
         level: "error",
         ...(config.release ? { release: config.release } : {}),
         ...(config.environment ? { environment: config.environment } : {}),
-        exception: { values: [{ type, value }] },
-        ...(context || stacktrace
-          ? { extra: { ...context, ...(stacktrace ? { stacktrace } : {}) } }
-          : {}),
+        exception: {
+          values: [{ type, value, ...(frames.length ? { stacktrace: { frames } } : {}) }],
+        },
+        ...(Object.keys(tags).length ? { tags } : {}),
+        ...(request ? { request } : {}),
+        ...(scope?.user ? { user: scope.user } : {}),
+        ...(context ? { extra: { ...context } } : {}),
       }
       const event = config.beforeSend ? config.beforeSend(built) : built
       if (!event) return Promise.resolve(false)
+      // The Store endpoint is deprecated; events go in an envelope: three JSON
+      // lines (envelope header, item header, the event).
+      const body = [
+        JSON.stringify({ event_id: event.event_id, sent_at: new Date().toISOString() }),
+        JSON.stringify({ type: "event" }),
+        JSON.stringify(event),
+      ].join("\n")
       // Never rethrown: a reporting failure must not take down the request it
       // was reporting on. Returned so the caller can keep the Worker alive.
-      return fetch(parsed.storeUrl, {
+      return fetch(parsed.envelopeUrl, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
+          "Content-Type": "application/x-sentry-envelope",
           "X-Sentry-Auth": `Sentry sentry_version=7, sentry_key=${parsed.key}, sentry_client=${config.clientName ?? "signet"}/1.0`,
         },
-        body: JSON.stringify(event),
+        body,
       })
         .then((res) => res.ok)
         .catch(() => false)

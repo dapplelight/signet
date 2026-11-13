@@ -1,6 +1,7 @@
 import { initRuntimeEnv } from "@dapplelight/signet-server/env"
 import { errorHandler } from "@dapplelight/signet-server/http"
 import { parseBody } from "@dapplelight/signet-server/http/validate"
+import { csrfMiddleware } from "@dapplelight/signet-server/middleware/csrf"
 import { rateLimit } from "@dapplelight/signet-server/middleware/rate-limit"
 import {
   durableObjectStore,
@@ -33,8 +34,13 @@ const app = new Hono<AppEnv>()
     await next()
   })
   .use("*", requestId())
+  // Blocks cross-site form POSTs that ride a session cookie; bearer-token calls
+  // skip it. Trusts only this Worker's own origin until you list your frontend's
+  // env key: csrfMiddleware({ originEnvKeys: ["WEB_URL"] }), the same keys you
+  // give corsMiddleware.
+  .use("/api/*", csrfMiddleware())
   // Exact per-IP limit: one Durable Object per scope:key.
-  .use("/api/*", rateLimit<AppEnv>({ store: (c) => durableObjectStore(c.env.RATE_LIMIT), max: 60 }))
+  .use("/api/*", rateLimit<AppEnv>({ store: (c) => durableObjectStore(c.env.RATE_LIMIT), max: 60, trust: "cloudflare" }))
   .get("/api/health", (c) => c.json({ ok: true }))
   .post("/api/echo", async (c) => {
     const { message } = await parseBody(c, z.object({ message: z.string().min(1) }))
