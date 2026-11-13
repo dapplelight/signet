@@ -42,7 +42,7 @@
     },
     "packages/ai": {
       "name": "@dapplelight/signet-ai",
-      "version": "0.2.2",
+      "version": "0.3.0",
       "devDependencies": {
         "@dapplelight/signet-lib": "^0.2.0",
         "@types/bun": "^1.4.2",
@@ -80,7 +80,7 @@
     },
     "packages/lib": {
       "name": "@dapplelight/signet-lib",
-      "version": "0.2.2",
+      "version": "0.2.5",
       "devDependencies": {
         "@tanstack/react-form": "^1.33.5",
         "@tanstack/react-query": "^5.103.2",
