@@ -48,7 +48,21 @@ ok(
 // --- a Headers object is merged, not dropped (spread of Headers is {}) ---
 stub(200, { ok: true })
 await createApiClient().get("/x", { headers: new Headers({ "X-Bar": "2" }) })
-ok("Headers object kept", hdr("X-Bar") === "2" && hdr("Content-Type") === "application/json")
+ok("Headers object kept", hdr("X-Bar") === "2")
+
+// --- no body, no Content-Type (it forces a CORS preflight on GET / DELETE) ---
+stub(200, { ok: true })
+await createApiClient().get("/x")
+ok("GET sends no Content-Type", hdr("Content-Type") === undefined)
+stub(200, { ok: true })
+await createApiClient().delete("/x")
+ok("body-less DELETE sends no Content-Type", hdr("Content-Type") === undefined)
+stub(200, { ok: true })
+await createApiClient().delete("/x", { id: 1 })
+ok("DELETE with a body sends Content-Type", hdr("Content-Type") === "application/json")
+stub(200, { ok: true })
+await createApiClient().get("/x", { headers: { "Content-Type": "text/plain" } })
+ok("caller Content-Type still wins on GET", hdr("Content-Type") === "text/plain")
 
 // --- FormData must NOT set Content-Type ---
 stub(200, { ok: true })
@@ -219,6 +233,12 @@ ok(
   qs({ a: 1, b: "", c: null, d: undefined, e: false }) === "?a=1&e=false",
 )
 ok("qs empty -> empty string", qs({ a: undefined }) === "")
+ok("qs array appends each value", qs({ tag: ["a", "b"] }) === "?tag=a&tag=b")
+ok(
+  "qs array skips null/undefined/empty",
+  qs({ tag: ["a", null, undefined, "", "b"], n: [1] }) === "?tag=a&tag=b&n=1",
+)
+ok("qs empty array adds nothing", qs({ tag: [] }) === "")
 
 // --- contract guard ---
 ok("isErrorEnvelope true", isErrorEnvelope({ success: false, error: "x" }))

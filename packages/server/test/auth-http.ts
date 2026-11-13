@@ -115,6 +115,38 @@ ok(
   invalid.code === "VALIDATION_FAILED" && invalid.details?.fieldErrors?.name?.length === 1,
   invalid,
 )
+const nested = new Hono()
+  .post("/n", async (c) =>
+    c.json(
+      await parseBody(
+        c,
+        z.object({
+          email: z.string().min(2),
+          address: z.object({ city: z.string().min(2) }),
+          guests: z.array(z.object({ name: z.string().min(2) })),
+        }),
+      ),
+    ),
+  )
+  .onError(errorHandler({ isProduction: () => true }))
+const nestedRes = await nested.request("/n", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    email: "x",
+    address: { city: "" },
+    guests: [{ name: "Ann" }, { name: "Bo" }, { name: "" }],
+  }),
+})
+const nestedBody = await nestedRes.json()
+const nestedKeys = Object.keys(nestedBody.details?.fieldErrors ?? {}).sort()
+ok(
+  "parseBody: nested issues keyed by full dotted path, flat keys unchanged",
+  nestedRes.status === 400 &&
+    nestedKeys.join("|") === "address.city|email|guests.2.name" &&
+    nestedBody.details.formErrors.length === 0,
+  nestedBody,
+)
 const formLevel = await (await post("[]")).json()
 ok(
   "parseBody: a root-level issue lands in formErrors",
