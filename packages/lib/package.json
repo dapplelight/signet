@@ -24,31 +24,38 @@
   "exports": {
     "./api": {
       "types": "./dist/api/index.d.ts",
-      "import": "./dist/api/index.js"
+      "import": "./dist/api/index.js",
+      "default": "./dist/api/index.js"
     },
     "./api/query-client": {
       "types": "./dist/api/query-client.d.ts",
-      "import": "./dist/api/query-client.js"
+      "import": "./dist/api/query-client.js",
+      "default": "./dist/api/query-client.js"
     },
     "./format": {
       "types": "./dist/format/index.d.ts",
-      "import": "./dist/format/index.js"
+      "import": "./dist/format/index.js",
+      "default": "./dist/format/index.js"
     },
     "./analytics": {
       "types": "./dist/analytics/index.d.ts",
-      "import": "./dist/analytics/index.js"
+      "import": "./dist/analytics/index.js",
+      "default": "./dist/analytics/index.js"
     },
     "./crypto": {
       "types": "./dist/crypto/index.d.ts",
-      "import": "./dist/crypto/index.js"
+      "import": "./dist/crypto/index.js",
+      "default": "./dist/crypto/index.js"
     },
     "./form": {
       "types": "./dist/form/index.d.ts",
-      "import": "./dist/form/index.js"
+      "import": "./dist/form/index.js",
+      "default": "./dist/form/index.js"
     },
     "./search": {
       "types": "./dist/search/index.d.ts",
-      "import": "./dist/search/index.js"
+      "import": "./dist/search/index.js",
+      "default": "./dist/search/index.js"
     }
   },
   "scripts": {
