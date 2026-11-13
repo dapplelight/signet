@@ -78,6 +78,28 @@ describe("amounts", () => {
     expect(r.read(pad("goa 2027"), ctx).chips).toEqual([]))
   it("labels with the app's format", () =>
     expect(amounts((n) => `₹${n}`).read(pad("over 5k"), ctx).chips[0]?.label).toBe("Over ₹5000"))
+  it("labels in the app's words", () => {
+    const hi = amounts(String, { over: (a) => `${a} से ज़्यादा`, range: (a, b) => `${a} से ${b}` })
+    expect(hi.read(pad("over 5k"), ctx).chips[0]?.label).toBe("5000 से ज़्यादा")
+    expect(hi.read(pad("over 100 under 500"), ctx).chips[0]?.label).toBe("100 से 500")
+    expect(hi.read(pad("under 100"), ctx).chips[0]?.label).toBe("Under 100")
+  })
+})
+
+describe("date labels", () => {
+  const hi = dates({
+    today: "आज",
+    lastDays: (n) => `पिछले ${n} दिन`,
+    month: (m, y) => `m${m}${y ?? ""}`,
+  })
+  const label = (q: string) => hi.read(pad(q), ctx).chips[0]?.label
+  it("uses the app's words, English for the rest", () => {
+    expect(label("today")).toBe("आज")
+    expect(label("last 30 days")).toBe("पिछले 30 दिन")
+    expect(label("march")).toBe("m2")
+    expect(label("march 2025")).toBe("m22025")
+    expect(label("yesterday")).toBe("Yesterday")
+  })
 })
 
 describe("people", () => {

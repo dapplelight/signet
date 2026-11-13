@@ -42,8 +42,28 @@ function take(s: string, re: RegExp): [string, RegExpMatchArray | null] {
   return m ? [s.replace(re, " "), m] : [s, null]
 }
 
+/** What a date chip says. An app passes its own words (its language); English by default. */
+export type DateLabels = {
+  today: string
+  yesterday: string
+  thisWeek: string
+  lastWeek: string
+  lastDays: (n: number) => string
+  /** `month` is 0-11; `year` is null for the current year. */
+  month: (month: number, year: number | null) => string
+}
+const DATE_LABELS: DateLabels = {
+  today: "Today",
+  yesterday: "Yesterday",
+  thisWeek: "This week",
+  lastWeek: "Last week",
+  lastDays: (n) => `Last ${n} days`,
+  month: (m, y) => (y === null ? cap(MONTHS[m] as string) : `${cap(MONTHS[m] as string)} ${y}`),
+}
+
 /** Dates in English and Hindi: today/aaj, yesterday/kal, this/last week, month, year, "last 30 days", March. */
-export function dates(): Reader {
+export function dates(labels: Partial<DateLabels> = {}): Reader {
+  const L = { ...DATE_LABELS, ...labels }
   return {
     name: "dates",
     read(input, { now }) {
@@ -52,30 +72,32 @@ export function dates(): Reader {
       const add = (label: string, value: DateRange) => chips.push({ reader: "dates", label, value })
       const monday = day(now, -((now.getDay() + 6) % 7))
       const rules: [RegExp, (m: RegExpMatchArray) => void][] = [
-        [/ (today|aaj) /, () => add("Today", { from: day(now), to: end(now) })],
+        [/ (today|aaj) /, () => add(L.today, { from: day(now), to: end(now) })],
         [
           / (yesterday|kal) /,
-          () => add("Yesterday", { from: day(now, -1), to: end(day(now, -1)) }),
+          () => add(L.yesterday, { from: day(now, -1), to: end(day(now, -1)) }),
         ],
-        [/ (this week|is hafte) /, () => add("This week", { from: monday, to: end(now) })],
+        [/ (this week|is hafte) /, () => add(L.thisWeek, { from: monday, to: end(now) })],
         [
           / (last week|pichle hafte) /,
-          () => add("Last week", { from: day(monday, -7), to: end(day(monday, -1)) }),
+          () => add(L.lastWeek, { from: day(monday, -7), to: end(day(monday, -1)) }),
         ],
         [
           / (?:last|past|pichle) ([1-9]\d{0,2}) (?:days|din) /,
-          (m) => add(`Last ${m[1]} days`, { from: day(now, -Number(m[1]) + 1), to: end(now) }),
+          (m) => add(L.lastDays(Number(m[1])), { from: day(now, -Number(m[1]) + 1), to: end(now) }),
         ],
         [
           / (this month|is mahine) /,
-          () =>
-            add(cap(MONTHS[now.getMonth()] as string), month(now.getFullYear(), now.getMonth())),
+          () => add(L.month(now.getMonth(), null), month(now.getFullYear(), now.getMonth())),
         ],
         [
           / (last month|pichle mahine) /,
           () => {
             const d = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-            add(cap(MONTHS[d.getMonth()] as string), month(d.getFullYear(), d.getMonth()))
+            add(
+              L.month(d.getMonth(), d.getFullYear() === now.getFullYear() ? null : d.getFullYear()),
+              month(d.getFullYear(), d.getMonth()),
+            )
           },
         ],
         [
@@ -112,7 +134,7 @@ export function dates(): Reader {
           : mo > now.getMonth()
             ? now.getFullYear() - 1
             : now.getFullYear()
-        add(y === now.getFullYear() ? cap(full) : `${cap(full)} ${y}`, month(y, mo))
+        add(L.month(mo, y === now.getFullYear() ? null : y), month(y, mo))
         s = s.replace(m[0], " ")
         break
       }
@@ -136,7 +158,23 @@ export function amount(n: string, unit?: string): number {
  * Amounts: 500, ₹1,200, 3k, 1.2L, 2 lakh, 1.5cr; over/under/above/below/zyada/kam; 500-1000 or 500 to 1k.
  * A bare number counts only when it is the whole query (otherwise "goa 2027" would be an amount).
  */
-export function amounts(format: (n: number) => string = (n) => n.toLocaleString("en-IN")): Reader {
+/** What an amount chip says, given the formatted amounts. English by default. */
+export type AmountLabels = {
+  over: (min: string) => string
+  under: (max: string) => string
+  range: (min: string, max: string) => string
+}
+const AMOUNT_LABELS: AmountLabels = {
+  over: (a) => `Over ${a}`,
+  under: (b) => `Under ${b}`,
+  range: (a, b) => `${a}–${b}`,
+}
+
+export function amounts(
+  format: (n: number) => string = (n) => n.toLocaleString("en-IN"),
+  labels: Partial<AmountLabels> = {},
+): Reader {
+  const L = { ...AMOUNT_LABELS, ...labels }
   return {
     name: "amounts",
     read(input) {
@@ -152,23 +190,23 @@ export function amounts(format: (n: number) => string = (n) => n.toLocaleString(
         v.min = amount(m[1] as string, m[2])
         v.max = amount(m[3] as string, m[4])
         if (v.min > v.max) [v.min, v.max] = [v.max, v.min]
-        label = `${format(v.min)}–${format(v.max)}`
+        label = L.range(format(v.min), format(v.max))
       }
       ;[s, m] = take(s, new RegExp(` (?:>|over|above|more than|zyada|se zyada) ?${NUM} `))
       if (m) {
         v.min = amount(m[1] as string, m[2])
-        label = `Over ${format(v.min)}`
+        label = L.over(format(v.min))
       }
       if (!m) [s, m] = take(s, new RegExp(` ${NUM} (?:se )?(?:zyada|jyada|upar|plus|\\+) `))
       if (m && v.min == null) {
         v.min = amount(m[1] as string, m[2])
-        label = `Over ${format(v.min)}`
+        label = L.over(format(v.min))
       }
       ;[s, m] = take(s, new RegExp(` (?:<|under|below|less than|kam|se kam) ?${NUM} `))
       if (!m) [s, m] = take(s, new RegExp(` ${NUM} (?:se )?(?:kam|neeche) `))
       if (m) {
         v.max = amount(m[1] as string, m[2])
-        label = label ? `${label}, under ${format(v.max)}` : `Under ${format(v.max)}`
+        label = v.min != null ? L.range(format(v.min), format(v.max)) : L.under(format(v.max))
       }
       if (!label) {
         ;[s, m] = take(s, new RegExp(`^ ${NUM} $`))
