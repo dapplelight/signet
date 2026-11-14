@@ -77,7 +77,8 @@ One payment model over Razorpay, Stripe, Cashfree, PhonePe, PayU, Paddle, Lemon 
 |---|---|---|
 | `@dapplelight/signet-payments` | PaymentsError, isPaymentsError, PaymentsErrorCode, receivable, toEntries, post, … | re-exports errors, ledger, payments, reconcile, store, types |
 | `@dapplelight/signet-payments/agent` | paymentTools, ApprovalRequest, PaymentToolsOptions, PaymentTool | Payment tools for AI agents as plain MCP tool objects (`name`, `description`, `inputSchema` as JSON Schema, `annotations`, `run(input, ctx)`), the sha |
-| `@dapplelight/signet-payments/cashfree` | CASHFREE_API_VERSION, cashfree, CashfreeConfig | Cashfree Payments PG over its REST API (x-api-version 2026-01-01, headers x-client-id / x-client-secret) |
+| `@dapplelight/signet-payments/cashfree` | CASHFREE_API_VERSION, CASHFREE_PAYOUT_API_VERSION, cashfree, CashfreeConfig | Cashfree Payments PG over its REST API (x-api-version 2026-01-01, headers x-client-id / x-client-secret) |
+| `@dapplelight/signet-payments/dodo` | dodo, DodoConfig | Dodo Payments (merchant of record) over its REST API: `Authorization: Bearer <key>`, test.dodopayments.com or live.dodopayments.com (the key's mode mu |
 | `@dapplelight/signet-payments/hyperswitch` | hyperswitch, HyperswitchConfig | Hyperswitch (open-source payments orchestrator) over its REST API, header `api-key` |
 | `@dapplelight/signet-payments/lemonsqueezy` | lemonsqueezy, LemonSqueezyConfig | Lemon Squeezy over its JSON:API (api.lemonsqueezy.com/v1, bearer key; test mode is chosen by the key) |
 | `@dapplelight/signet-payments/paddle` | paddle, PaddleConfig | Paddle Billing (not Paddle Classic) over its REST API: bearer API key, `Paddle-Version: 1`, amounts as strings of minor units |

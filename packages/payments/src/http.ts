@@ -107,13 +107,13 @@ const b64 = (buf: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(buf
 
 export async function hmac(
   algo: "SHA-256" | "SHA-512",
-  secret: string,
+  secret: string | Uint8Array,
   message: string,
   encoding: "hex" | "base64" = "hex",
 ): Promise<string> {
   const key = await crypto.subtle.importKey(
     "raw",
-    enc.encode(secret),
+    typeof secret === "string" ? enc.encode(secret) : (secret as Uint8Array<ArrayBuffer>),
     { name: "HMAC", hash: algo },
     false,
     ["sign"],

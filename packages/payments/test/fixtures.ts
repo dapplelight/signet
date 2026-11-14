@@ -4,6 +4,7 @@
 
 import { createHash, createHmac } from "node:crypto"
 import { cashfree } from "../src/gateways/cashfree"
+import { dodo } from "../src/gateways/dodo"
 import { hyperswitch } from "../src/gateways/hyperswitch"
 import { lemonsqueezy } from "../src/gateways/lemonsqueezy"
 import { paddle } from "../src/gateways/paddle"
@@ -16,6 +17,7 @@ import type { CheckoutInput, EventType, PaymentGateway, PaymentStatus } from "..
 import type { Route } from "./fake"
 
 export const SECRET = "whsec_test_made_up_secret"
+const DODO_SECRET = `whsec_${Buffer.from("made-up-dodo-signing-key").toString("base64")}`
 const now = () => Math.floor(Date.now() / 1000)
 const hmacHex = (algo: string, secret: string, msg: string) =>
   createHmac(algo, secret).update(msg).digest("hex")
@@ -723,6 +725,90 @@ export const CASES: Case[] = [
       },
       type: "payment.captured",
       paymentId: "pay_hs1",
+      amount: 5000,
+    },
+  },
+  {
+    name: "dodo",
+    make: (fetch) =>
+      dodo({
+        apiKey: "dodo_test_made_up",
+        webhookSecret: DODO_SECRET,
+        productId: "pdt_pwyw",
+        fetch,
+        ...http,
+      }),
+    routes: {
+      "POST /checkouts": ({ json }: any) => ({
+        session_id: "cks_0001",
+        checkout_url: "https://test.checkout.dodopayments.com/session/cks_0001",
+        echo: json,
+      }),
+      "GET /payments/pay_dd1": {
+        payment_id: "pay_dd1",
+        business_id: "bus_made_up",
+        total_amount: 5000,
+        currency: "USD",
+        status: "succeeded",
+        payment_method: "card",
+        checkout_session_id: "cks_0001",
+        customer: { customer_id: "cus_1", email: "buyer@example.test", name: "Test Buyer" },
+        refunds: [],
+        created_at: "2026-01-01T10:00:00Z",
+      },
+      "GET /payments/pay_dd1/line-items": {
+        currency: "USD",
+        partial_refund_allowed: true,
+        items: [{ items_id: "pdt_pwyw", amount: 5000, tax: 0, refundable_amount: 5000 }],
+      },
+      "POST /refunds": ({ json }: any) => ({
+        refund_id: "ref_dd1",
+        payment_id: json.payment_id,
+        business_id: "bus_made_up",
+        status: "pending",
+        is_partial: !!json.items,
+        amount: json.items ? json.items.reduce((a: number, x: any) => a + x.amount, 0) : 5000,
+        currency: "USD",
+        created_at: "2026-01-02T10:00:00Z",
+        metadata: {},
+      }),
+    },
+    checkout: { amount: 5000, currency: "USD", reference: "ref-1" },
+    expectCheckout: { gatewayId: "cks_0001", via: "url" },
+    payment: { id: "pay_dd1", amount: 5000, currency: "USD", status: "captured" },
+    refund: { paymentId: "pay_dd1", amount: 2000, expectAmount: 2000 },
+    webhook: {
+      build: () => {
+        const body = JSON.stringify({
+          business_id: "bus_made_up",
+          type: "payment.succeeded",
+          timestamp: "2026-01-01T10:01:00Z",
+          data: {
+            payload_type: "Payment",
+            payment_id: "pay_dd1",
+            total_amount: 5000,
+            currency: "USD",
+            status: "succeeded",
+            checkout_session_id: "cks_0001",
+            metadata: { reference: "ref-1" },
+          },
+        })
+        const id = "msg_made_up_1"
+        const ts = String(now())
+        const key = Buffer.from(DODO_SECRET.slice(6), "base64")
+        const sig = createHmac("sha256", key).update(`${id}.${ts}.${body}`).digest("base64")
+        return {
+          body,
+          headers: {
+            "webhook-id": id,
+            "webhook-timestamp": ts,
+            // A rotated-out signature first: any matching v1 entry is enough.
+            "webhook-signature": `v1,bm90LXRoaXMtb25l v1,${sig}`,
+          },
+        }
+      },
+      type: "payment.captured",
+      paymentId: "pay_dd1",
       amount: 5000,
     },
   },

@@ -79,6 +79,11 @@
       "types": "./dist/gateways/hyperswitch.d.ts",
       "import": "./dist/gateways/hyperswitch.js",
       "default": "./dist/gateways/hyperswitch.js"
+    },
+    "./dodo": {
+      "types": "./dist/gateways/dodo.d.ts",
+      "import": "./dist/gateways/dodo.js",
+      "default": "./dist/gateways/dodo.js"
     }
   },
   "scripts": {

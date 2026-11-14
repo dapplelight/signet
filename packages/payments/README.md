@@ -1,7 +1,7 @@
 # @dapplelight/signet-payments
 
 One payment model over Razorpay, Stripe, Cashfree, PhonePe, PayU, Paddle,
-Lemon Squeezy, PayPal and Hyperswitch, plus the parts every app rebuilds
+Lemon Squeezy, PayPal, Hyperswitch and Dodo Payments, plus the parts every app rebuilds
 around them: a webhook inbox, a double-entry ledger and reconciliation.
 
 - **One model.** `Payment`, `Refund`, `Customer`, `PaymentMethod`,
@@ -19,27 +19,27 @@ around them: a webhook inbox, a double-entry ledger and reconciliation.
 | Import | What |
 |---|---|
 | `@dapplelight/signet-payments` | Types, `createPayments`, stores, ledger, `reconcile`, errors |
-| `@dapplelight/signet-payments/razorpay` ... `/hyperswitch` | One adapter per subpath |
+| `@dapplelight/signet-payments/razorpay` ... `/dodo` | One adapter per subpath |
 | `@dapplelight/signet-payments/agent` | `paymentTools`: MCP tools for agents |
 
 ## Capability matrix
 
-| | razorpay | stripe | cashfree | phonepe | payu | paddle | lemonsqueezy | paypal | hyperswitch |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| upi | ✓ |  | ✓ | ✓ | ✓ |  |  |  | ✓ |
-| card | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| netbanking | ✓ |  | ✓ | ✓ | ✓ |  |  |  | ✓ |
-| wallet | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ | ✓ |
-| emi | ✓ |  | ✓ |  |  |  |  |  |  |
-| capture | ✓ | ✓ | ✓ |  |  |  |  | ✓ | ✓ |
-| refunds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| partialRefunds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| customers | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |  | ✓ |
-| savedMethods | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ | ✓ |
-| subscriptions | ✓ | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
-| payouts | ✓ | ✓ | ✓ |  |  |  |  | ✓ | ✓ |
-| settlements | ✓ | ✓ | ✓ |  | ✓ |  |  |  |  |
-| webhooks | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| | razorpay | stripe | cashfree | phonepe | payu | paddle | lemonsqueezy | paypal | hyperswitch | dodo |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| upi | ✓ |  | ✓ | ✓ | ✓ |  |  |  | ✓ |  |
+| card | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| netbanking | ✓ |  | ✓ | ✓ | ✓ |  |  |  | ✓ |  |
+| wallet | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| emi | ✓ |  | ✓ |  |  |  |  |  |  |  |
+| capture | ✓ | ✓ | ✓ |  |  |  |  | ✓ | ✓ |  |
+| refunds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| partialRefunds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| customers | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |  | ✓ | ✓ |
+| savedMethods | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ | ✓ | ✓ |
+| subscriptions | ✓ | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ | ✓ |
+| payouts | ✓ | ✓ | ✓ |  |  |  |  | ✓ | ✓ |  |
+| settlements | ✓ | ✓ | ✓ |  | ✓ |  |  |  |  |  |
+| webhooks | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 Razorpay payouts are RazorpayX and need `accountNumber`. Hyperswitch
 subscriptions need `profileId`, and its methods depend on the connectors
@@ -102,6 +102,14 @@ SDK (or two official doc pages) agree. What is left out, and why:
   https://raw.githubusercontent.com/juspay/hyperswitch/main/api-reference/v1/openapi_spec_v1.json.
 - **Hyperswitch settlements**: no public settlement or recon API. Checked:
   https://api-reference.hyperswitch.io/llms.txt.
+- **Dodo Payments**: no capture endpoint; payouts are Dodo paying you
+  (read-only), with no outbound payout API; no idempotency keys, so refunds
+  are sent once and never retried. Settlements stay out because the balance
+  ledger is in the settlement currency and net of the tax Dodo collects as
+  merchant of record, so its lines cannot be matched to payment amounts.
+  Checked: https://docs.dodopayments.com/api-reference/introduction.md,
+  https://docs.dodopayments.com/api-reference/balance-ledger/list-ledger-entries.md,
+  https://docs.dodopayments.com/api-reference/payouts/get-payouts.md.
 
 ## Quick start
 
@@ -169,6 +177,11 @@ await pal.capture(o.gatewayId, { idempotencyKey: "capture-1042" })
 // Hyperswitch: a Payment; pass clientSecret to the Hyperswitch SDK.
 const hs = hyperswitch({ apiKey, paymentResponseHashKey, sandbox: true })
 await hs.createCheckout({ amount: 1999, currency: "USD", idempotencyKey: "order-1042" })
+
+// Dodo Payments (merchant of record): a Checkout Session; redirect to url.
+// Pass extra.product_cart, or a pay-what-you-want productId priced by amount.
+const dd = dodo({ apiKey, webhookSecret, productId: "pdt_...", sandbox: true })
+await dd.createCheckout({ amount: 1999, currency: "USD", idempotencyKey: "order-1042", reference: "order-1042" })
 ```
 
 Anything the model does not cover: `gateway.raw("GET", "/path")` calls the

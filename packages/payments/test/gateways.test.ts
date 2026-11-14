@@ -4,6 +4,7 @@
 import { describe, expect, test } from "bun:test"
 import { constants, createHash, createHmac, generateKeyPairSync, privateDecrypt } from "node:crypto"
 import { cashfree } from "../src/gateways/cashfree"
+import { dodo } from "../src/gateways/dodo"
 import { hyperswitch } from "../src/gateways/hyperswitch"
 import { lemonsqueezy } from "../src/gateways/lemonsqueezy"
 import { paddle } from "../src/gateways/paddle"
@@ -560,5 +561,98 @@ describe("hyperswitch", () => {
     expect((await g.cancelSubscription("sub_1", { atPeriodEnd: true })).status).toBe("cancelled")
     expect(f.calls[0].headers["x-profile-id"]).toBe("pro_1")
     expect(JSON.parse(f.calls[1].body!)).toEqual({ cancel_option: "end_of_term" })
+  })
+})
+
+describe("dodo", () => {
+  const sub = (status: string) => ({
+    subscription_id: "sub_dd1",
+    status,
+    customer: { customer_id: "cus_1" },
+    next_billing_date: "2026-02-01T00:00:00Z",
+    created_at: "2026-01-01T00:00:00Z",
+  })
+
+  test("subscriptions: get, cancel now, cancel at period end", async () => {
+    const f = fakeFetch({
+      "GET /subscriptions/sub_dd1": sub("on_hold"),
+      "PATCH /subscriptions/sub_dd1": ({ json }: any) => sub(json.status ?? "active"),
+    })
+    const g = dodo({ apiKey: "dodo_test_made_up", fetch: f.fetch, ...http })
+    const s = await g.getSubscription("sub_dd1")
+    expect(s).toMatchObject({ status: "past_due", customerId: "cus_1" })
+    expect(s.currentPeriodEnd?.toISOString()).toBe("2026-02-01T00:00:00.000Z")
+    expect((await g.cancelSubscription("sub_dd1")).status).toBe("cancelled")
+    await g.cancelSubscription("sub_dd1", { atPeriodEnd: true })
+    expect(JSON.parse(f.calls[1].body!)).toEqual({ status: "cancelled" })
+    expect(JSON.parse(f.calls[2].body!)).toEqual({ cancel_at_next_billing_date: true })
+  })
+
+  test("partial refund spreads over line items in the paid currency; refunds are not retried", async () => {
+    const f = fakeFetch(
+      {
+        "GET /payments/pay_dd2": {
+          payment_id: "pay_dd2",
+          total_amount: 3000,
+          currency: "EUR",
+          status: "succeeded",
+        },
+        "GET /payments/pay_dd2/line-items": {
+          currency: "EUR",
+          partial_refund_allowed: true,
+          items: [
+            { items_id: "pdt_a", amount: 1000, tax: 0, refundable_amount: 1000 },
+            { items_id: "pdt_b", amount: 2000, tax: 0, refundable_amount: 2000 },
+          ],
+        },
+        "POST /refunds": {},
+      },
+      { status: { "POST /refunds": 503 } },
+    )
+    const g = dodo({ apiKey: "dodo_test_made_up", fetch: f.fetch, ...http })
+    await expect(g.refund("pay_dd2", { amount: 1500, idempotencyKey: "rf-1" })).rejects.toThrow()
+    const posts = f.calls.filter((c) => c.method === "POST")
+    expect(posts).toHaveLength(1)
+    expect(new URL(f.calls[1].url).searchParams.get("currency")).toBe("EUR")
+    expect(JSON.parse(posts[0].body!)).toEqual({
+      payment_id: "pay_dd2",
+      currency: "EUR",
+      items: [
+        { item_id: "pdt_a", amount: 1000 },
+        { item_id: "pdt_b", amount: 500 },
+      ],
+    })
+  })
+
+  test("checkout needs a cart or a pay-what-you-want product", async () => {
+    const g = dodo({ apiKey: "dodo_test_made_up", fetch: fakeFetch({}).fetch, ...http })
+    await expect(
+      g.createCheckout({ amount: 100, currency: "USD", idempotencyKey: "k" }),
+    ).rejects.toThrow(/product_cart/)
+  })
+
+  test("customers and saved methods", async () => {
+    const f = fakeFetch({
+      "POST /customers": ({ json }: any) => ({
+        customer_id: "cus_2",
+        business_id: "b",
+        created_at: "2026-01-01T00:00:00Z",
+        ...json,
+      }),
+      "GET /customers/cus_2/payment-methods": {
+        items: [
+          {
+            payment_method_id: "pm_dd1",
+            payment_method: "card",
+            card: { card_network: "VISA", last4_digits: "4242" },
+          },
+        ],
+      },
+    })
+    const g = dodo({ apiKey: "dodo_test_made_up", fetch: f.fetch, ...http })
+    const c = await g.createCustomer({ email: "buyer@example.test", name: "Test Buyer" })
+    expect(c.gatewayId).toBe("cus_2")
+    const [m] = await g.listPaymentMethods("cus_2")
+    expect(m).toMatchObject({ gatewayId: "pm_dd1", type: "card", label: "VISA 4242" })
   })
 })
