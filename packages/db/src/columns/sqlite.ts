@@ -1,8 +1,8 @@
 /**
  * Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`,
  * `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`,
- * `idempotencyKeys`, `entitlementTables`, `flagOverrides` and
- * `growthTables` tables.
+ * `idempotencyKeys`, `entitlementTables`, `flagOverrides`, `growthTables`,
+ * `privacyTables` and `sequences` tables.
  */
 
 import { sql } from "drizzle-orm"
@@ -271,3 +271,55 @@ export const growthTables = (prefix = "") => ({
     createdAt: stamp("created_at"),
   }),
 })
+
+/**
+ * DPDP consent records and data-principal requests for `createPrivacy` from
+ * `@dapplelight/signet-db/privacy`. Destructure into the schema:
+ * `export const { consents, dataRequests } = privacyTables()`.
+ */
+export const privacyTables = (prefix = "") => ({
+  consents: sqliteTable(
+    `${prefix}consents`,
+    {
+      id: id(),
+      subject: text("subject").notNull(),
+      /** What the data is used for, e.g. "marketing-email". */
+      purpose: text("purpose").notNull(),
+      /** The notice the person saw when they agreed, e.g. "2026-11-01". */
+      noticeVersion: text("notice_version").notNull(),
+      /** How it was given, e.g. "signup-form", "settings". */
+      source: text("source"),
+      givenAt: ms("given_at").notNull(),
+      withdrawnAt: ms("withdrawn_at"),
+    },
+    (t) => [index(`${prefix}consents_subject`).on(t.subject, t.purpose)],
+  ),
+  dataRequests: sqliteTable(
+    `${prefix}data_requests`,
+    {
+      id: id(),
+      subject: text("subject").notNull(),
+      /** export | erasure */
+      kind: text("kind").notNull(),
+      /** pending | completed | rejected */
+      status: text("status").notNull().default("pending"),
+      requestedAt: ms("requested_at").notNull(),
+      dueAt: ms("due_at"),
+      closedAt: ms("closed_at"),
+      /** Who closed it. */
+      closedBy: text("closed_by"),
+      /** Why it was rejected, or a note. */
+      note: text("note"),
+      /** Erasure: row counts per table. Export data is returned, never stored. */
+      result: text("result", { mode: "json" }),
+    },
+    (t) => [index(`${prefix}data_requests_subject`).on(t.subject)],
+  ),
+})
+
+/** Named counters for `nextSequence`, e.g. invoice numbers per financial year. */
+export const sequences = (name = "sequences") =>
+  sqliteTable(name, {
+    key: text("key").primaryKey(),
+    value: integer("value").notNull(),
+  })
