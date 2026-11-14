@@ -113,6 +113,42 @@ catch (e) {
 }
 ```
 
+### Typed client (Hono RPC)
+
+When the API is a Hono app, `createRpcClient` gives end-to-end types: paths,
+params, bodies and responses come from the server's routes (validated with
+signet-server's `zValidator`). Pass `hc<AppType>` from `hono/client`; this
+package does not depend on hono.
+
+```ts
+// api/src/app.ts: Signet's groups and the app's own routes, one chain
+const app = new Hono()
+  .route("/api/sessions", sessionRoutes(sessionOpts))
+  .post("/api/notes", zValidator("json", NoteInput), (c) => c.json(save(c.req.valid("json")), 201))
+export type AppType = typeof app
+
+// web/src/api.ts
+import { hc } from "hono/client"
+import { createRpcClient } from "@dapplelight/signet-lib/api"
+import type { AppType } from "../../api/src/app"
+
+export const api = createRpcClient(hc<AppType>, {
+  baseUrl: "/",
+  onAuthError: () => { window.location.href = "/login" },
+})
+
+const note = await (await api.api.notes.$post({ json: { title: "Hi" } })).json()
+await api.api.notes.$post({ json: { titel: "Hi" } })   // does not compile
+```
+
+The fetch underneath is this module's: `headers()` and credentials, an
+`x-request-id` per call, and a failed response throws (`AuthError` on 401,
+`ApiError` from the envelope otherwise) instead of being returned, so `.json()`
+is the success type. `retries` (default 0) retries a GET or HEAD on a network
+error, 5xx, 408 or 429, keeping one request id; leave it at 0 under TanStack
+Query, which already retries. `fetch` swaps the transport (a Worker service
+binding, or `app.request` in tests).
+
 ### TanStack Query
 
 ```ts

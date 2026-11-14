@@ -282,6 +282,40 @@ Validation failures put `flatten()` output in `details`, where the envelope has
 a place for it. app-a stringified it into the message field, forcing the client
 to `JSON.parse` an error string to render field errors.
 
+### Typed routes for `hc`
+
+`parseBody` reads inside the handler, so Hono cannot see the type. For routes a
+typed client calls, use `zValidator`: the same envelope on failure, and the
+schema's input becomes the client's request type.
+
+```ts
+import { zValidator } from "@dapplelight/signet-server/http/validate"
+
+const app = new Hono()
+  .post("/api/notes", zValidator("json", NoteInput), (c) => c.json(save(c.req.valid("json")), 201))
+  .get("/api/notes/:id", zValidator("param", z.object({ id: z.string() })), (c) => c.json(get(c.req.valid("param").id)))
+export type AppType = typeof app
+```
+
+Query, param and header values arrive as strings, so coerce them
+(`z.coerce.number()`). A JSON body needs a JSON `Content-Type`.
+
+Signet's own route groups mount into the same chain, and their types come with
+them. `SessionRoutes` (`./auth/hono`), `EntitlementRoutes` and `FlagRoutes`
+(`./http/routes`) type a group on its own. Import them with `import type` so no
+server code reaches a browser bundle.
+
+```ts
+import { entitlementRoutes, flagRoutes } from "@dapplelight/signet-server/http/routes"
+
+app
+  .use("/api/me/*", requireStoredSession(sessionOpts))
+  .route("/api/me/entitlements", entitlementRoutes({ entitlements, subject: (c) => c.get("session").record.sub }))
+  .route("/api/me/flags", flagRoutes({ flags, subject: (c) => ({ id: c.get("session").record.sub }) }))
+```
+
+The client half is `createRpcClient` in `@dapplelight/signet-lib/api`.
+
 ## Env — Workers-safe configuration
 
 ```ts

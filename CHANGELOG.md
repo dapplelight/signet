@@ -5,6 +5,21 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-server, signet-lib: typed client
+
+- signet-server `./http/validate`: `zValidator(target, schema)` for `json`,
+  `query`, `param`, `header`, `cookie` and `form`. Hono's own validator on a Zod
+  schema, so `c.req.valid()` and `hc` see the types; failures are the same 400
+  `VALIDATION_FAILED` envelope as `parseBody`. No new dependency.
+- signet-server: `SessionRoutes` type from `./auth/hono`; new `./http/routes`
+  with `entitlementRoutes` (`GET /`, `GET /usage`) and `flagRoutes` (`GET /`),
+  which take signet-db's stores structurally, plus their `EntitlementRoutes` and
+  `FlagRoutes` types.
+- signet-lib `./api`: `createRpcClient(hc<AppType>, options)`. The same options
+  as `createApiClient` plus `retries` (GET/HEAD only, default 0) and `fetch`.
+  Sends `x-request-id`, throws `AuthError` on 401 and `ApiError` from the
+  envelope on any other failure, so `.json()` is the success type.
+
 ### signet-server: auth backend (sessions, key rotation, phone OTP, API keys)
 
 - New `./auth/sessions`: opt-in stored sessions. `SessionStore` (create, get,
