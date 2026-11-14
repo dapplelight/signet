@@ -14,7 +14,7 @@ const ok = (n: string, c: boolean, d = "") => {
 type Vars = Record<string, string>
 
 /** Custom properties of the first block whose selector matches. */
-function block(css: string, selector: RegExp): Vars {
+export function block(css: string, selector: RegExp): Vars {
   const m = selector.exec(css)
   if (!m) return {}
   let depth = 0
@@ -30,7 +30,7 @@ function block(css: string, selector: RegExp): Vars {
   return vars
 }
 
-function resolve(vars: Vars, value: string, seen = 0): string {
+export function resolve(vars: Vars, value: string, seen = 0): string {
   const m = /^var\((--[\w-]+)\)$/.exec(value)
   if (!m || seen > 10) return value
   return resolve(vars, vars[m[1]] ?? "", seen + 1)
@@ -60,7 +60,7 @@ export function ratio(a: string, b: string): number | null {
 }
 
 const TEXT = 4.5
-const PAIRS: [fg: string, bg: string, min: number][] = [
+export const PAIRS: [fg: string, bg: string, min: number][] = [
   ["--text-primary", "--bg-base", TEXT],
   ["--text-secondary", "--bg-base", TEXT],
   ["--text-muted", "--bg-base", TEXT],

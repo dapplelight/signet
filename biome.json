@@ -10,7 +10,8 @@
       "!site",
       "!packages/create-signet-app/template",
       "!packages/create-signet-app/template-api",
-      "!.claude"
+      "!.claude",
+      "!packages/mcp/src/generated"
     ]
   },
   "overrides": [
