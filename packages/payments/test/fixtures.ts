@@ -34,6 +34,8 @@ export type Case = {
     type: EventType
     paymentId: string
     amount: number
+    /** The scheme authenticates the sender, not the body; the adapter re-reads state from the API. */
+    unsignedBody?: boolean
   }
 }
 
@@ -276,6 +278,8 @@ export const CASES: Case[] = [
         clientId: "TEST_CLIENT",
         clientSecret: "test_secret",
         clientVersion: 1,
+        webhookUsername: "hook_user",
+        webhookPassword: "hook_pass_made_up",
         fetch,
         ...http,
       }),
@@ -321,6 +325,29 @@ export const CASES: Case[] = [
     expectCheckout: { gatewayId: "ref-1", via: "url" },
     payment: { id: "ref-1", amount: 5000, currency: "INR", status: "captured" },
     refund: { paymentId: "ref-1", amount: 2000, expectAmount: 2000 },
+    webhook: {
+      build: () => ({
+        body: JSON.stringify({
+          event: "checkout.order.completed",
+          payload: {
+            orderId: "OMO2601011000",
+            merchantId: "MERCHANTUAT",
+            merchantOrderId: "ref-1",
+            state: "COMPLETED",
+            amount: 5000,
+            expireAt: 1767250000000,
+            paymentDetails: [],
+          },
+        }),
+        headers: {
+          authorization: createHash("sha256").update("hook_user:hook_pass_made_up").digest("hex"),
+        },
+      }),
+      type: "payment.captured",
+      paymentId: "ref-1",
+      amount: 5000,
+      unsignedBody: true,
+    },
   },
   {
     name: "payu",

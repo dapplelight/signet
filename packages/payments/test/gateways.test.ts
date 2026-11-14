@@ -2,8 +2,9 @@
 // the docs and SDK examples cited in each adapter; signatures are computed here
 // with node:crypto, independent of the adapter's Web Crypto code.
 import { describe, expect, test } from "bun:test"
-import { createHmac } from "node:crypto"
+import { createHash, createHmac } from "node:crypto"
 import { cashfree } from "../src/gateways/cashfree"
+import { phonepe } from "../src/gateways/phonepe"
 import { razorpay } from "../src/gateways/razorpay"
 import { fakeFetch } from "./fake"
 
@@ -171,5 +172,86 @@ describe("cashfree", () => {
     })
     const s = await g.verifyWebhook(signed(status, String(Date.now())))
     expect(s).toMatchObject({ type: "subscription.cancelled", subscriptionId: "sub-made-up" })
+  })
+})
+
+describe("phonepe", () => {
+  const token = () => ({
+    access_token: "made-up-token",
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+  })
+  const status = (state: string) => ({
+    merchantSubscriptionId: "msub-1",
+    subscriptionId: "OMS1",
+    state,
+    authWorkflowType: "TRANSACTION",
+    amountType: "FIXED",
+    maxAmount: 20000,
+    frequency: "MONTHLY",
+    expireAt: 1893456000000,
+  })
+
+  test("subscriptions: get, and cancel (204) then re-read", async () => {
+    let state = "ACTIVE"
+    const f = fakeFetch({
+      "POST /apis/pg-sandbox/v1/oauth/token": token,
+      "GET /apis/pg-sandbox/subscriptions/v2/msub-1/status": () => status(state),
+      "POST /apis/pg-sandbox/subscriptions/v2/msub-1/cancel": () => {
+        state = "CANCEL_IN_PROGRESS"
+        return undefined
+      },
+    })
+    const g = phonepe({
+      clientId: "c",
+      clientSecret: "s",
+      clientVersion: 1,
+      fetch: f.fetch,
+      ...http,
+    })
+    expect((await g.getSubscription("msub-1")).status).toBe("active")
+    const c = await g.cancelSubscription("msub-1")
+    expect(c.raw).toMatchObject({ state: "CANCEL_IN_PROGRESS" })
+    expect(f.calls.find((x) => x.path.endsWith("/cancel"))?.body).toBeUndefined()
+  })
+
+  test("refund webhook reads the refund status, not the body", async () => {
+    const f = fakeFetch({
+      "POST /apis/pg-sandbox/v1/oauth/token": token,
+      "GET /apis/pg-sandbox/payments/v2/refund/rf-1/status": {
+        merchantId: "M",
+        merchantRefundId: "rf-1",
+        originalMerchantOrderId: "ref-1",
+        amount: 2000,
+        state: "COMPLETED",
+      },
+    })
+    const g = phonepe({
+      clientId: "c",
+      clientSecret: "s",
+      clientVersion: 1,
+      webhookUsername: "u",
+      webhookPassword: "p",
+      fetch: f.fetch,
+      ...http,
+    })
+    const body = JSON.stringify({
+      event: "pg.refund.completed",
+      payload: {
+        merchantRefundId: "rf-1",
+        originalMerchantOrderId: "ref-1",
+        amount: 999999,
+        state: "COMPLETED",
+      },
+    })
+    const auth = createHash("sha256").update("u:p").digest("hex")
+    const e = await g.verifyWebhook(
+      new Request("https://x.test", { method: "POST", body, headers: { authorization: auth } }),
+    )
+    expect(e).toMatchObject({
+      type: "refund.processed",
+      paymentId: "ref-1",
+      refundId: "rf-1",
+      amount: 2000,
+    })
   })
 })

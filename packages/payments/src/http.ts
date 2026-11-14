@@ -122,6 +122,10 @@ export async function hmac(
   return encoding === "hex" ? hex(sig) : b64(sig)
 }
 
+export async function sha256Hex(message: string): Promise<string> {
+  return hex(await crypto.subtle.digest("SHA-256", enc.encode(message)))
+}
+
 export async function sha512Hex(message: string): Promise<string> {
   return hex(await crypto.subtle.digest("SHA-512", enc.encode(message)))
 }

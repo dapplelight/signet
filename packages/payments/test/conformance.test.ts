@@ -147,6 +147,25 @@ for (const c of CASES) {
           .replace("50.00", "90.00")
           .replace(":50,", ":90,")
         expect(tampered).not.toBe(body)
+        if (w.unsignedBody) {
+          const e = await c
+            .make(f.fetch)
+            .verifyWebhook(
+              new Request("https://x.test", { method: "POST", body: tampered, headers }),
+            )
+          expect(e.amount).toBe(w.amount)
+          const bad = { ...headers, authorization: "0".repeat(64) }
+          expect(
+            await code(
+              c
+                .make(f.fetch)
+                .verifyWebhook(
+                  new Request("https://x.test", { method: "POST", body, headers: bad }),
+                ),
+            ),
+          ).toBe("BAD_SIGNATURE")
+          return
+        }
         expect(
           await code(
             c

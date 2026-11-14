@@ -36,10 +36,10 @@ around them: a webhook inbox, a double-entry ledger and reconciliation.
 | partialRefunds | ✓ | ✓ | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
 | customers | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |  | ✓ |
 | savedMethods | ✓ | ✓ | ✓ |  |  | ✓ |  |  |  |
-| subscriptions | ✓ | ✓ | ✓ |  |  | ✓ | ✓ | ✓ |  |
+| subscriptions | ✓ | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ |  |
 | payouts | ✓ | ✓ | ✓ |  |  |  |  | ✓ |  |
 | settlements | ✓ | ✓ | ✓ |  | ✓ |  |  |  |  |
-| webhooks | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ | ✓ |
+| webhooks | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 Razorpay payouts are RazorpayX and need `accountNumber`. Hyperswitch methods
 depend on the connectors enabled in your account. What each unsupported cell
@@ -60,6 +60,23 @@ SDK (or two official doc pages) agree. What is left out, and why:
   and report no created time or period end: `SubscriptionEntity` has neither.
   Checked: https://www.cashfree.com/docs/openapi/payments/v2026-01-01.yaml,
   https://www.cashfree.com/docs/payments/subscription/create.md.
+- **PhonePe webhooks** use the `Authorization: sha256(username:password)`
+  check (docs plus the Node, Python, Java and Go SDKs). That header does not
+  sign the body, so the adapter re-reads the order or refund status before
+  emitting an event. The newer checksum-header mode is unsupported: its
+  algorithm is not documented and no SDK implements it. Checked:
+  https://developer.phonepe.com/payment-gateway/website-integration/standard-checkout/api-integration/api-reference/webhook,
+  https://github.com/PhonePe/phonepe-pg-sdk-node, https://github.com/PhonePe/phonepe-pg-sdk-python.
+- **PhonePe settlements**: the settlement APIs return per-settlement totals
+  (id, UTR, amount), not per-payment lines, so `listSettlements` cannot be
+  built on them. No SDK covers them. Checked:
+  https://developer.phonepe.com/settlement/date-range-based-settlement-ids,
+  https://developer.phonepe.com/settlement/settlement-status.
+- **PhonePe subscriptions**: get and cancel only (immediate). Setup is a UPI
+  intent flow; call `/subscriptions/v2/setup` through `raw`. Checked:
+  https://developer.phonepe.com/payment-gateway/autopay/api-integration/api-reference/subscription-status,
+  https://developer.phonepe.com/payment-gateway/autopay/api-integration/api-reference/subscription-cancel,
+  https://github.com/PhonePe/phonepe-pg-sdk-java.
 
 ## Quick start
 
@@ -103,8 +120,8 @@ const cf = cashfree({ clientId, clientSecret, sandbox: true })
 await cf.createCheckout({ amount: 49900, currency: "INR", idempotencyKey: orderUuid /* Cashfree expects a UUID */, customer: { id: "c1", phone: "9999999999" } })
 await cf.createPayout({ amount: 10000, currency: "INR", idempotencyKey: "payout_42", destination: beneficiaryId }) // Payouts v2, IP whitelisted
 
-// PhonePe: Standard Checkout v2 (OAuth); redirect to url. Poll getPayment: webhooks are unsupported.
-const pp = phonepe({ clientId, clientSecret, clientVersion: 1, sandbox: true })
+// PhonePe: Standard Checkout v2 (OAuth); redirect to url. Webhooks need the dashboard username and password.
+const pp = phonepe({ clientId, clientSecret, clientVersion: 1, webhookUsername, webhookPassword, sandbox: true })
 await pp.createCheckout({ amount: 49900, currency: "INR", idempotencyKey: "order-1042", returnUrl: "https://shop.example/done" })
 
 // PayU: returns a form to POST from the browser (form.action, form.fields with the hash).
