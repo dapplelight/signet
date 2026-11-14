@@ -11,10 +11,8 @@
 #         working-directory: .       # default: repo root
 #         build: true                # default: false
 #
-# The Signet repo is private. Before another repo can call this, open Signet on
-# GitHub: Settings -> Actions -> General -> Access, and choose "Accessible from
-# repositories owned by the user 'dapplelight'". Without it the caller fails with
-# "workflow was not found". Pin @main, a tag, or a commit SHA.
+# Signet is a public repo, so any repo can call this with no access setting.
+# Pin @main, a tag, or a commit SHA.
 #
 # Repo-specific jobs (app-a's e2e and type-ramp checks, app-b's Neon
 # integration) stay in the app: this covers the steps every repo repeats.
