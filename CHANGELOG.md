@@ -5,6 +5,44 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-db 0.1.0 (new, private: not published yet)
+
+- New `@dapplelight/signet-db`: Drizzle helpers with a driver-free core and
+  thin `createDb` entry points for Cloudflare D1 (`./d1`), bun:sqlite
+  (`./sqlite`) and postgres-js (`./postgres`); `fromDrizzle` for any other driver.
+- Columns for SQLite and Postgres (`./columns/sqlite`, `./columns/pg`): `id()`
+  (sortable, time-ordered), `timestamps()`, `softDelete()`, `money()`
+  (integer minor units + currency), `encrypted()`, and an `auditLog()` table.
+- `scoped(db, { userId })`: every read, update and delete filtered to the
+  user, inserts owned by them, soft-deleted rows hidden unless `withDeleted`.
+- `audited()`: who (`{ type: "user" | "agent" | "system", id }`), what, when,
+  before and after for each changed row.
+- `createCipher`: AES-GCM field encryption with key ids, rotation and
+  fail-closed reads (reuses `@dapplelight/signet-lib/crypto`).
+- Money helpers that refuse floats and mixed currencies, with exact formatting.
+- `exportUser` / `deleteUser` (atomic, audited), `seed()` (deterministic,
+  Indian names, +91 numbers, PIN codes), `describeSchema()`, `defineQuery()`.
+- `signet-db-check` CLI and `checkMigrationSql`: flags table/column drops,
+  renames and NOT NULL without a default; exits non-zero for CI.
+- Errors are `SignetDbError` with a stable `code`.
+- `./zod`: `toZod(table, { mode: "insert" | "update" | "select" })`, Zod
+  schemas generated from the columns (no drizzle-zod), usable with
+  signet-server's `parseBody`.
+- Transactional outbox: `outbox()` table, `enqueue` inside `db.batch` or a
+  transaction, `drainOutbox(db, queue)` with leases, attempt counts, backoff
+  and dead rows; `pruneOutbox`.
+- Idempotency keys: `idempotencyKeys()` table, `withIdempotency(db, key,
+  scope, fn)` that replays stored results and rejects in-flight duplicates;
+  `pruneIdempotency`.
+- `./agent`: `agentTools(db, { tables, userId, allowWrites, maxRows })`,
+  list/get/search (and opt-in insert/update with `dryRun`) tools for AI
+  agents, always user-scoped, soft-deleted rows hidden, encrypted fields
+  excluded unless opted in, row cap enforced; shaped for signet-server's MCP
+  server. `describeSchema(tables, { format: "json" })` adds a JSON form with
+  relations. `packages/db/AGENTS.md` is the guide for agents.
+- Tests run on bun:sqlite, a D1 stand-in and PGlite always, and on a real
+  Postgres server when `SIGNET_TEST_PG_URL` is set.
+
 ### signet-server: MCP for apps inside agents
 
 All additive; existing `createMcpServer` / `mountMcp` calls behave as before.

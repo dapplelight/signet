@@ -10,6 +10,7 @@ packages/lib                api client, format, analytics, form   (client)
 packages/server             auth, http, env, middleware, notify,
                             observability, analytics, oauth-rs     (server)
 packages/ai                 structured LLM calls: budget, cache, failover
+packages/db                 Drizzle helpers: scoping, money, encrypted fields, audit (private)
 packages/config             Biome preset + tsconfig bases; ci-bun.yml is the CI half
 packages/create-signet-app  scaffolder
 apps/showcase               theme switcher demo (other apps/* are gitignored)
