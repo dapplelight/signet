@@ -140,9 +140,17 @@ export function report(
   meta: ErrorMeta,
   c: Context | undefined,
 ): void {
+  callHook(() => opts.onError?.(err, meta), c)
+}
+
+/**
+ * Run an app's callback (`onError`, `onToolCall`): a throw is swallowed, and a
+ * returned promise keeps a Worker alive through `waitUntil`.
+ */
+export function callHook(hook: () => unknown, c: Context | undefined): void {
   let pending: unknown
   try {
-    pending = opts.onError?.(err, meta)
+    pending = hook()
   } catch {
     return // a broken reporter must not turn one error into two
   }

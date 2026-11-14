@@ -11,7 +11,7 @@
  */
 
 import { inputRequired, inputResponse, isInputRequiredResult } from "@modelcontextprotocol/server"
-import type { ToolContext } from "./server.js"
+import { type CallToolResult, type ToolContext, toolResult } from "./server.js"
 
 const CONFIRM_KEY = "signet_confirm"
 
@@ -160,6 +160,90 @@ export function isConfirmPending(
   value: ConfirmResult | ReturnType<typeof inputRequired>,
 ): value is ReturnType<typeof inputRequired> {
   return isInputRequiredResult(value)
+}
+
+export type ApprovalOptions = {
+  /** One line the person approves: "Refund $40 to order 1042". */
+  summary: string
+  /** What will change, shown under the summary: a short string, or a few key/value pairs. */
+  details?: string | Record<string, unknown>
+  /**
+   * What the answer is bound to (see `confirm`'s `args`): pass the tool's
+   * input. Default: `details`.
+   */
+  args?: unknown
+  /** As `confirm`'s `key`. */
+  key?: string
+}
+
+function approvalResult(
+  { code, message }: { code: "APPROVAL_REQUIRED" | "APPROVAL_DECLINED"; message: string },
+  { summary, details }: ApprovalOptions,
+): CallToolResult {
+  // An error result on purpose: nothing happened, and an output schema is
+  // not checked against it. `approval` lets an agent show the person what to approve.
+  return toolResult({
+    isError: true,
+    content: [{ type: "text", text: `${code}: ${message}` }],
+    structuredContent: {
+      success: false,
+      error: message,
+      code,
+      approval: { summary, ...(details !== undefined ? { details } : {}) },
+    },
+  })
+}
+
+/**
+ * Gate a risky action (a write, money, a delete) on the person's approval.
+ * Returns undefined when approved — go ahead — and otherwise a result to
+ * return as-is:
+ *
+ * ```ts
+ * const gate = await requireApproval(ctx, { summary: `Refund ${amount} to ${orderId}`, args: input })
+ * if (gate) return gate
+ * await refund(orderId, amount)
+ * ```
+ *
+ * Built on `confirm`: the client is asked through elicitation, and with a
+ * `confirm.key` the answer is bound to `args`. The results it returns:
+ *   the pending ask   the client answers it and retries the call
+ *   APPROVAL_DECLINED the person said no; nothing was done
+ *   APPROVAL_REQUIRED the client cannot ask (no elicitation), so nothing was
+ *                     done — never acting is the fallback, with the summary
+ *                     and details in `structuredContent.approval`
+ */
+export async function requireApproval(
+  ctx: ToolContext,
+  options: ApprovalOptions,
+): Promise<CallToolResult | ReturnType<typeof inputRequired> | undefined> {
+  const { summary, details, args, key } = options
+  const detail =
+    details === undefined || typeof details === "string"
+      ? details
+      : Object.entries(details)
+          .map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`)
+          .join("\n")
+  const answer = await confirm(ctx, {
+    message: summary,
+    ...(detail ? { detail } : {}),
+    args: args ?? details,
+    ...(key ? { key } : {}),
+  })
+  if (isConfirmPending(answer)) return answer
+  if (answer === "confirmed") return undefined
+  if (answer === "declined")
+    return approvalResult(
+      { code: "APPROVAL_DECLINED", message: `Not approved: ${summary}. Nothing was changed.` },
+      options,
+    )
+  return approvalResult(
+    {
+      code: "APPROVAL_REQUIRED",
+      message: `Needs the person's approval: ${summary}. This client cannot ask for it, so nothing was changed. Ask them to approve it in the app, or use a client that supports elicitation.`,
+    },
+    options,
+  )
 }
 
 /**

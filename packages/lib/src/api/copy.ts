@@ -95,6 +95,21 @@ export const DEFAULT_ERROR_COPY: Record<ErrorCode, ErrorCopy> = {
     detail: "The request was malformed. Try again.",
     action: "retry",
   },
+  TIMEOUT: {
+    title: "That took too long",
+    detail: "It was stopped before it finished. Try again.",
+    action: "retry",
+  },
+  APPROVAL_REQUIRED: {
+    title: "Needs your approval",
+    detail: "Nothing was changed. Approve it, then try again.",
+    action: "retry",
+  },
+  APPROVAL_DECLINED: {
+    title: "Not approved",
+    detail: "Nothing was changed.",
+    action: "go_back",
+  },
   invalid_token: {
     title: "Sign in to continue",
     detail: "Your access has expired or isn't valid.",

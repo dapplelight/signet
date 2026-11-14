@@ -28,13 +28,70 @@ import {
   createMcpHandler,
   type McpRequestContext,
   type McpServer,
+  type ServerEvent,
+  type ServerEventBus,
 } from "@modelcontextprotocol/server"
 import type { Context, Handler, Hono, MiddlewareHandler } from "hono"
 import type { VerifiedToken } from "../oauth-rs/verify.js"
-import { type CreateMcpServerOptions, createMcpServer } from "./server.js"
+import { type ResolveMcpServerOptions, resolveMcpServer } from "./server.js"
+
+/**
+ * Tell connected clients a list changed, so they re-list. 2026-07-28 clients
+ * hear it on their open `subscriptions/listen` stream; 2025-era clients over
+ * stateless HTTP have no stream and simply re-list when they next do.
+ */
+export type McpChanges = {
+  /** `notifications/tools/list_changed` to every listener, or only `principal`'s. */
+  toolsChanged(principal?: string): void
+  promptsChanged(principal?: string): void
+  resourcesChanged(principal?: string): void
+  /** The bus one request's listen stream subscribes to: `mcpHandler` calls this. */
+  bus(principal: string | undefined): ServerEventBus
+}
+
+/**
+ * An in-process `McpChanges`. Create it once at module scope and pass it as
+ * `changes`; call `toolsChanged(userId)` when that user's tools change.
+ *
+ * ponytail: in-process only. Where publishers and listen streams live in
+ * different processes or isolates, implement `McpChanges` over your own
+ * pub/sub (a Durable Object, Redis) — it is four methods.
+ */
+export function createMcpChanges(): McpChanges {
+  const listeners = new Set<{ principal: string | undefined; fn: (e: ServerEvent) => void }>()
+  const publish = (event: ServerEvent, principal?: string) => {
+    for (const l of [...listeners]) {
+      if (principal !== undefined && l.principal !== principal) continue
+      try {
+        l.fn(event)
+      } catch {} // one broken stream must not stop delivery to the rest
+    }
+  }
+  return {
+    toolsChanged: (p) => publish({ kind: "tools_list_changed" }, p),
+    promptsChanged: (p) => publish({ kind: "prompts_list_changed" }, p),
+    resourcesChanged: (p) => publish({ kind: "resources_list_changed" }, p),
+    bus: (principal) => ({
+      publish: (event) => publish(event, principal),
+      subscribe: (fn) => {
+        const entry = { principal, fn }
+        listeners.add(entry)
+        return () => {
+          listeners.delete(entry)
+        }
+      },
+    }),
+  }
+}
 
 export type McpHandlerOptions = (
-  | Omit<CreateMcpServerOptions, "context">
+  | (Omit<ResolveMcpServerOptions, "context"> & {
+      /**
+       * Deliver `list_changed` to 2026-07-28 clients' listen streams, per
+       * principal (`principal`, default the token's `sub`). Turns on `listChanged`.
+       */
+      changes?: McpChanges
+    })
   | {
       /**
        * Build the server yourself, per request — for what createMcpServer does
@@ -48,8 +105,8 @@ export type McpHandlerOptions = (
    * Passed to the SDK's `createMcpHandler`. `legacy: 'reject'` refuses
    * 2025-era clients; `responseMode: 'sse'` always streams (the default,
    * `'auto'`, answers with one JSON body unless a tool sends progress first).
-   * `'json'` and a `bus` are left out: the handler lives for one request, so
-   * a shared bus would have nothing to publish to it.
+   * `'json'` and a `bus` are left out: the handler lives for one request;
+   * pass `changes` (above) for list-changed notifications instead.
    */
   http?: Omit<CreateMcpHandlerOptions, "bus" | "maxSubscriptions" | "responseMode"> & {
     responseMode?: "auto" | "sse"
@@ -63,15 +120,23 @@ export type McpHandlerOptions = (
 export function mcpHandler(options: McpHandlerOptions): Handler {
   const { http, ...rest } = options
   return (c) => {
+    const token = c.get("token") as VerifiedToken | undefined
+    let bus: ServerEventBus | undefined
+    if (!("server" in rest) && rest.changes) {
+      const caller = { c, ...(token ? { token } : {}) }
+      bus = rest.changes.bus(rest.principal ? rest.principal(caller) : token?.claims.sub)
+    }
     const handler = createMcpHandler(
-      (req) =>
-        "server" in rest
-          ? rest.server(c, req)
-          : createMcpServer({
-              ...rest,
-              context: { c, token: c.get("token") as VerifiedToken | undefined },
-            }),
-      http,
+      (req) => {
+        if ("server" in rest) return rest.server(c, req)
+        const { changes, ...serverOptions } = rest
+        return resolveMcpServer({
+          ...serverOptions,
+          ...(changes && serverOptions.listChanged === undefined ? { listChanged: true } : {}),
+          context: { c, ...(token ? { token } : {}) },
+        })
+      },
+      { ...http, ...(bus ? { bus } : {}) },
     )
     return handler.fetch(c.req.raw)
   }
