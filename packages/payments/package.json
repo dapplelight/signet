@@ -1,0 +1,100 @@
+{
+  "name": "@dapplelight/signet-payments",
+  "version": "0.1.0",
+  "license": "MIT",
+  "description": "One payment model over Razorpay, Stripe, Cashfree, PhonePe, PayU, Paddle, Lemon Squeezy, PayPal and Hyperswitch, with a webhook inbox, a double-entry ledger and reconciliation.",
+  "keywords": [
+    "signet",
+    "payments",
+    "razorpay",
+    "stripe",
+    "upi",
+    "webhooks",
+    "ledger",
+    "reconciliation"
+  ],
+  "homepage": "https://signet.dapplelight.in/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dapplelight/signet.git",
+    "directory": "packages/payments"
+  },
+  "bugs": {
+    "url": "https://github.com/dapplelight/signet/issues"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./agent": {
+      "types": "./dist/agent.d.ts",
+      "import": "./dist/agent.js",
+      "default": "./dist/agent.js"
+    },
+    "./razorpay": {
+      "types": "./dist/gateways/razorpay.d.ts",
+      "import": "./dist/gateways/razorpay.js",
+      "default": "./dist/gateways/razorpay.js"
+    },
+    "./stripe": {
+      "types": "./dist/gateways/stripe.d.ts",
+      "import": "./dist/gateways/stripe.js",
+      "default": "./dist/gateways/stripe.js"
+    },
+    "./cashfree": {
+      "types": "./dist/gateways/cashfree.d.ts",
+      "import": "./dist/gateways/cashfree.js",
+      "default": "./dist/gateways/cashfree.js"
+    },
+    "./phonepe": {
+      "types": "./dist/gateways/phonepe.d.ts",
+      "import": "./dist/gateways/phonepe.js",
+      "default": "./dist/gateways/phonepe.js"
+    },
+    "./payu": {
+      "types": "./dist/gateways/payu.d.ts",
+      "import": "./dist/gateways/payu.js",
+      "default": "./dist/gateways/payu.js"
+    },
+    "./paddle": {
+      "types": "./dist/gateways/paddle.d.ts",
+      "import": "./dist/gateways/paddle.js",
+      "default": "./dist/gateways/paddle.js"
+    },
+    "./lemonsqueezy": {
+      "types": "./dist/gateways/lemonsqueezy.d.ts",
+      "import": "./dist/gateways/lemonsqueezy.js",
+      "default": "./dist/gateways/lemonsqueezy.js"
+    },
+    "./paypal": {
+      "types": "./dist/gateways/paypal.d.ts",
+      "import": "./dist/gateways/paypal.js",
+      "default": "./dist/gateways/paypal.js"
+    },
+    "./hyperswitch": {
+      "types": "./dist/gateways/hyperswitch.d.ts",
+      "import": "./dist/gateways/hyperswitch.js",
+      "default": "./dist/gateways/hyperswitch.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "bun test",
+    "build": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "bun run build"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "typescript": "^7.0.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist"
+  ]
+}
