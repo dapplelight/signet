@@ -16,6 +16,7 @@ The core never imports a driver. Thin entry points connect it to one:
 | `@dapplelight/signet-db/postgres` | `createDb(url \| postgres())`, postgres-js (optional peer) |
 | `@dapplelight/signet-db/migrations` | `checkMigrationSql`; the `signet-db-check` CLI |
 | `@dapplelight/signet-db/zod` | `toZod(table, { mode })` (zod is an optional peer) |
+| `@dapplelight/signet-db/agent` | `agentTools(db, { tables, userId })`, tools for AI agents (needs zod) |
 
 Peers: `drizzle-orm` ^0.45, `@dapplelight/signet-lib` ^0.3, `postgres` only
 for `./postgres` and `zod` only for `./zod`. Types flow from your table definitions: rows, inserts
@@ -159,7 +160,8 @@ const me = audited(scoped(db, { userId }))                      // actor: { type
 const bot = audited(db, { actor: { type: "system", id: "nightly-cleanup" } }) // unscoped; where required
 ```
 
-Each changed row gets an entry: `actorType`, `actorId`, `action`
+Each changed row gets an entry: `actorType` (`user`, `agent` or `system`),
+`actorId`, `action`
 (insert/update/delete/delete_user), `tableName`, `rowId`, `before`, `after`,
 `at`. Encrypted fields are recorded as ciphertext. The change and its entry
 are separate statements; on D1 they are not one transaction.
@@ -202,7 +204,8 @@ a `delete_user` entry holding the counts, not the deleted data.
 ## Describe the schema
 
 ```ts
-describeSchema(schema)
+describeSchema(schema)                     // text, below
+describeSchema(schema, { format: "json" }) // { tables: [{ name, columns, primaryKey, scoped, softDelete, relations }] }
 // table orders
 //   id text primary key has default
 //   user_id text not null  -- js: userId; owner; rows are per user
@@ -210,7 +213,35 @@ describeSchema(schema)
 //   total_currency text not null has default  -- js: totalCurrency; currency of total, which is in minor units
 ```
 
-Plain text for an agent's or a reviewer's context.
+Text for an agent's or a reviewer's context; JSON for tools. Each column says
+whether it is the owner, the soft-delete marker, money or encrypted.
+
+## Tools for AI agents
+
+```ts
+import { agentTools } from "@dapplelight/signet-db/agent"
+import { createMcpServer } from "@dapplelight/signet-server/mcp"
+
+const tools = agentTools(db, { tables: [orders, notes], userId: session.userId, maxRows: 50 })
+createMcpServer({ name: "app", version: "1.0.0", tools }) // or call tool.run(input) yourself
+```
+
+Per table: `<table>_list`, `<table>_get`, `<table>_search` (equals or
+contains), and with `allowWrites: true` also `<table>_insert` and
+`<table>_update`, which take `dryRun: true` to return the would-be change.
+Guards that hold for every tool:
+
+- Scoped to `userId`; a table without a `userId` column is refused.
+- Soft-deleted rows hidden; `userId` and encrypted fields never returned
+  (`includeEncrypted: true` opts encrypted fields in).
+- At most `maxRows` (100) rows per call; inputs are strict Zod objects, so
+  unknown fields (such as `userId`) are rejected with `BAD_INPUT`.
+- Writes audited as `{ type: "agent", id }` (`actor` to name the agent).
+
+Each tool is `{ name, description, annotations, input, inputSchema, run,
+handler }`: `input` and `handler` are what signet-server's MCP server
+registers; `inputSchema` is JSON Schema for other runners. `AGENTS.md` is the
+short guide for agents.
 
 ## Zod schemas from tables
 

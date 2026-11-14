@@ -22,6 +22,8 @@ export type SignetDbErrorCode =
   | "NO_OUTBOX_TABLE"
   | "NO_IDEMPOTENCY_TABLE"
   | "IDEMPOTENCY_IN_FLIGHT"
+  | "BAD_INPUT"
+  | "NOT_FOUND"
 
 export class SignetDbError extends Error {
   readonly code: SignetDbErrorCode

@@ -25,7 +25,16 @@ export type ZodMode = "insert" | "update" | "select"
 export const MANAGED_KEYS = ["id", "createdAt", "updatedAt", "deletedAt", "userId"] as const
 type Managed = (typeof MANAGED_KEYS)[number]
 
-type InsertOut<T extends Table, K extends string> = Omit<InferInsertModel<T>, Exclude<Managed, K>>
+/** `id` is managed only when it has a default, i.e. is optional on insert. */
+type OptionalId<T extends Table> = "id" extends keyof InferInsertModel<T>
+  ? Record<never, never> extends Pick<InferInsertModel<T>, "id">
+    ? "id"
+    : never
+  : never
+type InsertOut<T extends Table, K extends string> = Omit<
+  InferInsertModel<T>,
+  Exclude<Exclude<Managed, "id"> | OptionalId<T>, K>
+>
 
 export type ZodOutput<
   T extends Table,

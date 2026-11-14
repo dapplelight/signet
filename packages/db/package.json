@@ -64,6 +64,11 @@
       "types": "./dist/zod.d.ts",
       "import": "./dist/zod.js",
       "default": "./dist/zod.js"
+    },
+    "./agent": {
+      "types": "./dist/agent.d.ts",
+      "import": "./dist/agent.js",
+      "default": "./dist/agent.js"
     }
   },
   "bin": {

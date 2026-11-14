@@ -118,7 +118,7 @@ describe("describeSchema", () => {
     expect(text).toContain("  id text primary key")
     expect(text).toMatch(/secret text .*encrypted at rest/)
     expect(text).toMatch(/user_id text not null .*owner/)
-    expect(text).toMatch(/price_currency text not null has default .*minor units/)
+    expect(text).toMatch(/price integer not null .*minor units; currency in priceCurrency/)
     expect(text).toMatch(/deleted_at integer .*soft delete/)
     expect(describeSchema(Object.values(pgSchema()))).toContain("timestamp with time zone")
   })

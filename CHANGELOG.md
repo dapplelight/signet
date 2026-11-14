@@ -34,6 +34,12 @@ a package at the version it had when the repository was opened to the public.
 - Idempotency keys: `idempotencyKeys()` table, `withIdempotency(db, key,
   scope, fn)` that replays stored results and rejects in-flight duplicates;
   `pruneIdempotency`.
+- `./agent`: `agentTools(db, { tables, userId, allowWrites, maxRows })`,
+  list/get/search (and opt-in insert/update with `dryRun`) tools for AI
+  agents, always user-scoped, soft-deleted rows hidden, encrypted fields
+  excluded unless opted in, row cap enforced; shaped for signet-server's MCP
+  server. `describeSchema(tables, { format: "json" })` adds a JSON form with
+  relations. `packages/db/AGENTS.md` is the guide for agents.
 - Tests run on bun:sqlite, a D1 stand-in and PGlite always, and on a real
   Postgres server when `SIGNET_TEST_PG_URL` is set.
 

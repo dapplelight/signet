@@ -38,6 +38,7 @@ Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit 
 | Import | Exports | What |
 |---|---|---|
 | `@dapplelight/signet-db` | isCiphertext, assertCiphertext, generateKey, createCipher, CipherConfig, Cipher, … | re-exports cipher, db, describe, errors, id, idempotency, money, outbox, query, scoped, seed, user-data |
+| `@dapplelight/signet-db/agent` | agentTools, AgentTool, AgentToolsOptions | Database tools for AI agents, safe by construction: `agentTools(db, { tables, userId })` returns plain tool definitions (list, get, search per table,  |
 | `@dapplelight/signet-db/columns/pg` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog` table. |
 | `@dapplelight/signet-db/columns/sqlite` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog` table. |
 | `@dapplelight/signet-db/d1` | createDb | Cloudflare D1 driver: `createDb(env.DB, config)` |
