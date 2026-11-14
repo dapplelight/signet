@@ -5,6 +5,37 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-server: auth backend (sessions, key rotation, phone OTP, API keys)
+
+- New `./auth/sessions`: opt-in stored sessions. `SessionStore` (create, get,
+  touch, list by user, revoke, revoke all with an optional exception) and
+  `kvSessionStore` over any `KeyValue` (memory, Workers KV, Upstash).
+  `startSession` always mints a new id and revokes the incoming one (no
+  fixation); `rotateSession` for privilege changes; `validateSession` checks the
+  store; `cachedSessionStore` is an opt-in read cache; `deviceLabel` parses a
+  user agent without a dependency.
+- Signing-key rotation: `SessionOptions.previousSecrets`. `checkSession` returns
+  the payload and a copy re-signed with the current key; `requireSession` sends
+  it back. `issueSession` takes an optional `sid`; `sessionCookie` an optional
+  max age; `hmacSha256` is exported. `verifySession` now refuses tokens that
+  carry `sid` (stored sessions), and tokens with extra `.` segments.
+- `./auth/hono`: `requireStoredSession`, `sessionRoutes` (list my sessions,
+  revoke one, sign out everywhere else) and `requireApiKey`.
+- New `./auth/otp`: `requestPhoneOtp` / `verifyPhoneOtp` with hashed codes,
+  expiry, an attempt cap, single use and per-phone and per-IP limits through a
+  `RateLimitStore`; `SmsSender` with `devSmsSender` only; `normalizePhone`
+  (Indian national forms and E.164).
+- New `./auth/api-keys`: `createApiKey` (secret shown once), `listApiKeys`,
+  `revokeApiKey`, `verifyApiKey`, `kvApiKeyStore`; scopes, optional expiry,
+  hash-only storage, cheap `lastUsedAt`.
+- New `./auth/mcp`: `authTools` with `list_my_sessions`, `revoke_session`,
+  `list_api_keys`, `revoke_api_key`; revokes go through `requireApproval`.
+
+### signet-lib: error codes for phone codes
+
+- `ERROR_CODES` and `DEFAULT_ERROR_COPY` gain `INVALID_PHONE`, `INVALID_CODE`,
+  `CODE_EXPIRED` and `TOO_MANY_ATTEMPTS`.
+
 ### signet-payments 0.1.0 (new, public; first publish is manual, see PUBLISHING.md)
 
 - New `@dapplelight/signet-payments`: one canonical model (`Payment`, `Refund`,
