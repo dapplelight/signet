@@ -46,6 +46,9 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   kept out of the main barrel. `domain/job-runs` is a table of background-job
   runs (status, attempts, error, retry and cancel) on `data-table`; it takes
   plain rows such as signet-server's `jobs.status(id)` and callbacks.
+  `domain/upload` is a drag-and-drop uploader with per-file progress (XHR to
+  a presigned URL), retry, and size/type hints; `getTarget` and `onUploaded`
+  talk to your server.
 
 The full export list is in
 [API.md](https://github.com/dapplelight/signet/blob/main/API.md).

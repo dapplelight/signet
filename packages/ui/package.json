@@ -198,6 +198,10 @@
       "types": "./dist/components/domain/job-runs.d.ts",
       "import": "./dist/components/domain/job-runs.js"
     },
+    "./domain/upload": {
+      "types": "./dist/components/domain/upload.d.ts",
+      "import": "./dist/components/domain/upload.js"
+    },
     "./components/theme-provider": {
       "types": "./dist/components/ui/theme-provider.d.ts",
       "import": "./dist/components/ui/theme-provider.js"

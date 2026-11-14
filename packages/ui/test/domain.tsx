@@ -5,10 +5,12 @@ import { GlobalRegistrator } from "@happy-dom/global-registrator"
 
 GlobalRegistrator.register()
 
-const { cleanup, render, screen } = await import("@testing-library/react")
+const { cleanup, fireEvent, render, screen, waitFor } = await import("@testing-library/react")
 const { default: userEvent } = await import("@testing-library/user-event")
 const { JobRuns } = await import("../src/components/domain/job-runs")
 type JobRun = import("../src/components/domain/job-runs").JobRun
+const { Upload } = await import("../src/components/domain/upload")
+type UploadTransport = import("../src/components/domain/upload").UploadTransport
 
 let pass = 0,
   fail = 0
@@ -63,6 +65,72 @@ await t("JobRuns", async () => {
   cleanup()
   render(<JobRuns runs={[]} />)
   ok("empty message", !!screen.getByText("No job runs"))
+})
+
+await t("Upload", async () => {
+  const targets: string[] = []
+  const confirmed: string[] = []
+  let failNext = true
+  const transport: UploadTransport = async (file, target, onProgress) => {
+    onProgress(0.5)
+    if (file.name === "flaky.png" && failNext) {
+      failNext = false
+      throw new Error("Upload failed (500)")
+    }
+    onProgress(1)
+    targets.push(`${target.method ?? "PUT"} ${target.url}`)
+  }
+  render(
+    <Upload
+      multiple
+      accept={["image/png", "image/jpeg"]}
+      maxBytes={1024}
+      transport={transport}
+      getTarget={async (f) => ({
+        url: `https://s.example/${f.name}`,
+        headers: { "Content-Type": f.type },
+      })}
+      onUploaded={(f) => void confirmed.push(f.name)}
+    />,
+  )
+  ok("hint from props", !!screen.getByText("PNG, JPEG, up to 1 KB"))
+  const input = screen.getByLabelText("Drop a file here or choose one") as HTMLInputElement
+  ok(
+    "accessible file input",
+    input.type === "file" && input.getAttribute("aria-describedby") !== null,
+  )
+  const png = new File([new Uint8Array(10)], "a.png", { type: "image/png" })
+  await userEvent.upload(input, png)
+  await waitFor(() => screen.getByText("Uploaded"))
+  ok(
+    "uploaded and confirmed",
+    targets[0] === "PUT https://s.example/a.png" && confirmed[0] === "a.png",
+  )
+  ok(
+    "progress at 100",
+    screen.getByRole("progressbar", { name: "Uploading a.png" }).getAttribute("aria-valuenow") ===
+      "100",
+  )
+
+  const zone = screen.getByRole("region", { name: "Upload" })
+  const big = new File([new Uint8Array(2048)], "big.png", { type: "image/png" })
+  const pdf = new File([new Uint8Array(10)], "doc.pdf", { type: "application/pdf" })
+  fireEvent.drop(zone, { dataTransfer: { files: [big, pdf] } })
+  ok(
+    "size and type rejected before upload",
+    !!screen.getByText(/big.png: over 1 KB. doc.pdf: type not allowed/),
+  )
+  ok("nothing sent for rejected files", targets.length === 1)
+
+  fireEvent.drop(zone, {
+    dataTransfer: { files: [new File([new Uint8Array(5)], "flaky.png", { type: "image/png" })] },
+  })
+  await waitFor(() => screen.getByText("Upload failed (500)"))
+  await userEvent.click(screen.getByRole("button", { name: "Retry flaky.png" }))
+  await waitFor(
+    () => screen.getAllByText("Uploaded").length === 2 || Promise.reject(new Error("not yet")),
+  )
+  ok("retry succeeds", confirmed.join() === "a.png,flaky.png", confirmed)
 })
 
 console.log(`\n${pass} passed, ${fail} failed`)

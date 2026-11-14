@@ -13,9 +13,33 @@ export type SupabaseStorageConfig = {
   url: string
   serviceRoleKey: string
   bucket: string
+  /**
+   * The project's publishable (anon) key, sent as `apikey` by TUS clients.
+   * Only needed for `resumable`; never the service role key.
+   */
+  publishableKey?: string
 }
 
-export function supabaseBlobStore(cfg: SupabaseStorageConfig): BlobStore {
+export type SupabaseBlobStore = BlobStore & {
+  signedUrl: NonNullable<BlobStore["signedUrl"]>
+  /**
+   * A TUS target for a resumable upload of `key` (tus-js-client, Uppy): the
+   * `/upload/resumable/sign` endpoint with a signed upload token as
+   * `x-signature`, so the browser never sees the service role key. Supabase
+   * requires 6 MiB chunks. Confirm the upload afterwards like any other.
+   */
+  resumable(
+    key: string,
+    opts: { contentType: string },
+  ): Promise<{
+    endpoint: string
+    headers: Record<string, string>
+    metadata: Record<string, string>
+    chunkSize: number
+  }>
+}
+
+export function supabaseBlobStore(cfg: SupabaseStorageConfig): SupabaseBlobStore {
   const base = `${cfg.url.replace(/\/+$/, "")}/storage/v1`
   const auth = { Authorization: `Bearer ${cfg.serviceRoleKey}`, apikey: cfg.serviceRoleKey }
   const path = (key: string) => {
@@ -83,6 +107,21 @@ export function supabaseBlobStore(cfg: SupabaseStorageConfig): BlobStore {
       })
       if (!data.signedURL) throw new Error("Supabase Storage sign: no signedURL in response")
       return `${base}${data.signedURL}`
+    },
+    async resumable(key, { contentType }) {
+      const data = await sign("upload/sign", key, { headers: { ...auth, "x-upsert": "true" } })
+      const token = data.url && new URL(data.url, base).searchParams.get("token")
+      if (!token) throw new Error("Supabase Storage upload/sign: no token in response")
+      return {
+        endpoint: `${base}/upload/resumable/sign`,
+        headers: {
+          "x-signature": token,
+          "x-upsert": "true",
+          ...(cfg.publishableKey ? { apikey: cfg.publishableKey } : {}),
+        },
+        metadata: { bucketName: cfg.bucket, objectName: key, contentType },
+        chunkSize: 6 * 1024 * 1024,
+      }
     },
   }
 }

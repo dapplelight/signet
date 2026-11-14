@@ -43,6 +43,15 @@ a package at the version it had when the repository was opened to the public.
   `afterUpload`), `acceptUpload` (streams through the server, stops at the
   limit, sniffs PNG/JPEG/GIF/WebP/PDF magic bytes) and `remove`. Per-user key
   prefixes by default; `sniffType`, `UploadError`.
+- Storage extras: `stripMetadata` (EXIF/XMP/IPTC out of JPEG, PNG, WebP; on
+  by default in `acceptUpload`), per-user `quota`, abandoned-upload tracking
+  with `cleanupAbandoned` and `abandonedUploadsJob`, `dedupe` by SHA-256
+  with reference counts, `startResumable` / `completeMultipart`, `read`,
+  and `resize` with a `Resizer` (`cloudflareImagesResizer`).
+- New `@dapplelight/signet-server/adapters/s3`: `s3BlobStore` (SigV4 over
+  Web Crypto; presigned GET/PUT, multipart). `supabaseBlobStore` gains
+  `resumable(key)` (TUS target) and a `publishableKey` option.
+- signet-ui: new `@dapplelight/signet-ui/domain/upload` (`Upload`).
 
 ### signet-db 0.1.0 (new, private: not published yet)
 

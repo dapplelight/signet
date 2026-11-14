@@ -282,7 +282,8 @@ type) and each takes its config as an argument, never from env at import.
 | `…/adapters/node` | `fsBlobStore(dir)` | Node/Bun/Docker (mount a volume); rejects `..` and absolute keys |
 | `…/adapters/cloudflare` | `cloudflareKv(ns)`, `r2BlobStore(bucket)` | Workers KV, R2 |
 | `…/adapters/upstash` | `upstashKv`, `upstashRateLimitStore`, `qstashQueue` | anywhere fetch runs |
-| `…/adapters/supabase` | `supabaseBlobStore` | Supabase Storage, incl. signed GET and upload URLs |
+| `…/adapters/supabase` | `supabaseBlobStore` | Supabase Storage, incl. signed GET and upload URLs and TUS resumable targets |
+| `…/adapters/s3` | `s3BlobStore` | S3, R2's S3 API, MinIO: SigV4 presigned GET/PUT and multipart, fetch only |
 
 ```ts
 // Exact shared rate limiting off Cloudflare
@@ -450,6 +451,30 @@ const { url: putUrl, key } = await uploads.presignUpload({ userId }, { name, typ
 // browser: fetch(putUrl, { method: "PUT", body: file, headers: { "Content-Type": type } })
 await uploads.confirmUpload({ userId }, key)
 ```
+
+- **Metadata.** `acceptUpload` strips EXIF/XMP/IPTC (GPS included) from
+  JPEG, PNG and WebP by walking the container; pixels and colour profiles
+  stay, the orientation tag goes. After a direct upload, run
+  `stripMetadata(bytes)` from a job.
+- **Quotas.** `quota: { bytes }` with a `kv` counts each user's bytes
+  (confirm and accept add, `remove` releases), or pass `usage: (ctx) => …`
+  to count from your own table. Checked before presign and accept: `QUOTA_EXCEEDED`.
+- **Abandoned uploads.** With a `kv`, presigned but unconfirmed keys are
+  tracked; `abandonedUploadsJob(uploads)` on a schedule deletes those older
+  than `abandonAfterHours` (default 24) and aborts unfinished multipart uploads.
+- **Dedupe.** `dedupe: true` stores identical content once at
+  `sha256/<hash>`, reference-counted in `kv`; each user's key still resolves
+  to it, and the bytes go when the last reference is removed.
+- **Resumable.** `startResumable(ctx, file)`: on `s3BlobStore` (S3, R2's S3
+  API, MinIO) presigned multipart part URLs, then `completeMultipart`; on
+  `supabaseBlobStore` a TUS target (`/upload/resumable/sign` with a signed
+  token as `x-signature`, 6 MiB chunks), then `confirmUpload`.
+- **Resize.** `uploads.resize(ctx, key, { width })` writes `<key>@<width>w`
+  through a `resizer`: `cloudflareImagesResizer(env.IMAGES)` on Workers; on
+  Node, wrap the image library you already have (Signet adds none). Call it
+  from a job enqueued in `afterUpload`.
+- **UI.** `@dapplelight/signet-ui/domain/upload` (`Upload`): drag and drop,
+  per-file XHR progress to the presigned URL, retry, size and type hints.
 
 Keys are `<userId>/<uuid>-<safe name>` by default and pass `assertBlobKey`;
 every method refuses a key outside the caller's prefix (`canAccess` to
