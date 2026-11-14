@@ -577,6 +577,7 @@ describe("agent tools", () => {
       "find_payment",
       "list_payments",
       "payment_timeline",
+      "find_subscription",
       "refund_payment",
     ])
     const list: any = await tool(tools, "list_payments").run({ limit: 999 })
