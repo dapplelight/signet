@@ -53,6 +53,7 @@ export type DodoConfig = HttpOptions & {
 }
 
 const G = "dodo"
+const WALLET = { applepay: "apple_pay", googlepay: "google_pay" } as const
 
 // IntentStatus, https://docs.dodopayments.com/api-reference/payments/get-payments-1.md
 const STATUS: Record<string, PaymentStatus> = {
@@ -154,7 +155,7 @@ export function dodo(config: DodoConfig): PaymentGateway {
   return defineGateway(
     G,
     {
-      methods: ["card", "wallet"],
+      methods: ["card", "wallet", "applepay", "googlepay"],
       features: [
         "refunds",
         "partialRefunds",
@@ -195,6 +196,12 @@ export function dodo(config: DodoConfig): PaymentGateway {
                 }
               : {}),
           ...(i.returnUrl ? { return_url: i.returnUrl } : {}),
+          // A wallet method limits the session to it plus cards, which Dodo
+          // says to always keep as the fallback.
+          // https://docs.dodopayments.com/features/payment-methods/digital-wallets.md
+          ...(i.method === "applepay" || i.method === "googlepay"
+            ? { allowed_payment_method_types: [WALLET[i.method], "credit", "debit"] }
+            : {}),
           metadata: { ...i.metadata, ...(i.reference ? { reference: i.reference } : {}) },
           ...i.extra,
         })

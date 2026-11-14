@@ -212,7 +212,11 @@ export function stripe(config: StripeConfig): PaymentGateway {
   return defineGateway(
     G,
     {
-      methods: ["card", "wallet"],
+      // Apple Pay and Google Pay are card wallets: the Payment Element shows them once the
+      // domain is registered (POST /v1/payment_method_domains, through raw).
+      // https://docs.stripe.com/apple-pay.md?platform=web
+      // https://docs.stripe.com/payments/payment-methods/pmd-registration.md?dashboard-or-api=api
+      methods: ["card", "wallet", "applepay", "googlepay"],
       features: [
         "capture",
         "refunds",

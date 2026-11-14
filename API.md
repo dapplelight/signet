@@ -42,7 +42,7 @@ Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit 
 | `@dapplelight/signet-db/columns/pg` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotencyKeys`, `entitlem |
 | `@dapplelight/signet-db/columns/sqlite` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotency |
 | `@dapplelight/signet-db/d1` | createDb | Cloudflare D1 driver: `createDb(env.DB, config)` |
-| `@dapplelight/signet-db/entitlements` | definePlans, defaultPlanIdOf, periodOf, createEntitlements, PlanDef, Plans, … | Plans, entitlements and usage limits, on the tables from `entitlementTables()` |
+| `@dapplelight/signet-db/entitlements` | definePlans, defaultStatusOf, defaultPlanIdOf, periodOf, createEntitlements, PlanDef, … | Plans, entitlements and usage limits, on the tables from `entitlementTables()` |
 | `@dapplelight/signet-db/flags` | defineFlags, bucket, evaluateFlag, createFlags, FlagValue, FlagRule, … | Feature flags defined in code, with stored overrides in `flagOverrides()` |
 | `@dapplelight/signet-db/migrations` | checkMigrationSql, formatIssues, MigrationIssueKind, MigrationIssue | Scan SQL migrations for changes that lose data or break running code: dropped tables or columns, renames, and NOT NULL added without a default |
 | `@dapplelight/signet-db/postgres` | createDb | Postgres driver on postgres-js (Supabase, Neon, RDS, a local server): `createDb(databaseUrl, config)`, or pass a `postgres()` client |
@@ -77,7 +77,7 @@ One payment model over Razorpay, Stripe, Cashfree, PhonePe, PayU, Paddle, Lemon 
 
 | Import | Exports | What |
 |---|---|---|
-| `@dapplelight/signet-payments` | PaymentsError, isPaymentsError, PaymentsErrorCode, receivable, toEntries, post, … | re-exports errors, ledger, payments, reconcile, store, types |
+| `@dapplelight/signet-payments` | PaymentsError, isPaymentsError, PaymentsErrorCode, receivable, toEntries, post, … | re-exports errors, ledger, payments, reconcile, store, types, wallets |
 | `@dapplelight/signet-payments/agent` | paymentTools, ApprovalRequest, PaymentToolsOptions, PaymentTool | Payment tools for AI agents as plain MCP tool objects (`name`, `description`, `inputSchema` as JSON Schema, `annotations`, `run(input, ctx)`), the sha |
 | `@dapplelight/signet-payments/cashfree` | CASHFREE_API_VERSION, CASHFREE_PAYOUT_API_VERSION, cashfree, CashfreeConfig | Cashfree Payments PG over its REST API (x-api-version 2026-01-01, headers x-client-id / x-client-secret) |
 | `@dapplelight/signet-payments/dodo` | dodo, DodoConfig | Dodo Payments (merchant of record) over its REST API: `Authorization: Bearer <key>`, test.dodopayments.com or live.dodopayments.com (the key's mode mu |

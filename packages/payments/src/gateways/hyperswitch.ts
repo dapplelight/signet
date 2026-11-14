@@ -70,6 +70,7 @@ const PAYOUT: Record<string, Payout["status"]> = {
 }
 
 const G = "hyperswitch"
+const WALLET = { applepay: "apple_pay", googlepay: "google_pay" } as const
 
 function status(s: string): PaymentStatus {
   if (s === "succeeded" || s.startsWith("partially_captured")) return "captured"
@@ -131,7 +132,7 @@ export function hyperswitch(config: HyperswitchConfig): PaymentGateway {
   return defineGateway(
     G,
     {
-      methods: ["card", "upi", "netbanking", "wallet"],
+      methods: ["card", "upi", "netbanking", "wallet", "applepay", "googlepay"],
       features: [
         "capture",
         "refunds",
@@ -153,6 +154,11 @@ export function hyperswitch(config: HyperswitchConfig): PaymentGateway {
           ...(i.customer?.id ? { customer_id: i.customer.id } : {}),
           ...(i.returnUrl ? { return_url: i.returnUrl } : {}),
           ...(i.description ? { description: i.description } : {}),
+          // A wallet method limits the payment to it (PaymentsCreateRequest.allowed_payment_method_types).
+          // https://api-reference.hyperswitch.io/v1/payments/payments--create
+          ...(i.method === "applepay" || i.method === "googlepay"
+            ? { allowed_payment_method_types: [WALLET[i.method]] }
+            : {}),
           metadata: { ...i.metadata, reference: i.reference ?? i.idempotencyKey },
           ...i.extra,
         })

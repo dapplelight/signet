@@ -50,9 +50,9 @@ for (const c of CASES) {
     test("a method outside the matrix rejects UNSUPPORTED with no call", async () => {
       const f = fakeFetch(c.routes)
       const g = c.make(f.fetch)
-      const missing = (["upi", "card", "netbanking", "wallet", "emi"] as const).find(
-        (m) => !g.capabilities.methods.includes(m),
-      )
+      const missing = (
+        ["upi", "card", "netbanking", "wallet", "emi", "applepay", "googlepay"] as const
+      ).find((m) => !g.capabilities.methods.includes(m))
       if (!missing) return
       expect(
         await code(
