@@ -110,6 +110,7 @@ const EXPECTED = [
   "get_export",
   "list_components",
   "get_component",
+  "compose_component",
   "list_themes",
   "get_theme",
   "list_tokens",
@@ -207,6 +208,42 @@ try {
       gc.json.tokens.includes("--color-primary") &&
       gc.json.example.includes('from "@dapplelight/signet-ui/components/button"'),
     gc.json,
+  )
+
+  const cc = await call("compose_component", { need: "a searchable command palette" })
+  ok(
+    "compose_component: a palette need finds command, with its recipe and parts",
+    cc.json?.matches?.[0]?.name === "command" &&
+      ["selection", "typeahead", "filter"].every((b) => cc.json.matches[0].recipe.includes(b)) &&
+      cc.json.matches[0].parts.includes("CommandDialog") &&
+      cc.json.matches[0].tokens.length > 0,
+    cc.json?.matches,
+  )
+  ok(
+    "compose_component: returns the behaviours and the build guide",
+    ["useShortcut", "useControllableState", "matchScore"].every((n) =>
+      cc.json?.behaviors?.some((b: any) => b.name === n),
+    ) &&
+      typeof cc.json?.guide === "string" &&
+      cc.json.guide.includes("behaviors"),
+    { behaviors: cc.json?.behaviors?.map((b: any) => b.name), guide: cc.json?.guide?.slice(0, 80) },
+  )
+  const cs = await call("compose_component", { need: "collapsible navigation sidebar" })
+  ok(
+    "compose_component: navigation need finds sidebar",
+    cs.json?.matches?.[0]?.name === "sidebar",
+    cs.json?.matches?.map((m: any) => m.name),
+  )
+  const steps = await call("compose_component", { need: "progress through numbered steps" })
+  ok(
+    "compose_component: steps need finds stepper",
+    steps.json?.matches?.[0]?.name === "stepper",
+    steps.json?.matches?.map((m: any) => m.name),
+  )
+  const none = await call("compose_component", { need: "zzzz qqqq" })
+  ok(
+    "compose_component: no match still returns the guide",
+    none.json?.matches?.length === 0 && !!none.json.guide,
   )
 
   const lt = await call("list_themes")

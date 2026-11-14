@@ -53,7 +53,8 @@ export type AgentToolsOptions = {
 type Rec = Record<string, unknown>
 type Shape = Record<string, z.ZodType>
 
-const jsonSchema = (s: z.ZodType): Record<string, unknown> =>
+/** @internal Zod to JSON Schema as MCP tool inputs want it (dates as date-time strings). */
+export const jsonSchema = (s: z.ZodType): Record<string, unknown> =>
   z.toJSONSchema(s, {
     io: "input",
     unrepresentable: "any",

@@ -84,6 +84,21 @@ ok(
   THEMES.every((t) => css[t].includes("aria-invalid")),
 )
 
+// The UI SDK-based components style from state attributes and CSS variables
+// that UI SDK writes; their utilities must be compiled under every theme.
+for (const marker of [
+  "toast-front-height", // toast stack
+  "data-highlighted", // command item
+  "data-complete", // timeline, stepper
+  "data-checked", // radio-group
+  "data-collapsible", // sidebar
+]) {
+  ok(
+    `scans UI SDK-based component classes (${marker})`,
+    THEMES.every((t) => css[t].includes(marker)),
+  )
+}
+
 // The classes the components actually use must differ between themes.
 for (const [cls, prop] of [
   ["text-sm", "font-size"],
