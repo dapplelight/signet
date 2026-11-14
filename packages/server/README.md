@@ -176,12 +176,14 @@ if (checked.ok) // sign in checked.phone with startSession
   destroys the code after `maxAttempts` (default 5) wrong guesses.
 - Requests are limited per IP (default 10 an hour) and per phone (default 3 per
   15 minutes). A new request replaces the old code.
-- Failed verifies (wrong, expired or missing code) are limited per IP with
-  `verifyFailuresPerIp` (default 20 an hour), so one address cannot spread 5
-  guesses across many numbers. Past it, verify answers `TOO_MANY_ATTEMPTS`
-  without checking the code or using up that phone's attempts. Pass `ip` to
-  `verifyPhoneOtp`; without one this limit is skipped, since a shared bucket
-  would let anyone lock every user out.
+- Verifies are limited per IP with `verifyFailuresPerIp` (default 30 an hour),
+  so one address cannot spread 5 guesses across many numbers. The slot is
+  taken before the code is checked and the decision comes from the store's
+  atomic count, so a parallel burst is held to the limit too; the cost is that
+  successful verifies use a slot as well. Past it, verify answers
+  `TOO_MANY_ATTEMPTS` without checking the code or using up that phone's
+  attempts. Pass `ip` to `verifyPhoneOtp`; without one this limit is skipped,
+  since a shared bucket would let anyone lock every user out.
 - `normalizePhone` gives E.164: Indian numbers in their national forms
   (`98765 43210`, `098765…`, `91…`), everything else with `+` or `00`.
 - Results carry `INVALID_PHONE`, `RATE_LIMITED`, `INVALID_CODE`, `CODE_EXPIRED`

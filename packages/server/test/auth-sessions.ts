@@ -186,6 +186,46 @@ const opts = { cookieName: "sid", secret: NEW, store }
 }
 
 {
+  // the touch throttle holds for sessions older than touchEverySeconds: get()
+  // must return the lastSeenAt the touch wrote (it lives in its own key)
+  const realNow = Date.now
+  for (const label of ["plain", "cached"]) {
+    const writes: string[] = []
+    const spy: SessionStore = {
+      ...store,
+      touch: async (r, seen) => {
+        writes.push(r.id)
+        await store.touch(r, seen)
+      },
+    }
+    const st = label === "cached" ? cachedSessionStore(spy, { seconds: 3600 }) : spy
+    const o = { ...opts, store: st }
+    const s = await startSession(o, { sub: `u7-${label}` })
+    try {
+      Date.now = () => realNow() + 301_000
+      await validateSession(s.token, o, { ip: "9.8.7.6" })
+      await validateSession(s.token, o)
+      await validateSession(s.token, o)
+    } finally {
+      Date.now = realNow
+    }
+    ok(
+      `touch (${label}): one write when due, none on the requests right after`,
+      writes.length === 1,
+      writes.length,
+    )
+  }
+  const s = await startSession(opts, { sub: "u8" })
+  await store.touch(s.record, { lastSeenAt: s.record.lastSeenAt + 5000, ip: "4.3.2.1" })
+  const got = await store.get(s.record.id)
+  ok(
+    "get: returns the lastSeenAt and ip from the latest touch",
+    got?.lastSeenAt === s.record.lastSeenAt + 5000 && got.ip === "4.3.2.1",
+    got,
+  )
+}
+
+{
   // cache: saves reads; own revokes clear it at once
   let reads = 0
   const counting: SessionStore = {
@@ -370,12 +410,12 @@ ok(
       (await requestPhoneOtp(base, { phone: "nope" })).ok === false,
     )
 
-    // per-IP cap on FAILED verifies: one IP cannot spray guesses across numbers
+    // per-IP cap on verifies: one IP cannot spray guesses across numbers
     const vopts: PhoneOtpOptions = {
       ...base,
       kv: memoryKv(),
       rateLimit: kvRateLimitStore(memoryKv()),
-      verifyFailuresPerIp: { max: 3, windowSeconds: 3600 },
+      verifyFailuresPerIp: { max: 4, windowSeconds: 3600 },
     }
     const phones = ["9876600001", "9876600002", "9876600003", "9876600004", "9876600005"]
     const codes: Record<string, string> = {}
@@ -384,7 +424,7 @@ ok(
       codes[p] = lastCode()
     }
     const wrongFor = (p: string) => (codes[p] === "000000" ? "111111" : "000000")
-    // successes do not count
+    // every verify uses a slot, the successful one too
     const okFirst = await verifyPhoneOtp(vopts, {
       phone: phones[0]!,
       code: codes[phones[0]!]!,
@@ -396,7 +436,7 @@ ok(
       spray.push(v.ok ? "ok" : v.code)
     }
     ok(
-      "otp verify per-IP: successes are not counted, failures are",
+      "otp verify per-IP: verifies under the limit go through",
       okFirst.ok && spray.every((x) => x === "INVALID_CODE"),
       spray,
     )
@@ -420,6 +460,19 @@ ok(
       elsewhere.ok,
       elsewhere,
     )
+    // a parallel burst: the decision comes from the atomic count, not a flag read earlier
+    const burstOpts: PhoneOtpOptions = {
+      ...vopts,
+      rateLimit: kvRateLimitStore(memoryKv()),
+      verifyFailuresPerIp: { max: 3, windowSeconds: 3600 },
+    }
+    const burst = await Promise.all(
+      Array.from({ length: 10 }, (_, i) =>
+        verifyPhoneOtp(burstOpts, { phone: `98777000${10 + i}`, code: "123456", ip: "7.7.7.8" }),
+      ),
+    )
+    const refused = burst.filter((r) => !r.ok && r.code === "TOO_MANY_ATTEMPTS").length
+    ok("otp verify per-IP: a parallel burst is held to the limit", refused === 7, burst)
     const noIp = await verifyPhoneOtp(vopts, { phone: phones[1]!, code: codes[phones[1]!]! })
     ok("otp verify per-IP: no ip means no shared bucket", noIp.ok, noIp)
   } finally {

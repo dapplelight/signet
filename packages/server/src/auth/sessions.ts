@@ -31,7 +31,7 @@ export type SessionRecord = {
 /** Where stored sessions live. `kvSessionStore` covers memory, Workers KV and Upstash; write your own for SQL. */
 export type SessionStore = {
   create(record: SessionRecord): Promise<void>
-  /** The record, or null once revoked or expired. `lastSeenAt`/`ip` may lag; `listByUser` has the latest. */
+  /** The record with its latest `lastSeenAt`/`ip`, or null once revoked or expired. */
   get(id: string): Promise<SessionRecord | null>
   /** Record activity. Must never bring back a revoked session. */
   touch(record: SessionRecord, seen: { lastSeenAt: number; ip: string | null }): Promise<void>
@@ -87,15 +87,26 @@ export function kvSessionStore(kv: KeyValue, opts: { prefix?: string } = {}): Se
       ? kv.set(idx(sub), JSON.stringify(ids), { ttlSeconds: ttl(expiresAt) })
       : kv.delete(idx(sub))
 
+  // The record plus the latest activity from the seen key, so callers (and the
+  // touch throttle in validateSession) see the real lastSeenAt.
   const get = async (id: string): Promise<SessionRecord | null> => {
-    const raw = await kv.get(rec(id))
+    const [raw, rawSeen] = await Promise.all([kv.get(rec(id)), kv.get(seen(id))])
     if (!raw) return null
+    let r: SessionRecord
     try {
-      const r = JSON.parse(raw) as SessionRecord
-      return r.expiresAt > Date.now() ? r : null
+      r = JSON.parse(raw) as SessionRecord
     } catch {
       return null
     }
+    if (!(r.expiresAt > Date.now())) return null
+    try {
+      const s = JSON.parse(rawSeen ?? "null") as { lastSeenAt: number; ip: string | null } | null
+      if (s && typeof s.lastSeenAt === "number" && s.lastSeenAt >= r.lastSeenAt)
+        return { ...r, lastSeenAt: s.lastSeenAt, ip: s.ip ?? null }
+    } catch {
+      // a corrupt seen key only loses activity, never the session
+    }
+    return r
   }
 
   const live = async (sub: string) => {
@@ -125,20 +136,7 @@ export function kvSessionStore(kv: KeyValue, opts: { prefix?: string } = {}): Se
           records.map((r) => r.id),
           Math.max(0, ...records.map((r) => r.expiresAt)),
         )
-      const withSeen = await Promise.all(
-        records.map(async (r) => {
-          try {
-            const s = JSON.parse((await kv.get(seen(r.id))) ?? "null") as {
-              lastSeenAt: number
-              ip: string | null
-            } | null
-            return s && s.lastSeenAt >= r.lastSeenAt ? { ...r, ...s } : r
-          } catch {
-            return r
-          }
-        }),
-      )
-      return withSeen.sort((a, b) => b.lastSeenAt - a.lastSeenAt)
+      return records.sort((a, b) => b.lastSeenAt - a.lastSeenAt)
     },
     async revoke(id) {
       await Promise.all([kv.delete(rec(id)), kv.delete(seen(id))])
@@ -175,6 +173,13 @@ export function cachedSessionStore(store: SessionStore, opts: { seconds: number 
       if (cache.size >= max) cache.clear()
       cache.set(id, { record, until: Date.now() + opts.seconds * 1000 })
       return record
+    },
+    async touch(record, seen) {
+      // Keep the cached copy in step, or the throttle sees a stale lastSeenAt
+      // and writes on every request until the entry expires.
+      const hit = cache.get(record.id)
+      if (hit?.record) cache.set(record.id, { ...hit, record: { ...hit.record, ...seen } })
+      await store.touch(record, seen)
     },
     async revoke(id) {
       cache.delete(id)
