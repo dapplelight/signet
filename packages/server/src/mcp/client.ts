@@ -83,10 +83,28 @@ type RpcMessage = {
   error?: { code: number; message: string; data?: unknown }
 }
 
+function envelopeError(res: Response, body: unknown): McpClientError {
+  const error = (body as { error?: unknown } | null)?.error
+  const message = typeof error === "string" && error ? error : `MCP server answered ${res.status}`
+  return new McpClientError(message, 0, body, res.status)
+}
+
 /** The response to request `id`, from a JSON body or an SSE stream. */
 async function readResponse(res: Response, id: number): Promise<RpcMessage> {
   const type = res.headers.get("content-type") ?? ""
-  if (!type.includes("text/event-stream")) return (await res.json()) as RpcMessage
+  if (!type.includes("text/event-stream")) {
+    const body = (await res.json()) as (RpcMessage & { jsonrpc?: string }) | null
+    // Not JSON-RPC: a Signet envelope (`{success:false,error:"...",code:"..."}`
+    // from token or rate-limit middleware) or some other JSON.
+    if (
+      !body ||
+      typeof body !== "object" ||
+      !("jsonrpc" in body) ||
+      (body.error !== undefined && typeof body.error !== "object")
+    )
+      throw envelopeError(res, body)
+    return body
+  }
   if (!res.body) throw new McpClientError("Empty event stream", 0, undefined, res.status)
   const reader = res.body.getReader()
   const decoder = new TextDecoder()

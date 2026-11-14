@@ -81,11 +81,24 @@ export function routesAsTools(app: RequestableApp, routes: readonly RouteTool[])
     const handler = async (args: Record<string, unknown>, ctx: ToolContext) => {
       const remaining = { ...args }
       // `:id`, `:id?` and `:id{[0-9]+}` all take the argument of that name.
+      let badParam: string | undefined
       const url = path.replace(/:(\w+)(\{[^}]*\})?\??/g, (_, key: string) => {
         const value = remaining[key]
         delete remaining[key]
-        return value === undefined ? "" : encodeURIComponent(String(value))
+        if (value === undefined) return ""
+        const s = String(value)
+        // encodeURIComponent leaves "." and ".." alone, and URL parsing then
+        // collapses them (so does "%2e%2e"): the call would hit another route.
+        if (s === "." || s === "..") badParam = key
+        return encodeURIComponent(s)
       })
+      if (badParam)
+        return toolResult(
+          toolErrorResult({
+            code: "BAD_REQUEST",
+            message: `Invalid value for "${badParam}"`,
+          }),
+        )
       const headers = new Headers({ accept: "application/json" })
       for (const name of FORWARDED) {
         const value = ctx.c?.req.header(name)

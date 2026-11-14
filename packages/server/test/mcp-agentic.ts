@@ -269,6 +269,15 @@ async function listen(user: string) {
     return c.json({ id: c.req.param("id"), refunded: body.amount })
   })
   app.get("/api/secret", (c) => c.text("never exposed"))
+  const removed: string[] = []
+  app.delete("/api/projects/:pid", (c) => {
+    removed.push(`project ${c.req.param("pid")}`)
+    return c.json({ ok: true })
+  })
+  app.delete("/api/projects/:pid/members/:mid", (c) => {
+    removed.push(`member ${c.req.param("mid")}`)
+    return c.json({ ok: true })
+  })
   const tools = routesAsTools(app, [
     {
       name: "whoami",
@@ -285,13 +294,20 @@ async function listen(user: string) {
       input: z.object({ id: z.string(), amount: z.number() }),
       annotations: { destructiveHint: true },
     },
+    {
+      name: "remove_member",
+      description: "Remove a member",
+      method: "DELETE",
+      path: "/api/projects/:pid/members/:mid",
+      input: z.object({ pid: z.string(), mid: z.string() }),
+    },
   ])
   mountMcp(app, "/mcp", { name: "routes", version: "1", tools })
   const admin = await connect(app, "admin")
   const listed = (await admin.listTools()).tools
   ok(
     "routes: only the chosen routes become tools, with method hints",
-    listed.map((t) => t.name).join() === "whoami,refund_order" &&
+    listed.map((t) => t.name).join() === "whoami,refund_order,remove_member" &&
       listed[0]?.annotations?.readOnlyHint === true &&
       listed[1]?.annotations?.destructiveHint === true,
     listed,
@@ -304,6 +320,22 @@ async function listen(user: string) {
   )
   const refund = await admin.callTool({ name: "refund_order", arguments: { id: "o1", amount: 40 } })
   ok("routes: path params and JSON body", text(refund) === '{"id":"o1","refunded":40}', refund)
+  for (const mid of ["..", ".", "%2e%2e"]) {
+    const r = await admin.callTool({ name: "remove_member", arguments: { pid: "p1", mid } })
+    const refused = mid === ".." || mid === "."
+    ok(
+      `routes: path value ${JSON.stringify(mid)} ${refused ? "is refused" : "stays one segment"}`,
+      refused
+        ? (r as { isError?: boolean }).isError === true && removed.length === 0
+        : removed.join() === "member %2e%2e",
+      { r, removed },
+    )
+  }
+  ok(
+    "routes: a dot-segment never reaches the parent route",
+    !removed.some((x) => x.startsWith("project")),
+    removed,
+  )
   const user = await connect(app, "user")
   const denied = await user.callTool({ name: "refund_order", arguments: { id: "o1", amount: 40 } })
   ok(
@@ -511,6 +543,37 @@ mountMcp(approvalApp, "/mcp", {
       err,
     )
     await client.close()
+  }
+  // A non-JSON-RPC JSON body (Signet's own envelope from token / rate-limit middleware)
+  const cases: [string, number, Record<string, unknown>, string][] = [
+    [
+      "envelope 401",
+      401,
+      { success: false, error: "Token expired", code: "invalid_token" },
+      "Token expired",
+    ],
+    [
+      "envelope 429",
+      429,
+      { success: false, error: "Slow down", code: "RATE_LIMITED" },
+      "Slow down",
+    ],
+    ["JSON without jsonrpc", 200, { ok: true }, "MCP server answered 200"],
+  ]
+  for (const [label, status, body, message] of cases) {
+    const client = createMcpClient({
+      url: "http://t.local/mcp",
+      fetch: () => Promise.resolve(Response.json(body, { status })),
+    })
+    const err = await client.listTools().catch((e) => e)
+    ok(
+      `client: ${label} throws McpClientError with the HTTP status`,
+      err instanceof McpClientError &&
+        err.status === status &&
+        err.message === message &&
+        err.code === 0,
+      err,
+    )
   }
 }
 
