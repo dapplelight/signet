@@ -15,9 +15,10 @@ The core never imports a driver. Thin entry points connect it to one:
 | `@dapplelight/signet-db/sqlite` | `createDb("app.db")`, bun:sqlite |
 | `@dapplelight/signet-db/postgres` | `createDb(url \| postgres())`, postgres-js (optional peer) |
 | `@dapplelight/signet-db/migrations` | `checkMigrationSql`; the `signet-db-check` CLI |
+| `@dapplelight/signet-db/zod` | `toZod(table, { mode })` (zod is an optional peer) |
 
-Peers: `drizzle-orm` ^0.45, `@dapplelight/signet-lib` ^0.3, and `postgres`
-only for `./postgres`. Types flow from your table definitions: rows, inserts
+Peers: `drizzle-orm` ^0.45, `@dapplelight/signet-lib` ^0.3, `postgres` only
+for `./postgres` and `zod` only for `./zod`. Types flow from your table definitions: rows, inserts
 and updates are `InferSelectModel`/`InferInsertModel` of the table you pass.
 
 Not on npm yet (`private: true`).
@@ -210,6 +211,62 @@ describeSchema(schema)
 ```
 
 Plain text for an agent's or a reviewer's context.
+
+## Zod schemas from tables
+
+```ts
+import { toZod } from "@dapplelight/signet-db/zod"
+import { parseBody } from "@dapplelight/signet-server/http/validate"
+
+const body = await parseBody(c, toZod(orders, { mode: "insert" }))
+await scoped(db, { userId }).insert(orders, body)
+```
+
+`insert` leaves out the defaulted primary key, `createdAt`, `updatedAt`,
+`deletedAt` and `userId` (stripped if a client sends them; `keep: ["userId"]`
+keeps one), and makes defaulted or nullable columns optional. `update` is the
+same with every field optional; `select` is a full row. Dates accept ISO
+strings, money amounts must be integer minor units, currency codes three
+capital letters, encrypted columns plaintext strings. Generated from the
+columns, no drizzle-zod.
+
+## Transactional outbox
+
+```ts
+import { outbox } from "@dapplelight/signet-db/columns/sqlite"
+const db = createDb(bindings.DB, { schema, outbox: schema.outbox })
+
+await db.batch([
+  (tx) => tx.insert(orders).values(order),
+  enqueue(db, "order.created", { orderId: order.id }),   // same atomic write
+])
+await drainOutbox(db, queue, { batch: 50 })              // cron or waitUntil
+```
+
+`queue` is anything with `send(message)`, such as signet-server's `Queue`
+adapters; messages are `{ id, topic, payload }`. Each row is leased before it
+is sent, so concurrent drainers do not double-send; a failed send retries with
+backoff (`2^attempt` s, capped at 1 h, or your `backoff`) until `maxAttempts`
+(10), then the row is `dead`. A crash between send and mark resends: at least
+once, so dedupe on `id`. In an interactive transaction:
+`await enqueue(db, topic, payload)(tx)`. `pruneOutbox(db)` deletes old sent rows.
+
+## Idempotency keys
+
+```ts
+import { idempotencyKeys } from "@dapplelight/signet-db/columns/sqlite"
+const db = createDb(bindings.DB, { schema, idempotency: schema.idempotency })
+
+const order = await withIdempotency(db, c.req.header("idempotency-key") ?? "", userId, () =>
+  scoped(db, { userId }).insert(orders, body),
+)
+```
+
+Runs the function once per (scope, key) and replays its stored JSON result on
+retries for `ttlMs` (24 h). A duplicate that arrives while the first is still
+running gets `IDEMPOTENCY_IN_FLIGHT` (answer 409); a claim left by a crash
+expires after `leaseMs` (60 s). If the function throws, the key is released.
+`pruneIdempotency(db)` deletes expired keys.
 
 ## Named queries
 

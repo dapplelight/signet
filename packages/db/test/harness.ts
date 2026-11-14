@@ -12,9 +12,20 @@ import { Database } from "bun:sqlite"
 import { PGlite } from "@electric-sql/pglite"
 import { type Column, getTableColumns, getTableName, is, SQL, type Table } from "drizzle-orm"
 import { drizzle as drizzleD1 } from "drizzle-orm/d1"
-import { PgDialect, PgTable, pgTable, text as pgText } from "drizzle-orm/pg-core"
+import {
+  getTableConfig as getPgConfig,
+  PgDialect,
+  PgTable,
+  pgTable,
+  text as pgText,
+} from "drizzle-orm/pg-core"
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite"
-import { SQLiteSyncDialect, sqliteTable, text } from "drizzle-orm/sqlite-core"
+import {
+  getTableConfig as getSqliteConfig,
+  SQLiteSyncDialect,
+  sqliteTable,
+  text,
+} from "drizzle-orm/sqlite-core"
 import postgres from "postgres"
 import type { Cipher } from "../src/cipher"
 import * as pgc from "../src/columns/pg"
@@ -44,7 +55,14 @@ export function sqliteSchema() {
     phone: text("phone"),
     pinCode: text("pin_code"),
   })
-  return { notes, tags, users, audit: sqc.auditLog() }
+  return {
+    notes,
+    tags,
+    users,
+    audit: sqc.auditLog(),
+    outbox: sqc.outbox(),
+    idem: sqc.idempotencyKeys(),
+  }
 }
 
 export function pgSchema() {
@@ -68,7 +86,14 @@ export function pgSchema() {
     phone: pgText("phone"),
     pinCode: pgText("pin_code"),
   })
-  return { notes, tags, users, audit: pgc.auditLog() }
+  return {
+    notes,
+    tags,
+    users,
+    audit: pgc.auditLog(),
+    outbox: pgc.outbox(),
+    idem: pgc.idempotencyKeys(),
+  }
 }
 
 export type Schema = ReturnType<typeof sqliteSchema>
@@ -86,6 +111,9 @@ export function ddl(table: Table): string {
     (c) =>
       `"${c.name}" ${c.getSQLType()}${c.primary ? " primary key" : ""}${c.notNull && !c.primary ? " not null" : ""}${def(c)}`,
   )
+  const pk = (is(table, PgTable) ? getPgConfig(table as PgTable) : getSqliteConfig(table as never))
+    .primaryKeys[0]
+  if (pk) cols.push(`primary key (${pk.columns.map((c) => `"${c.name}"`).join(", ")})`)
   return `create table "${getTableName(table)}" (${cols.join(", ")})`
 }
 
@@ -133,6 +161,8 @@ export type Options = { cipher?: Cipher; audit?: boolean }
 const withAudit = (o: Options, S: Schema): DbConfig => ({
   cipher: o.cipher,
   audit: o.audit ? S.audit : undefined,
+  outbox: S.outbox,
+  idempotency: S.idem,
 })
 
 export const backends: Backend[] = [

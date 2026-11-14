@@ -25,6 +25,15 @@ a package at the version it had when the repository was opened to the public.
 - `signet-db-check` CLI and `checkMigrationSql`: flags table/column drops,
   renames and NOT NULL without a default; exits non-zero for CI.
 - Errors are `SignetDbError` with a stable `code`.
+- `./zod`: `toZod(table, { mode: "insert" | "update" | "select" })`, Zod
+  schemas generated from the columns (no drizzle-zod), usable with
+  signet-server's `parseBody`.
+- Transactional outbox: `outbox()` table, `enqueue` inside `db.batch` or a
+  transaction, `drainOutbox(db, queue)` with leases, attempt counts, backoff
+  and dead rows; `pruneOutbox`.
+- Idempotency keys: `idempotencyKeys()` table, `withIdempotency(db, key,
+  scope, fn)` that replays stored results and rejects in-flight duplicates;
+  `pruneIdempotency`.
 - Tests run on bun:sqlite, a D1 stand-in and PGlite always, and on a real
   Postgres server when `SIGNET_TEST_PG_URL` is set.
 

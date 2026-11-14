@@ -3,7 +3,16 @@
  * `money`, `encrypted`, and the `auditLog` table.
  */
 
-import { bigint, customType, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core"
+import {
+  bigint,
+  customType,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core"
 import { assertCiphertext } from "../cipher.js"
 import { newId } from "../id.js"
 import { snake } from "./shared.js"
@@ -78,3 +87,34 @@ export const auditLog = (name = "audit_log") =>
     before: jsonb("before"),
     after: jsonb("after"),
   })
+
+/** The transactional outbox table for `createDb(..., { outbox })`. */
+export const outbox = (name = "outbox") =>
+  pgTable(name, {
+    id: id(),
+    topic: text("topic").notNull(),
+    payload: jsonb("payload"),
+    /** pending | sent | dead */
+    status: text("status").notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    nextAttemptAt: stamp("next_attempt_at"),
+    lastError: text("last_error"),
+    createdAt: stamp("created_at"),
+    sentAt: timestamp("sent_at", { withTimezone: true, mode: "date" }),
+  })
+
+/** The idempotency key table for `createDb(..., { idempotency })`. */
+export const idempotencyKeys = (name = "idempotency_keys") =>
+  pgTable(
+    name,
+    {
+      scope: text("scope").notNull(),
+      key: text("key").notNull(),
+      /** pending | done */
+      status: text("status").notNull(),
+      result: jsonb("result"),
+      createdAt: stamp("created_at"),
+      expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    },
+    (t) => [primaryKey({ columns: [t.scope, t.key] })],
+  )

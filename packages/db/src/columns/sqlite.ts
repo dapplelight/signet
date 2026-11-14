@@ -4,7 +4,7 @@
  */
 
 import { sql } from "drizzle-orm"
-import { customType, integer, sqliteTable, text } from "drizzle-orm/sqlite-core"
+import { customType, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core"
 import { assertCiphertext } from "../cipher.js"
 import { newId } from "../id.js"
 import { snake } from "./shared.js"
@@ -78,3 +78,34 @@ export const auditLog = (name = "audit_log") =>
     before: text("before", { mode: "json" }),
     after: text("after", { mode: "json" }),
   })
+
+/** The transactional outbox table for `createDb(..., { outbox })`. */
+export const outbox = (name = "outbox") =>
+  sqliteTable(name, {
+    id: id(),
+    topic: text("topic").notNull(),
+    payload: text("payload", { mode: "json" }),
+    /** pending | sent | dead */
+    status: text("status").notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    nextAttemptAt: stamp("next_attempt_at"),
+    lastError: text("last_error"),
+    createdAt: stamp("created_at"),
+    sentAt: integer("sent_at", { mode: "timestamp_ms" }),
+  })
+
+/** The idempotency key table for `createDb(..., { idempotency })`. */
+export const idempotencyKeys = (name = "idempotency_keys") =>
+  sqliteTable(
+    name,
+    {
+      scope: text("scope").notNull(),
+      key: text("key").notNull(),
+      /** pending | done */
+      status: text("status").notNull(),
+      result: text("result", { mode: "json" }),
+      createdAt: stamp("created_at"),
+      expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    },
+    (t) => [primaryKey({ columns: [t.scope, t.key] })],
+  )

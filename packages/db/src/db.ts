@@ -25,6 +25,10 @@ export type DbConfig = {
   cipher?: Cipher
   /** The `auditLog()` table. Turns on `audited()` and the `deleteUser` audit entry. */
   audit?: Table
+  /** The `outbox()` table, for `enqueue` and `drainOutbox`. */
+  outbox?: Table
+  /** The `idempotencyKeys()` table, for `withIdempotency`. */
+  idempotency?: Table
 }
 
 export type SignetDb<TOrm = unknown> = {
@@ -33,6 +37,8 @@ export type SignetDb<TOrm = unknown> = {
   readonly dialect: Dialect
   readonly cipher?: Cipher
   readonly audit?: Table
+  readonly outbox?: Table
+  readonly idempotency?: Table
   /** Run statements atomically. Each is built on the handle it is given. */
   batch(statements: ReadonlyArray<(tx: TOrm) => unknown>): Promise<unknown[]>
 }
@@ -46,7 +52,7 @@ export function fromDrizzle<TOrm>(
   orm: TOrm,
   options: { dialect: Dialect; atomicity: Atomicity } & DbConfig,
 ): SignetDb<TOrm> {
-  const { dialect, atomicity, cipher, audit } = options
+  const { dialect, atomicity, cipher, audit, outbox, idempotency } = options
   const o = orm as AnyOrm
   const batch = async (statements: ReadonlyArray<(tx: TOrm) => unknown>): Promise<unknown[]> => {
     if (statements.length === 0) return []
@@ -60,7 +66,7 @@ export function fromDrizzle<TOrm>(
       return out
     })
   }
-  return { orm, dialect, cipher, audit, batch }
+  return { orm, dialect, cipher, audit, outbox, idempotency, batch }
 }
 
 /** @internal Columns keyed by their JS property name. */

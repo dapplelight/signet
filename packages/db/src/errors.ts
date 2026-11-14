@@ -19,6 +19,9 @@ export type SignetDbErrorCode =
   | "CURRENCY_MISMATCH"
   | "BAD_MONEY"
   | "BAD_ID"
+  | "NO_OUTBOX_TABLE"
+  | "NO_IDEMPOTENCY_TABLE"
+  | "IDEMPOTENCY_IN_FLIGHT"
 
 export class SignetDbError extends Error {
   readonly code: SignetDbErrorCode

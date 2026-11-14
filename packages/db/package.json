@@ -59,6 +59,11 @@
       "types": "./dist/migrations/check.d.ts",
       "import": "./dist/migrations/check.js",
       "default": "./dist/migrations/check.js"
+    },
+    "./zod": {
+      "types": "./dist/zod.d.ts",
+      "import": "./dist/zod.js",
+      "default": "./dist/zod.js"
     }
   },
   "bin": {
@@ -73,10 +78,14 @@
   "peerDependencies": {
     "@dapplelight/signet-lib": "^0.3.0",
     "drizzle-orm": "^0.45.0",
-    "postgres": ">=3.4.0"
+    "postgres": ">=3.4.0",
+    "zod": ">=4.0.0"
   },
   "peerDependenciesMeta": {
     "postgres": {
+      "optional": true
+    },
+    "zod": {
       "optional": true
     }
   },
@@ -87,7 +96,8 @@
     "@types/node": "^26.6.2",
     "drizzle-orm": "^0.45.4",
     "postgres": "^3.4.7",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "zod": "^4.6.5"
   },
   "publishConfig": {
     "access": "public"
