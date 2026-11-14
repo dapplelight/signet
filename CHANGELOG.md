@@ -9,9 +9,16 @@ a package at the version it had when the repository was opened to the public.
 
 - New `@dapplelight/signet-payments`: one canonical model (`Payment`, `Refund`,
   `Customer`, `PaymentMethod`, `Subscription`, `Payout`, `Settlement`, `Event`)
-  in integer minor units, over nine fetch-only adapters, each a subpath:
+  in integer minor units, over ten fetch-only adapters, each a subpath:
   `./razorpay`, `./stripe`, `./cashfree`, `./phonepe`, `./payu`, `./paddle`,
-  `./lemonsqueezy`, `./paypal`, `./hyperswitch`. No SDKs, no runtime dependencies.
+  `./lemonsqueezy`, `./paypal`, `./hyperswitch`, `./dodo`. No SDKs, no runtime
+  dependencies.
+- Per gateway, beyond checkout/refunds: Razorpay manual capture per order;
+  Cashfree subscriptions, Payouts v2 (optional 2FA signature) and settlement
+  recon; PhonePe webhooks and Autopay subscriptions; PayU manual capture;
+  Paddle and Lemon Squeezy partial refunds; PayPal saved methods (Vault v3);
+  Hyperswitch saved methods, payouts, subscriptions and safe refund retries;
+  Dodo Payments (merchant of record) with Standard Webhooks.
 - `capabilities` per adapter; an unsupported call rejects with `UNSUPPORTED`
   before any network call. Features the gateways' docs did not pin down are
   unsupported rather than guessed (see the README matrix).

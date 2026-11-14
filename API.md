@@ -71,7 +71,7 @@ MCP server that gives AI agents all of Signet: docs, exports, components, themes
 
 ## @dapplelight/signet-payments
 
-One payment model over Razorpay, Stripe, Cashfree, PhonePe, PayU, Paddle, Lemon Squeezy, PayPal and Hyperswitch, with a webhook inbox, a double-entry ledger and reconciliation.
+One payment model over Razorpay, Stripe, Cashfree, PhonePe, PayU, Paddle, Lemon Squeezy, PayPal, Hyperswitch and Dodo Payments, with a webhook inbox, a double-entry ledger and reconciliation.
 
 | Import | Exports | What |
 |---|---|---|

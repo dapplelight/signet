@@ -2,7 +2,7 @@
   "name": "@dapplelight/signet-payments",
   "version": "0.1.0",
   "license": "MIT",
-  "description": "One payment model over Razorpay, Stripe, Cashfree, PhonePe, PayU, Paddle, Lemon Squeezy, PayPal and Hyperswitch, with a webhook inbox, a double-entry ledger and reconciliation.",
+  "description": "One payment model over Razorpay, Stripe, Cashfree, PhonePe, PayU, Paddle, Lemon Squeezy, PayPal, Hyperswitch and Dodo Payments, with a webhook inbox, a double-entry ledger and reconciliation.",
   "keywords": [
     "signet",
     "payments",
