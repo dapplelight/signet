@@ -40,7 +40,7 @@ Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit 
 
 | Import | Exports | What |
 |---|---|---|
-| `@dapplelight/signet-db` | isCiphertext, assertCiphertext, generateKey, createCipher, CipherConfig, Cipher, … | re-exports cipher, db, describe, errors, id, idempotency, money, outbox, query, scoped, seed, user-data |
+| `@dapplelight/signet-db` | isCiphertext, assertCiphertext, generateKey, createCipher, CipherConfig, Cipher, … | re-exports cipher, db, describe, errors, id, idempotency, money, outbox, query, scoped, seed, sequence, user-data |
 | `@dapplelight/signet-db/admin` | ADMIN_OPS, AdminError, defineAdmin, DEFAULT_ROLES, roles, adminTools, … | An admin API from the schema: `defineAdmin(schema, { authorize })` gives list (cursor pages, sort, typed filters, text search), get, create, update, d |
 | `@dapplelight/signet-db/agent` | jsonSchema, agentTools, AgentTool, AgentToolsOptions | Database tools for AI agents, safe by construction: `agentTools(db, { tables, userId })` returns plain tool definitions (list, get, search per table,  |
 | `@dapplelight/signet-db/columns/pg` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotencyKeys`, `entitlem |
@@ -51,6 +51,7 @@ Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit 
 | `@dapplelight/signet-db/growth` | DEFAULT_FEEDBACK_KINDS, normalizeEmail, createGrowth, GrowthTables, GrowthOptions, WaitlistEntry, … | Growth basics every app rebuilds, on the tables from `growthTables()`: waitlist, invites, referrals, onboarding progress, changelog "what's new" and f |
 | `@dapplelight/signet-db/migrations` | checkMigrationSql, formatIssues, MigrationIssueKind, MigrationIssue | Scan SQL migrations for changes that lose data or break running code: dropped tables or columns, renames, and NOT NULL added without a default |
 | `@dapplelight/signet-db/postgres` | createDb | Postgres driver on postgres-js (Supabase, Neon, RDS, a local server): `createDb(databaseUrl, config)`, or pass a `postgres()` client |
+| `@dapplelight/signet-db/privacy` | createPrivacy, PrivacyTables, PrivacyOptions, Consent, DataRequestKind, DataRequestStatus, … | DPDP building blocks (India's Digital Personal Data Protection Act, 2023) on the tables from `privacyTables()`: consent records per purpose and notice |
 | `@dapplelight/signet-db/sqlite` | createDb | SQLite driver on bun:sqlite (Bun runtime, e.g |
 | `@dapplelight/signet-db/zod` | MANAGED_KEYS, toZod, ZodMode, ZodOutput | Zod schemas generated from a table's columns: `toZod(table, { mode })` for validating request bodies (e.g |
 
@@ -88,6 +89,7 @@ One payment model over Razorpay, Stripe, Cashfree, PhonePe, PayU, Paddle, Lemon 
 | `@dapplelight/signet-payments/cashfree` | CASHFREE_API_VERSION, CASHFREE_PAYOUT_API_VERSION, cashfree, CashfreeConfig | Cashfree Payments PG over its REST API (x-api-version 2026-01-01, headers x-client-id / x-client-secret) |
 | `@dapplelight/signet-payments/dodo` | dodo, DodoConfig | Dodo Payments (merchant of record) over its REST API: `Authorization: Bearer <key>`, test.dodopayments.com or live.dodopayments.com (the key's mode mu |
 | `@dapplelight/signet-payments/googleplay` | toGooglePlayPayment, toGooglePlaySubscription, googleplay, GooglePlayConfig, GooglePlayGateway | Google Play over the Play Developer API (androidpublisher v3) and Real-time Developer Notifications |
+| `@dapplelight/signet-payments/gst` | GST_STATES, gstinCheckChar, isValidGstin, parseGstin, isHsnOrSac, financialYear, … | GST tax invoices for India, as HTML (print it, or turn it into a PDF yourself): GSTIN validation with its check character, CGST + SGST (or UTGST) for  |
 | `@dapplelight/signet-payments/hyperswitch` | hyperswitch, HyperswitchConfig | Hyperswitch (open-source payments orchestrator) over its REST API, header `api-key` |
 | `@dapplelight/signet-payments/lemonsqueezy` | lemonsqueezy, LemonSqueezyConfig | Lemon Squeezy over its JSON:API (api.lemonsqueezy.com/v1, bearer key; test mode is chosen by the key) |
 | `@dapplelight/signet-payments/paddle` | paddle, PaddleConfig | Paddle Billing (not Paddle Classic) over its REST API: bearer API key, `Paddle-Version: 1`, amounts as strings of minor units |
@@ -96,6 +98,7 @@ One payment model over Razorpay, Stripe, Cashfree, PhonePe, PayU, Paddle, Lemon 
 | `@dapplelight/signet-payments/phonepe` | phonepe, PhonePeConfig | PhonePe PG, Standard Checkout v2: an OAuth client-credentials token (`/v1/oauth/token`, form body, cached until `expires_at`) sent as `Authorization:  |
 | `@dapplelight/signet-payments/razorpay` | toPayment, razorpay, RazorpayConfig | Razorpay over its REST API (api.razorpay.com/v1, HTTP Basic key_id:key_secret) |
 | `@dapplelight/signet-payments/stripe` | STRIPE_API_VERSION, stripe, StripeConfig | Stripe over its REST API (api.stripe.com/v1, form-encoded bodies, bearer secret key, `Stripe-Version` pinned) |
+| `@dapplelight/signet-payments/upi` | isVpa, upiIntent, UpiIntent | UPI payment intents: the `upi://pay?...` string a UPI app opens from a link, or reads from a QR code |
 
 ## @dapplelight/signet-server
 

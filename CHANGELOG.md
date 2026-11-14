@@ -46,6 +46,26 @@ a package at the version it had when the repository was opened to the public.
   with their behaviour recipe (each component's `// Recipe:` line), parts,
   token classes and example, plus the behaviours and the build guide.
   `get_component` now returns `summary` and `recipe`.
+### signet-payments: UPI intents and GST invoices
+
+- New `./upi`: `upiIntent` builds `upi://pay` links from NPCI's linking
+  parameters (amounts in paise), `isVpa`. No QR encoder ships.
+- New `./gst`: `isValidGstin`/`parseGstin` (check character), `gstInvoice`
+  (rule 46 checks, CGST + SGST or UTGST within a state, IGST across states
+  or to an SEZ, per-line half-up rounding in integers), `renderGstInvoiceHtml`,
+  `financialYear`, `invoiceNumber`, `amountInWords`, `formatInr`,
+  `GST_STATES`. Reverse charge, exports, cess, place of supply 97 and
+  e-invoicing are unsupported.
+
+### signet-db: DPDP consent and data requests, sequences
+
+- New `./privacy`: `createPrivacy` on `privacyTables()` (both dialects):
+  append-only consent records per purpose and notice version, withdrawal,
+  export and erasure requests fulfilled with `exportUser`/`deleteUser`,
+  optional due dates, `overdue()`. `privacyTools` for an agent acting for
+  one person; writes gated on `approve`.
+- `nextSequence(db, sequences(), key)`: concurrent-safe named counters.
+
 ### signet-db: growth basics (waitlist, invites, referrals, onboarding, changelog, feedback)
 
 - New `./growth`: `createGrowth(db, { tables })` on `growthTables()` (both

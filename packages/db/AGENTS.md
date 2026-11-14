@@ -75,3 +75,11 @@ Tools come from `adminTools(admin, { db, ctx, approve })`.
   `markRewarded`; both are once-only.
 - `growthTools(...)` writes (`create_invite`, `revoke_invite`,
   `set_feedback_status`) always ask a person to approve.
+
+## Privacy (DPDP)
+
+- Check `privacy.has(subject, purpose)` before processing for a purpose that
+  needs consent; never infer consent from a missing record.
+- Withdrawal must be as easy as giving: wire `withdraw` wherever `give` is.
+- `privacyTools(...)` only opens requests and withdraws consent, always with
+  approval. Do not call `fulfil` from an agent.
