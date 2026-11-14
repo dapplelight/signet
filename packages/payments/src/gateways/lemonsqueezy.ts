@@ -137,7 +137,9 @@ export function lemonsqueezy(config: LemonSqueezyConfig): PaymentGateway {
   return defineGateway(
     G,
     {
-      methods: ["card", "wallet"],
+      // Lemon Squeezy checkout shows Apple Pay (Safari) and Google Pay (Chrome) on its own.
+      // https://docs.lemonsqueezy.com/help/checkout/payment-methods
+      methods: ["card", "wallet", "applepay", "googlepay"],
       features: ["refunds", "partialRefunds", "customers", "subscriptions", "webhooks"],
       currencies: [config.currency],
     },

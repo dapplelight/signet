@@ -9,6 +9,8 @@ agent acting on payments** through the tools it generates.
   pass floats; convert at the input boundary with `toMinor("499.00", "INR")`.
 - Every charge, capture, refund and payout needs an `idempotencyKey`. Use a
   stable one (your order id), not a random one per attempt.
+- `method: "applepay" | "googlepay"` means the device wallets. Google Pay's
+  UPI app in India is `upi`. Check `gateway.capabilities.methods` first.
 - Check `gateway.supports(feature)` before offering a feature; an unsupported
   call rejects with `UNSUPPORTED` and never reaches the network.
 - Mount `payments.handleWebhook(name, request)` on the raw request. Do not

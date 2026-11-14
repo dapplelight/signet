@@ -57,6 +57,11 @@ a package at the version it had when the repository was opened to the public.
   timestamps are read as IST. New `settlementUrl` option. PayU payouts remain
   unsupported: the payout reference contradicts itself on body format, `pid`
   placement and test versus production URLs.
+- Apple Pay and Google Pay as canonical methods `applepay` and `googlepay`
+  (device wallets; Google Pay's UPI app stays `upi`). Declared where each
+  gateway documents them; Cashfree, Hyperswitch and Dodo limit the checkout to
+  the wallet when it is passed as `method`. New `applePayDomainAssociation`
+  serves the domain-association file Razorpay, PayPal and Dodo give you.
 - `capabilities` per adapter; an unsupported call rejects with `UNSUPPORTED`
   before any network call. Features the gateways' docs did not pin down are
   unsupported rather than guessed (see the README matrix).
