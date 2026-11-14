@@ -194,6 +194,14 @@
       "types": "./dist/components/domain/trend-chip.d.ts",
       "import": "./dist/components/domain/trend-chip.js"
     },
+    "./domain/job-runs": {
+      "types": "./dist/components/domain/job-runs.d.ts",
+      "import": "./dist/components/domain/job-runs.js"
+    },
+    "./domain/upload": {
+      "types": "./dist/components/domain/upload.d.ts",
+      "import": "./dist/components/domain/upload.js"
+    },
     "./components/theme-provider": {
       "types": "./dist/components/ui/theme-provider.d.ts",
       "import": "./dist/components/ui/theme-provider.js"
@@ -205,7 +213,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "bun run test/ui.tsx && bun run test/dom.tsx && bun run test/data-table.tsx && bun run test/shortcuts.tsx && bun run test/markdown.tsx && bun run test/dom2.tsx",
+    "test": "bun run test/ui.tsx && bun run test/dom.tsx && bun run test/data-table.tsx && bun run test/shortcuts.tsx && bun run test/markdown.tsx && bun run test/dom2.tsx && bun run test/domain.tsx",
     "build": "tsc -p tsconfig.build.json",
     "prepublishOnly": "bun run build"
   },

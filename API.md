@@ -78,7 +78,8 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/adapters` | memoryKv, memoryQueue, processDefer, waitUntilDefer, kvRateLimitStore, assertBlobKey, … | Small plug interfaces so server code runs off Cloudflare too, plus in-memory and Node/Bun versions |
 | `@dapplelight/signet-server/adapters/cloudflare` | cloudflareKv, r2BlobStore, KvNamespaceLike, R2BucketLike | Cloudflare bindings as Signet adapters: Workers KV and R2 |
 | `@dapplelight/signet-server/adapters/node` | fsBlobStore | Filesystem `BlobStore` for Node, Bun and Docker (mount a volume at `dir`) |
-| `@dapplelight/signet-server/adapters/supabase` | supabaseBlobStore, SupabaseStorageConfig | Supabase Storage as a `BlobStore`, over its REST API with plain fetch |
+| `@dapplelight/signet-server/adapters/s3` | s3BlobStore, S3Config, S3BlobStore | S3-compatible storage (AWS S3, Cloudflare R2's S3 API, MinIO) as a `BlobStore` with presigned URLs and multipart uploads, signed with SigV4 over Web C |
+| `@dapplelight/signet-server/adapters/supabase` | supabaseBlobStore, SupabaseStorageConfig, SupabaseBlobStore | Supabase Storage as a `BlobStore`, over its REST API with plain fetch |
 | `@dapplelight/signet-server/adapters/upstash` | upstashKv, upstashRateLimitStore, qstashQueue, UpstashConfig, QstashConfig | Upstash over plain fetch: Redis REST as a `KeyValue` (atomic `incr`), and QStash as a `Queue` |
 | `@dapplelight/signet-server/analytics` | LIMITS, truncateBytes, toDataPoint, createAnalyticsEngine, AnalyticsEngineDataset, TrackedEvent, … | re-exports engine, ingest |
 | `@dapplelight/signet-server/analytics/engine` | LIMITS, truncateBytes, toDataPoint, createAnalyticsEngine, AnalyticsEngineDataset, TrackedEvent, … | Cloudflare Workers Analytics Engine writer |
@@ -96,6 +97,7 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/http` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus, … | re-exports errors, validate |
 | `@dapplelight/signet-server/http/errors` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus | Server half of the error envelope |
 | `@dapplelight/signet-server/http/validate` | parseBody, parseQuery, parseParams | Zod request validation |
+| `@dapplelight/signet-server/jobs` | parseCron, cronMatches, defineSchedule, runDueSchedules, cloudflareScheduled, startScheduler, … | re-exports cron, jobs, runtimes, tools |
 | `@dapplelight/signet-server/mcp` | toolResult, toMcpTool, defineTool, createMcpServer, resolveMcpServer, ToolAnnotations, … | re-exports server |
 | `@dapplelight/signet-server/mcp/client` | McpClientError, createMcpClient, McpClientOptions, McpToolInfo, McpCallResult, McpClient | Call a remote MCP server's tools over streamable HTTP with a bearer token: list tools, call one, get a typed result |
 | `@dapplelight/signet-server/mcp/hono` | createMcpChanges, mcpHandler, mountMcp, McpChanges, McpHandlerOptions | Serve MCP over streamable HTTP from a Hono route |
@@ -117,6 +119,7 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/oauth-rs/verify` | TokenError, scopesOf, createTokenVerifier, Claims, VerifiedToken, VerifierOptions, … | OAuth 2.1 access token verification for a RESOURCE SERVER |
 | `@dapplelight/signet-server/observability/logger` | LEVELS, createLogger, redactFields, LevelName, LevelSetting, LogFields, … | Structured JSON logger with pino's call shape and redaction by default |
 | `@dapplelight/signet-server/observability/sentry` | redactSecrets, parseStack, createSentry, SentryConfig, StackFrame, SentryRequest, … | Sentry reporting over the Envelope HTTP API |
+| `@dapplelight/signet-server/storage` | sniffType, stripMetadata, UploadError, assertContentMatches, createUploads, abandonedUploadsJob, … | re-exports metadata, uploads |
 
 ## @dapplelight/signet-tokens
 
@@ -142,7 +145,9 @@ Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"
 | Import | Exports | What |
 |---|---|---|
 | `@dapplelight/signet-ui` | — |  |
+| `@dapplelight/signet-ui/domain/job-runs` | JobRun |  |
 | `@dapplelight/signet-ui/domain/trend-chip` | — |  |
+| `@dapplelight/signet-ui/domain/upload` | xhrUpload, UploadTarget, UploadTransport |  |
 | `@dapplelight/signet-ui/hooks/use-media-query` | DESKTOP_QUERY, useMediaQuery |  |
 | `@dapplelight/signet-ui/utils` | TYPE_RAMP, cn |  |
 

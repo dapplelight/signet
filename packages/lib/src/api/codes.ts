@@ -36,6 +36,25 @@ export const ERROR_CODES = [
   "TIMEOUT",
   "APPROVAL_REQUIRED",
   "APPROVAL_DECLINED",
+  // jobs: a run that stopped for good
+  "BAD_INPUT",
+  "JOB_FAILED",
+  "UNKNOWN_JOB",
+  "CANCELLED",
+  "BUDGET_EXCEEDED",
+  // jobs: set-up mistakes, thrown at start-up rather than shown to a person
+  "JOBS_NOT_CREATED",
+  "DUPLICATE_JOB",
+  "NO_BUDGET_STORE",
+  // storage: uploads
+  "TOO_LARGE",
+  "EMPTY",
+  "TYPE_NOT_ALLOWED",
+  "TYPE_MISMATCH",
+  "BAD_KEY",
+  "QUOTA_EXCEEDED",
+  "PRESIGN_UNSUPPORTED",
+  "RESUMABLE_UNSUPPORTED",
   // oauth-rs (RFC 6750)
   "invalid_token",
   "insufficient_scope",
