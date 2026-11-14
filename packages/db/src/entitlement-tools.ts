@@ -21,11 +21,19 @@
  */
 
 import type { Entitlements, Plans, Resolved, Usage } from "./entitlements.js"
-import { SignetDbError } from "./errors.js"
 import type { FlagStore, Flags, FlagValue } from "./flags.js"
 import type { Actor } from "./scoped.js"
+import {
+  type ApprovalRequest,
+  type Approve,
+  bad,
+  gated as gate,
+  obj,
+  type PlainTool,
+  str,
+} from "./tool-kit.js"
 
-export type ApprovalRequest = { summary: string; details: Record<string, unknown>; args: unknown }
+export type { ApprovalRequest } from "./tool-kit.js"
 
 export type EntitlementToolsOptions<P extends Plans = Plans, F extends Flags = Flags> = {
   entitlements: Entitlements<P>
@@ -39,45 +47,11 @@ export type EntitlementToolsOptions<P extends Plans = Plans, F extends Flags = F
   /** Recorded in the audit log. Default `{ type: "agent", id: "agent" }`. */
   actor?: Actor
   /** Undefined = approved; anything else is returned as the tool result. e.g. `(ctx, r) => requireApproval(ctx, r)`. */
-  approve?: (ctx: unknown, request: ApprovalRequest) => Promise<unknown> | unknown
+  approve?: Approve
 }
 
-export type EntitlementTool = {
-  readonly name: string
-  readonly description: string
-  readonly annotations: {
-    readOnlyHint: boolean
-    destructiveHint: boolean
-    idempotentHint?: boolean
-  }
-  readonly inputSchema: Record<string, unknown>
-  run(input: Record<string, unknown>, ctx?: unknown): Promise<unknown>
-}
+export type EntitlementTool = PlainTool
 
-const needsApproval = (r: ApprovalRequest) => ({
-  isError: true,
-  content: [
-    {
-      type: "text",
-      text: `APPROVAL_REQUIRED: Needs a person's approval: ${r.summary}. Nothing was changed.`,
-    },
-  ],
-  structuredContent: {
-    success: false,
-    code: "APPROVAL_REQUIRED",
-    error: `Needs approval: ${r.summary}`,
-    approval: { summary: r.summary, details: r.details },
-  },
-})
-
-const obj = (properties: Record<string, unknown>, required: string[] = []) => ({
-  type: "object",
-  properties,
-  required,
-  additionalProperties: false,
-})
-
-const bad = (msg: string) => new SignetDbError("BAD_INPUT", msg)
 const num = (n: number) => (Number.isFinite(n) ? n : "unlimited")
 
 const planView = (r: Resolved<Plans>) => ({
@@ -118,11 +92,6 @@ export function entitlementTools<P extends Plans, F extends Flags>(
     ? { subject: { type: "string", minLength: 1, description: "The user or org id." } }
     : {}
   const subjectReq = allSubjects ? ["subject"] : []
-  const str = (input: Record<string, unknown>, key: string): string => {
-    const v = input[key]
-    if (typeof v !== "string" || !v) throw bad(`${key} is required (a string).`)
-    return v
-  }
   const who = (input: Record<string, unknown>) =>
     allSubjects ? str(input, "subject") : (options.subject as string)
   const date = (input: Record<string, unknown>) => {
@@ -136,10 +105,8 @@ export function entitlementTools<P extends Plans, F extends Flags>(
     if (!list.includes(v)) throw bad(`Unknown ${what} "${v}". One of: ${list.join(", ")}.`)
     return v
   }
-  const gated = async (ctx: unknown, request: ApprovalRequest, act: () => Promise<unknown>) => {
-    const gate = options.approve ? await options.approve(ctx, request) : needsApproval(request)
-    return gate !== undefined ? gate : act()
-  }
+  const gated = (ctx: unknown, request: ApprovalRequest, act: () => Promise<unknown>) =>
+    gate(options.approve, ctx, request, act)
   const planKeys = Object.keys(ent.plans)
   const reason = { type: "string", minLength: 1, description: "Why, for the audit trail." }
   const expiresAt = {

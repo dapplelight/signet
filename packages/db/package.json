@@ -79,6 +79,11 @@
       "types": "./dist/flags.d.ts",
       "import": "./dist/flags.js",
       "default": "./dist/flags.js"
+    },
+    "./growth": {
+      "types": "./dist/growth.d.ts",
+      "import": "./dist/growth.js",
+      "default": "./dist/growth.js"
     }
   },
   "bin": {

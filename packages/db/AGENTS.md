@@ -50,3 +50,12 @@ Tools come from `agentTools(db, { tables, userId, allowWrites, maxRows })`.
   exist only with `allowWrites`, always ask a person to approve, and return
   `APPROVAL_REQUIRED` with nothing changed when the client cannot ask. Show
   the person the summary; do not retry to get around it.
+
+## Growth
+
+- `createGrowth(db, { tables: growthTables() })`. Never store or log an invite
+  token; it is shown once. Branch on `acceptInvite`'s `reason`, do not throw.
+- Reward a referrer only when `convertReferral(...).first` is true, then call
+  `markRewarded`; both are once-only.
+- `growthTools(...)` writes (`create_invite`, `revoke_invite`,
+  `set_feedback_status`) always ask a person to approve.

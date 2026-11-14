@@ -5,6 +5,19 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-db: growth basics (waitlist, invites, referrals, onboarding, changelog, feedback)
+
+- New `./growth`: `createGrowth(db, { tables })` on `growthTables()` (both
+  dialects). Waitlist with idempotent join and position; invites whose token
+  is returned once and stored as SHA-256, accepted once by a conditional
+  update, with expiry, revocation and an optional email lock; referral codes,
+  one referrer per person, convert and reward once; onboarding steps and
+  changelog "last seen" on a `marks` table; feedback with kinds, rating and
+  status.
+- `growthTools(...)`: operator agent tools; writes gated on `approve`.
+- Internal: the plain tool shape and approval gate moved to `tool-kit.ts`;
+  `entitlementTools` is unchanged.
+
 ### signet-server: auth backend (sessions, key rotation, phone OTP, API keys)
 
 - New `./auth/sessions`: opt-in stored sessions. `SessionStore` (create, get,
