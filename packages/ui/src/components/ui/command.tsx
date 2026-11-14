@@ -1,0 +1,191 @@
+"use client"
+
+// A command menu on UI SDK's command behaviour: typing filters and ranks,
+// arrow keys move the highlight while focus stays in the input, Enter runs.
+// CommandDialog puts it in Signet's Dialog and opens it with ⌘K / Ctrl+K.
+import {
+  CommandEmpty as CommandEmptyPrimitive,
+  CommandGroupLabel,
+  CommandGroup as CommandGroupPrimitive,
+  CommandInput as CommandInputPrimitive,
+  CommandItem as CommandItemPrimitive,
+  CommandList as CommandListPrimitive,
+  Command as CommandPrimitive,
+  CommandSeparator as CommandSeparatorPrimitive,
+  CommandShortcut as CommandShortcutPrimitive,
+} from "@ui-sdk/react/command"
+import { useShortcut } from "@ui-sdk/react/shortcuts"
+import { SearchIcon } from "lucide-react"
+import * as React from "react"
+import { cn } from "../../lib/utils.js"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./dialog.js"
+
+function Command({ className, ...props }: React.ComponentProps<typeof CommandPrimitive>) {
+  return (
+    <CommandPrimitive
+      className={cn(
+        "flex size-full flex-col overflow-hidden rounded-xl bg-bg-surface text-text-primary",
+        className,
+      )}
+      {...props}
+    />
+  )
+}
+
+function CommandInput({ className, ...props }: React.ComponentProps<typeof CommandInputPrimitive>) {
+  return (
+    <div data-slot="command-input-wrapper" className="flex h-10 items-center gap-2 border-b px-3">
+      <SearchIcon aria-hidden="true" className="size-4 shrink-0 text-text-muted" />
+      <CommandInputPrimitive
+        className={cn(
+          "h-10 w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-text-muted disabled:cursor-not-allowed disabled:opacity-50",
+          className,
+        )}
+        {...props}
+      />
+    </div>
+  )
+}
+
+function CommandList({ className, ...props }: React.ComponentProps<typeof CommandListPrimitive>) {
+  return (
+    <CommandListPrimitive
+      className={cn("max-h-72 scroll-py-1 overflow-x-hidden overflow-y-auto p-1", className)}
+      {...props}
+    />
+  )
+}
+
+function CommandEmpty({ className, ...props }: React.ComponentProps<typeof CommandEmptyPrimitive>) {
+  return (
+    <CommandEmptyPrimitive
+      className={cn("py-6 text-center text-sm text-text-muted", className)}
+      {...props}
+    />
+  )
+}
+
+function CommandGroup({
+  className,
+  heading,
+  children,
+  ...props
+}: Omit<React.ComponentProps<typeof CommandGroupPrimitive>, "children"> & {
+  heading?: React.ReactNode
+  children?: React.ReactNode
+}) {
+  return (
+    <CommandGroupPrimitive className={cn("overflow-hidden py-1", className)} {...props}>
+      {heading != null && (
+        <CommandGroupLabel className="px-2 py-1.5 text-xs font-medium text-text-muted">
+          {heading}
+        </CommandGroupLabel>
+      )}
+      {children}
+    </CommandGroupPrimitive>
+  )
+}
+
+function CommandItem({ className, ...props }: React.ComponentProps<typeof CommandItemPrimitive>) {
+  return (
+    <CommandItemPrimitive
+      className={cn(
+        "relative flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none select-none data-highlighted:bg-bg-elevated data-highlighted:text-text-primary data-disabled:pointer-events-none data-disabled:opacity-50 data-pending:opacity-70 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-text-muted",
+        className,
+      )}
+      {...props}
+    />
+  )
+}
+
+/** Shows the item's `shortcut` (⌘P on Apple platforms, Ctrl+P elsewhere). */
+function CommandShortcut({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandShortcutPrimitive>) {
+  return (
+    <CommandShortcutPrimitive
+      className={cn("ml-auto text-xs tracking-widest text-text-muted", className)}
+      {...props}
+    />
+  )
+}
+
+function CommandSeparator({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandSeparatorPrimitive>) {
+  return (
+    <CommandSeparatorPrimitive className={cn("-mx-1 my-1 h-px bg-border", className)} {...props} />
+  )
+}
+
+type CommandDialogProps = React.ComponentProps<typeof CommandPrimitive> & {
+  open?: boolean
+  defaultOpen?: boolean
+  onOpenChange?: (open: boolean) => void
+  /** Toggles the dialog from anywhere on the page. Default "mod+k"; null turns it off. */
+  shortcut?: string | null
+  /** Names the dialog for screen readers. Shown only to them. */
+  title?: React.ReactNode
+  description?: React.ReactNode
+  /** Close once a command runs. Default true. */
+  closeOnAction?: boolean
+}
+
+/** A command palette: Command inside a Dialog, opened with ⌘K / Ctrl+K. */
+function CommandDialog({
+  open: openProp,
+  defaultOpen = false,
+  onOpenChange,
+  shortcut = "mod+k",
+  title = "Command palette",
+  description = "Search for a command to run.",
+  closeOnAction = true,
+  onAction,
+  className,
+  ...props
+}: CommandDialogProps) {
+  const [own, setOwn] = React.useState(defaultOpen)
+  const open = openProp ?? own
+  const setOpen = (next: boolean) => {
+    if (openProp === undefined) setOwn(next)
+    onOpenChange?.(next)
+  }
+  useShortcut(shortcut, (event) => {
+    event.preventDefault()
+    setOpen(!open)
+  })
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent className="overflow-hidden p-0" showCloseButton={false}>
+        <DialogHeader className="sr-only">
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        <Command
+          className={className}
+          onAction={(value, details) => {
+            const result = onAction?.(value, details)
+            if (closeOnAction) setOpen(false)
+            return result
+          }}
+          {...props}
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+export {
+  Command,
+  CommandDialog,
+  type CommandDialogProps,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+  CommandShortcut,
+}
