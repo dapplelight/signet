@@ -42,7 +42,7 @@
     },
     "packages/ai": {
       "name": "@dapplelight/signet-ai",
-      "version": "0.3.1",
+      "version": "0.4.0",
       "devDependencies": {
         "@ai-sdk/react": "4.0.112",
         "@dapplelight/signet-lib": "^0.3.0",

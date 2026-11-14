@@ -5,7 +5,7 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
-### signet-ai: AI SDK 7, usage hook, tool loops, streaming, embeddings, grounding
+### signet-ai 0.4.0: AI SDK 7, usage hook, tool loops, streaming, embeddings, grounding
 
 - **Breaking peer:** `ai` is now `>=7.0.0` (was `>=5`). `aiSdkProvider` calls
   `generateText` with `output: Output.object({ schema })` instead of the
