@@ -295,6 +295,98 @@ describe.each(backends)("$name", (backend) => {
     expect(await ent.get("org-1")).toMatchObject({ plan: "free", status: "cancelled" })
   })
 
+  test("billing: created/updated take the gateway's status (Stripe, Paddle)", async () => {
+    const { ent } = await make()
+    const stripe = (id: string, type: string, at: string, status: string): BillingEvent => ({
+      id,
+      gateway: "stripe",
+      type,
+      occurredAt: new Date(at),
+      subscriptionId: "sub_S",
+      raw: { data: { object: { status, items: { data: [{ price: { id: "plan_pro" } }] } } } },
+    })
+    await ent.applyBillingEvent(
+      stripe("s1", "subscription.created", "2026-11-01T00:00:00Z", "active"),
+      {
+        subject: "org-s",
+      },
+    )
+    expect(await ent.get("org-s")).toMatchObject({ plan: "pro", status: "active" })
+    await ent.applyBillingEvent(
+      stripe("s2", "subscription.updated", "2026-11-02T00:00:00Z", "past_due"),
+    )
+    expect(await ent.get("org-s")).toMatchObject({ plan: "pro", status: "past_due" })
+    const grace = (await ent.get("org-s")).graceUntil
+    // A second past_due update in the same lapse does not restart the grace clock.
+    await ent.applyBillingEvent(
+      stripe("s3", "subscription.updated", "2026-11-02T12:00:00Z", "past_due"),
+    )
+    expect((await ent.get("org-s")).graceUntil).toEqual(grace)
+    await ent.applyBillingEvent(
+      stripe("s4", "subscription.updated", "2026-11-03T00:00:00Z", "active"),
+    )
+    expect(await ent.get("org-s")).toMatchObject({ status: "active", graceUntil: null })
+
+    // Paddle: data.status. No plan id in this payload, so the stored plan is kept.
+    await ent.setPlan("org-p", "pro", { actor: admin })
+    await ent.applyBillingEvent(
+      {
+        id: "p1",
+        gateway: "paddle",
+        type: "subscription.updated",
+        occurredAt: new Date("2026-11-02T00:00:00Z"),
+        subscriptionId: "sub_P",
+        raw: { data: { status: "trialing" } },
+      },
+      { subject: "org-p" },
+    )
+    expect(await ent.get("org-p")).toMatchObject({ plan: "pro", status: "trialing" })
+  })
+
+  test("billing: an old subscription's events cannot downgrade the subject's newer one", async () => {
+    const { ent } = await make()
+    await ent.applyBillingEvent(
+      sub("a1", "subscription.activated", "2026-11-01T00:00:00Z", "plan_pro", "sub_A"),
+      {
+        subject: "org-1",
+      },
+    )
+    // Upgrade by cancel-and-recreate: B activates, then A's cancellation arrives later.
+    expect(
+      await ent.applyBillingEvent(
+        sub("b1", "subscription.activated", "2026-11-02T00:00:00Z", "plan_team", "sub_B"),
+        {
+          subject: "org-1",
+        },
+      ),
+    ).toMatchObject({ applied: true, plan: "team" })
+    for (const type of [
+      "subscription.cancelled",
+      "subscription.expired",
+      "subscription.past_due",
+      "subscription.paused",
+    ]) {
+      expect(
+        await ent.applyBillingEvent(
+          sub(`a-${type}`, type, "2026-11-03T00:00:00Z", undefined, "sub_A"),
+          {
+            subject: "org-1",
+          },
+        ),
+      ).toEqual({ applied: false, subject: "org-1", reason: "other_subscription" })
+    }
+    expect(await ent.get("org-1")).toMatchObject({ plan: "team", status: "active" })
+    // B's own cancellation still applies.
+    expect(
+      (
+        await ent.applyBillingEvent(
+          sub("b2", "subscription.cancelled", "2026-11-04T00:00:00Z", undefined, "sub_B"),
+        )
+      ).applied,
+    ).toBe(true)
+    expect((await ent.get("org-1")).plan).toBe("free")
+  })
+
   test("consume: concurrent requests never exceed the limit; resets each period", async () => {
     const { ent } = await make()
     const results = await Promise.all(

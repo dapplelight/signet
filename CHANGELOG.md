@@ -17,7 +17,9 @@ a package at the version it had when the repository was opened to the public.
   to the subject's plan: gateway plan or price ids map to plan keys through
   `billing.plans`; idempotent per event via `withIdempotency`; an event older
   than the stored state is ignored (the guard is in the UPDATE's WHERE);
-  `past_due` keeps the plan for `graceMs` (3 days). The event type is a local
+  `past_due` keeps the plan for `graceMs` (3 days). `created`/`updated` read
+  the status from the payload (`statusOf`; Stripe, Paddle, Razorpay shapes by
+  default), and events for an old subscription cannot downgrade a newer one. The event type is a local
   structural one, so signet-db does not depend on signet-payments.
 - `consume(subject, key, n)`: per-period (month, day or total) usage with the
   check and the increment in one UPDATE, so concurrent requests cannot

@@ -20,7 +20,7 @@
  * db needs an audit table; usage counters are not audited.
  */
 
-import { and, desc, eq, gt, isNull, lte, or, sql, type Table } from "drizzle-orm"
+import { and, desc, eq, gt, isNull, lte, or, type SQL, sql, type Table } from "drizzle-orm"
 import type { SignetDb } from "./db.js"
 import { SignetDbError } from "./errors.js"
 import { withIdempotency } from "./idempotency.js"
@@ -81,6 +81,13 @@ export type BillingConfig<P extends Plans> = {
   plans: Readonly<Record<string, PlanKey<P>>>
   /** Read the gateway plan id off an event. Default: Razorpay's and Stripe's payload shapes. */
   planIdOf?: (event: BillingEvent) => string | undefined
+  /**
+   * The subscription's status as the gateway reports it, for
+   * `subscription.created` and `subscription.updated` (whose type alone does
+   * not say). Default: Stripe's `data.object.status`, Paddle's `data.status`,
+   * Razorpay's `payload.subscription.entity.status`.
+   */
+  statusOf?: (event: BillingEvent) => SubscriptionStatus | undefined
   /** Who the subscription belongs to, e.g. from the gateway's notes/metadata. Default: the subject stored for the subscription id. */
   subjectOf?: (event: BillingEvent) => string | undefined | Promise<string | undefined>
   /** How long past_due keeps the paid plan. Default 3 days. */
@@ -141,7 +148,8 @@ export type BillingResult = {
   plan?: string
   status?: SubscriptionStatus
   /** Why not applied: not_subscription, no_subject, unknown_plan or stale (an older event). */
-  reason?: "not_subscription" | "no_subject" | "unknown_plan" | "stale"
+  /** other_subscription: a non-activating event for a subscription other than the subject's current one. */
+  reason?: "not_subscription" | "no_subject" | "unknown_plan" | "stale" | "other_subscription"
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: structural call into a Drizzle db of any dialect
@@ -164,6 +172,36 @@ const STATUS: Record<string, SubscriptionStatus | null> = {
 
 // biome-ignore lint/suspicious/noExplicitAny: walking an unknown gateway payload
 const dig = (o: any, ...path: (string | number)[]): unknown => path.reduce((v, k) => v?.[k], o)
+
+const GATEWAY_STATUS: Record<string, SubscriptionStatus> = {
+  active: "active",
+  trialing: "trialing",
+  past_due: "past_due",
+  unpaid: "past_due",
+  halted: "past_due",
+  paused: "paused",
+  canceled: "cancelled",
+  cancelled: "cancelled",
+  incomplete: "pending",
+  created: "pending",
+  authenticated: "pending",
+  pending: "past_due", // Razorpay: a charge failed and is being retried
+  incomplete_expired: "expired",
+  expired: "expired",
+  completed: "expired",
+}
+
+/** Stripe `data.object.status`, Paddle `data.status`, Razorpay `payload.subscription.entity.status`. */
+export function defaultStatusOf(event: BillingEvent): SubscriptionStatus | undefined {
+  const r = event.raw
+  const found =
+    dig(r, "data", "object", "status") ??
+    dig(r, "data", "status") ??
+    dig(r, "payload", "subscription", "entity", "status")
+  return typeof found === "string" ? GATEWAY_STATUS[found] : undefined
+}
+
+const LIVE = new Set<SubscriptionStatus>(["active", "trialing"])
 
 /** Razorpay `payload.subscription.entity.plan_id`; Stripe `data.object` items' price or plan id. */
 export function defaultPlanIdOf(event: BillingEvent): string | undefined {
@@ -327,9 +365,10 @@ export function createEntitlements<P extends Plans>(
     values: Cols,
     at: Date,
     actor: Actor,
+    guard?: SQL,
   ): Promise<boolean> {
     const w = audited(db, { actor })
-    const fresh = and(eq(pc.subject, subject), lte(pc.eventAt, at))
+    const fresh = and(eq(pc.subject, subject), lte(pc.eventAt, at), guard)
     for (let attempt = 0; attempt < 2; attempt++) {
       if ((await w.update(P, { ...values, eventAt: at } as never, fresh)).length) return true
       if (await row(subject)) return false // a newer change is stored
@@ -410,22 +449,56 @@ export function createEntitlements<P extends Plans>(
         if (gatewayPlan !== undefined && !plan)
           throw new Retryable({ applied: false, subject, reason: "unknown_plan" })
         const existing = await row(subject)
-        const status = STATUS[event.type] ?? (existing?.status as SubscriptionStatus) ?? "active"
+        const reported =
+          event.type === "subscription.created" || event.type === "subscription.updated"
+            ? (billing.statusOf ?? defaultStatusOf)(event)
+            : undefined
+        const status =
+          reported ?? STATUS[event.type] ?? (existing?.status as SubscriptionStatus) ?? "active"
+        // An event for another subscription (an old one after an upgrade) may only
+        // replace the current one by making itself live; anything else is ignored.
+        const otherSub =
+          !!event.subscriptionId &&
+          !!existing?.subscriptionId &&
+          (existing.gateway !== event.gateway || existing.subscriptionId !== event.subscriptionId)
+        if (otherSub && !LIVE.has(status))
+          return { applied: false, subject, reason: "other_subscription" } as BillingResult
         const values: Cols = {
           status,
           gateway: event.gateway,
           subscriptionId: event.subscriptionId ?? existing?.subscriptionId ?? null,
           graceUntil:
             status === "past_due"
-              ? new Date(event.occurredAt.getTime() + (billing.graceMs ?? 3 * 86_400_000))
+              ? existing?.status === "past_due" && existing.graceUntil && !otherSub
+                ? existing.graceUntil // still the same lapse: the grace clock keeps running
+                : new Date(event.occurredAt.getTime() + (billing.graceMs ?? 3 * 86_400_000))
               : null,
           ...(plan ? { plan } : {}),
         }
         if (!plan && !existing)
           throw new Retryable({ applied: false, subject, reason: "unknown_plan" })
         const actor: Actor = { type: "system", id: `billing:${event.gateway}` }
-        const applied = await upsertPlan(subject, values, event.occurredAt, actor)
-        if (!applied) return { applied: false, subject, reason: "stale" } as BillingResult
+        // Repeated in the UPDATE so a concurrent switch of subscription is not overwritten.
+        const sameSub =
+          event.subscriptionId && !LIVE.has(status)
+            ? or(
+                isNull(pc.subscriptionId),
+                and(eq(pc.gateway, event.gateway), eq(pc.subscriptionId, event.subscriptionId)),
+              )
+            : undefined
+        const applied = await upsertPlan(subject, values, event.occurredAt, actor, sameSub)
+        if (!applied) {
+          const cur = await row(subject)
+          const moved =
+            !!sameSub &&
+            !!cur?.subscriptionId &&
+            (cur.gateway !== event.gateway || cur.subscriptionId !== event.subscriptionId)
+          return {
+            applied: false,
+            subject,
+            reason: moved ? "other_subscription" : "stale",
+          } as BillingResult
+        }
         return { applied: true, subject, plan: plan ?? existing?.plan, status } as BillingResult
       },
     )

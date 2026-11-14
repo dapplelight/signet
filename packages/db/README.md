@@ -380,7 +380,14 @@ Applies `subscription.created`, `activated`, `charged`, `updated`, `paused`,
 by `opts.subject`, `billing.subjectOf(event)` or the stored subscription id.
 The gateway plan id is read by `billing.planIdOf` (default: Razorpay's
 `payload.subscription.entity.plan_id`, Stripe's item price or plan id) and
-mapped through `billing.plans`. Each event applies once (`withIdempotency`,
+mapped through `billing.plans`. For `created` and `updated`, whose type does
+not say whether the subscription is live, the status comes from the payload
+via `billing.statusOf` (default: Stripe's `data.object.status`, Paddle's
+`data.status`, Razorpay's entity status), falling back to the stored one.
+An event for a subscription other than the subject's current one (the old
+one after a cancel-and-recreate upgrade) is ignored with
+`reason: "other_subscription"` unless it makes that subscription live. Each
+event applies once (`withIdempotency`,
 so the db needs an idempotency table), and an event older than the stored
 state returns `{ applied: false, reason: "stale" }`: a late `cancelled` cannot
 undo a newer upgrade. `no_subject` and `unknown_plan` are not stored as done,
