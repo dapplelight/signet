@@ -1,10 +1,11 @@
 /**
  * Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`,
- * `softDelete`, `money`, `encrypted`, and the `auditLog` table.
+ * `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`,
+ * `idempotencyKeys`, `entitlementTables` and `flagOverrides` tables.
  */
 
 import { sql } from "drizzle-orm"
-import { customType, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core"
+import { customType, index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core"
 import { assertCiphertext } from "../cipher.js"
 import { newId } from "../id.js"
 import { snake } from "./shared.js"
@@ -109,3 +110,69 @@ export const idempotencyKeys = (name = "idempotency_keys") =>
     },
     (t) => [primaryKey({ columns: [t.scope, t.key] })],
   )
+
+const ms = (name: string) => integer(name, { mode: "timestamp_ms" })
+
+/**
+ * The plan, override and usage tables for `createEntitlements` from
+ * `@dapplelight/signet-db/entitlements`. Spread or destructure into the schema:
+ * `export const { subjectPlans, entitlementOverrides, usageCounters } = entitlementTables()`.
+ */
+export const entitlementTables = (prefix = "") => ({
+  subjectPlans: sqliteTable(
+    `${prefix}subject_plans`,
+    {
+      /** A user or org id. */
+      subject: text("subject").primaryKey(),
+      plan: text("plan").notNull(),
+      /** pending | trialing | active | past_due | paused | cancelled | expired */
+      status: text("status").notNull(),
+      gateway: text("gateway"),
+      subscriptionId: text("subscription_id"),
+      graceUntil: ms("grace_until"),
+      /** When the newest applied change happened; older billing events are ignored. */
+      eventAt: ms("event_at").notNull(),
+      updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
+    },
+    (t) => [index(`${prefix}subject_plans_subscription`).on(t.gateway, t.subscriptionId)],
+  ),
+  entitlementOverrides: sqliteTable(
+    `${prefix}entitlement_overrides`,
+    {
+      id: id(),
+      subject: text("subject").notNull(),
+      /** feature | limit */
+      kind: text("kind").notNull(),
+      key: text("key").notNull(),
+      /** feature: 1 grant, 0 revoke. limit: the value; null is unlimited. */
+      value: integer("value"),
+      expiresAt: ms("expires_at"),
+      createdAt: stamp("created_at"),
+    },
+    (t) => [index(`${prefix}entitlement_overrides_subject`).on(t.subject)],
+  ),
+  usageCounters: sqliteTable(
+    `${prefix}usage_counters`,
+    {
+      subject: text("subject").notNull(),
+      key: text("key").notNull(),
+      /** "2026-11" (month), "2026-11-15" (day) or "all". */
+      period: text("period").notNull(),
+      used: integer("used").notNull().default(0),
+    },
+    (t) => [primaryKey({ columns: [t.subject, t.key, t.period] })],
+  ),
+})
+
+/** Stored flag overrides for `createFlags` from `@dapplelight/signet-db/flags`. */
+export const flagOverrides = (name = "flag_overrides") =>
+  sqliteTable(name, {
+    /** `${flag}|${subject}` */
+    id: text("id").primaryKey(),
+    flag: text("flag").notNull(),
+    /** A subject id, or "*" for everyone. */
+    subject: text("subject").notNull(),
+    value: text("value", { mode: "json" }).notNull(),
+    expiresAt: ms("expires_at"),
+    updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
+  })

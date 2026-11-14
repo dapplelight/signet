@@ -176,6 +176,26 @@ export const DEFAULT_ERROR_COPY: Record<ErrorCode, ErrorCopy> = {
     detail: "Delete some files to make room, then try again.",
     action: "go_back",
   },
+  INVALID_PHONE: {
+    title: "Check the phone number",
+    detail: "Enter a mobile number, with the country code if it's outside India.",
+    action: "edit",
+  },
+  INVALID_CODE: {
+    title: "That code didn't match",
+    detail: "Check the code in the message and try again.",
+    action: "edit",
+  },
+  CODE_EXPIRED: {
+    title: "That code has expired",
+    detail: "Ask for a new code and try again.",
+    action: "retry",
+  },
+  TOO_MANY_ATTEMPTS: {
+    title: "Too many tries",
+    detail: "Ask for a new code to try again.",
+    action: "retry",
+  },
   PRESIGN_UNSUPPORTED: {
     title: "Upload unavailable",
     detail: "Uploads aren't set up here yet. Try again later.",

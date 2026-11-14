@@ -1,7 +1,13 @@
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { cloudflareKv, type KvNamespaceLike, r2BlobStore } from "../src/adapters/cloudflare"
+import {
+  cloudflareKv,
+  cloudflareQueue,
+  type KvNamespaceLike,
+  type QueueBindingLike,
+  r2BlobStore,
+} from "../src/adapters/cloudflare"
 import {
   type KeyValue,
   kvRateLimitStore,
@@ -14,6 +20,7 @@ import {
 import { fsBlobStore } from "../src/adapters/node"
 import { supabaseBlobStore } from "../src/adapters/supabase"
 import { qstashQueue, upstashKv } from "../src/adapters/upstash"
+import { vercelDefer } from "../src/adapters/vercel"
 
 let pass = 0,
   fail = 0
@@ -196,6 +203,67 @@ const json = (v: unknown, status = 200) => new Response(JSON.stringify(v), { sta
   }
   const q: Queue<{ id: number }> = binding
   ok("Cloudflare Queue binding fits Queue<T>", typeof q.send === "function")
+}
+
+// --- cloudflareQueue ---
+{
+  const sent: unknown[][] = []
+  const binding: QueueBindingLike<{ n: number }> = {
+    async send(body, options) {
+      sent.push(["send", body, options])
+    },
+    async sendBatch(messages, options) {
+      sent.push(["batch", [...messages], options])
+    },
+  }
+  const q = cloudflareQueue(binding)
+  await q.send({ n: 1 })
+  await q.send({ n: 2 }, { delaySeconds: 1.2 })
+  ok("cloudflareQueue send passes the body, no options without a delay", sent[0]?.[2] === undefined)
+  ok(
+    "cloudflareQueue rounds a delay up to whole seconds",
+    (sent[1]?.[2] as { delaySeconds?: number })?.delaySeconds === 2,
+  )
+  sent.length = 0
+  const many = Array.from({ length: 250 }, (_, n) => ({ n }))
+  await q.sendBatch(many, { delaySeconds: 5 })
+  const sizes = sent.map((s) => (s[1] as unknown[]).length)
+  ok(
+    "cloudflareQueue sendBatch splits into calls of 100",
+    sizes.join(",") === "100,100,50" && sent.every((s) => s[0] === "batch"),
+    sizes.join(","),
+  )
+  const first = (sent[0]?.[1] as { body: { n: number } }[] | undefined)?.[0]
+  const last = (sent[2]?.[1] as { body: { n: number } }[] | undefined)?.at(-1)
+  ok(
+    "cloudflareQueue sendBatch wraps bodies in order, with the batch delay",
+    first?.body.n === 0 &&
+      last?.body.n === 249 &&
+      (sent[0]?.[2] as { delaySeconds?: number })?.delaySeconds === 5,
+  )
+  sent.length = 0
+  await q.sendBatch([])
+  ok("cloudflareQueue empty sendBatch makes no call", sent.length === 0)
+}
+
+// --- vercelDefer ---
+{
+  const handed: Promise<unknown>[] = []
+  const errors: unknown[] = []
+  const defer = vercelDefer(
+    (p) => handed.push(p),
+    (e) => errors.push(e),
+  )
+  defer(Promise.resolve("done"))
+  defer(Promise.reject(new Error("boom")))
+  ok("vercelDefer hands every promise to waitUntil", handed.length === 2)
+  const settled = await Promise.allSettled(handed)
+  ok(
+    "vercelDefer catches a rejection into onError; waitUntil never sees it reject",
+    settled.every((s) => s.status === "fulfilled") &&
+      errors.length === 1 &&
+      (errors[0] as Error).message === "boom",
+  )
 }
 
 // --- upstash ---

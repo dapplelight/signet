@@ -274,7 +274,9 @@ export function checkApp(files: Record<string, string>): CheckResult {
     const server = /from\s+["'](?:hono|@dapplelight\/signet-server[^"']*)["']/.test(src)
     // A Bun or Node entry runs with its env already loaded; that is where module-scope reads belong.
     const processEntry =
-      /Bun\.serve\(|@hono\/node-server|\/\/\/\s*<reference types="bun"\s*\/>/.test(src)
+      /Bun\.serve\(|@hono\/node-server|from\s+["']node:http["']|\/\/\/\s*<reference types="bun"\s*\/>/.test(
+        src,
+      )
     if (!server || processEntry) continue
     for (const at of moduleScopeEnvReads(src))
       findings.push({
