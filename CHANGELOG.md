@@ -5,6 +5,39 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-server: MCP for apps inside agents
+
+All additive; existing `createMcpServer` / `mountMcp` calls behave as before.
+
+- **Per-user lists.** `tools`, `resources` and `prompts` may be
+  `(caller) => list` (caller: Hono `c` and verified `token`), resolved per
+  request by the new `resolveMcpServer` (which `mcpHandler` now uses). A
+  function list advertises `listChanged: true`; static lists keep `false`.
+- **list_changed.** `createMcpChanges()` plus `mountMcp({ changes })` delivers
+  `notifications/{tools,prompts,resources}/list_changed` to 2026-07-28
+  `subscriptions/listen` streams, to every listener or one principal. In-process;
+  `McpChanges` is a four-method interface for your own pub/sub.
+- **Plain tool objects.** `tools` accepts `{ name, description, inputSchema, run }`
+  (`PlainTool`), where `inputSchema` is JSON Schema (validated by the SDK's
+  `fromJsonSchema`) or a zod object. `toMcpTool` converts one.
+- **Routes as tools.** `routesAsTools(app, routes)` exposes listed Hono routes
+  as tools, called in-process through `app.request` with the caller's
+  `authorization` and `cookie` headers. GET/PUT/DELETE get annotation defaults.
+- **Approval.** `requireApproval(ctx, { summary, details, args })` returns
+  undefined when approved, else a result to return: the pending elicitation,
+  `APPROVAL_DECLINED`, or `APPROVAL_REQUIRED` (structured, nothing done) for a
+  client without elicitation.
+- **Guardrails.** Per-tool `rateLimit` (any `RateLimitStore`, per principal),
+  `timeoutMs` (answers `TIMEOUT`, aborts `ctx.signal`), and `onToolCall` with
+  name, principal, actor (`client_id`/`azp`, RFC 8693 `act`), duration and
+  ok / error code. `principal(caller)` overrides the default (`token.claims.sub`).
+- **Client.** New `@dapplelight/signet-server/mcp/client`: `createMcpClient({ url, token })`
+  lists and calls a remote server's tools over streamable HTTP, 2025-11-25 or
+  2026-07-28, fetch only.
+- **signet-lib.** `ERROR_CODES` and `DEFAULT_ERROR_COPY` gain `TIMEOUT`,
+  `APPROVAL_REQUIRED` and `APPROVAL_DECLINED`, the codes these tools emit. A
+  copy table that spreads `DEFAULT_ERROR_COPY` needs no change.
+
 ### signet-server: portability adapters
 
 - New `@dapplelight/signet-server/adapters` with `KeyValue`, `Queue<T>`,

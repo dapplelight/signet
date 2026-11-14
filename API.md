@@ -72,8 +72,9 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/http` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus, … | re-exports errors, validate |
 | `@dapplelight/signet-server/http/errors` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus | Server half of the error envelope |
 | `@dapplelight/signet-server/http/validate` | parseBody, parseQuery, parseParams | Zod request validation |
-| `@dapplelight/signet-server/mcp` | toolResult, defineTool, createMcpServer, ToolAnnotations, ToolContext, CallToolResult, … | re-exports server |
-| `@dapplelight/signet-server/mcp/hono` | mcpHandler, mountMcp, McpHandlerOptions | Serve MCP over streamable HTTP from a Hono route |
+| `@dapplelight/signet-server/mcp` | toolResult, toMcpTool, defineTool, createMcpServer, resolveMcpServer, ToolAnnotations, … | re-exports server |
+| `@dapplelight/signet-server/mcp/client` | McpClientError, createMcpClient, McpClientOptions, McpToolInfo, McpCallResult, McpClient | Call a remote MCP server's tools over streamable HTTP with a bearer token: list tools, call one, get a typed result |
+| `@dapplelight/signet-server/mcp/hono` | createMcpChanges, mcpHandler, mountMcp, McpChanges, McpHandlerOptions | Serve MCP over streamable HTTP from a Hono route |
 | `@dapplelight/signet-server/middleware` | allowedOrigins, corsMiddleware, CorsOptions, csrfMiddleware, CsrfOptions, memoryStore, … | re-exports cors, csrf, rate-limit, request-id, secure-headers |
 | `@dapplelight/signet-server/middleware/cors` | allowedOrigins, corsMiddleware, CorsOptions | CORS |
 | `@dapplelight/signet-server/middleware/csrf` | csrfMiddleware, CsrfOptions | CSRF guard for cookie-authenticated APIs |

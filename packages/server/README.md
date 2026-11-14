@@ -677,7 +677,7 @@ const prompts = [
   unexpected. `onError` hears the last case with `meta.kind` set to "resource"
   or "prompt". `errorResult` is for tools only.
 - The resources and prompts capabilities are declared only when there are
-  some, with `listChanged: false`, like tools.
+  some, with `listChanged` as for tools.
 
 **Confirm before a destructive action, and report progress.** Plain
 functions a handler calls with its `ToolContext` — no new registration shape:
@@ -743,6 +743,150 @@ endpoint 2026-07-28 only (a 2025 client gets `-32022`), `responseMode: "sse"`
 always streams, and `maxRequestBodySize` / `keepAliveMs` / `onerror` are the
 SDK's.
 
+### Apps inside agents
+
+Everything below is opt-in and composes with the above.
+
+**Per-user tools.** `tools`, `resources` and `prompts` take a function of the
+caller (`{ c, token }`), resolved per request. A function list advertises
+`listChanged: true`.
+
+```ts
+mountMcp(app, "/mcp", {
+  name, version, middleware: [requireToken({ verifier, resourceMetadataUrl })],
+  tools: async ({ token }) => (await isAdmin(token!.claims.sub) ? [...base, ...admin] : base),
+})
+```
+
+A tool left out of a caller's list is not callable by them either: the server
+is built from that list. For stdio, `serveStdio(() => resolveMcpServer({...}))`.
+
+**list_changed.** Create one notifier at module scope and pass it as `changes`;
+call it when someone's tools change:
+
+```ts
+const changes = createMcpChanges() // from /mcp/hono
+mountMcp(app, "/mcp", { name, version, tools: toolsFor, changes })
+changes.toolsChanged(userId) // that user's listen streams; no argument = everyone
+```
+
+2026-07-28 clients hear `notifications/tools/list_changed` on their
+`subscriptions/listen` stream (the SDK serves it; streams are keyed by
+`principal`, default the token's `sub`). 2025-era clients over stateless HTTP
+have no stream and pick the change up on their next `tools/list`.
+`createMcpChanges` is in-process: where listen streams and publishers live in
+different isolates (Workers across POPs), implement `McpChanges` (four
+methods) over a Durable Object or Redis.
+
+**Plain tool objects.** Any object shaped `{ name, description, inputSchema, run }`
+goes straight into `tools`, beside `defineTool`s. `inputSchema` is JSON Schema
+(validated by the SDK before `run`) or a zod object; `annotations`, `scopes`,
+`rateLimit`, `timeoutMs` and `outputSchema` work as on `defineTool`. This is
+the shape another package's `agentTools(...)` returns, so it plugs in with no glue:
+
+```ts
+const add = {
+  name: "add", description: "Add two numbers",
+  inputSchema: { type: "object", properties: { a: { type: "number" }, b: { type: "number" } }, required: ["a", "b"] },
+  run: ({ a, b }: { a: number; b: number }, ctx: ToolContext) => ({ sum: a + b }),
+}
+createMcpServer({ name, version, tools: [add, ...agentTools(db), getOrder] })
+```
+
+**Routes as tools.** Expose chosen routes — never all of them — as tools that
+call the route in-process with the caller's `authorization` and `cookie`, so
+the route's own auth and validation decide:
+
+```ts
+const tools = routesAsTools(app, [
+  { name: "get_order", description: "Read an order", method: "GET", path: "/api/orders/:id",
+    input: z.object({ id: z.string() }) },
+  { name: "refund_order", description: "Refund an order", method: "POST", path: "/api/orders/:id/refund",
+    input: z.object({ id: z.string(), amount: z.number() }) },
+])
+```
+
+Path parameters come from the input; the rest is the query string (GET,
+DELETE) or a JSON body. The route's JSON is the result; a non-2xx is an error
+result with the envelope's `code`. GET defaults to `readOnlyHint`, PUT to
+`idempotentHint`, DELETE to `destructiveHint` + `idempotentHint`; `annotations`
+overrides.
+
+**Approval for risky actions.** `requireApproval` is `confirm` shaped for a
+gate: undefined means approved, anything else is returned as-is.
+
+```ts
+handler: async (input, ctx) => {
+  const gate = await requireApproval(ctx, { summary: `Refund ${input.amount} to ${input.id}`,
+    details: { order: input.id, amount: input.amount }, args: input })
+  if (gate) return gate
+  await refund(input.id, input.amount)
+  return "Refunded."
+}
+```
+
+With elicitation the person is asked (and with `confirm.key` the answer is
+bound to `args`). A no is `APPROVAL_DECLINED`. A client without elicitation
+gets `APPROVAL_REQUIRED` with `structuredContent.approval: { summary, details }`
+and nothing is done: the tool never acts on an approval it could not ask for.
+
+**Annotations.** `readOnlyHint`, `destructiveHint`, `idempotentHint` and
+`openWorldHint` are hints to the client, not enforcement. Set them honestly —
+clients use them to decide when to ask the person — and treat them as a floor:
+a `destructiveHint` tool that moves money or deletes data should still call
+`requireApproval`.
+
+**Guardrails.** Per-tool rate limits (per principal, any `RateLimitStore`), a
+timeout, and one hook for every call:
+
+```ts
+mountMcp(app, "/mcp", {
+  name, version, tools,
+  rateLimit: { store: upstashRateLimitStore(...) }, // default: per-isolate memory
+  timeoutMs: 10_000,                                // a tool's own timeoutMs overrides
+  onToolCall: ({ tool, principal, actor, durationMs, ok, code }) =>
+    audit.write({ tool, principal, client: actor?.clientId, durationMs, ok, code }),
+})
+defineTool({ name: "send_invoice", rateLimit: { max: 5, windowSeconds: 3600 }, ... })
+```
+
+Over the limit is `RATE_LIMITED`, a timeout is `TIMEOUT` (and `ctx.signal`
+aborts), and both reach `onToolCall` with their code. `actor` is the token's
+`client_id` (or `azp`) and RFC 8693 `act` claim: which agent acted for the user.
+`principal(caller)` sets the key when auth is not a bearer token.
+
+**Calling another MCP server.** `@dapplelight/signet-server/mcp/client`,
+fetch only:
+
+```ts
+import { createMcpClient } from "@dapplelight/signet-server/mcp/client"
+
+const remote = createMcpClient({ url: "https://tools.example.com/mcp", token: () => getToken() })
+const tools = await remote.listTools()
+const r = await remote.callTool<{ total: number }>("get_report", { month: "2026-10" })
+if (!r.isError) r.structuredContent?.total
+```
+
+It speaks 2025-11-25 by default (`era: "modern"` for a 2026-07-28-only
+server), throws `McpClientError` for JSON-RPC and HTTP failures, and returns
+`isError` results rather than throwing. It declares no capabilities, so it is
+never asked for input.
+
+#### Notes for agents using this toolkit
+
+- One module-scope tools array (or one `(caller) => tools` function) feeds HTTP
+  and stdio. Do not build tools inside a handler.
+- Per-user means a function list; a static list is the same for everyone.
+- Anything that writes, spends or deletes: `destructiveHint: true` and
+  `requireApproval`. Return the gate result unchanged.
+- Throw `ApiException(status, message, CODE)` for errors the model should see;
+  anything else is `INTERNAL_ERROR` and goes to `onError`.
+- Prefer `routesAsTools` over re-implementing a route's logic in a tool: the
+  route's auth stays the single check.
+- Plain tool objects need no import from this package; match `PlainTool`.
+- Never read env at module scope; take keys (`confirm.key`, stores) from `c.env`
+  in a factory or from config.
+
 ### stdio
 
 app-a's server is stdio. The same tools, through the SDK's `serveStdio`, which
@@ -779,9 +923,10 @@ session operations) get its 405, `server/discover` and the 2026 header checks
 are its own, and a 2026 POST without `Mcp-Method`, or with an `Mcp-Name` that
 disagrees with the body, is refused before a tool runs.
 
-The tool list is advertised as fixed (`tools: { listChanged: false }`), so a
-2026 client opens no `subscriptions/listen` stream waiting for a change that
-cannot come — and a Worker is not billed for holding one open.
+A static tool list is advertised as fixed (`tools: { listChanged: false }`), so
+a 2026 client opens no `subscriptions/listen` stream waiting for a change that
+cannot come — and a Worker is not billed for holding one open. A list given as
+a function advertises `listChanged: true` (see Apps inside agents).
 
 **Response shape.** A 2026 request is answered with one JSON body unless a tool
 sends progress first (`responseMode: "auto"`). A 2025 request is answered as a

@@ -32,6 +32,10 @@ export const ERROR_CODES = [
   "HTTP_ERROR",
   // analytics ingest
   "INVALID_PAYLOAD",
+  // MCP tools: a timed-out call, requireApproval
+  "TIMEOUT",
+  "APPROVAL_REQUIRED",
+  "APPROVAL_DECLINED",
   // oauth-rs (RFC 6750)
   "invalid_token",
   "insufficient_scope",
