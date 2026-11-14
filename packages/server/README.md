@@ -844,6 +844,148 @@ c.executionCtx.waitUntil(sentry.captureException(err, { job: "sync" }))
 (`zerodha-sync`, `monthly-reports`). The pattern is trivial and the content is
 entirely product-specific, so there is nothing general to share.
 
+## Notifications: templates, preferences, inbox, delivery tracking
+
+```ts
+import { createNotifier, defineTemplates, kvNotifyStore, notifyJob } from "@dapplelight/signet-server/notify/notifier"
+import { resendSender, msg91Sms, twilioSms, whatsappSender, pushSender, smsSenderFor, devSender } from "@dapplelight/signet-server/notify/channels"
+import { resendWebhook, twilioWebhook, metaWebhook, unsubscribeRoute } from "@dapplelight/signet-server/notify/webhooks"
+import { notifyTools } from "@dapplelight/signet-server/notify/tools"
+```
+
+One call, `notifier.notify(userId, "event.key", data, { channels?, priority?, idempotencyKey? })`,
+validates `data` against the template's zod schema, then for each channel the
+template has: checks preferences, suppression, WhatsApp opt-in, quiet hours and
+the per-user rate limit, renders the variant for the user's locale (English as
+the fallback), records a `queued` delivery and hands the send to `defer` (or a
+job). The request never waits on a provider. It returns what happened per
+channel: `queued`, or `skipped` with a reason (`PREFS`, `SUPPRESSED`,
+`NO_OPT_IN`, `QUIET_HOURS`, `RATE_LIMITED`, `NO_ADDRESS`, `NO_SENDER`, `DUPLICATE`).
+
+```ts
+const templates = defineTemplates({
+  "order.shipped": {
+    category: "orders",
+    data: z.object({ orderId: z.string(), url: z.string().url() }),
+    en: {
+      email: { subject: (d) => `Order ${d.orderId} shipped`, html: (d) => `<p>On its way.</p>`,
+               action: { label: () => "Track", url: (d) => d.url } },
+      sms: { text: (d) => `Order ${d.orderId} shipped`, dltTemplateId: "1107…", senderId: "ACMEIN",
+             providerTemplateId: "msg91-flow-id", params: (d) => ({ order: d.orderId }) },
+      whatsapp: { template: { name: "order_shipped", language: "en", params: (d) => [d.orderId] } },
+      push: { title: () => "Shipped", body: (d) => `Order ${d.orderId}`, url: (d) => d.url },
+      inApp: { title: () => "Shipped", body: (d) => `Order ${d.orderId}`, link: (d) => d.url },
+    },
+    locales: { hi: { inApp: { title: () => "भेज दिया", body: (d) => `ऑर्डर ${d.orderId}` } } },
+  },
+})
+
+const store = kvNotifyStore(kv)
+const notifier = createNotifier({
+  templates, store,
+  channels: { email: resendSender({ apiKey, from }), sms: msg91Sms({ authKey }),
+              whatsapp: whatsappSender({ accessToken, phoneNumberId, apiVersion: "v23.0", isWindowOpen: store.isWindowOpen }) },
+  recipients: async (userId) => db.contactFor(userId),   // { email, phone, locale, timezone }
+  defer: waitUntilDefer(c.executionCtx),
+  secret: env.NOTIFY_SECRET, unsubscribeUrl: "https://api.example.com/unsubscribe",
+  rateLimitStore: kvRateLimitStore(kv),
+})
+```
+
+**Sending.** Without a job queue, sends run in `defer` with a few in-process
+retries. Register `notifyJob(notifier, z)` with `createJobs` and every send
+becomes a job instead: the jobs backoff, dead-letter list and restarts apply,
+and quiet hours delay the send instead of skipping it. Each delivery id is a
+hash of user, event, idempotency key and channel, so a repeated `notify` with
+the same key sends nothing, and `deliver` leaves a delivery that is past
+`queued` alone, so a redelivered job does not send twice. Resend also gets the
+id as its `Idempotency-Key`.
+
+**Preferences** are per user × category × channel, absent meaning allowed.
+`security`, `otp` and `billing` are required (`required` option): they cannot be
+turned off, skip the rate limit and carry no unsubscribe link. Quiet hours
+(`{ start: "22:00", end: "08:00", timezone? }`, per user or a notifier default)
+are read in the user's zone, default Asia/Kolkata; `priority: "urgent"` bypasses
+them, and in-app messages ignore them.
+
+**One-click unsubscribe.** Non-required email carries `List-Unsubscribe` and
+`List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058) with a signed
+token. Mount `unsubscribeRoute(notifier)` at `unsubscribeUrl`: the POST turns
+that category's email off; a GET only shows a confirm button, because mail
+scanners prefetch links.
+
+**Email** is wrapped in a themed layout (`emailLayout`) whose colours are
+signet-tokens' editorial theme (`DEFAULT_EMAIL_THEME`; pass `emailTheme` for
+another). Plain text is derived from the HTML when a variant gives none.
+
+**Inbox.** `notifier.inbox.list(userId, { cursor, limit, archived })`,
+`unreadCount`, `markRead(ids)`, `markAllRead`, `archive(id)`. Polling only.
+
+**Delivery tracking.** Each send is a record (`queued`, `sent`, `delivered`,
+`opened`, `failed`, `bounced`, `skipped`) with a masked address and a reason
+code, never the body. Webhook handlers verify the provider's signature, then
+normalise events into `notifier.recordEvents`; a status never moves backwards.
+A hard bounce or complaint (Resend) or STOP (Twilio, WhatsApp) suppresses that
+address on that channel. Suppressions are keyed by a hash of the address.
+
+**India.** SMS to `+91` is refused without `dltTemplateId` and `senderId` on
+the template (TRAI DLT), before any request is made. WhatsApp sends need
+`notifier.setOptIn(userId, "whatsapp", { source })` first. Free text goes only
+while the user's 24 h service window is open (inbound messages through
+`metaWebhook` open it); otherwise the approved template is sent.
+
+**OTP.** `smsSenderFor(msg91Sms(...), { dltTemplateId, senderId, providerTemplateId, params })`
+is an auth `SmsSender`, so `requestPhoneOtp` sends through a real provider.
+
+**Data export and erasure.** `notifier.exportUser(userId)` returns prefs,
+opt-ins, inbox and delivery history; `notifier.deleteUser(userId)` erases them.
+Call both next to signet-db's `exportUser` / `deleteUser`; server does not
+depend on db.
+
+**Agent tools.** `notifyTools({ notifier, isStaff })`: `list_my_notifications`,
+`notification_prefs`, `update_prefs` for the signed-in user, and
+`send_notification` for staff only, through `requireApproval`.
+
+**Safety.** `onEvent` gets ids, channels, statuses and reason codes; bodies and
+codes are never logged, and a queued body is deleted once sent (or expires).
+`devSender(channel)` prints messages locally and throws in production and
+staging. Provider errors are classified by status (4xx permanent except 408 and
+429) and their response bodies are dropped, since they can echo the message.
+
+### Providers and their docs
+
+| Channel | Sender | Docs |
+|---|---|---|
+| Email | `resendSender` | https://resend.com/docs/api-reference/emails/send-email |
+| Email | `postmarkSender` | https://postmarkapp.com/developer/api/email-api |
+| SMS | `twilioSms` | https://www.twilio.com/docs/messaging/api/message-resource |
+| SMS | `msg91Sms` | https://control.msg91.com/apidoc/textsms/send-sms-flow.php |
+| WhatsApp | `whatsappSender` | https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/send-messages |
+| Push | `pushSender` | existing `webCryptoPushSender` (RFC 8291/8292) |
+| Telegram | `telegramSender` | https://core.telegram.org/bots/api#sendmessage |
+
+| Webhook | Scheme | Docs |
+|---|---|---|
+| `resendWebhook` | Svix HMAC-SHA256, 5 min tolerance | https://docs.svix.com/receiving/verifying-payloads/how-manual |
+| `twilioWebhook` | `X-Twilio-Signature`, HMAC-SHA1 | https://www.twilio.com/docs/usage/security |
+| `metaWebhook` | `X-Hub-Signature-256`, HMAC-SHA256 | https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/create-webhook-endpoint |
+
+### Not supported
+
+- **AWS SES.** Needs SigV4 request signing and SNS message verification for its
+  events; left out rather than half done.
+- **MSG91 delivery webhooks.** MSG91 documents no signature scheme, and an
+  unverified status endpoint lets anyone mark messages delivered or suppress
+  numbers. MSG91's newer docs also name the flow field `template_id` where the
+  API reference says `flow_id`; this follows the reference.
+- **Postmark webhooks.** Postmark documents basic auth and IP ranges, not a
+  signature.
+- **Twilio idempotency, Postmark idempotency.** Neither documents one, so a
+  retry after a network timeout can send twice.
+- **A SQL store.** `NotifyStore` is an interface; only the KeyValue store ships.
+  Its per-user lists are read-modify-write and capped (`maxItems`, default 200).
+- Campaigns, segments, digests and UI are out of scope.
+
 ## OAuth 2.1 resource server
 
 For making a product **agent-reachable**: an MCP server, or any API an agent
