@@ -97,6 +97,24 @@ a package at the version it had when the repository was opened to the public.
 - signet-mcp's scaffold index mirrors the default (cloudflare) target, and its
   env-at-module-scope check treats a `node:http` entry as a process entry.
 
+### Admin API from the schema
+
+- signet-db: new `./admin` subpath. `defineAdmin(schema, { authorize })`
+  gives list (cursor pages, allow-listed sort and typed filters, text search),
+  get, create, update, delete (soft where the table has `deletedAt`), bulk
+  delete, per-row actions and a `meta` description for admin UIs and agents.
+  Deny by default (`roles()` for admin/staff/readonly); encrypted and
+  secret-looking columns hidden; inputs validated with `toZod`; every write
+  through `audited()` with the caller as actor; the audit table is read-only
+  and its snapshots redacted. `handle()` serves it over HTTP, framework-free.
+- signet-db: `adminTools(admin, { db, ctx, approve })`, admin MCP tools from
+  the same definition; writes only after `approve` (signet-server's
+  `requireApproval`) says yes, audited as the agent.
+- signet-db: new error codes `FORBIDDEN`, `VALIDATION_FAILED`,
+  `METHOD_NOT_ALLOWED`, `BAD_CONFIG`; `AdminError` carries an HTTP status.
+- signet-server: new `./http/admin`, `adminRoutes(admin, { db, ctx })`, mounting
+  it on Hono with the standard error envelope.
+
 ### signet-payments 0.1.0 (new, public; first publish is manual, see PUBLISHING.md)
 
 - New `@dapplelight/signet-payments`: one canonical model (`Payment`, `Refund`,

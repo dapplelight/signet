@@ -54,6 +54,7 @@ export function sqliteSchema() {
     name: text("name").notNull(),
     phone: text("phone"),
     pinCode: text("pin_code"),
+    passwordHash: text("password_hash"),
   })
   return {
     notes,
@@ -85,6 +86,7 @@ export function pgSchema() {
     name: pgText("name").notNull(),
     phone: pgText("phone"),
     pinCode: pgText("pin_code"),
+    passwordHash: pgText("password_hash"),
   })
   return {
     notes,
