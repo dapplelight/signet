@@ -5,6 +5,30 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-server: jobs and storage
+
+- New `@dapplelight/signet-server/jobs`: `defineJob({ name, input, retry, timeoutSeconds, run })`
+  with `job.enqueue(input, { delaySeconds, key, actor })` (zod-checked at
+  enqueue), and `createJobs({ jobs, queue, store })` whose `handle(message)`
+  dispatches by name, aborts on timeout, retries with exponential or fixed
+  backoff by re-sending, and dead-letters after the last attempt
+  (`listDead`, `retryDead`). Idempotent keys over the `KeyValue`, or an
+  `idempotency` hook for signet-db's `withIdempotency`; `outboxMessage` and
+  `outboxQueue` for signet-db's outbox. `pause`/`resume`, `onJobRun`.
+- Schedules: `defineSchedule` with a 5-field UTC cron matcher (`parseCron`,
+  `cronMatches`), `jobs.runDueSchedules(now)`, `cloudflareScheduled`, `startScheduler`.
+- Runtimes: `cloudflareConsumer` (Queues batch, ack/retry), `qstashReceiver`
+  and `verifyQstashSignature` (Web Crypto HS256, current and next key),
+  `inProcessJobs` (memoryQueue) and `startWorker` (polling).
+- `jobTools(jobs)`: plain MCP tools `list_failed_jobs`, `retry_job` (behind
+  `requireApproval`), `pause_job`, `resume_job`.
+- New `@dapplelight/signet-server/storage`: `createUploads({ store, maxBytes, allowedTypes })`
+  with `presignUpload` (checks before signing), `presignDownload`,
+  `confirmUpload` (re-checks what landed, deletes a bad file, runs
+  `afterUpload`), `acceptUpload` (streams through the server, stops at the
+  limit, sniffs PNG/JPEG/GIF/WebP/PDF magic bytes) and `remove`. Per-user key
+  prefixes by default; `sniffType`, `UploadError`.
+
 ### signet-db 0.1.0 (new, private: not published yet)
 
 - New `@dapplelight/signet-db`: Drizzle helpers with a driver-free core and

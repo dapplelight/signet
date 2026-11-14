@@ -30,6 +30,8 @@ package ships all three rather than forcing them together.
 | `@dapplelight/signet-server/auth/better-auth` | none | Opinionated Better Auth options object. |
 | `@dapplelight/signet-server/auth/hono` | `hono` (optional peer) | `requireAuth`, `requireSession`. |
 | `@dapplelight/signet-server/mcp` | `@modelcontextprotocol/server` ^2.1, `zod` >=4.2 (optional peers; not `hono`) | `defineTool`, `createMcpServer`; stdio via the SDK's `serveStdio`. See [MCP servers](#mcp-servers). |
+| `@dapplelight/signet-server/jobs` | `zod` (optional peer) | `defineJob`, `createJobs`, retries, schedules, Cloudflare/QStash/Node runtimes. See [Jobs](#jobs). |
+| `@dapplelight/signet-server/storage` | none | `createUploads`: checked presigned or streamed uploads. See [Storage](#storage). |
 | `@dapplelight/signet-server/mcp/hono` | the above, plus `hono` | `mountMcp`, `mcpHandler`: streamable HTTP through the SDK's `createMcpHandler`, 2026-07-28 and 2025 clients, per request. |
 
 Everything but the Hono middleware is dependency-free Web Crypto.
@@ -297,6 +299,132 @@ approximate; use the Durable Object store for an exact count there.
 `@netlify/blobs` SDK, not as an HTTP API, so there is nothing stable to call
 without that dependency. On Netlify, use Upstash or Supabase for storage, and
 `waitUntilDefer(context)` for background work.
+
+## Jobs
+
+`@dapplelight/signet-server/jobs`: background work over any `Queue` (Cloudflare
+Queues, QStash, `memoryQueue`). Typed input checked at enqueue, retries with
+backoff, a timeout that aborts `ctx.signal`, a dead-letter list, pause/resume,
+idempotent keys and cron schedules. No dependency: the store is any
+`KeyValue`, and zod is the peer you already have.
+
+```ts
+const sendReceipt = defineJob({
+  name: "send-receipt",
+  input: z.object({ orderId: z.string() }),
+  retry: { attempts: 5, backoff: "exponential", baseSeconds: 30 },
+  timeoutSeconds: 20,
+  run: async ({ orderId }, ctx) => mailer.receipt(orderId, { signal: ctx.signal }),
+})
+const nightly = defineSchedule({ name: "nightly", cron: "30 2 * * *", job: cleanup, input: {} })
+
+// per request / per isolate, from env
+const jobs = createJobs({ jobs: [sendReceipt, cleanup], schedules: [nightly], queue, store })
+await sendReceipt.enqueue({ orderId }, { key: orderId }) // once per key
+```
+
+- **Retries.** A failed run is re-sent with `attempt + 1` after
+  `baseSeconds × 2^(attempt-1)` (or fixed), capped at 12 h. After the last
+  attempt it goes to the dead-letter list with its input and error:
+  `jobs.listDead()`, `jobs.retryDead(id)`. Default 3 attempts, 10 s base.
+- **Idempotency.** `enqueue(input, { key })` sends once per key for
+  `keyTtlSeconds` (exact with a store that has `incr`). To dedupe the *run*
+  in your database instead, pass
+  `idempotency: (key, scope, fn) => withIdempotency(db, key, scope, fn)` from signet-db.
+- **Outbox.** Enqueue in the same write as the data change, then drain into the jobs queue:
+  ```ts
+  const m = jobs.outboxMessage(sendReceipt, { orderId })   // validated now
+  await db.batch([(tx) => tx.insert(orders).values(order), enqueue(db, m.topic, m.payload)])
+  await drainOutbox(db, jobs.outboxQueue)                   // dedupes on the outbox row id
+  ```
+- **Schedules.** 5-field UTC cron (lists, ranges, steps; dom/dow either-matches
+  like Vixie cron). `jobs.runDueSchedules(now)` enqueues each due schedule
+  keyed by minute, so a double tick runs it once.
+- **Pause.** `jobs.pause(name)`: queued runs come back every `pausedDelaySeconds` until `resume`.
+- **`onJobRun`**: name, id, attempt, duration, ok, error code, actor
+  (`{ type: "user" | "agent" | "system", id }`, same as signet-db's audit actor;
+  pass `actor` at enqueue, default system).
+- **Agent tools.** `jobTools(jobs)` returns plain MCP tools: `list_failed_jobs`,
+  `retry_job` (gated by `requireApproval`; `retryWithoutApproval` to skip),
+  `pause_job`, `resume_job`.
+
+Delivery is at least once. Make `run` safe to repeat, or key it.
+
+### Wiring: Cloudflare (Queues + KV + cron trigger)
+
+```ts
+// wrangler: [[queues.producers]] binding = "JOBS"; [[queues.consumers]] queue = "jobs";
+//           [triggers] crons = ["* * * * *"]
+const make = (env: Env) =>
+  createJobs({ jobs: [sendReceipt, cleanup], schedules: [nightly], queue: env.JOBS, store: cloudflareKv(env.KV) })
+
+export default {
+  fetch: app.fetch,
+  queue: (batch: MessageBatch, env: Env) => cloudflareConsumer(make(env))(batch),
+  scheduled: (event: ScheduledEvent, env: Env, ctx: ExecutionContext) => cloudflareScheduled(make(env))(event, env, ctx),
+}
+```
+
+### Wiring: Upstash (QStash + Redis), any fetch runtime
+
+```ts
+const make = (env: Env) =>
+  createJobs({
+    jobs: [sendReceipt],
+    queue: qstashQueue({ token: env.QSTASH_TOKEN, destinationUrl: "https://app.example/api/jobs" }),
+    store: upstashKv({ url: env.UPSTASH_URL, token: env.UPSTASH_TOKEN }),
+  })
+
+app.post("/api/jobs", (c) =>
+  qstashReceiver(make(c.env), {
+    keys: { currentSigningKey: c.env.QSTASH_CURRENT_SIGNING_KEY, nextSigningKey: c.env.QSTASH_NEXT_SIGNING_KEY },
+    url: "https://app.example/api/jobs", // what QStash signed, if a proxy rewrites request.url
+  })(c.req.raw),
+)
+```
+
+The receiver verifies `Upstash-Signature` (HS256 JWT, current or next key,
+issuer, expiry, body SHA-256) with Web Crypto and answers 401 on a bad one.
+
+### Wiring: Docker / Node / Bun, one container
+
+```ts
+const jobs = inProcessJobs({ jobs: [sendReceipt], schedules: [nightly], store: upstashKv(cfg) })
+const stop = startScheduler(jobs)
+process.on("SIGTERM", stop)
+```
+
+`inProcessJobs` runs on `memoryQueue`: pending runs die with the process.
+For more than one container, use QStash as above, or `startWorker(jobs, { receive, ack })`
+over a queue you own.
+
+## Storage
+
+`@dapplelight/signet-server/storage`: uploads over any `BlobStore`, checked
+before they land. Size and type are validated before a signed PUT URL is
+issued; `confirmUpload` re-checks what actually arrived (a signed URL cannot
+enforce either) and deletes it if it fails. Stores that cannot presign
+(`fsBlobStore`, an R2 binding) throw `PRESIGN_UNSUPPORTED`: use
+`acceptUpload(ctx, request)`, which streams the body through the server, stops
+at `maxBytes`, and sniffs magic bytes (PNG, JPEG, GIF, WebP, PDF) so a renamed
+file is rejected.
+
+```ts
+const uploads = createUploads({
+  store: supabaseBlobStore({ url, serviceRoleKey, bucket: "avatars" }),
+  maxBytes: 5_000_000,
+  allowedTypes: ["image/png", "image/jpeg", "image/webp"],
+  afterUpload: (u) => makeThumbnail.enqueue({ key: u.key }),
+})
+const { url: putUrl, key } = await uploads.presignUpload({ userId }, { name, type, size })
+// browser: fetch(putUrl, { method: "PUT", body: file, headers: { "Content-Type": type } })
+await uploads.confirmUpload({ userId }, key)
+```
+
+Keys are `<userId>/<uuid>-<safe name>` by default and pass `assertBlobKey`;
+every method refuses a key outside the caller's prefix (`canAccess` to
+change that). Errors are `UploadError` with a `code` and the HTTP `status`
+to answer with (413 too large, 415 type, 403 not yours, 501 no presign).
 
 ## Logging
 
@@ -886,6 +1014,11 @@ never asked for input.
 - Plain tool objects need no import from this package; match `PlainTool`.
 - Never read env at module scope; take keys (`confirm.key`, stores) from `c.env`
   in a factory or from config.
+- Background work goes through `defineJob` (`./jobs`), not a bare `waitUntil`:
+  it retries and lands in a dead-letter list. Give `jobTools(jobs)` to agents;
+  `retry_job` asks for approval.
+- File uploads go through `createUploads` (`./storage`), never a raw
+  `BlobStore.put` with a client-chosen key.
 
 ### stdio
 

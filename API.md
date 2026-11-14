@@ -88,6 +88,7 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/http` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus, … | re-exports errors, validate |
 | `@dapplelight/signet-server/http/errors` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus | Server half of the error envelope |
 | `@dapplelight/signet-server/http/validate` | parseBody, parseQuery, parseParams | Zod request validation |
+| `@dapplelight/signet-server/jobs` | parseCron, cronMatches, defineSchedule, runDueSchedules, cloudflareScheduled, startScheduler, … | re-exports cron, jobs, runtimes, tools |
 | `@dapplelight/signet-server/mcp` | toolResult, toMcpTool, defineTool, createMcpServer, resolveMcpServer, ToolAnnotations, … | re-exports server |
 | `@dapplelight/signet-server/mcp/client` | McpClientError, createMcpClient, McpClientOptions, McpToolInfo, McpCallResult, McpClient | Call a remote MCP server's tools over streamable HTTP with a bearer token: list tools, call one, get a typed result |
 | `@dapplelight/signet-server/mcp/hono` | createMcpChanges, mcpHandler, mountMcp, McpChanges, McpHandlerOptions | Serve MCP over streamable HTTP from a Hono route |
@@ -109,6 +110,7 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/oauth-rs/verify` | TokenError, scopesOf, createTokenVerifier, Claims, VerifiedToken, VerifierOptions, … | OAuth 2.1 access token verification for a RESOURCE SERVER |
 | `@dapplelight/signet-server/observability/logger` | LEVELS, createLogger, redactFields, LevelName, LevelSetting, LogFields, … | Structured JSON logger with pino's call shape and redaction by default |
 | `@dapplelight/signet-server/observability/sentry` | redactSecrets, parseStack, createSentry, SentryConfig, StackFrame, SentryRequest, … | Sentry reporting over the Envelope HTTP API |
+| `@dapplelight/signet-server/storage` | UploadError, sniffType, assertContentMatches, createUploads, UploadContext, UploadFile, … | File uploads over any `BlobStore`: size and type checked before a signed PUT URL is issued, or streamed through the server with magic-byte sniffing |
 
 ## @dapplelight/signet-tokens
 
