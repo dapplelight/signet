@@ -127,7 +127,10 @@ export function paddle(config: PaddleConfig): PaymentGateway {
   return defineGateway(
     G,
     {
-      methods: ["card", "wallet"],
+      // Shown by Paddle Checkout; limit them client-side with Paddle.js allowedPaymentMethods.
+      // https://developer.paddle.com/concepts/payment-methods/apple-pay.md
+      // https://developer.paddle.com/concepts/payment-methods/google-pay.md
+      methods: ["card", "wallet", "applepay", "googlepay"],
       features: [
         "refunds",
         "partialRefunds",

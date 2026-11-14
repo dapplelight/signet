@@ -126,7 +126,10 @@ export function payu(config: PayUConfig): PaymentGateway {
   return defineGateway(
     G,
     {
-      methods: ["upi", "card", "netbanking", "wallet"],
+      // Apple Pay on PayU Hosted Checkout. Not forced with pg/bankcode: the hosted page
+      // samples send bankcode=APPLEPAY, the merchant-hosted table says CCAP.
+      // https://docs.payu.in/docs/apple-pay-integration-payu-hosted-checkout.md
+      methods: ["upi", "card", "netbanking", "wallet", "applepay"],
       features: ["capture", "refunds", "partialRefunds", "settlements", "webhooks"],
       currencies: ["INR"],
     },
