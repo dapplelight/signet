@@ -478,17 +478,22 @@ function build<C extends AdminContext>(
   const pickVisible = (m: Model<C>, row: Rec): Rec =>
     Object.fromEntries(m.visible.filter((k) => has(row, k)).map((k) => [k, row[k]]))
   // Audit snapshots hold whole rows, hidden columns included: show only what
-  // the audited table's own admin view shows, and nothing for a table left out.
-  const snapshot = (table: unknown, v: unknown) => {
+  // the audited table's own admin view shows, and nothing for a table left out
+  // or one this caller may not `get` that row from.
+  const snapshot = async (ctx: C, table: unknown, v: unknown) => {
     if (v === null || typeof v !== "object" || table === "*") return v // "*": deleteUser's counts
     const target = typeof table === "string" ? models.get(table) : undefined
-    return target ? pickVisible(target, v as Rec) : null
+    if (!target) return null
+    const row = pickVisible(target, v as Rec)
+    return (await allowed(ctx, { table: target.name, op: "get", row })) ? row : null
   }
-  const strip = (m: Model<C>, row: Rec): Rec => {
-    const out = pickVisible(m, row)
+  const strip = (m: Model<C>, row: Rec): Rec => pickVisible(m, row)
+  // strip, plus redacted snapshots when `m` is an audit table (list and get only).
+  const view = async (ctx: C, m: Model<C>, row: Rec): Promise<Rec> => {
+    const out = strip(m, row)
     if (!m.audit) return out
-    if (has(out, "before")) out.before = snapshot(row.tableName, row.before)
-    if (has(out, "after")) out.after = snapshot(row.tableName, row.after)
+    if (has(out, "before")) out.before = await snapshot(ctx, row.tableName, row.before)
+    if (has(out, "after")) out.after = await snapshot(ctx, row.tableName, row.after)
     return out
   }
 
@@ -533,6 +538,12 @@ function build<C extends AdminContext>(
 
   const writer = (db: SignetDb<unknown>, ctx: C) => audited(db, { actor: ctx.actor })
 
+  // pg: uuid, enum and string-mode timestamp columns have no ilike, so compare as text.
+  const likeCond = (col: Column, dialect: string, pattern: string) =>
+    dialect === "pg"
+      ? sql`${col}::text ilike ${pattern} escape '\\'`
+      : sql`${col} like ${pattern} escape '\\'`
+
   const filterCond = (m: Model<C>, filter: unknown, dialect: string): SQL[] => {
     if (filter === undefined) return []
     if (typeof filter !== "object" || filter === null || Array.isArray(filter))
@@ -557,8 +568,7 @@ function build<C extends AdminContext>(
             throw bad(path, "Expected a value; use isNull for nulls.")
           return validate(s, raw, path)
         }
-        const like = (pattern: string) =>
-          sql`${col} ${sql.raw(dialect === "pg" ? "ilike" : "like")} ${pattern} escape '\\'`
+        const like = (pattern: string) => likeCond(col, dialect, pattern)
         switch (op as FilterOp) {
           case "eq":
             conds.push(eq(col, v(value)))
@@ -628,10 +638,7 @@ function build<C extends AdminContext>(
     ]
     if (qv.q && m.searchable.length) {
       const pattern = `%${escapeLike(qv.q)}%`
-      const op = sql.raw(db.dialect === "pg" ? "ilike" : "like")
-      conds.push(
-        or(...m.searchable.map((k) => sql`${m.cols[k] as Column} ${op} ${pattern} escape '\\'`)),
-      )
+      conds.push(or(...m.searchable.map((k) => likeCond(m.cols[k] as Column, db.dialect, pattern))))
     }
     const keys = [sort, ...m.pk.filter((k) => k !== sort)]
     if (qv.cursor !== undefined) {
@@ -669,7 +676,7 @@ function build<C extends AdminContext>(
     const last = page[page.length - 1]
     const out: Rec[] = []
     for (const r of page) {
-      const row = strip(m, r)
+      const row = await view(ctx, m, r)
       if (await allowed(ctx, { table: m.name, op: "list", row })) out.push(row)
     }
     return {
@@ -688,7 +695,7 @@ function build<C extends AdminContext>(
   ) {
     const m = find(table)
     await gate(ctx, m, "get")
-    const row = strip(m, await one(db, m, id, options.withDeleted))
+    const row = await view(ctx, m, await one(db, m, id, options.withDeleted))
     await gate(ctx, m, "get", { row })
     return row
   }

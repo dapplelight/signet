@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { eq } from "drizzle-orm"
+import { pgEnum, pgTable, text as pgText, uuid } from "drizzle-orm/pg-core"
 import {
   type AdminAction,
   type AdminContext,
@@ -282,6 +283,36 @@ describe.each(backends)("$name", (backend) => {
     expect(await titles({ q: "_" })).toEqual([])
   })
 
+  test.if(backend.name.startsWith("postgres"))(
+    "search and contains work on uuid and enum columns",
+    async () => {
+      const { db, S, exec } = await setup()
+      await exec("drop table if exists events")
+      await exec("drop type if exists mood")
+      await exec("create type mood as enum ('happy', 'sad')")
+      await exec(
+        "create table events (id uuid primary key, mood mood not null, title text not null)",
+      )
+      await exec(
+        "insert into events values ('0b1f3c5e-8a2d-4e6f-9a1b-2c3d4e5f6a7b', 'sad', 'Rain'), ('7a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d', 'happy', 'Sun')",
+      )
+      const events = pgTable("events", {
+        id: uuid("id").primaryKey(),
+        mood: pgEnum("mood", ["happy", "sad"])("mood").notNull(),
+        title: pgText("title").notNull(),
+      })
+      const admin = defineAdmin(
+        { ...S, events },
+        { authorize: allowAll, tables: { outbox: false, idempotency_keys: false } },
+      )
+      const ids = async (query: object) =>
+        ((await admin.list(db, ctx(), "events", query)).rows as Row[]).map((r) => r.title).sort()
+      expect(await ids({ q: "0b1f" })).toEqual(["Rain"])
+      expect(await ids({ q: "HAPP" })).toEqual(["Sun"])
+      expect(await ids({ filter: { mood: { startsWith: "sa" } } })).toEqual(["Rain"])
+    },
+  )
+
   test("writes are audited with the actor; audit snapshots are redacted", async () => {
     const { db, S } = await setup()
     const admin = make(S)
@@ -306,6 +337,17 @@ describe.each(backends)("$name", (backend) => {
       405,
       "METHOD_NOT_ALLOWED",
     ])
+
+    // Snapshots follow authorize: a caller who may read audit_log but not get
+    // users rows sees no users data inside before/after.
+    const noUsers = make(S, (_c, { table, op }) => !(table === "users" && op === "get"))
+    const hidden = (await noUsers.list(db, ctx(), "audit_log", { sort: "at", order: "asc" }))
+      .rows as Row[]
+    expect(hidden[1]!.tableName).toBe("users")
+    expect(hidden[1]!.before).toBeNull()
+    expect(hidden[1]!.after).toBeNull()
+    expect(hidden[2]!.tableName).toBe("tags")
+    expect(hidden[2]!.after.label).toBe("x")
 
     // Bulk delete is all-or-nothing under authorize.
     const [a, b] = (await db.orm
