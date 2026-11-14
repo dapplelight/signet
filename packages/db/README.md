@@ -8,7 +8,7 @@ The core never imports a driver. Thin entry points connect it to one:
 
 | Import | What |
 |---|---|
-| `@dapplelight/signet-db` | Core: `scoped`, `audited`, `createCipher`, money, `newId`, `seed`, `exportUser`, `deleteUser`, `describeSchema`, `defineQuery`, `fromDrizzle` |
+| `@dapplelight/signet-db` | Core: `scoped`, `audited`, `createCipher`, money, `newId`, `seed`, `exportUser`, `deleteUser`, `nextSequence`, `describeSchema`, `defineQuery`, `fromDrizzle` |
 | `@dapplelight/signet-db/columns/sqlite` | Column helpers for SQLite and D1 tables |
 | `@dapplelight/signet-db/columns/pg` | The same helpers for Postgres tables |
 | `@dapplelight/signet-db/d1` | `createDb(env.DB)`, Cloudflare D1 |
@@ -20,6 +20,7 @@ The core never imports a driver. Thin entry points connect it to one:
 | `@dapplelight/signet-db/entitlements` | `definePlans`, `createEntitlements`, billing events, usage limits, `entitlementTools` |
 | `@dapplelight/signet-db/flags` | `defineFlags`, `evaluateFlag`, `createFlags` |
 | `@dapplelight/signet-db/admin` | `defineAdmin(schema, { authorize })`, an admin API and admin MCP tools (needs zod) |
+| `@dapplelight/signet-db/privacy` | `createPrivacy`: DPDP consent records, withdrawal, export and erasure requests; `privacyTools` |
 | `@dapplelight/signet-db/growth` | `createGrowth`: waitlist, invites, referrals, onboarding, changelog, feedback; `growthTools` |
 
 Peers: `drizzle-orm` ^0.45, `@dapplelight/signet-lib` ^0.3, `postgres` only
@@ -584,6 +585,67 @@ For an operator agent. Read: `waitlist_stats`, `list_waitlist`,
 `list_feedback`, `referral_stats`, `list_invites`. Write (with
 `allowWrites`): `create_invite`, `revoke_invite`, `set_feedback_status`, each
 gated on `approve` like the entitlement tools.
+
+## DPDP: consent and data requests
+
+```ts
+import { privacyTables } from "@dapplelight/signet-db/columns/sqlite" // or /columns/pg
+import { createPrivacy } from "@dapplelight/signet-db/privacy"
+
+export const { consents, dataRequests } = privacyTables()
+
+const privacy = createPrivacy(db, {
+  tables: { consents, dataRequests },
+  userTables: [notes, tags, [users, users.id]], // what export and erasure cover, children first
+  respondWithinMs: 30 * 86_400_000,             // optional: sets dueAt; no default
+})
+
+await privacy.give(userId, "marketing-email", { noticeVersion: "2026-11-01", source: "signup" })
+await privacy.has(userId, "marketing-email", { noticeVersion: "2026-11-01" })
+await privacy.withdraw(userId, "marketing-email") // or withdraw(userId) for every purpose
+await privacy.history(userId)                      // every record, withdrawn ones included
+
+const req = await privacy.requestErasure(userId)   // or requestExport; one open request per kind
+await privacy.overdue()                            // pending past dueAt
+await privacy.fulfil(req.id, { actor: { type: "user", id: staffId } })
+await privacy.reject(req.id, { actor, reason: "Could not verify identity" })
+```
+
+Consent records are append-only: each says which purpose, under which
+notice version, how, and when it was given and withdrawn. Giving again under
+the same notice returns the record in force; under a new notice it adds one.
+`fulfil` on an export returns the data from `exportUser` (send it to the
+person; it is not stored). On an erasure it runs `deleteUser` over
+`userTables` (audited when the db has an audit table), withdraws every
+consent, and stores the row counts. Consent and request records are kept as
+the proof of what happened; whether and when to purge them, the response
+deadline and the notice text are the app's decisions, not this module's.
+This is record-keeping for the DPDP Act, not legal advice.
+
+### Tools for agents
+
+```ts
+import { privacyTools } from "@dapplelight/signet-db/privacy"
+
+const tools = privacyTools({ privacy, subject: userId, approve })
+```
+
+For an agent acting for one person. Read: `list_consents`,
+`list_data_requests`. Write: `withdraw_consent`, `request_data_export`,
+`request_erasure`, always gated on `approve`. Agents only open requests;
+`fulfil` is a staff action in code.
+
+## Sequences
+
+```ts
+import { sequences } from "@dapplelight/signet-db/columns/sqlite"
+import { nextSequence } from "@dapplelight/signet-db"
+
+await nextSequence(db, schema.sequences, "invoice:INV:2026-27") // 1, 2, 3, ...
+```
+
+One upsert per call, so concurrent callers never get the same value. A value
+taken by a request that then fails is skipped, not reused.
 
 ## Errors
 

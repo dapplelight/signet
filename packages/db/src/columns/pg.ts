@@ -1,8 +1,8 @@
 /**
  * Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`,
  * `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotencyKeys`,
- * `entitlementTables`, `flagOverrides` and `growthTables`
- * tables.
+ * `entitlementTables`, `flagOverrides`, `growthTables`, `privacyTables` and
+ * `sequences` tables.
  */
 
 import {
@@ -274,3 +274,55 @@ export const growthTables = (prefix = "") => ({
     createdAt: stamp("created_at"),
   }),
 })
+
+/**
+ * DPDP consent records and data-principal requests for `createPrivacy` from
+ * `@dapplelight/signet-db/privacy`. Destructure into the schema:
+ * `export const { consents, dataRequests } = privacyTables()`.
+ */
+export const privacyTables = (prefix = "") => ({
+  consents: pgTable(
+    `${prefix}consents`,
+    {
+      id: id(),
+      subject: text("subject").notNull(),
+      /** What the data is used for, e.g. "marketing-email". */
+      purpose: text("purpose").notNull(),
+      /** The notice the person saw when they agreed, e.g. "2026-11-01". */
+      noticeVersion: text("notice_version").notNull(),
+      /** How it was given, e.g. "signup-form", "settings". */
+      source: text("source"),
+      givenAt: tz("given_at").notNull(),
+      withdrawnAt: tz("withdrawn_at"),
+    },
+    (t) => [index(`${prefix}consents_subject`).on(t.subject, t.purpose)],
+  ),
+  dataRequests: pgTable(
+    `${prefix}data_requests`,
+    {
+      id: id(),
+      subject: text("subject").notNull(),
+      /** export | erasure */
+      kind: text("kind").notNull(),
+      /** pending | completed | rejected */
+      status: text("status").notNull().default("pending"),
+      requestedAt: tz("requested_at").notNull(),
+      dueAt: tz("due_at"),
+      closedAt: tz("closed_at"),
+      /** Who closed it. */
+      closedBy: text("closed_by"),
+      /** Why it was rejected, or a note. */
+      note: text("note"),
+      /** Erasure: row counts per table. Export data is returned, never stored. */
+      result: jsonb("result"),
+    },
+    (t) => [index(`${prefix}data_requests_subject`).on(t.subject)],
+  ),
+})
+
+/** Named counters for `nextSequence`, e.g. invoice numbers per financial year. */
+export const sequences = (name = "sequences") =>
+  pgTable(name, {
+    key: text("key").primaryKey(),
+    value: bigint("value", { mode: "number" }).notNull(),
+  })
