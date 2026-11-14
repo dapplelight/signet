@@ -6,6 +6,7 @@ import { constants, createHash, createHmac, generateKeyPairSync, privateDecrypt 
 import { cashfree } from "../src/gateways/cashfree"
 import { lemonsqueezy } from "../src/gateways/lemonsqueezy"
 import { paddle } from "../src/gateways/paddle"
+import { paypal } from "../src/gateways/paypal"
 import { phonepe } from "../src/gateways/phonepe"
 import { razorpay } from "../src/gateways/razorpay"
 import { fakeFetch } from "./fake"
@@ -360,5 +361,88 @@ describe("lemonsqueezy", () => {
     const r = await g.refund("1", { amount: 1500, idempotencyKey: "rf-1" })
     expect(JSON.parse(f.calls[0].body!).data.attributes).toEqual({ amount: 1500 })
     expect(r).toMatchObject({ gatewayId: "1:refund:1500", amount: 1500, status: "processed" })
+  })
+})
+
+describe("paypal", () => {
+  const routes = (extra: Record<string, unknown>) => ({
+    "POST /v1/oauth2/token": {
+      access_token: "A21AA-made-up",
+      token_type: "Bearer",
+      expires_in: 3600,
+    },
+    "POST /v1/notifications/verify-webhook-signature": { verification_status: "SUCCESS" },
+    ...extra,
+  })
+  const make = (f: typeof globalThis.fetch) =>
+    paypal({
+      clientId: "made-up",
+      clientSecret: "made-up",
+      webhookId: "WH-TEST",
+      fetch: f,
+      ...http,
+    })
+
+  test("saved methods list vault v3 payment tokens", async () => {
+    const f = fakeFetch(
+      routes({
+        "GET /v3/vault/payment-tokens": {
+          customer: { id: "customer_4029352050" },
+          payment_tokens: [
+            {
+              id: "8kk8451t",
+              customer: { id: "customer_4029352050" },
+              payment_source: { card: { brand: "VISA", last_digits: "1111" } },
+            },
+            {
+              id: "9pp9",
+              customer: { id: "customer_4029352050" },
+              payment_source: { paypal: { email_address: "buyer@example.test" } },
+            },
+          ],
+        },
+      }),
+    )
+    const list = await make(f.fetch).listPaymentMethods("customer_4029352050")
+    expect(new URL(f.calls[1].url).searchParams.get("customer_id")).toBe("customer_4029352050")
+    expect(list.map((m) => [m.gatewayId, m.type, m.label])).toEqual([
+      ["8kk8451t", "card", "VISA 1111"],
+      ["9pp9", "paypal", "buyer@example.test"],
+    ])
+  })
+
+  test("a capture webhook without supplementary_data reads the capture for its order", async () => {
+    const f = fakeFetch(
+      routes({
+        "GET /v2/payments/captures/3C679366HH908993F": {
+          id: "3C679366HH908993F",
+          supplementary_data: { related_ids: { order_id: "5O190127TN364715T" } },
+        },
+      }),
+    )
+    const body = JSON.stringify({
+      id: "WH-made-up-2",
+      create_time: "2026-01-01T10:01:00Z",
+      event_type: "PAYMENT.CAPTURE.COMPLETED",
+      resource: { id: "3C679366HH908993F", amount: { currency_code: "USD", value: "50.00" } },
+    })
+    const e = await make(f.fetch).verifyWebhook(
+      new Request("https://x.test", {
+        method: "POST",
+        body,
+        headers: {
+          "paypal-transmission-id": "t1",
+          "paypal-transmission-time": new Date().toISOString(),
+          "paypal-transmission-sig": "sig",
+          "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-made-up",
+          "paypal-auth-algo": "SHA256withRSA",
+        },
+      }),
+    )
+    expect(e).toMatchObject({
+      type: "payment.captured",
+      paymentId: "5O190127TN364715T",
+      orderId: "5O190127TN364715T",
+    })
   })
 })

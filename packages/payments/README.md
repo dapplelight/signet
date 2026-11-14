@@ -35,7 +35,7 @@ around them: a webhook inbox, a double-entry ledger and reconciliation.
 | refunds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | partialRefunds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | customers | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |  | ✓ |
-| savedMethods | ✓ | ✓ | ✓ |  |  | ✓ |  |  |  |
+| savedMethods | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ |  |
 | subscriptions | ✓ | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ |  |
 | payouts | ✓ | ✓ | ✓ |  |  |  |  | ✓ |  |
 | settlements | ✓ | ✓ | ✓ |  | ✓ |  |  |  |  |
@@ -81,6 +81,17 @@ SDK (or two official doc pages) agree. What is left out, and why:
   cumulative `refunded_amount`. Refunds made through this package line up with
   their webhook. A second partial refund made in the Dashboard arrives with the
   cumulative amount and over-counts the ledger.
+- **PayPal settlements**: Transaction Search reports capture ids, and no
+  official page says how to map one back to its order (this adapter's payment
+  id) or which sign refunds and fees carry. Checked:
+  https://developer.paypal.com/docs/api/transaction-search/v1/,
+  https://github.com/paypal/paypal-rest-api-specifications.
+- **PayPal webhooks** use the verify-webhook-signature API, not the offline
+  certificate check: the docs describe the offline check but not how to
+  validate `paypal-cert-url`, and an unvalidated certificate URL lets anyone
+  sign. Checked: https://developer.paypal.com/api/rest/webhooks/rest/.
+- **PayPal customers**: PayPal has no customer object. Vault customer ids come
+  from vaulting a payment source, and `listPaymentMethods` takes that id.
 
 ## Quick start
 

@@ -10,9 +10,11 @@
  * Webhooks are verified with PayPal's own verify-webhook-signature API (one
  * call per event, needs `webhookId`), not the offline certificate check.
  *
- * Unsupported: customers (PayPal has no customer object), saved methods (the
- * vault list response shape was not verified), settlements (Transaction Search
- * reports capture ids, which this adapter does not map back to orders).
+ * Saved methods list Vault v3 payment tokens for a PayPal customer id.
+ *
+ * Unsupported: customers (PayPal has no customer object; vault customer ids are
+ * created by vaulting), settlements (Transaction Search reports capture ids and
+ * does not document how to map them back to orders).
  */
 
 import { PaymentsError } from "../errors.js"
@@ -201,7 +203,15 @@ export function paypal(config: PayPalConfig): PaymentGateway {
     G,
     {
       methods: ["wallet", "card"],
-      features: ["capture", "refunds", "partialRefunds", "subscriptions", "payouts", "webhooks"],
+      features: [
+        "capture",
+        "refunds",
+        "partialRefunds",
+        "savedMethods",
+        "subscriptions",
+        "payouts",
+        "webhooks",
+      ],
     },
     {
       raw,
@@ -334,6 +344,34 @@ export function paypal(config: PayPalConfig): PaymentGateway {
           raw: r,
         }
       },
+      // GET /v3/vault/payment-tokens?customer_id=...: payment_tokens[] with
+      // payment_source.card{brand,last_digits} or .paypal{email_address}; no create time.
+      // https://developer.paypal.com/docs/api/payment-tokens/v3/#customer_payment-tokens_get
+      // https://github.com/paypal/paypal-rest-api-specifications/blob/main/openapi/vault_payment_tokens_v3.json
+      async listPaymentMethods(customerId) {
+        const r: Json = await raw("GET", "/v3/vault/payment-tokens", undefined, {
+          query: { customer_id: customerId },
+        })
+        return (r.payment_tokens ?? []).map((t: Json) => {
+          const card = t.payment_source?.card
+          const pp = t.payment_source?.paypal
+          return {
+            gateway: G,
+            gatewayId: t.id,
+            customerId: t.customer?.id ?? customerId,
+            type: card
+              ? "card"
+              : pp
+                ? "paypal"
+                : (Object.keys(t.payment_source ?? {})[0] ?? "unknown"),
+            label: card
+              ? [card.brand, card.last_digits].filter(Boolean).join(" ")
+              : (pp?.email_address ?? undefined),
+            createdAt: toDate(undefined),
+            raw: t,
+          }
+        })
+      },
       async verifyWebhook(req, o) {
         if (!config.webhookId) throw badSignature(G, "no webhookId configured")
         const body = await req.text()
@@ -362,13 +400,22 @@ export function paypal(config: PayPalConfig): PaymentGateway {
                 currency: res.amount.currency_code,
               }
             : {}
+        // Captures carry their order in supplementary_data.related_ids.order_id;
+        // if a payload lacks it, read the capture.
+        // https://developer.paypal.com/docs/api/payments/v2/#captures_get
+        let orderId: string | undefined = res.supplementary_data?.related_ids?.order_id
+        if (!orderId && t.startsWith("PAYMENT.CAPTURE.") && res.id && !t.endsWith("REFUNDED")) {
+          const c: Json = await raw("GET", `/v2/payments/captures/${encodeURIComponent(res.id)}`)
+          orderId = c?.supplementary_data?.related_ids?.order_id
+        }
         const out: Event = {
           id: event.id,
           gateway: G,
           type: EVENTS[t] ?? "unknown",
           gatewayType: t,
           occurredAt: toDate(event.create_time),
-          paymentId: res.supplementary_data?.related_ids?.order_id,
+          paymentId: orderId,
+          orderId,
           reference: res.custom_id,
           refundId:
             t.startsWith("PAYMENT.CAPTURE.REFUNDED") || t.startsWith("PAYMENT.REFUND.")
