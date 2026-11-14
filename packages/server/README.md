@@ -280,7 +280,7 @@ type) and each takes its config as an argument, never from env at import.
 | `…/adapters` | `waitUntilDefer(ctx)` | Workers `ctx`, Netlify Functions `context`: anything with `waitUntil` |
 | `…/adapters` | `kvRateLimitStore(kv)` | any `KeyValue`; exact with `incr`, approximate without |
 | `…/adapters/node` | `fsBlobStore(dir)` | Node/Bun/Docker (mount a volume); rejects `..` and absolute keys |
-| `…/adapters/cloudflare` | `cloudflareKv(ns)`, `r2BlobStore(bucket)` | Workers KV, R2 |
+| `…/adapters/cloudflare` | `cloudflareKv(ns)`, `r2BlobStore(bucket)`, `cloudflareQueue(binding)` | Workers KV, R2, Queues producer |
 | `…/adapters/upstash` | `upstashKv`, `upstashRateLimitStore`, `qstashQueue` | anywhere fetch runs |
 | `…/adapters/supabase` | `supabaseBlobStore` | Supabase Storage, incl. signed GET and upload URLs and TUS resumable targets |
 | `…/adapters/s3` | `s3BlobStore` | S3, R2's S3 API, MinIO: SigV4 presigned GET/PUT and multipart, fetch only |
@@ -290,7 +290,10 @@ type) and each takes its config as an argument, never from env at import.
 rateLimit({ store: (c) => upstashRateLimitStore({ url: c.env.UPSTASH_URL, token: c.env.UPSTASH_TOKEN }), trust: { forwardedHops: 1 } })
 ```
 
-A Cloudflare Queues binding already is a `Queue<T>`, so it needs no wrapper.
+A Cloudflare Queues binding can be passed as a `Queue<T>` as is;
+`cloudflareQueue(binding)` adds whole-second delays and a `sendBatch` split
+into Cloudflare's 100-message calls. `cloudflareConsumer` in `./jobs` is the
+receiving end.
 Workers KV has no atomic increment, so `kvRateLimitStore(cloudflareKv(ns))` is
 approximate; use the Durable Object store for an exact count there.
 `@dapplelight/signet-ai`'s `kvCache` and `kvBudgetStore` take any of these
