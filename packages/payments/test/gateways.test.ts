@@ -706,4 +706,92 @@ describe("payu", () => {
       .digest("hex")
     expect(cap.get("hash")).toBe(want)
   })
+  test("settlements: range API, HMAC over the Date header, capture/refund/adjustment, IST dates", async () => {
+    // Shape from https://docs.payu.in/reference/settlement-detail-range-api (sample response).
+    const tx = (o: Record<string, string>) => ({
+      transactionCurrency: "INR",
+      settlementCurrency: "INR",
+      ...o,
+    })
+    const f = fakeFetch({
+      "GET /settlement/range": {
+        status: 0,
+        result: {
+          page: 1,
+          size: 1,
+          totalCount: 1,
+          data: [
+            {
+              settlementId: "12127298202508260245",
+              utrNumber: "523871332950",
+              transaction: [
+                tx({
+                  action: "capture",
+                  payuId: "24868774786",
+                  requestId: "18044765028",
+                  transactionAmount: "2480.0",
+                  merchantTransactionId: "txn-1",
+                  transactionDate: "2025-08-26 02:14:35.000000",
+                  totalProcessingFee: "10.91000",
+                  totalServiceTax: "1.96000",
+                }),
+                tx({
+                  action: "refund",
+                  payuId: "24868774786",
+                  requestId: "R-77",
+                  transactionAmount: "500.00",
+                  merchantTransactionId: "txn-1",
+                  transactionDate: "2025-08-26 03:00:00",
+                  merchantServiceFee: "0.00000",
+                  merchantServiceTax: "0.00000",
+                }),
+                tx({
+                  action: "ADJ_debit",
+                  payuId: "ADJ_2574282",
+                  transactionAmount: "987.31",
+                  merchantTransactionId: "ADJ_2574282",
+                  transactionDate: "2025-08-26 02:26:35",
+                }),
+              ],
+            },
+          ],
+        },
+      },
+    })
+    const g = payu({ key: "TESTKEY", salt: "test_salt", fetch: f.fetch, ...http })
+    const [s] = await g.listSettlements({ date: "2025-08-26" })
+    const call = f.calls[0]!
+    expect(call.url).toStartWith("https://apitest.payu.in/settlement/range?")
+    expect(new URL(call.url).searchParams.get("dateFrom")).toBe("2025-08-26")
+    const sig = createHash("sha512").update(`|${call.headers.date}|test_salt`).digest("hex")
+    expect(call.headers.authorization).toBe(
+      `hmac username="TESTKEY", algorithm="sha512", headers="date", signature="${sig}"`,
+    )
+    expect(s!.lines.map((l) => [l.kind, l.gatewayId, l.paymentId, l.amount, l.fee])).toEqual([
+      ["payment", "txn-1", "txn-1", 248000, 1287],
+      ["refund", "R-77", "txn-1", 50000, 0],
+      ["adjustment", "ADJ_2574282", undefined, 98731, 0],
+    ])
+    expect(s!.lines[0]!.settlementId).toBe("12127298202508260245")
+    expect(s!.lines[0]!.createdAt.toISOString()).toBe("2025-08-25T20:44:35.000Z")
+  })
+
+  test("settlements: 'No data found' is an empty day, other failures throw", async () => {
+    const empty = fakeFetch({
+      "GET /settlement/range": { status: 1, message: "No data found", result: "No data found" },
+    })
+    const g = payu({ key: "K", salt: "S", fetch: empty.fetch, ...http })
+    expect((await g.listSettlements({ date: "2025-08-26" }))[0]!.lines).toEqual([])
+    const bad = fakeFetch({
+      "GET /settlement/range": {
+        status: 1,
+        message: "Unauthorized: Invalid signature",
+        result: null,
+      },
+    })
+    const g2 = payu({ key: "K", salt: "S", fetch: bad.fetch, ...http })
+    expect(g2.listSettlements({ date: "2025-08-26" })).rejects.toMatchObject({
+      code: "GATEWAY_ERROR",
+    })
+  })
 })
