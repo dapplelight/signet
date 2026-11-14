@@ -30,6 +30,13 @@ a package at the version it had when the repository was opened to the public.
   triggers: `jobs.on(event, jobs)`, `triggers`, `jobs.emit`, `outboxEvent`.
   `createTestJobs` with `runAll({ advanceTime })` and a virtual clock.
   `jobTools`' `retryWithoutApproval` option is now `withoutApproval`.
+- Progress (`ctx.progress`, `jobs.status(id)`, `trackStatus`), cancel
+  (`jobs.cancel(id)`: honoured before start, between steps and via
+  `ctx.signal` in-process), and per-key AI budgets (`budget`, `budgetStore`
+  in signet-ai's shape, `ctx.recordCost`, `costUsd` in `onJobRun`,
+  `BUDGET_EXCEEDED`).
+- signet-ui: new `@dapplelight/signet-ui/domain/job-runs` (`JobRuns`), a
+  data-table of job runs with retry and cancel callbacks; not in the barrel.
 - New `@dapplelight/signet-server/storage`: `createUploads({ store, maxBytes, allowedTypes })`
   with `presignUpload` (checks before signing), `presignDownload`,
   `confirmUpload` (re-checks what landed, deletes a bad file, runs

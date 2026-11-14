@@ -43,7 +43,9 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
 - The Toaster (sonner) lives in the `create-signet-app` template for now, not
   in this package.
 - `domain/` components that carry product vocabulary, such as `trend-chip`,
-  kept out of the main barrel.
+  kept out of the main barrel. `domain/job-runs` is a table of background-job
+  runs (status, attempts, error, retry and cancel) on `data-table`; it takes
+  plain rows such as signet-server's `jobs.status(id)` and callbacks.
 
 The full export list is in
 [API.md](https://github.com/dapplelight/signet/blob/main/API.md).

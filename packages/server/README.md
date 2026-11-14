@@ -363,6 +363,17 @@ await sendReceipt.enqueue({ orderId }, { key: orderId }) // once per key
 - **Events.** `jobs.on("user.signup", [welcome, crm])` (or `triggers`), then
   `jobs.emit("user.signup", payload)` starts each job and wakes runs waiting
   on that event. Through the outbox: `const e = jobs.outboxEvent(event, payload)`, then `enqueue(db, e.topic, e.payload)`.
+- **Progress and cancel.** `ctx.progress(done, total, note)`; `jobs.status(id)`
+  returns state, attempt, progress and last error (`trackStatus: false` to
+  skip the writes). `jobs.cancel(id)`: the run does not start, stops at its
+  next step, and in this process `ctx.signal` aborts. `JobRuns` in
+  `@dapplelight/signet-ui/domain/job-runs` renders these rows.
+- **AI budget.** `budget: { key: (i) => i.userId, limitUsd: 1, windowSeconds: 86_400 }`
+  plus `budgetStore` (signet-ai's `kvBudgetStore` or `durableObjectBudgetStore`
+  fit as-is). Spend comes from `ctx.recordCost(usd)` and shows in `onJobRun`
+  as `costUsd`. Checked before the run and between steps: a run already
+  under way can overshoot by its own spend. Exhausted: dead-lettered as
+  `BUDGET_EXCEEDED`, never retried.
 - **Tests.** `createTestJobs({ jobs })` queues in memory with a virtual
   clock; `await jobs.runAll()` runs everything, retries, sleeps and timeouts
   included (`{ advanceTime: false }` runs only what is due now).

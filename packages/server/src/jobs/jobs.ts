@@ -60,6 +60,27 @@ export type JobContext = {
   signal: AbortSignal
   /** Durable steps: `run`, `sleep`, `waitFor`, `waitForApproval`. */
   step: Steps
+  /** Store progress for `jobs.status(id)`. */
+  progress(done: number, total?: number, note?: string): Promise<void>
+  /** Report AI spend for this run: counted against `budget` and sent to `onJobRun` as `costUsd`. */
+  recordCost(usd: number): Promise<void>
+}
+
+/** signet-ai's `BudgetStore`, structurally. */
+export type BudgetStoreLike = {
+  spent(key: string, windowSeconds: number, now: number): number | Promise<number>
+  record(key: string, usd: number, windowSeconds: number, now: number): void | Promise<void>
+}
+
+/** What `jobs.status(id)` returns. */
+export type JobStatus = {
+  id: string
+  job: string
+  state: "queued" | "running" | "cancelled" | HandleResult["status"]
+  attempt: number
+  progress?: { done: number; total?: number; note?: string }
+  error?: { code: string; message?: string }
+  updatedAt: string
 }
 
 type Schema = z.ZodType
@@ -74,6 +95,12 @@ export type JobDefinition<S extends Schema> = {
   concurrency?: { key: (input: z.output<S>) => string; limit: number }
   /** At most `max` runs per key per window (counted in `rateLimitStore`). Over: re-enqueued for the next window. */
   rateLimit?: { key: (input: z.output<S>) => string; max: number; windowSeconds: number }
+  /**
+   * Stop before running (and between steps) once `key`'s spend in the window
+   * reaches `limitUsd`: the run is dead-lettered as `BUDGET_EXCEEDED`, not
+   * retried. Spend comes from `ctx.recordCost`. Needs `budgetStore`.
+   */
+  budget?: { key: (input: z.output<S>) => string; limitUsd: number; windowSeconds: number }
   run(input: z.output<S>, ctx: JobContext): unknown
 }
 
@@ -185,10 +212,21 @@ export type JobRunEvent = {
   code?: string
   error?: unknown
   actor: JobActor
+  /** Sum of `ctx.recordCost` in this run, when any. */
+  costUsd?: number
 }
 
 export type HandleResult = {
-  status: "done" | "retrying" | "dead" | "paused" | "skipped" | "sleeping" | "waiting" | "throttled"
+  status:
+    | "done"
+    | "retrying"
+    | "dead"
+    | "paused"
+    | "skipped"
+    | "sleeping"
+    | "waiting"
+    | "throttled"
+    | "cancelled"
   code?: string
 }
 
@@ -221,6 +259,10 @@ export type CreateJobsOptions = {
   throttleDelaySeconds?: number
   /** How long step results and waits are kept. Default 30 days. */
   stepTtlSeconds?: number
+  /** Spend for jobs with a `budget`, e.g. signet-ai's `kvBudgetStore(kv)` or `durableObjectBudgetStore`. */
+  budgetStore?: BudgetStoreLike
+  /** Keep `jobs.status(id)` records (one KeyValue write per state change). Default true. */
+  trackStatus?: boolean
   /** The clock for steps and tests. Default `Date.now`. */
   now?: () => number
   /** `defineSchedule(...)`s for `jobs.runDueSchedules(now)`. */
@@ -263,6 +305,13 @@ export type Jobs = {
   ): Promise<{ started: number; woken: number }>
   // biome-ignore lint/suspicious/noExplicitAny: see AnyJob
   on(event: string, jobs: readonly Job<any>[]): void
+  /** The last known state of a run, with its progress. Null when unknown or expired. */
+  status(id: string): Promise<JobStatus | null>
+  /**
+   * Cancel a run: it will not start, stops at its next step, and a run in
+   * this process sees `ctx.signal` abort. Not retried or dead-lettered.
+   */
+  cancel(id: string): Promise<void>
   /** Steps waiting on `waitForApproval`. */
   listApprovals(): Promise<PendingApproval[]>
   /** Answer a `waitForApproval`. False when nothing is waiting there. */
@@ -314,26 +363,30 @@ function validate(job: AnyJob, input: unknown): unknown {
   return r.data
 }
 
+/** Run `work`, settling early when `ac` aborts (cancel) or `seconds` pass (abort + TIMEOUT). */
 async function withTimeout<T>(
   seconds: number | undefined,
   ac: AbortController,
   work: () => Promise<T>,
 ): Promise<T> {
-  if (!seconds) return work()
   let timer: ReturnType<typeof setTimeout> | undefined
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      const err = new JobError("TIMEOUT", `Timed out after ${seconds}s.`)
-      ac.abort(err)
-      reject(err)
-    }, seconds * 1000)
+  const stop = new Promise<never>((_, reject) => {
+    ac.signal.addEventListener("abort", () => reject(ac.signal.reason), { once: true })
+    if (seconds)
+      timer = setTimeout(
+        () => ac.abort(new JobError("TIMEOUT", `Timed out after ${seconds}s.`)),
+        seconds * 1000,
+      )
   })
+  stop.catch(() => {}) // settled by the race below, or never read when work wins
   try {
-    return await Promise.race([work(), timeout])
+    return await Promise.race([work(), stop])
   } finally {
     clearTimeout(timer)
   }
 }
+
+const FINAL = new Set(["CANCELLED", "BUDGET_EXCEEDED"])
 
 export function createJobs(options: CreateJobsOptions): Jobs {
   const {
@@ -344,8 +397,40 @@ export function createJobs(options: CreateJobsOptions): Jobs {
     throttleDelaySeconds = 5,
     stepTtlSeconds = 2_592_000,
     now = Date.now,
+    trackStatus = true,
     onError = console.error,
   } = options
+  const budgets = options.budgetStore
+  for (const job of options.jobs)
+    if (job.budget && !budgets)
+      throw new JobError(
+        "NO_BUDGET_STORE",
+        `Job "${job.name}" has a budget: pass createJobs({ budgetStore }).`,
+      )
+  const running = new Map<string, AbortController>()
+  const statusKey = (id: string) => `signet-job:status:${id}`
+  const cancelKey = (id: string) => `signet-job:cancel:${id}`
+  const readStatus = async (id: string): Promise<JobStatus | null> => {
+    const raw = await store.get(statusKey(id))
+    return raw ? (JSON.parse(raw) as JobStatus) : null
+  }
+  const setStatus = async (
+    m: Pick<JobMessage, "id" | "job" | "attempt">,
+    patch: Partial<JobStatus> & { state: JobStatus["state"] },
+  ) => {
+    if (!trackStatus) return
+    const prev = await readStatus(m.id)
+    const next: JobStatus = {
+      ...prev,
+      id: m.id,
+      job: m.job,
+      attempt: m.attempt,
+      ...patch,
+      updatedAt: new Date(now()).toISOString(),
+    }
+    if (patch.state !== "retrying" && patch.state !== "dead" && !patch.error) delete next.error
+    await store.set(statusKey(m.id), JSON.stringify(next), { ttlSeconds: stepTtlSeconds })
+  }
   const limits = options.rateLimitStore ?? kvRateLimitStore(store, "signet-job:rl")
   const dead = options.deadLetter ?? kvDeadLetter(store)
   const byName = new Map<string, AnyJob>()
@@ -396,6 +481,7 @@ export function createJobs(options: CreateJobsOptions): Jobs {
     if (opts.key) message.key = opts.key
     if (opts.actor) message.actor = opts.actor
     await queue.send(message, opts.delaySeconds ? { delaySeconds: opts.delaySeconds } : undefined)
+    await setStatus(message, { state: "queued" })
     return { id, enqueued: true }
   }
 
@@ -438,6 +524,16 @@ export function createJobs(options: CreateJobsOptions): Jobs {
   }
 
   const handle = async (message: JobMessage): Promise<HandleResult> => {
+    const result = await dispatch(message)
+    if (result.status !== "skipped")
+      await setStatus(message, {
+        state: result.status,
+        ...(result.code ? { error: { code: result.code } } : {}),
+      })
+    return result
+  }
+
+  const dispatch = async (message: JobMessage): Promise<HandleResult> => {
     const job = byName.get(message.job)
     if (!job) {
       return toDead(
@@ -446,6 +542,7 @@ export function createJobs(options: CreateJobsOptions): Jobs {
       )
     }
     if (await store.get(doneKey(message.id))) return { status: "skipped" }
+    if (await store.get(cancelKey(message.id))) return { status: "cancelled" }
     if (await store.get(pausedKey(job.name))) {
       await queue.send(message, { delaySeconds: pausedDelaySeconds })
       return { status: "paused" }
@@ -499,19 +596,51 @@ export function createJobs(options: CreateJobsOptions): Jobs {
     started: number,
   ): Promise<HandleResult> => {
     const used = { value: false }
+    let cost = 0
+    const budget = job.budget && {
+      key: job.budget.key(input) as string,
+      limit: job.budget.limitUsd,
+      window: job.budget.windowSeconds,
+    }
+    const checkpoint = async () => {
+      if (await store.get(cancelKey(message.id)))
+        throw new JobError("CANCELLED", "The run was cancelled.")
+      if (
+        budget &&
+        budgets &&
+        (await budgets.spent(budget.key, budget.window, now())) >= budget.limit
+      )
+        throw new JobError(
+          "BUDGET_EXCEEDED",
+          `Budget for "${budget.key}" is used up ($${budget.limit} per ${budget.window}s).`,
+        )
+    }
     const ctx: JobContext = {
       id: message.id,
       name: job.name,
       attempt: message.attempt,
       actor,
       signal: ac.signal,
-      step: makeSteps(stepDeps, steps, message, used, async () => {}),
+      step: makeSteps(stepDeps, steps, message, used, checkpoint),
+      progress: (done, total, note) =>
+        setStatus(message, {
+          state: "running",
+          progress: { done, ...(total !== undefined ? { total } : {}), ...(note ? { note } : {}) },
+        }),
+      async recordCost(usd) {
+        cost += usd
+        if (budget && budgets) await budgets.record(budget.key, usd, budget.window, now())
+      },
       ...(message.key ? { key: message.key } : {}),
     }
+    const withCost = () => (cost ? { costUsd: cost } : {})
     const run = async () => {
       await job.run(input, ctx)
     }
+    running.set(message.id, ac)
     try {
+      await setStatus(message, { state: "running" })
+      await checkpoint()
       await withTimeout(job.timeoutSeconds, ac, () =>
         message.key && options.idempotency
           ? options.idempotency(message.key, job.name, run).then(() => undefined)
@@ -521,9 +650,17 @@ export function createJobs(options: CreateJobsOptions): Jobs {
       if (err instanceof Suspend) return { status: err.status }
       const code = codeOf(err)
       const base = { name: job.name, id: message.id, attempt: message.attempt, actor }
-      await report({ ...base, durationMs: Date.now() - started, ok: false, code, error: err })
+      await report({
+        ...base,
+        durationMs: Date.now() - started,
+        ok: false,
+        code,
+        error: err,
+        ...withCost(),
+      })
+      if (code === "CANCELLED") return { status: "cancelled", code }
       const policy = policyOf(job)
-      if (message.attempt < policy.attempts) {
+      if (message.attempt < policy.attempts && !FINAL.has(code)) {
         await queue.send(
           { ...message, attempt: message.attempt + 1 },
           { delaySeconds: retryDelay(policy, message.attempt) },
@@ -531,6 +668,8 @@ export function createJobs(options: CreateJobsOptions): Jobs {
         return { status: "retrying", code }
       }
       return toDead(message, err)
+    } finally {
+      running.delete(message.id)
     }
     // Stray wake-ups (a wait's timer after the event resumed it) skip a finished run.
     if (used.value) await store.set(doneKey(message.id), "1", { ttlSeconds: stepTtlSeconds })
@@ -541,6 +680,7 @@ export function createJobs(options: CreateJobsOptions): Jobs {
       durationMs: Date.now() - started,
       ok: true,
       actor,
+      ...withCost(),
     })
     return { status: "done" }
   }
@@ -587,6 +727,13 @@ export function createJobs(options: CreateJobsOptions): Jobs {
     send: emit,
     on,
     listApprovals: () => steps.listApprovals(),
+    status: readStatus,
+    async cancel(id) {
+      await store.set(cancelKey(id), "1", { ttlSeconds: stepTtlSeconds })
+      running.get(id)?.abort(new JobError("CANCELLED", "The run was cancelled."))
+      const prev = await readStatus(id)
+      if (prev) await setStatus(prev, { state: "cancelled" })
+    },
     async approve(id, step, decision = {}) {
       if (!(await steps.removeApproval(id, step))) return false
       const payload = {

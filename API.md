@@ -136,6 +136,7 @@ Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"
 | Import | Exports | What |
 |---|---|---|
 | `@dapplelight/signet-ui` | — |  |
+| `@dapplelight/signet-ui/domain/job-runs` | JobRun |  |
 | `@dapplelight/signet-ui/domain/trend-chip` | — |  |
 | `@dapplelight/signet-ui/hooks/use-media-query` | DESKTOP_QUERY, useMediaQuery |  |
 | `@dapplelight/signet-ui/utils` | TYPE_RAMP, cn |  |

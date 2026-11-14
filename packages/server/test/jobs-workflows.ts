@@ -296,5 +296,112 @@ console.log("runAll guards a job that never stops")
   ok("maxRuns stops it", threw)
 }
 
+console.log("progress, status and cancel")
+{
+  const job = defineJob({
+    name: "import",
+    input: z.object({ rows: z.number() }),
+    run: async ({ rows }, ctx) => {
+      await ctx.step.run("read", () => rows)
+      await ctx.progress(1, rows, "row 1")
+      await ctx.step.sleep("pause", 60)
+      await ctx.step.run("write", () => ctx.progress(rows, rows))
+    },
+  })
+  const jobs = createTestJobs({ jobs: [job] })
+  const { id } = await job.enqueue({ rows: 3 })
+  ok("queued status", (await jobs.status(id))?.state === "queued")
+  await jobs.runAll({ advanceTime: false })
+  const mid = await jobs.status(id)
+  ok(
+    "progress stored",
+    mid?.state === "sleeping" && mid.progress?.done === 1 && mid.progress?.note === "row 1",
+    mid,
+  )
+  await jobs.runAll()
+  const end = await jobs.status(id)
+  ok("done with final progress", end?.state === "done" && end.progress?.done === 3, end)
+  ok("unknown id is null", (await jobs.status("nope")) === null)
+
+  // Cancel between steps: the sleeping run stops at its next step.
+  const second = await job.enqueue({ rows: 2 })
+  await jobs.runAll({ advanceTime: false })
+  await jobs.cancel(second.id)
+  ok("status cancelled", (await jobs.status(second.id))?.state === "cancelled")
+  const after = await jobs.runAll()
+  ok(
+    "woken run does not continue",
+    after.every((r) => r.status === "cancelled"),
+    after,
+  )
+  ok("not dead-lettered", (await jobs.listDead()).length === 0)
+
+  // Cancel a run in this process: ctx.signal aborts mid-run.
+  let aborted = false
+  const long = defineJob({
+    name: "long",
+    input: z.object({}),
+    run: (_i, ctx) =>
+      new Promise<void>((resolve) => {
+        ctx.signal.addEventListener("abort", () => {
+          aborted = true
+          resolve()
+        })
+      }),
+  })
+  const j2 = createTestJobs({ jobs: [long] })
+  const l = await long.enqueue({})
+  const msg = j2.queued[0]!.message
+  const pending = j2.handle(msg)
+  await new Promise((r) => setTimeout(r, 5))
+  await j2.cancel(l.id)
+  const res = await pending
+  ok("running job aborted and cancelled", aborted && res.status === "cancelled", res)
+  ok("not started again", (await j2.handle(msg)).status === "cancelled")
+}
+
+console.log("budget per key")
+{
+  const spends = new Map<string, number>()
+  const budgetStore = {
+    spent: (key: string) => spends.get(key) ?? 0,
+    record: (key: string, usd: number) => void spends.set(key, (spends.get(key) ?? 0) + usd),
+  }
+  const events: { costUsd?: number; code?: string }[] = []
+  const summarise = defineJob({
+    name: "summarise",
+    input: z.object({ userId: z.string() }),
+    budget: { key: (i) => i.userId, limitUsd: 0.05, windowSeconds: 86_400 },
+    run: async (_i, ctx) => {
+      await ctx.recordCost(0.03)
+    },
+  })
+  const jobs = createTestJobs({
+    jobs: [summarise],
+    budgetStore,
+    onJobRun: (e) => void events.push(e),
+  })
+  await summarise.enqueue({ userId: "u" })
+  await summarise.enqueue({ userId: "u" })
+  await summarise.enqueue({ userId: "u" })
+  await summarise.enqueue({ userId: "v" })
+  const r = await jobs.runAll()
+  ok("third run stopped by budget", r.map((x) => x.status).join() === "done,done,dead,done", r)
+  ok("BUDGET_EXCEEDED, not retried", r[2]?.code === "BUDGET_EXCEEDED" && r.length === 4)
+  ok("cost reported to onJobRun", events[0]?.costUsd === 0.03)
+  ok(
+    "spend recorded per key",
+    Math.abs((spends.get("u") ?? 0) - 0.06) < 1e-9 && spends.get("v") === 0.03,
+  )
+  ok("dead entry explains", (await jobs.listDead())[0]?.error.code === "BUDGET_EXCEEDED")
+  let threw = false
+  try {
+    createTestJobs({ jobs: [summarise] })
+  } catch (e) {
+    threw = (e as { code?: string }).code === "NO_BUDGET_STORE"
+  }
+  ok("budget without a store is refused", threw)
+}
+
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail) process.exit(1)
