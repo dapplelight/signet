@@ -85,6 +85,12 @@ export type PhoneOtpOptions = {
   perPhone?: { max: number; windowSeconds: number }
   /** Requests per IP. Default 10 per hour. */
   perIp?: { max: number; windowSeconds: number }
+  /**
+   * FAILED verifies per IP (wrong, expired or missing code), so one address
+   * cannot spread guesses across many numbers. Default 20 per hour. Past it,
+   * verify answers TOO_MANY_ATTEMPTS without checking the code.
+   */
+  verifyFailuresPerIp?: { max: number; windowSeconds: number }
   /** The SMS text. Default "Your code is 123456. It expires in 5 minutes." */
   message?: (code: string, ttlSeconds: number) => string
   /** KeyValue key prefix. Default "signet-otp". */
@@ -117,6 +123,7 @@ const keys = (o: PhoneOtpOptions, phone: string) => {
   const p = o.prefix ?? "signet-otp"
   return { code: `${p}:c:${phone}`, attempts: `${p}:n:${phone}` }
 }
+const blockKey = (o: PhoneOtpOptions, ip: string) => `${o.prefix ?? "signet-otp"}:b:${ip}`
 
 /**
  * Send a code. A new request replaces any earlier code for that phone and
@@ -168,11 +175,33 @@ export async function requestPhoneOtp(
  * Check a code. Single use: a correct code is deleted. Each wrong guess counts;
  * at `maxAttempts` the code is destroyed and a new one must be requested.
  *
+ * Failed verifies are also counted per `ip` (`verifyFailuresPerIp`); an IP
+ * over the limit gets TOO_MANY_ATTEMPTS without the code being checked or a
+ * phone's attempt being used. With no `ip` that limit is skipped: one shared
+ * bucket would let anyone lock every user out.
+ *
  * Exact on stores with `incr` (Upstash, `memoryKv`). On Workers KV the
  * attempt count is read-modify-write, so concurrent guesses can slip past the
  * cap by a few; keep OTP state in an exact store.
  */
 export async function verifyPhoneOtp(
+  opts: PhoneOtpOptions,
+  input: { phone: string; code: string; ip?: string | null },
+): Promise<OtpVerifyResult> {
+  const ip = input.ip
+  if (ip && (await opts.kv.get(blockKey(opts, ip)))) return { ok: false, code: "TOO_MANY_ATTEMPTS" }
+  const result = await checkCode(opts, input)
+  if (ip && !result.ok && result.code !== "INVALID_PHONE") {
+    const limit = opts.verifyFailuresPerIp ?? { max: 20, windowSeconds: 3600 }
+    const hit = await opts.rateLimit.hit("otp-verify-ip", ip, limit.max, limit.windowSeconds)
+    // RateLimitStore only counts, so the block is a flag for the rest of the window.
+    if (hit.remaining === 0)
+      await opts.kv.set(blockKey(opts, ip), "1", { ttlSeconds: Math.max(1, hit.resetSeconds) })
+  }
+  return result
+}
+
+async function checkCode(
   opts: PhoneOtpOptions,
   input: { phone: string; code: string },
 ): Promise<OtpVerifyResult> {

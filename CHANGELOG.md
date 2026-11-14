@@ -23,7 +23,8 @@ a package at the version it had when the repository was opened to the public.
   revoke one, sign out everywhere else) and `requireApiKey`.
 - New `./auth/otp`: `requestPhoneOtp` / `verifyPhoneOtp` with hashed codes,
   expiry, an attempt cap, single use and per-phone and per-IP limits through a
-  `RateLimitStore`; `SmsSender` with `devSmsSender` only; `normalizePhone`
+  `RateLimitStore`, plus a per-IP cap on failed verifies (`verifyFailuresPerIp`);
+  `SmsSender` with `devSmsSender` only; `normalizePhone`
   (Indian national forms and E.164).
 - New `./auth/api-keys`: `createApiKey` (secret shown once), `listApiKeys`,
   `revokeApiKey`, `verifyApiKey`, `kvApiKeyStore`; scopes, optional expiry,

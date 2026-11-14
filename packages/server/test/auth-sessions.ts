@@ -369,6 +369,59 @@ ok(
       "otp: invalid phone sends nothing",
       (await requestPhoneOtp(base, { phone: "nope" })).ok === false,
     )
+
+    // per-IP cap on FAILED verifies: one IP cannot spray guesses across numbers
+    const vopts: PhoneOtpOptions = {
+      ...base,
+      kv: memoryKv(),
+      rateLimit: kvRateLimitStore(memoryKv()),
+      verifyFailuresPerIp: { max: 3, windowSeconds: 3600 },
+    }
+    const phones = ["9876600001", "9876600002", "9876600003", "9876600004", "9876600005"]
+    const codes: Record<string, string> = {}
+    for (const [i, p] of phones.entries()) {
+      await requestPhoneOtp(vopts, { phone: p, ip: `6.6.6.${i}` })
+      codes[p] = lastCode()
+    }
+    const wrongFor = (p: string) => (codes[p] === "000000" ? "111111" : "000000")
+    // successes do not count
+    const okFirst = await verifyPhoneOtp(vopts, {
+      phone: phones[0]!,
+      code: codes[phones[0]!]!,
+      ip: "7.7.7.7",
+    })
+    const spray: string[] = []
+    for (const p of phones.slice(1, 4)) {
+      const v = await verifyPhoneOtp(vopts, { phone: p, code: wrongFor(p), ip: "7.7.7.7" })
+      spray.push(v.ok ? "ok" : v.code)
+    }
+    ok(
+      "otp verify per-IP: successes are not counted, failures are",
+      okFirst.ok && spray.every((x) => x === "INVALID_CODE"),
+      spray,
+    )
+    const blocked = await verifyPhoneOtp(vopts, {
+      phone: phones[4]!,
+      code: codes[phones[4]!]!,
+      ip: "7.7.7.7",
+    })
+    ok(
+      "otp verify per-IP: past the limit even a right code gets TOO_MANY_ATTEMPTS",
+      !blocked.ok && blocked.code === "TOO_MANY_ATTEMPTS",
+      blocked,
+    )
+    const elsewhere = await verifyPhoneOtp(vopts, {
+      phone: phones[4]!,
+      code: codes[phones[4]!]!,
+      ip: "8.8.8.8",
+    })
+    ok(
+      "otp verify per-IP: the blocked try used none of the phone's attempts or its code",
+      elsewhere.ok,
+      elsewhere,
+    )
+    const noIp = await verifyPhoneOtp(vopts, { phone: phones[1]!, code: codes[phones[1]!]! })
+    ok("otp verify per-IP: no ip means no shared bucket", noIp.ok, noIp)
   } finally {
     console.log = origLog
     console.error = origErr
