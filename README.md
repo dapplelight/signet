@@ -100,6 +100,7 @@ Every export path and symbol is listed on one page in [API.md](API.md).
 | `@dapplelight/signet-ai` | Structured LLM calls: budget, cache, failover, a classifier adapter |
 | `@dapplelight/signet-config` | Biome preset and tsconfig bases (`react`, `worker`) |
 | `create-signet-app` | Scaffolder for a web app or a Worker API |
+| `@dapplelight/signet-mcp` | MCP server: gives AI agents Signet's docs, exports, components, themes, checks and recipes (not on npm yet) |
 
 Each package has its own README with design notes.
 

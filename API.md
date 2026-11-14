@@ -61,6 +61,14 @@ Signet client primitives. API client, the wire contract, and search.
 | `@dapplelight/signet-lib/format` | createCurrencyFormatter, createCompactCurrencyFormatter, formatPercent, createDateFormatter, createDateShortFormatter, createDateTimeFormatter, … | Currency, number and date formatting, plus date arithmetic (./date.ts) |
 | `@dapplelight/signet-lib/search` | source, createSearch, Query, Source, Hit, Section, … | re-exports engine, readers, text, usage |
 
+## @dapplelight/signet-mcp
+
+MCP server that gives AI agents all of Signet: docs, exports, components, themes, scaffolding, convention checks, recipes and migrations.
+
+| Import | Exports | What |
+|---|---|---|
+| `@dapplelight/signet-mcp` | VERSION, signetMcpOptions, createSignetMcpServer, signetMcpFetch, SignetMcpOptions | An MCP server that gives agents everything Signet has: docs, exports, components, themes, scaffolding, convention checks, recipes and migration notes, |
+
 ## @dapplelight/signet-server
 
 Signet backend primitives. Auth first.
