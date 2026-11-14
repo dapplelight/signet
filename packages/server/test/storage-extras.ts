@@ -138,6 +138,114 @@ console.log("stripMetadata")
   ok("malformed unchanged", stripMetadata(broken) === broken)
 }
 
+console.log("stripMetadata keeps orientation")
+{
+  /** A TIFF block: Make, Orientation, a GPS IFD pointer, then camera and GPS data. */
+  const tiff = (le: boolean, orientation: number | undefined) => {
+    const u16 = (n: number) => (le ? [n & 0xff, n >> 8] : be16(n))
+    const u32 = (n: number) => (le ? le32(n) : be32(n))
+    const entries: number[][] = [[...u16(0x010f), ...u16(2), ...u32(6), ...u32(0)]]
+    if (orientation) entries.push([...u16(0x0112), ...u16(3), ...u32(1), ...u16(orientation), 0, 0])
+    entries.push([...u16(0x8825), ...u16(4), ...u32(1), ...u32(0)])
+    const dataAt = 8 + 2 + entries.length * 12 + 4
+    entries[0]!.splice(8, 4, ...u32(dataAt)) // Make's offset
+    entries.at(-1)!.splice(8, 4, ...u32(dataAt + 6)) // GPS IFD's offset
+    return bytesOf(
+      le ? "II" : "MM",
+      u16(42),
+      u32(8),
+      u16(entries.length),
+      ...entries,
+      u32(0),
+      "Camra\0",
+      u16(1),
+      u16(2),
+      u16(5),
+      u32(3),
+      u32(0),
+      "GPSLatitude 51.5",
+    )
+  }
+  /** Orientation read back independently of the stripper. */
+  const orientationIn = (b: Uint8Array) => {
+    const s = new TextDecoder("latin1").decode(b)
+    const at = Math.max(s.indexOf("MM\0*"), s.indexOf("II*\0"))
+    if (at < 0) return undefined
+    const t = b.subarray(at)
+    const le = t[0] === 0x49
+    const v = new DataView(t.buffer, t.byteOffset, t.byteLength)
+    const ifd = v.getUint32(4, le)
+    for (let n = 0; n < v.getUint16(ifd, le); n++) {
+      const e = ifd + 2 + n * 12
+      if (v.getUint16(e, le) === 0x0112) return v.getUint16(e + 8, le)
+    }
+    return undefined
+  }
+  const jpegWith = (t: Uint8Array) =>
+    bytesOf(
+      [0xff, 0xd8],
+      [0xff, 0xe1],
+      be16(t.length + 8),
+      "Exif\0\0",
+      t,
+      [0xff, 0xda],
+      be16(8),
+      [1, 1, 0, 0, 63, 0],
+      [0x12, 0xff, 0xd9],
+    )
+  for (const le of [false, true]) {
+    const src = jpegWith(tiff(le, 6))
+    ok(
+      `fixture has orientation 6 and GPS (${le ? "II" : "MM"})`,
+      orientationIn(src) === 6 && has(src, "GPS") && has(src, "Camra"),
+    )
+    const out = stripMetadata(src)
+    ok(
+      `jpeg keeps orientation 6, drops GPS and camera (${le ? "II" : "MM"})`,
+      orientationIn(out) === 6 && !has(out, "GPS") && !has(out, "Camra") && has(out, "Exif"),
+    )
+    ok("jpeg still ends with its scan", out.at(-1) === 0xd9 && sniffType(out) === "image/jpeg")
+  }
+  const plain = stripMetadata(jpegWith(tiff(false, undefined)))
+  ok("jpeg without orientation: no EXIF at all", !has(plain, "Exif") && !has(plain, "GPS"))
+
+  const pngWith = (t: Uint8Array) =>
+    bytesOf(
+      [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+      IHDR,
+      pngChunk("eXIf", t),
+      IDAT,
+      pngChunk("IEND", ""),
+    )
+  const p = stripMetadata(pngWith(tiff(true, 6)))
+  ok(
+    "png keeps orientation 6 in eXIf, no GPS",
+    orientationIn(p) === 6 && has(p, "eXIf") && !has(p, "GPS"),
+  )
+  const exifAt = new TextDecoder("latin1").decode(p).indexOf("eXIf")
+  const exifChunkOut = p.subarray(exifAt - 4, exifAt + 4 + 26 + 4)
+  const crcOut = new DataView(exifChunkOut.buffer, exifChunkOut.byteOffset).getUint32(34)
+  ok("png eXIf CRC valid", crcOut === crc32(p.subarray(exifAt, exifAt + 4 + 26)))
+  ok(
+    "png without orientation: no eXIf",
+    !has(stripMetadata(pngWith(tiff(true, undefined))), "eXIf"),
+  )
+
+  const webpWith = (t: Uint8Array) => {
+    const body = bytesOf("WEBP", vp8x, vp8, "EXIF", le32(t.length), t, t.length % 2 ? [0] : [])
+    return bytesOf("RIFF", le32(body.length), body)
+  }
+  const w = stripMetadata(webpWith(tiff(false, 6)))
+  ok("webp keeps orientation 6, no GPS", orientationIn(w) === 6 && has(w, "EXIF") && !has(w, "GPS"))
+  ok("webp EXIF flag on, XMP flag off", ((w[20] as number) & 0x0c) === 0x08)
+  ok("webp RIFF size", new DataView(w.buffer, w.byteOffset).getUint32(4, true) === w.length - 8)
+  const wPlain = stripMetadata(webpWith(tiff(false, undefined)))
+  ok(
+    "webp without orientation: no EXIF, flag off",
+    !has(wPlain, "EXIF") && ((wPlain[20] as number) & 0x08) === 0,
+  )
+}
+
 function memStore(sign = true) {
   const files = new Map<string, { body: ArrayBuffer; contentType?: string }>()
   const store: BlobStore = {

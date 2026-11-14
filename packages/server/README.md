@@ -454,7 +454,8 @@ await uploads.confirmUpload({ userId }, key)
 
 - **Metadata.** `acceptUpload` strips EXIF/XMP/IPTC (GPS included) from
   JPEG, PNG and WebP by walking the container; pixels and colour profiles
-  stay, the orientation tag goes. After a direct upload, run
+  stay, and so does orientation: when the source has an Orientation tag, the
+  EXIF block is rewritten to hold only that. After a direct upload, run
   `stripMetadata(bytes)` from a job.
 - **Quotas.** `quota: { bytes }` with a `kv` counts each user's bytes
   (confirm and accept add, `remove` releases), or pass `usage: (ctx) => …`

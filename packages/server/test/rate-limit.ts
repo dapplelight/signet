@@ -350,6 +350,9 @@ const throwing: RateLimitStore = {
     /code: "([A-Za-z_]+)"/g,
     /ApiException\(\d+, "[^"]*", "([A-Za-z_]+)"/g,
     /envelope\(c, "[^"]*", "([A-Za-z_]+)"/g,
+    // jobs and storage: JobError / UploadError, and the code a failed run falls back to
+    /new (?:JobError|UploadError)\(\s*"([A-Za-z_]+)"/g,
+    /: "(JOB_FAILED)"/g,
     /readonly code: ((?:"[a-z_]+"(?: \| )?)+)/g,
   ]
   const walk = (dir: string): string[] =>
