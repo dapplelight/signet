@@ -10,6 +10,8 @@
  *                     original transaction id, Google Play purchase token), read live
  *   refund_payment    ALWAYS gated on approval; UNSUPPORTED up front where the gateway
  *                     cannot refund from the server (the App Store)
+ *   refresh_entitlement  with `entitlements`: read a subscription the user owns live and
+ *                     re-apply it to their plan (signet-db `applySubscription`)
  *
  * `refund_payment` calls `approve(ctx, { summary, details, args })` and refunds
  * only when it returns undefined. Pass signet-server's `requireApproval`; with
@@ -21,6 +23,7 @@ import { PaymentsError } from "./errors.js"
 import { toMajor } from "./http.js"
 import type { Payments } from "./payments.js"
 import type { Actor, PaymentRecord } from "./store.js"
+import type { Subscription } from "./types.js"
 
 export type ApprovalRequest = { summary: string; details: Record<string, unknown>; args: unknown }
 
@@ -35,6 +38,10 @@ export type PaymentToolsOptions = {
   actor?: Actor
   /** Undefined = approved. Anything else is returned as the tool result. e.g. `(ctx, o) => requireApproval(ctx, o)`. */
   approve?: (ctx: unknown, request: ApprovalRequest) => Promise<unknown> | unknown
+  /** signet-db `createEntitlements(...)`, structurally. Adds refresh_entitlement. */
+  entitlements?: {
+    applySubscription(sub: Subscription, o: { subject: string }): Promise<unknown>
+  }
 }
 
 export type PaymentTool = {
@@ -113,12 +120,31 @@ export function paymentTools(payments: Payments, options: PaymentToolsOptions): 
       )
     return p
   }
+  /** A subscription linked to one of the user's payments, read live from the gateway. */
+  const ownedSubscription = async (input: Record<string, unknown>) => {
+    const gateway = str(input, "gateway")
+    const id = str(input, "id")
+    const linked = await store.findLinked(gateway, { orderId: id })
+    if (!linked || (!allUsers && linked.userId !== userId))
+      throw new PaymentsError("NOT_FOUND", "No such subscription for this user.")
+    return { owner: linked.userId, sub: await payments.gateway(gateway).getSubscription(id) }
+  }
+  const subView = (s: Subscription) => ({
+    gateway: s.gateway,
+    id: s.gatewayId,
+    status: s.status,
+    ...(s.productId ? { productId: s.productId } : {}),
+    ...(s.currentPeriodEnd ? { currentPeriodEnd: s.currentPeriodEnd.toISOString() } : {}),
+    ...(s.autoRenew !== undefined ? { autoRenew: s.autoRenew } : {}),
+    ...(s.inGracePeriod ? { inGracePeriod: true } : {}),
+    ...(s.environment ? { environment: s.environment } : {}),
+  })
   const ref = {
     gateway: { type: "string", description: "Gateway name, e.g. razorpay" },
     id: { type: "string", description: "The gateway's payment id" },
   }
 
-  return [
+  const tools: PaymentTool[] = [
     {
       name: "find_payment",
       description:
@@ -198,24 +224,7 @@ export function paymentTools(payments: Payments, options: PaymentToolsOptions): 
         },
         ["gateway", "id"],
       ),
-      run: async (input) => {
-        const gateway = str(input, "gateway")
-        const id = str(input, "id")
-        const linked = await store.findLinked(gateway, { orderId: id })
-        if (!linked || (!allUsers && linked.userId !== userId))
-          throw new PaymentsError("NOT_FOUND", "No such subscription for this user.")
-        const s = await payments.gateway(gateway).getSubscription(id)
-        return {
-          gateway: s.gateway,
-          id: s.gatewayId,
-          status: s.status,
-          ...(s.productId ? { productId: s.productId } : {}),
-          ...(s.currentPeriodEnd ? { currentPeriodEnd: s.currentPeriodEnd.toISOString() } : {}),
-          ...(s.autoRenew !== undefined ? { autoRenew: s.autoRenew } : {}),
-          ...(s.inGracePeriod ? { inGracePeriod: true } : {}),
-          ...(s.environment ? { environment: s.environment } : {}),
-        }
-      },
+      run: async (input) => subView((await ownedSubscription(input)).sub),
     },
     {
       name: "refund_payment",
@@ -292,4 +301,28 @@ export function paymentTools(payments: Payments, options: PaymentToolsOptions): 
       },
     },
   ]
+  const ent = options.entitlements
+  if (ent)
+    tools.push({
+      name: "refresh_entitlement",
+      description:
+        "Re-read a subscription the user owns live from its gateway and re-apply it to their plan, e.g. when access looks wrong after a renewal, refund or restore. Changes nothing the store does not already say. id as in find_subscription.",
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+      inputSchema: obj(
+        {
+          gateway: ref.gateway,
+          id: { type: "string", description: "The gateway's subscription id" },
+        },
+        ["gateway", "id"],
+      ),
+      run: async (input) => {
+        const { owner, sub } = await ownedSubscription(input)
+        if (!owner) throw new PaymentsError("NOT_FOUND", "This subscription has no owner yet.")
+        return {
+          subscription: subView(sub),
+          result: await ent.applySubscription(sub, { subject: owner }),
+        }
+      },
+    })
+  return tools
 }
