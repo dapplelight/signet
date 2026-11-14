@@ -59,6 +59,12 @@ export type DbToolsOptions<D, T> = {
   allowWrites?: boolean
   /** Most rows any call returns. Default 100. */
   maxRows?: number
+  /**
+   * Scopes a token must carry to call the db tools: `read` for tools annotated
+   * `readOnlyHint` (the selects), `write` for the rest (`_insert`, `_update`).
+   * Without them no scope is checked: any caller with a verified `sub` gets every db tool.
+   */
+  scopes?: { read?: string[]; write?: string[] }
 }
 
 export type SignetMcpOptions<D = unknown, T = unknown> = ToolOptions & {
@@ -103,7 +109,12 @@ export function signetMcpOptions<D, T>(
   if (!db) return { ...base, tools: [...own, ...mine] }
   const { agentTools, tables, allowWrites = false, maxRows } = db
   const forUser = (userId: string) =>
-    agentTools(db.db, { tables, userId, allowWrites, ...(maxRows ? { maxRows } : {}) })
+    agentTools(db.db, { tables, userId, allowWrites, ...(maxRows ? { maxRows } : {}) }).map(
+      (tool): PlainTool => {
+        const scopes = tool.annotations?.readOnlyHint ? db.scopes?.read : db.scopes?.write
+        return scopes?.length ? { ...tool, scopes } : tool
+      },
+    )
   forUser("setup-check") // a table with no userId column throws here, not on a tool call
   const who = db.userId ?? ((c: McpCaller) => c.token?.claims.sub)
   return {

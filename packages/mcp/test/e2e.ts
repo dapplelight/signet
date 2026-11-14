@@ -413,8 +413,12 @@ try {
   const [[b1]] = await rowsOf("user-b", "beta one")
 
   /** A client whose requests carry a verified token for `userId`, as `mountMcp` would give them. */
-  const as = (options: ReturnType<typeof signetMcpOptions>, userId?: string) => {
-    const context = userId ? { token: { claims: { sub: userId }, scopes: [] } as never } : {}
+  const as = (
+    options: ReturnType<typeof signetMcpOptions>,
+    userId?: string,
+    scopes: string[] = [],
+  ) => {
+    const context = userId ? { token: { claims: { sub: userId }, scopes } as never } : {}
     const handler = createMcpHandler(() => resolveMcpServer({ ...options, context }))
     return createMcpClient({ url: "http://localhost/mcp", fetch: (req) => handler.fetch(req) })
   }
@@ -504,6 +508,48 @@ try {
       missingRow.text.startsWith("NOT_FOUND: No tags row with id") &&
       missingRow.text.includes("for this user. Use tags_list or tags_search to find it."),
     missingRow.text,
+  )
+
+  const gated = signetMcpOptions({
+    db: {
+      db,
+      agentTools,
+      tables: [S.tags],
+      allowWrites: true,
+      scopes: { read: ["db:read"], write: ["db:write"] },
+    },
+  })
+  const dbNames = async (scopes: string[]) =>
+    (await as(gated, "user-a", scopes).listTools())
+      .map((t) => t.name)
+      .filter((n) => /^tags_/.test(n))
+  ok(
+    "db scopes: the tools stay listed whatever the token carries (calls are what is gated)",
+    (await dbNames([])).length === 5,
+    await dbNames([]),
+  )
+  const noScope = await callOn(as(gated, "user-a", ["docs"]), "tags_list")
+  ok(
+    "db scopes: a token without the read scope cannot run a read tool",
+    noScope.isError && /scope/i.test(noScope.text),
+    noScope.text,
+  )
+  const readOnlyToken = as(gated, "user-a", ["db:read"])
+  ok(
+    "db scopes: the read scope runs read tools",
+    (await callOn(readOnlyToken, "tags_list")).json?.length === 2,
+  )
+  const noWrite = await callOn(readOnlyToken, "tags_insert", { values: { label: "x" } })
+  ok(
+    "db scopes: the read scope cannot run a write tool",
+    noWrite.isError && /scope/i.test(noWrite.text),
+    noWrite.text,
+  )
+  const both = as(gated, "user-a", ["db:read", "db:write"])
+  ok(
+    "db scopes: the write scope runs a write tool",
+    (await callOn(both, "tags_insert", { values: { label: "x" }, dryRun: true })).json?.wouldInsert
+      ?.label === "x",
   )
 
   let setup = ""

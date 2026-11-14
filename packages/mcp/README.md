@@ -123,7 +123,10 @@ The tools are built per request for the caller, so each user sees only their
 own rows. The user is the verified token's `sub` (`userId: (caller) => …` picks
 another); with no identity there are no db tools at all. Writes are off:
 `allowWrites: true` adds `<table>_insert` and `<table>_update`, which take
-`dryRun: true`. `maxRows` caps rows per call (default 100). A table without a
+`dryRun: true`. `maxRows` caps rows per call (default 100). Scopes are not
+checked unless you set `scopes: { read: ["db:read"], write: ["db:write"] }`:
+`read` gates the read-only tools, `write` the insert and update tools, so
+without it any caller with a verified `sub` can run every db tool. A table without a
 `userId` column throws when `signetMcpOptions` is called. `agentTools` is
 passed in because signet-db is not a dependency of this package. Because the
 list depends on the caller, use `mountMcp` or `resolveMcpServer`, not
