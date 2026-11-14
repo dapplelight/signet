@@ -517,7 +517,9 @@ store's own state, not the event type:
 | Play `PAUSED` | `paused` | none |
 
 `applySubscription(sub, { subject })` applies a subscription read live (a
-signet-payments `Subscription`), so a restore also fixes a missed webhook.
+signet-payments `Subscription`), so a restore also fixes a missed webhook. A
+`cancelled` web subscription ends access now, except Lemon Squeezy's, which keeps
+access until its `currentPeriodEnd` (`ends_at`).
 
 ## Feature flags
 

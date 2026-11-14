@@ -351,6 +351,9 @@ export function storeStateOf(gateway: string, raw: unknown): SourceState | undef
   return undefined
 }
 
+/** Web gateways whose `cancelled` means renewal is off and access lasts until the period end. */
+const CANCELLED_UNTIL_PERIOD_END = new Set(["lemonsqueezy"])
+
 /** Stripe `current_period_end` (object or first item), Razorpay `current_end`, Paddle `current_billing_period.ends_at`. */
 export function defaultPeriodEndOf(event: BillingEvent): Date | undefined {
   const r = event.raw
@@ -796,10 +799,12 @@ export function createEntitlements<P extends Plans>(
       ...(sub.productId ? { productId: sub.productId } : {}),
       raw: sub.raw,
     }
-    // A web gateway's cancelled means access already ended (a cancel at period end stays active).
+    // Most web gateways report cancelled once access has ended (a cancel at period end stays
+    // active), so the period end is cleared. Lemon Squeezy's cancelled lasts until ends_at.
+    const endsNow = sub.status === "cancelled" && !CANCELLED_UNTIL_PERIOD_END.has(sub.gateway)
     const state = storeStateOf(sub.gateway, sub.raw) ?? {
       status: sub.status,
-      currentPeriodEnd: sub.status === "cancelled" ? null : sub.currentPeriodEnd,
+      currentPeriodEnd: endsNow ? null : sub.currentPeriodEnd,
     }
     return settle(applySource(event, opts, state))
   }

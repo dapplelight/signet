@@ -786,6 +786,18 @@ describe.each(backends)("$name", (backend) => {
       ),
     ).toMatchObject({ applied: true, plan: "team", status: "cancelled" })
     expect((await ent.get("u3")).plan).toBe("free")
+    // Lemon Squeezy reports cancelled until ends_at: access lasts until then.
+    await ent.applySubscription(
+      {
+        gateway: "lemonsqueezy",
+        gatewayId: "sub_L",
+        status: "cancelled",
+        productId: "plan_team",
+        currentPeriodEnd: new Date("2026-11-20T00:00:00Z"),
+      },
+      { subject: "u5" },
+    )
+    expect(await ent.get("u5")).toMatchObject({ plan: "team", status: "cancelled" })
     // A web subscription set to cancel at period end is still active until then.
     await ent.applySubscription(
       {
