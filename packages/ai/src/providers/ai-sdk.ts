@@ -1,15 +1,15 @@
 /**
  * Vercel AI SDK adapter. Requires `ai` (>=5) as an optional peer.
  *
- * `generateObject` takes the Zod schema directly and returns a typed, validated
- * object — which is why the SDK was chosen over a workflow framework: this
- * package makes single extraction calls and needs nothing else.
+ * `generateText` with `output: Output.object({ schema })` takes the Zod schema
+ * directly and returns a typed, validated object. It replaced `generateObject`,
+ * which AI SDK 6 deprecated. Requires `ai` 7 or later.
  *
  * The model is passed in rather than constructed here, so adding a provider is
  * a config change in the product, not an edit to this package.
  */
 
-import { generateObject, type LanguageModel } from "ai"
+import { generateText, type LanguageModel, Output } from "ai"
 import type { GenerateArgs, Pricing, Provider, Usage } from "../types.js"
 
 export type AiSdkProviderOptions = {
@@ -25,21 +25,30 @@ export type AiSdkProviderOptions = {
   maxRetries?: number
 }
 
+/** A label for a model: the string itself, or the model object's `modelId`. */
+export function modelIdOf(model: unknown): string {
+  if (typeof model === "string") return model
+  return (model as { modelId?: string } | undefined)?.modelId ?? "unknown"
+}
+
+/** The SDK's usage shape to this package's, which has no undefined counts. */
+export function toUsage(
+  u: { inputTokens?: number; outputTokens?: number } | undefined,
+): Usage | undefined {
+  return u ? { inputTokens: u.inputTokens ?? 0, outputTokens: u.outputTokens ?? 0 } : undefined
+}
+
 export function aiSdkProvider(options: AiSdkProviderOptions): Provider {
-  const modelId =
-    options.modelId ??
-    (typeof options.model === "string"
-      ? options.model
-      : ((options.model as { modelId?: string }).modelId ?? "unknown"))
+  const modelId = options.modelId ?? modelIdOf(options.model)
 
   return {
     name: options.name,
     model: modelId,
     pricing: options.pricing,
     async generate<T>({ schema, instructions, input, signal }: GenerateArgs<T>) {
-      const result = await generateObject({
+      const result = await generateText({
         model: options.model,
-        schema,
+        output: Output.object({ schema }),
         system: instructions,
         prompt: input,
         abortSignal: signal,
@@ -49,12 +58,7 @@ export function aiSdkProvider(options: AiSdkProviderOptions): Provider {
         maxRetries: options.maxRetries ?? 0,
       })
 
-      const u = result.usage as { inputTokens?: number; outputTokens?: number } | undefined
-      const usage: Usage | undefined = u
-        ? { inputTokens: u.inputTokens ?? 0, outputTokens: u.outputTokens ?? 0 }
-        : undefined
-
-      return { value: result.object as T, usage }
+      return { value: result.output as T, usage: toUsage(result.usage) }
     },
   }
 }
