@@ -6,7 +6,12 @@
 
 export type Money = { amount: number; currency: string }
 
-export type Method = "upi" | "card" | "netbanking" | "wallet" | "emi"
+/**
+ * `applepay` and `googlepay` are the device wallets (cards in Apple Wallet or
+ * Google Pay), not Google Pay's UPI app in India, which is `upi`. `wallet` is
+ * every other wallet (PayPal, Paytm, Amazon Pay...).
+ */
+export type Method = "upi" | "card" | "netbanking" | "wallet" | "emi" | "applepay" | "googlepay"
 
 export type Feature =
   | "capture"

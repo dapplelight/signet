@@ -12,6 +12,7 @@ import { paypal } from "../src/gateways/paypal"
 import { payu } from "../src/gateways/payu"
 import { phonepe } from "../src/gateways/phonepe"
 import { razorpay } from "../src/gateways/razorpay"
+import { APPLE_PAY_DOMAIN_ASSOCIATION_PATH, applePayDomainAssociation } from "../src/wallets"
 import { fakeFetch } from "./fake"
 
 const SECRET = "whsec_test_made_up_secret"
@@ -793,5 +794,80 @@ describe("payu", () => {
     expect(g2.listSettlements({ date: "2025-08-26" })).rejects.toMatchObject({
       code: "GATEWAY_ERROR",
     })
+  })
+})
+
+describe("wallets", () => {
+  const body = (f: ReturnType<typeof fakeFetch>) => JSON.parse(f.calls[0].body!)
+
+  test("a wallet method limits the checkout where the gateway takes a list", async () => {
+    const cf = fakeFetch({ "POST /pg/orders": { order_id: "o1", order_currency: "INR" } })
+    await cashfree({
+      clientId: "TEST_APP_ID",
+      clientSecret: SECRET,
+      fetch: cf.fetch,
+      ...http,
+    }).createCheckout({
+      amount: 100,
+      currency: "INR",
+      idempotencyKey: "k-1",
+      method: "applepay",
+      returnUrl: "https://shop.example.test/done",
+      customer: { id: "c1", phone: "9999999999" },
+    })
+    expect(body(cf).order_meta).toEqual({
+      return_url: "https://shop.example.test/done",
+      payment_methods: "applepay",
+    })
+
+    const hs = fakeFetch({ "POST /payments": { payment_id: "p1" } })
+    const h = hyperswitch({ apiKey: "snd_made_up", fetch: hs.fetch, ...http })
+    await h.createCheckout({
+      amount: 100,
+      currency: "USD",
+      idempotencyKey: "k",
+      method: "googlepay",
+    })
+    await h.createCheckout({ amount: 100, currency: "USD", idempotencyKey: "k", method: "card" })
+    expect(body(hs).allowed_payment_method_types).toEqual(["google_pay"])
+    expect(JSON.parse(hs.calls[1].body!).allowed_payment_method_types).toBeUndefined()
+
+    const dd = fakeFetch({ "POST /checkouts": { session_id: "cks_1" } })
+    await dodo({
+      apiKey: "dodo_test_made_up",
+      productId: "pdt_1",
+      fetch: dd.fetch,
+      ...http,
+    }).createCheckout({ amount: 100, currency: "USD", idempotencyKey: "k", method: "applepay" })
+    expect(body(dd).allowed_payment_method_types).toEqual(["apple_pay", "credit", "debit"])
+  })
+
+  test("phonepe has no device wallets; google pay on razorpay is upi", async () => {
+    const f = fakeFetch({})
+    const pp = phonepe({
+      clientId: "c",
+      clientSecret: "s",
+      clientVersion: 1,
+      fetch: f.fetch,
+      ...http,
+    })
+    await expect(
+      pp.createCheckout({ amount: 100, currency: "INR", idempotencyKey: "k", method: "applepay" }),
+    ).rejects.toMatchObject({ code: "UNSUPPORTED" })
+    const rz = razorpay({ keyId: "k", keySecret: "s", fetch: f.fetch, ...http })
+    await expect(
+      rz.createCheckout({ amount: 100, currency: "INR", idempotencyKey: "k", method: "googlepay" }),
+    ).rejects.toMatchObject({ code: "UNSUPPORTED" })
+    expect(f.calls).toHaveLength(0)
+  })
+
+  test("applePayDomainAssociation serves the file at the well-known path only", async () => {
+    const serve = applePayDomainAssociation("7B22...file-from-the-gateway")
+    const at = (path: string, method = "GET") =>
+      serve(new Request(`https://shop.example.test${path}`, { method }))
+    expect(await at(APPLE_PAY_DOMAIN_ASSOCIATION_PATH)!.text()).toBe("7B22...file-from-the-gateway")
+    expect(at(APPLE_PAY_DOMAIN_ASSOCIATION_PATH, "HEAD")!.status).toBe(200)
+    expect(at(APPLE_PAY_DOMAIN_ASSOCIATION_PATH, "POST")).toBeNull()
+    expect(at("/")).toBeNull()
   })
 })
