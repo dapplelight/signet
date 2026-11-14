@@ -1361,7 +1361,7 @@ export const INDEX: SignetIndex = {
     {
      "name": "AdminAction",
      "kind": "type",
-     "signature": "export type AdminAction<C> = {\n  description: string\n  /** Marks the MCP tool destructive. */\n  destructive?: boolean\n  /** A `z.object` for the action's input. Default: none. */\n  input?: z.ZodType<Rec>\n  /** `ops` is `audited(db, { actor })`: write through it so the change is in the audit log. */\n  run(args: { row: Rec; input: Rec; ctx: C; db: SignetDb<unknown>; ops: Ops<false> }): unknown\n}",
+     "signature": "export type AdminAction<C> = {\n  description: string\n  /** Marks the MCP tool destructive. */\n  destructive?: boolean\n  /** A `z.object` for the action's input. Default: none. */\n  input?: z.ZodType<Rec>\n  /**\n   * `ops` is `audited(db, { actor })`: write through it so the change is in\n   * the audit log. `row` has only visible columns; the return value is sent\n   * as-is, so leave out anything private.\n   */\n  run(args: { row: Rec; input: Rec; ctx: C; db: SignetDb<unknown>; ops: Ops<false> }): unknown\n}",
      "doc": "",
      "source": "packages/db/src/admin.ts"
     },

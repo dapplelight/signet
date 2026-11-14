@@ -78,7 +78,11 @@ export type AdminAction<C> = {
   destructive?: boolean
   /** A `z.object` for the action's input. Default: none. */
   input?: z.ZodType<Rec>
-  /** `ops` is `audited(db, { actor })`: write through it so the change is in the audit log. */
+  /**
+   * `ops` is `audited(db, { actor })`: write through it so the change is in
+   * the audit log. `row` has only visible columns; the return value is sent
+   * as-is, so leave out anything private.
+   */
   run(args: { row: Rec; input: Rec; ctx: C; db: SignetDb<unknown>; ops: Ops<false> }): unknown
 }
 
@@ -749,16 +753,16 @@ function build<C extends AdminContext>(
     )
     const values = list.map((v) => idValue(m, v))
     const pk = m.cols[m.id as string] as Column
-    const rows = (await read(db, m, and(inArray(pk, values), live(m)))).map((r) => strip(m, r))
-    for (const row of rows) {
+    const rows = await read(db, m, and(inArray(pk, values), live(m)))
+    const found = rows.map((r) => r[m.id as string])
+    for (const [i, row] of rows.map((r) => strip(m, r)).entries()) {
       if (!(await allowed(ctx, { table: m.name, op: "delete", row })))
         throw new AdminError(
           403,
           "FORBIDDEN",
-          `Not allowed to delete ${m.name} ${String(row[m.id as string])}; nothing was deleted.`,
+          `Not allowed to delete ${m.name} ${String(found[i])}; nothing was deleted.`,
         )
     }
-    const found = rows.map((r) => r[m.id as string])
     if (found.length) await writer(db, ctx).delete(m.table, inArray(pk, found))
     return { ids: found, soft: m.info.softDelete }
   }
