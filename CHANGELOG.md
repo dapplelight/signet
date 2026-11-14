@@ -5,6 +5,60 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-server: jobs and storage
+
+- New `@dapplelight/signet-server/jobs`: `defineJob({ name, input, retry, timeoutSeconds, run })`
+  with `job.enqueue(input, { delaySeconds, key, actor })` (zod-checked at
+  enqueue), and `createJobs({ jobs, queue, store })` whose `handle(message)`
+  dispatches by name, aborts on timeout, retries with exponential or fixed
+  backoff by re-sending, and dead-letters after the last attempt
+  (`listDead`, `retryDead`). Idempotent keys over the `KeyValue`, or an
+  `idempotency` hook for signet-db's `withIdempotency`; `outboxMessage` and
+  `outboxQueue` for signet-db's outbox. `pause`/`resume`, `onJobRun`.
+- Schedules: `defineSchedule` with a 5-field UTC cron matcher (`parseCron`,
+  `cronMatches`), `jobs.runDueSchedules(now)`, `cloudflareScheduled`, `startScheduler`.
+- Runtimes: `cloudflareConsumer` (Queues batch, ack/retry), `qstashReceiver`
+  and `verifyQstashSignature` (Web Crypto HS256, current and next key),
+  `inProcessJobs` (memoryQueue) and `startWorker` (polling).
+- `jobTools(jobs)`: plain MCP tools `list_failed_jobs`, `retry_job` (behind
+  `requireApproval`), `pause_job`, `resume_job`.
+- Durable steps: `ctx.step.run` (memoised in the `KeyValue`), `step.sleep`
+  (re-enqueues in 12 h legs), `step.waitFor({ event, timeoutSeconds })` and
+  `step.waitForApproval`, answered by `jobs.emit`/`jobs.send` and
+  `jobs.approve` or the new `list_pending_approvals` / `decide_job_approval`
+  tools. Per-key `concurrency` and `rateLimit` (re-enqueue with delay). Event
+  triggers: `jobs.on(event, jobs)`, `triggers`, `jobs.emit`, `outboxEvent`.
+  `createTestJobs` with `runAll({ advanceTime })` and a virtual clock.
+  `jobTools`' `retryWithoutApproval` option is now `withoutApproval`.
+- Progress (`ctx.progress`, `jobs.status(id)`, `trackStatus`), cancel
+  (`jobs.cancel(id)`: honoured before start, between steps and via
+  `ctx.signal` in-process), and per-key AI budgets (`budget`, `budgetStore`
+  in signet-ai's shape, `ctx.recordCost`, `costUsd` in `onJobRun`,
+  `BUDGET_EXCEEDED`).
+- signet-ui: new `@dapplelight/signet-ui/domain/job-runs` (`JobRuns`), a
+  data-table of job runs with retry and cancel callbacks; not in the barrel.
+- New `@dapplelight/signet-server/storage`: `createUploads({ store, maxBytes, allowedTypes })`
+  with `presignUpload` (checks before signing), `presignDownload`,
+  `confirmUpload` (re-checks what landed, deletes a bad file, runs
+  `afterUpload`), `acceptUpload` (streams through the server, stops at the
+  limit, sniffs PNG/JPEG/GIF/WebP/PDF magic bytes) and `remove`. Per-user key
+  prefixes by default; `sniffType`, `UploadError`.
+- Storage extras: `stripMetadata` (EXIF/XMP/IPTC out of JPEG, PNG, WebP,
+  keeping only the Orientation tag when present; on by default in `acceptUpload`), per-user `quota`, abandoned-upload tracking
+  with `cleanupAbandoned` and `abandonedUploadsJob`, `dedupe` by SHA-256
+  with reference counts, `startResumable` / `completeMultipart`, `read`,
+  and `resize` with a `Resizer` (`cloudflareImagesResizer`).
+- signet-lib: `ERROR_CODES` and `DEFAULT_ERROR_COPY` gain the codes jobs
+  and uploads emit: `BAD_INPUT`, `JOB_FAILED`, `UNKNOWN_JOB`, `CANCELLED`,
+  `BUDGET_EXCEEDED`, `TOO_LARGE`, `EMPTY`, `TYPE_NOT_ALLOWED`,
+  `TYPE_MISMATCH`, `BAD_KEY`, `QUOTA_EXCEEDED`, `PRESIGN_UNSUPPORTED`,
+  `RESUMABLE_UNSUPPORTED`, and the start-up errors `JOBS_NOT_CREATED`,
+  `DUPLICATE_JOB`, `NO_BUDGET_STORE` (generic copy). A copy table that spreads `DEFAULT_ERROR_COPY` needs no change.
+- New `@dapplelight/signet-server/adapters/s3`: `s3BlobStore` (SigV4 over
+  Web Crypto; presigned GET/PUT, multipart). `supabaseBlobStore` gains
+  `resumable(key)` (TUS target) and a `publishableKey` option.
+- signet-ui: new `@dapplelight/signet-ui/domain/upload` (`Upload`).
+
 ### signet-db 0.1.0 (new, private: not published yet)
 
 - New `@dapplelight/signet-db`: Drizzle helpers with a driver-free core and
