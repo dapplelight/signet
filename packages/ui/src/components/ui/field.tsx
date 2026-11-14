@@ -88,7 +88,7 @@ function FieldError({
   const own = children === undefined && messages.length > 0
   return (
     <FieldErrorPrimitive
-      match={own ? true : match}
+      match={own ? undefined : match}
       className={cn("text-sm text-destructive", className)}
       {...props}
     >

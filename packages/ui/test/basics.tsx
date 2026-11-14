@@ -705,5 +705,55 @@ await t("AlertDialog: Signet Button as the trigger", async () => {
   ok("AlertDialog: and still opens", !!screen.getByRole("alertdialog", { name: "Remove?" }))
 })
 
+// --- Customisation: text and classes are overridable ---
+await t("Customisation", async () => {
+  render(
+    <Toaster
+      closeButton
+      closeLabel="Schließen"
+      label="Hinweise"
+      classNames={{ toast: "my-toast", title: "my-title" }}
+    />,
+  )
+  await act(async () => {
+    toast("Gespeichert")
+  })
+  ok("Toaster: close label is overridable", !!screen.getByRole("button", { name: "Schließen" }))
+  ok("Toaster: region label is overridable", !!screen.getByRole("region", { name: "Hinweise" }))
+  ok(
+    "Toaster: classNames reach the toast and its title",
+    !!document.querySelector(".my-toast .my-title"),
+  )
+  await act(async () => toast.dismiss())
+  cleanup()
+
+  setDesktop(true)
+  render(
+    <SidebarProvider>
+      <Sidebar className="my-sidebar" />
+      <SidebarTrigger label="Seitenleiste" />
+    </SidebarProvider>,
+  )
+  const trig = screen.getByRole("button", { name: "Seitenleiste" })
+  ok("SidebarTrigger: label is overridable", !!trig)
+  ok("SidebarTrigger: exposes data-state", trig.dataset.state === "open")
+  ok("Sidebar: className merges", !!document.querySelector("aside.my-sidebar.bg-bg-surface"))
+  cleanup()
+
+  render(
+    <Stepper
+      aria-label="Steps"
+      current={0}
+      steps={[{ title: "A" }, { title: "B" }]}
+      classNames={{ indicator: "my-dot" }}
+      renderIndicator={(i, status) => `${i}:${status}`}
+    />,
+  )
+  ok(
+    "Stepper: renderIndicator and classNames",
+    document.querySelector(".my-dot")?.textContent === "0:current",
+  )
+})
+
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)

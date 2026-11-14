@@ -32,10 +32,26 @@ function Command({ className, ...props }: React.ComponentProps<typeof CommandPri
   )
 }
 
-function CommandInput({ className, ...props }: React.ComponentProps<typeof CommandInputPrimitive>) {
+function CommandInput({
+  className,
+  wrapperClassName,
+  icon,
+  ...props
+}: React.ComponentProps<typeof CommandInputPrimitive> & {
+  wrapperClassName?: string
+  /** Replaces the search icon; null hides it. */
+  icon?: React.ReactNode
+}) {
   return (
-    <div data-slot="command-input-wrapper" className="flex h-10 items-center gap-2 border-b px-3">
-      <SearchIcon aria-hidden="true" className="size-4 shrink-0 text-text-muted" />
+    <div
+      data-slot="command-input-wrapper"
+      className={cn("flex h-10 items-center gap-2 border-b px-3", wrapperClassName)}
+    >
+      {icon === undefined ? (
+        <SearchIcon aria-hidden="true" className="size-4 shrink-0 text-text-muted" />
+      ) : (
+        icon
+      )}
       <CommandInputPrimitive
         className={cn(
           "h-10 w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-text-muted disabled:cursor-not-allowed disabled:opacity-50",
@@ -59,7 +75,10 @@ function CommandList({ className, ...props }: React.ComponentProps<typeof Comman
 function CommandEmpty({ className, ...props }: React.ComponentProps<typeof CommandEmptyPrimitive>) {
   return (
     <CommandEmptyPrimitive
-      className={cn("py-6 text-center text-sm text-text-muted", className)}
+      className={cn(
+        "py-6 text-center text-sm text-text-muted [&:not([data-empty])]:hidden",
+        className,
+      )}
       {...props}
     />
   )
@@ -131,6 +150,8 @@ type CommandDialogProps = React.ComponentProps<typeof CommandPrimitive> & {
   description?: React.ReactNode
   /** Close once a command runs. Default true. */
   closeOnAction?: boolean
+  /** Classes for the dialog surface around the command. */
+  contentClassName?: string
 }
 
 /** A command palette: Command inside a Dialog, opened with ⌘K / Ctrl+K. */
@@ -144,6 +165,7 @@ function CommandDialog({
   closeOnAction = true,
   onAction,
   className,
+  contentClassName,
   ...props
 }: CommandDialogProps) {
   const [own, setOwn] = React.useState(defaultOpen)
@@ -158,7 +180,10 @@ function CommandDialog({
   })
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="overflow-hidden p-0" showCloseButton={false}>
+      <DialogContent
+        className={cn("overflow-hidden p-0", contentClassName)}
+        showCloseButton={false}
+      >
         <DialogHeader className="sr-only">
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>

@@ -116,7 +116,20 @@ interface ToasterProps {
   closeButton?: boolean
   /** Name of the region for screen readers. Default "Notifications". */
   label?: string
+  /** Accessible name of the close button. Default "Close". */
+  closeLabel?: string
+  /** What screen readers hear while a slow action runs. Set it in the page's language. */
+  pendingAnnouncement?: string
+  /** Key that moves focus into the region and back. Default "F6"; null turns it off. */
+  hotkey?: string | null
   className?: string
+  /** Classes for each part of every toast, merged over the defaults. */
+  classNames?: Partial<
+    Record<
+      "toast" | "icon" | "content" | "title" | "description" | "action" | "cancel" | "close",
+      string
+    >
+  >
 }
 
 const ALIGN = { left: "start", center: "center", right: "end" } as const
@@ -139,7 +152,11 @@ function Toaster({
   visibleToasts,
   closeButton = false,
   label,
+  closeLabel = "Close",
+  pendingAnnouncement,
+  hotkey,
   className,
+  classNames = {},
 }: ToasterProps) {
   const [side, x] = position.split("-") as ["top" | "bottom", keyof typeof ALIGN]
   return (
@@ -149,8 +166,10 @@ function Toaster({
       expanded={expand}
       maxVisible={visibleToasts}
       aria-label={label}
+      pendingAnnouncement={pendingAnnouncement}
+      shortcut={hotkey}
       className={cn(
-        "group/toaster fixed z-[100] m-0 w-[356px] max-w-[calc(100vw-2rem)] border-0 bg-transparent p-0 [--dir:-1] [&>ol]:m-0 [&>ol]:list-none [&>ol]:p-0",
+        "group/toaster fixed z-[100] m-0 w-(--toaster-width,356px) max-w-[calc(100vw-2rem)] border-0 bg-transparent p-0 [--dir:-1] [&>ol]:m-0 [&>ol]:list-none [&>ol]:p-0",
         "h-(--toast-front-height) data-expanded:h-[calc(var(--toast-stack-height)+(var(--toast-count)-1)*0.5rem)]",
         "data-[side=bottom]:bottom-4 data-[side=top]:top-4 data-[side=top]:[--dir:1]",
         "data-[align=end]:end-4 data-[align=start]:start-4 data-[align=center]:left-1/2 data-[align=center]:-translate-x-1/2",
@@ -168,6 +187,7 @@ function Toaster({
             "data-expanded:[--y:calc(var(--dir)*(var(--toast-offset)+var(--toast-index)*0.5rem))] data-expanded:[scale:1]",
             "data-starting-style:transition-none data-starting-style:data-front:[--y:calc(-100%*var(--dir))]",
             "data-ending-style:opacity-0 [&[data-starting-style]:not([data-front])]:opacity-0 data-swiping:transition-none",
+            classNames.toast,
           )}
         >
           {TYPE_ICON.map(([Icon, type, tone]) => (
@@ -177,6 +197,7 @@ function Toaster({
               className={cn(
                 "mt-0.5 hidden size-4 shrink-0",
                 tone,
+                classNames.icon,
                 type === "success" && "group-data-[type=success]/toast:block",
                 type === "info" && "group-data-[type=info]/toast:block",
                 type === "warning" && "group-data-[type=warning]/toast:block",
@@ -185,25 +206,34 @@ function Toaster({
               )}
             />
           ))}
-          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <ToastTitlePrimitive className="font-medium" />
-            <ToastDescriptionPrimitive className="text-text-muted" />
+          <div
+            data-slot="toast-content"
+            className={cn("flex min-w-0 flex-1 flex-col gap-0.5", classNames.content)}
+          >
+            <ToastTitlePrimitive className={cn("font-medium", classNames.title)} />
+            <ToastDescriptionPrimitive className={cn("text-text-muted", classNames.description)} />
           </div>
           <ToastClosePrimitive
             className={cn(
               buttonVariants({ variant: "outline", size: "xs" }),
               "shrink-0 empty:hidden",
+              classNames.cancel,
             )}
           />
           <ToastActionPrimitive
-            className={cn(buttonVariants({ size: "xs" }), "shrink-0 empty:hidden")}
+            className={cn(
+              buttonVariants({ size: "xs" }),
+              "shrink-0 empty:hidden",
+              classNames.action,
+            )}
           />
           {closeButton && (
             <ToastClosePrimitive
-              aria-label="Close"
+              aria-label={closeLabel}
               className={cn(
                 buttonVariants({ variant: "ghost", size: "icon-xs" }),
                 "-mt-1 -mr-2 shrink-0",
+                classNames.close,
               )}
             >
               <XIcon />

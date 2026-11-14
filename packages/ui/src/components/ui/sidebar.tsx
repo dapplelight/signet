@@ -86,6 +86,10 @@ function SidebarProvider({
 }
 
 interface SidebarProps extends React.ComponentProps<"aside"> {
+  /** Screen-reader description of the phone drawer. Default "Navigation". */
+  mobileDescription?: string
+  /** Classes for the phone drawer's surface. */
+  mobileClassName?: string
   /** "icon" keeps a strip of icons when collapsed; "offcanvas" hides it. Default "icon". */
   collapsible?: "icon" | "offcanvas"
   side?: "left" | "right"
@@ -97,6 +101,8 @@ function Sidebar({
   className,
   children,
   "aria-label": label = "Sidebar",
+  mobileDescription = "Navigation",
+  mobileClassName,
   ...props
 }: SidebarProps) {
   const { isMobile, open, openMobile, setOpenMobile, panelId } = useSidebar()
@@ -104,9 +110,9 @@ function Sidebar({
   if (isMobile) {
     return (
       <Drawer open={openMobile} onOpenChange={setOpenMobile} swipeDirection={side}>
-        <DrawerContent className="w-72 sm:w-72">
+        <DrawerContent className={cn("w-72 sm:w-72", mobileClassName)}>
           <DrawerTitle className="sr-only">{label}</DrawerTitle>
-          <DrawerDescription className="sr-only">Navigation</DrawerDescription>
+          <DrawerDescription className="sr-only">{mobileDescription}</DrawerDescription>
           <aside
             data-slot="sidebar"
             data-mobile=""
@@ -145,7 +151,13 @@ function Sidebar({
 }
 
 /** Toggles the sidebar: collapses it on desktop, opens the drawer on phones. */
-function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<typeof Button>) {
+function SidebarTrigger({
+  className,
+  onClick,
+  label = "Toggle sidebar",
+  children,
+  ...props
+}: React.ComponentProps<typeof Button> & { label?: string }) {
   const { isMobile, open, openMobile, toggle, panelId } = useSidebar()
   return (
     <Button
@@ -153,6 +165,7 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
       variant="ghost"
       size="icon-sm"
       aria-expanded={isMobile ? openMobile : open}
+      data-state={(isMobile ? openMobile : open) ? "open" : "closed"}
       aria-controls={isMobile ? undefined : panelId}
       className={className}
       onClick={(event) => {
@@ -161,8 +174,8 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
       }}
       {...props}
     >
-      <PanelLeftIcon />
-      <span className="sr-only">Toggle sidebar</span>
+      {children ?? <PanelLeftIcon />}
+      <span className="sr-only">{label}</span>
     </Button>
   )
 }

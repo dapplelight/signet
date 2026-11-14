@@ -27,11 +27,17 @@ function AlertDialogTrigger(props: React.ComponentProps<typeof AlertDialogTrigge
 
 function AlertDialogContent({
   className,
+  backdropClassName,
   ...props
-}: React.ComponentProps<typeof AlertDialogContentPrimitive>) {
+}: React.ComponentProps<typeof AlertDialogContentPrimitive> & { backdropClassName?: string }) {
   return (
     <>
-      <AlertDialogBackdrop className="fixed inset-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-ending-style:animate-out data-ending-style:fade-out-0" />
+      <AlertDialogBackdrop
+        className={cn(
+          "fixed inset-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-ending-style:animate-out data-ending-style:fade-out-0",
+          backdropClassName,
+        )}
+      />
       <AlertDialogContentPrimitive
         className={cn(
           "fixed top-1/2 left-1/2 z-50 m-0 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border-0 bg-bg-surface p-4 text-sm text-text-primary ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-ending-style:animate-out data-ending-style:fade-out-0 data-ending-style:zoom-out-95",

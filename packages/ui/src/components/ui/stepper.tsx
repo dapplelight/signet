@@ -29,6 +29,10 @@ interface StepperProps extends Omit<React.ComponentProps<"div">, "children"> {
   /** Names the steps for screen readers, like "Checkout". */
   "aria-label": string
   orientation?: "horizontal" | "vertical"
+  /** Classes for each step's parts, merged over the defaults. */
+  classNames?: Partial<Record<"item" | "indicator" | "connector" | "title" | "description", string>>
+  /** Replaces the number / check in each step's indicator. */
+  renderIndicator?: (index: number, status: StepStatus) => React.ReactNode
 }
 
 const statusOf = (i: number, current: number): StepStatus =>
@@ -38,6 +42,8 @@ function Stepper({
   steps,
   current,
   orientation = "horizontal",
+  classNames = {},
+  renderIndicator,
   className,
   ...props
 }: StepperProps) {
@@ -58,6 +64,7 @@ function Stepper({
             className={cn(
               "group/step relative flex min-w-0 flex-1 gap-2 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring",
               vertical ? "flex-row pb-6 last:pb-0" : "flex-col items-center text-center",
+              classNames.item,
             )}
           >
             <TimelineMarker
@@ -66,9 +73,16 @@ function Stepper({
                 "border-border-default bg-bg-surface text-text-muted",
                 "data-current:border-primary data-current:text-primary",
                 "data-complete:border-primary data-complete:bg-primary data-complete:text-primary-foreground",
+                classNames.indicator,
               )}
             >
-              {status === "complete" ? <CheckIcon className="size-3.5" strokeWidth={3} /> : i + 1}
+              {renderIndicator ? (
+                renderIndicator(i, status)
+              ) : status === "complete" ? (
+                <CheckIcon className="size-3.5" strokeWidth={3} />
+              ) : (
+                i + 1
+              )}
             </TimelineMarker>
             <TimelineConnector
               className={cn(
@@ -76,14 +90,22 @@ function Stepper({
                 vertical
                   ? "top-8 bottom-1 left-[calc(0.875rem-0.5px)] w-px"
                   : "top-3.5 left-[calc(50%+1.25rem)] h-px w-[calc(100%-2.5rem)]",
+                classNames.connector,
               )}
             />
             <div className={cn("flex min-w-0 flex-col gap-0.5", !vertical && "px-2")}>
-              <TimelineTitle className="text-sm font-medium text-text-primary group-data-upcoming/step:text-text-muted">
+              <TimelineTitle
+                className={cn(
+                  "text-sm font-medium text-text-primary group-data-upcoming/step:text-text-muted",
+                  classNames.title,
+                )}
+              >
                 {step.title}
               </TimelineTitle>
               {step.description != null && (
-                <TimelineDescription className="text-xs text-text-muted">
+                <TimelineDescription
+                  className={cn("text-xs text-text-muted", classNames.description)}
+                >
                   {step.description}
                 </TimelineDescription>
               )}

@@ -82,7 +82,11 @@ function BreadcrumbSeparator({ children, className, ...props }: React.ComponentP
 }
 
 /** Stands in for crumbs left out of a long trail. */
-function BreadcrumbEllipsis({ className, ...props }: React.ComponentProps<"span">) {
+function BreadcrumbEllipsis({
+  className,
+  label = "More",
+  ...props
+}: React.ComponentProps<"span"> & { label?: string }) {
   return (
     <span
       data-slot="breadcrumb-ellipsis"
@@ -90,7 +94,7 @@ function BreadcrumbEllipsis({ className, ...props }: React.ComponentProps<"span"
       {...props}
     >
       <MoreHorizontalIcon aria-hidden="true" className="size-4" />
-      <span className="sr-only">More</span>
+      <span className="sr-only">{label}</span>
     </span>
   )
 }
