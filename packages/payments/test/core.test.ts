@@ -634,6 +634,8 @@ describe("agent tools", () => {
     })
     expect(r).toMatchObject({ refunded: true, refundId: "rfnd_A", amount: 2000 })
     expect(asked[0].details).toMatchObject({ amount: 2000, currency: "INR", reason: "damaged" })
+    // The approval covers the key: a fresh key is a different refund and needs its own yes.
+    expect(asked[0].args.idempotencyKey).toBe("req-1")
     expect(f.calls[0]!.headers["x-refund-idempotency"]).toBe("agent-refund-razorpay-pay_A-req-1")
     const tl = await db.eventsFor("razorpay", "pay_A")
     expect(tl[0]?.actor).toEqual({ type: "agent", id: "support-bot" })

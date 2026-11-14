@@ -226,7 +226,8 @@ export function paymentTools(payments: Payments, options: PaymentToolsOptions): 
             full: amount === undefined,
             reason,
           },
-          args: { gateway: p.gateway, id: p.gatewayId, amount: value, reason },
+          // The key is part of what is approved: a fresh key is a new refund and needs a new yes.
+          args: { gateway: p.gateway, id: p.gatewayId, amount: value, reason, idempotencyKey: key },
         }
         const gate = options.approve ? await options.approve(ctx, request) : needsApproval(request)
         if (gate !== undefined) return gate
