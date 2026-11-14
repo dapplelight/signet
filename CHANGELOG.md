@@ -35,6 +35,36 @@ a package at the version it had when the repository was opened to the public.
 - Column helpers `entitlementTables()` and `flagOverrides()` in
   `./columns/sqlite` and `./columns/pg`.
 
+### signet-server: Phase 1 portability
+
+- `cloudflareQueue(binding)` in `./adapters/cloudflare`: a Queues producer as a
+  `Queue<T>`, delays rounded up to whole seconds, plus `sendBatch` split into
+  Cloudflare's 100-message calls. `cloudflareConsumer` in `./jobs` is the other
+  end. A raw binding still passes as a `Queue<T>`.
+- `AnalyticsSink` in `./analytics/sinks` (also re-exported from `./analytics`):
+  `createAnalyticsEngine` is one implementation; new `httpSink` (batched JSON
+  POSTs, flushed through a `Defer`, failures reported to `onEvent` and never
+  thrown), `memorySink` and `consoleSink`. `registerIngest`'s `engine` now
+  accepts any sink; existing callers are unchanged.
+- New `./adapters/vercel`: `vercelDefer(waitUntil)`, taking `waitUntil` from
+  `@vercel/functions` so Signet does not depend on it. KV on Vercel is Upstash
+  (use `./adapters/upstash`). No Vercel Blob adapter: Vercel documents Blob only
+  through its SDKs, not as an HTTP API.
+- `test/node-smoke.mjs`: the built dist under plain Node; CI runs it on Node 22
+  and 24.
+
+### create-signet-app: `--target`
+
+- `--template api --target cloudflare|bun|node|vercel` (default `cloudflare`).
+  Shared `src/app.ts`, env, tests and CI; only the chosen target's entry and
+  config are written: Worker + `wrangler.jsonc`, `Bun.serve` + `Dockerfile`, a
+  `node:http` bridge run by Node 22.18+ type stripping, or a Vercel `index.ts` +
+  `vercel.json`. A cloudflare scaffold no longer includes `src/server.ts` and
+  the `Dockerfile`; use `--target bun` for those. Relative imports in the
+  template now carry `.ts`.
+- signet-mcp's scaffold index mirrors the default (cloudflare) target, and its
+  env-at-module-scope check treats a `node:http` entry as a process entry.
+
 ### signet-payments 0.1.0 (new, public; first publish is manual, see PUBLISHING.md)
 
 - New `@dapplelight/signet-payments`: one canonical model (`Payment`, `Refund`,

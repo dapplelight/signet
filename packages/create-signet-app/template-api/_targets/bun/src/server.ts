@@ -1,8 +1,8 @@
 /// <reference types="bun" />
-// Bun and Docker entry: the same app as the Worker (index.ts), served by
-// Bun.serve. Run `bun src/server.ts`, or build the Dockerfile.
+// Bun and Docker entry: the app in ./app.ts, served by Bun.serve.
+// Run `bun src/server.ts`, or build the Dockerfile.
 import { memoryStore } from "@dapplelight/signet-server/middleware/rate-limit"
-import { createApp } from "./app"
+import { createApp } from "./app.ts"
 
 const hops = process.env.TRUSTED_PROXY_HOPS
 

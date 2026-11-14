@@ -1,11 +1,18 @@
 /**
- * Scaffolds the api template OUTSIDE the monorepo, installs from npm,
+ * Scaffolds the api template OUTSIDE the monorepo, once per --target.
+ *
+ * cloudflare (the default): installs from npm,
  * typechecks, lints, bundles with wrangler, and runs it under `wrangler dev` on
  * local workerd with the Durable Object from wrangler.jsonc.
  *
  * Running it is the point: workerd enforces what no typecheck sees — the
  * RateLimitCounter export, the binding, the migration, and that the entry
  * exports only handlers and classes.
+ *
+ * bun and node: installs, typechecks, lints, then serves src/server.ts under
+ * that runtime and checks the limit is keyed by the socket, not a client
+ * header. vercel: installs, typechecks, lints, and calls the default export's
+ * fetch in process (a real deploy needs a Vercel account).
  */
 
 import { existsSync, readFileSync, rmSync } from "node:fs"
@@ -59,12 +66,13 @@ try {
   )
 
   ok(
-    "Dockerfile ships with the app name, _dockerignore renamed",
-    readFileSync(join(DIR, "Dockerfile"), "utf8").includes(
-      "docker build -t __scaffold_api_test__",
-    ) &&
-      existsSync(join(DIR, ".dockerignore")) &&
-      !existsSync(join(DIR, "_dockerignore")),
+    "cloudflare scaffolds only its own entry: no Bun, Node or Vercel files, no _targets",
+    existsSync(join(DIR, "src/index.ts")) &&
+      !existsSync(join(DIR, "src/server.ts")) &&
+      !existsSync(join(DIR, "Dockerfile")) &&
+      !existsSync(join(DIR, "vercel.json")) &&
+      !existsSync(join(DIR, "index.ts")) &&
+      !existsSync(join(DIR, "_targets")),
   )
 
   const envTs = readFileSync(join(DIR, "src/env.ts"), "utf8")
@@ -87,41 +95,6 @@ try {
     test.exitCode === 0,
     (test.stdout.toString() + test.stderr.toString()).slice(-800),
   )
-  // The Bun/Docker entry: same app under Bun.serve, keyed by the socket address.
-  {
-    const port = 8890 + Math.floor(Math.random() * 100)
-    const proc = Bun.spawn(["bun", "src/server.ts"], {
-      cwd: DIR,
-      env: { ...process.env, PORT: String(port) },
-      stdout: "ignore",
-      stderr: "ignore",
-    })
-    try {
-      let up = false
-      for (let i = 0; i < 40 && !up; i++) {
-        up = await fetch(`http://127.0.0.1:${port}/api/health`)
-          .then((r) => r.ok)
-          .catch(() => false)
-        if (!up) await Bun.sleep(250)
-      }
-      const statuses: number[] = []
-      for (let i = 0; up && i < 60; i++) {
-        // A client-set x-forwarded-for must not pick its own bucket.
-        const res = await fetch(`http://127.0.0.1:${port}/api/health`, {
-          headers: { "x-forwarded-for": `203.0.113.${i}` },
-        })
-        statuses.push(res.status)
-      }
-      ok(
-        "src/server.ts serves under Bun and limits at 60",
-        up && statuses.filter((s) => s === 200).length === 59 && statuses.at(-1) === 429,
-        statuses.join(","),
-      )
-    } finally {
-      proc.kill()
-    }
-  }
-
   const bundle = await $`bunx wrangler deploy --dry-run --outdir .out`.cwd(DIR).nothrow().quiet()
   ok("wrangler bundles it", bundle.exitCode === 0, bundle.stderr.toString().slice(0, 400))
 
@@ -211,6 +184,133 @@ try {
 } finally {
   await stopWrangler()
   rmSync(DIR, { recursive: true, force: true })
+}
+
+// --- the other targets ---
+
+/** Poll until `url` answers 200, up to ~10s. */
+async function waitUp(url: string): Promise<boolean> {
+  for (let i = 0; i < 40; i++) {
+    if (
+      await fetch(url).then(
+        (r) => r.ok,
+        () => false,
+      )
+    )
+      return true
+    await Bun.sleep(250)
+  }
+  return false
+}
+
+/** Serve `cmd` in `dir` and check 60 hits from "different" forwarded IPs share one bucket. */
+async function servesAndLimits(name: string, cmd: string[], dir: string) {
+  const port = 8890 + Math.floor(Math.random() * 100)
+  const proc = Bun.spawn(cmd, {
+    cwd: dir,
+    env: { ...process.env, PORT: String(port) },
+    stdout: "ignore",
+    stderr: "ignore",
+  })
+  try {
+    const up = await waitUp(`http://127.0.0.1:${port}/api/health`)
+    const echo = up
+      ? await fetch(`http://127.0.0.1:${port}/api/echo`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ message: "hi" }),
+        }).then((r) => r.json() as Promise<{ message?: string }>)
+      : {}
+    ok(`${name}: POST body reaches the app`, echo.message === "hi", JSON.stringify(echo))
+    // Two hits used (probe + echo). A client-set x-forwarded-for must not pick its own bucket.
+    const statuses: number[] = []
+    for (let i = 0; up && i < 59; i++) {
+      const res = await fetch(`http://127.0.0.1:${port}/api/health`, {
+        headers: { "x-forwarded-for": `203.0.113.${i}` },
+      })
+      statuses.push(res.status)
+    }
+    ok(
+      `${name}: limits at 60 per socket address`,
+      up && statuses.filter((s) => s === 200).length === 58 && statuses.at(-1) === 429,
+      statuses.join(","),
+    )
+  } finally {
+    proc.kill()
+  }
+}
+
+const OWN_FILES: Record<string, string[]> = {
+  bun: ["src/server.ts", "Dockerfile", ".dockerignore"],
+  node: ["src/server.ts"],
+  vercel: ["index.ts", "vercel.json"],
+}
+const OTHER_FILES = ["src/index.ts", "wrangler.jsonc", "Dockerfile", "vercel.json", "index.ts"]
+
+for (const target of ["bun", "node", "vercel"]) {
+  const dir = join("/tmp", `__scaffold_api_${target}__`)
+  rmSync(dir, { recursive: true, force: true })
+  try {
+    await $`bun run ${ROOT}/packages/create-signet-app/src/index.ts ${dir} --template api --target ${target}`
+      .cwd("/tmp")
+      .quiet()
+    const own = OWN_FILES[target] ?? []
+    ok(
+      `${target}: scaffolds its own files and no other target's`,
+      own.every((f) => existsSync(join(dir, f))) &&
+        OTHER_FILES.filter((f) => !own.includes(f)).every((f) => !existsSync(join(dir, f))) &&
+        !existsSync(join(dir, "_targets")),
+    )
+    const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"))
+    const ci = readFileSync(join(dir, CI), "utf8")
+    const ciScripts = [...ci.matchAll(/bun run ([\w:-]+)/g)].map((m) => m[1])
+    ok(
+      `${target}: no wrangler, and CI only calls scripts that exist`,
+      !pkg.devDependencies.wrangler &&
+        !ci.includes("--dry-run") &&
+        ciScripts.every((s) => s in pkg.scripts),
+      ciScripts.join(","),
+    )
+    if (target === "bun")
+      ok(
+        "bun: Dockerfile ships with the app name",
+        readFileSync(join(dir, "Dockerfile"), "utf8").includes(
+          "docker build -t __scaffold_api_bun__",
+        ),
+      )
+
+    await $`bun install`.cwd(dir).quiet()
+    const tc = await $`bun run typecheck`.cwd(dir).nothrow().quiet()
+    ok(`${target}: typechecks`, tc.exitCode === 0, tc.stdout.toString().slice(-600))
+    ok(`${target}: lints clean`, (await $`bun run lint`.cwd(dir).nothrow().quiet()).exitCode === 0)
+    ok(
+      `${target}: app tests pass`,
+      (await $`bun run test`.cwd(dir).nothrow().quiet()).exitCode === 0,
+    )
+
+    if (target === "bun") await servesAndLimits("bun", ["bun", "src/server.ts"], dir)
+    // Needs Node 22.18+ on PATH: the file runs as is, by type stripping.
+    if (target === "node") await servesAndLimits("node", ["node", "src/server.ts"], dir)
+    if (target === "vercel") {
+      const out = await $`bun -e ${`const app = (await import("./index.ts")).default
+const h = await app.fetch(new Request("http://x/api/health", { headers: { "x-forwarded-for": "198.51.100.7" } }))
+const bad = await app.fetch(new Request("http://x/api/echo", { method: "POST", body: "{}", headers: { "content-type": "application/json", "x-forwarded-for": "198.51.100.7" } }))
+console.log(JSON.stringify({ health: h.status, rid: !!h.headers.get("x-request-id"), bad: bad.status, code: (await bad.json()).code }))`}`
+        .cwd(dir)
+        .nothrow()
+        .quiet()
+      const r = JSON.parse(out.stdout.toString().trim() || "{}")
+      ok(
+        "vercel: the default export serves the app (health 200 with a request id, envelope on 400)",
+        r.health === 200 && r.rid && r.bad === 400 && r.code === "VALIDATION_FAILED",
+        out.stdout.toString() + out.stderr.toString().slice(-400),
+      )
+    }
+  } catch (err) {
+    ok(`${target}: scaffold run completed`, false, String(err))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

@@ -911,22 +911,46 @@ function scripts(kind: "api" | "web"): Record<string, string> {
   const apiClose = matchClose(CSA, apiOpen)
   const webOpen = CSA.indexOf("{", apiClose + 1)
   const [open, close] = kind === "api" ? [apiOpen, apiClose] : [webOpen, matchClose(CSA, webOpen)]
-  return Object.fromEntries(
+  const own = Object.fromEntries(
     objectEntries(CSA.slice(open + 1, close)).map(([k, v]) => [k, v.replace(/^"|"$/g, "")]),
+  )
+  // The api scripts spread the target's own first; the index mirrors the default target.
+  return kind === "api" ? { ...apiTarget("scripts"), ...own } : own
+}
+/** A field of the default --target (cloudflare) in create-signet-app's API_TARGETS. */
+function apiTarget(field: "scripts" | "devDeps"): Record<string, string> {
+  const t = /^ {2}cloudflare: \{/m.exec(CSA)
+  if (!t) throw new Error("create-signet-app lost its cloudflare target")
+  const tClose = matchClose(CSA, t.index + t[0].length - 1)
+  const m = new RegExp(`${field}: \\{`).exec(CSA.slice(t.index, tClose))
+  if (!m) return {}
+  const open = t.index + m.index + m[0].length - 1
+  return Object.fromEntries(
+    objectEntries(CSA.slice(open + 1, matchClose(CSA, open))).map(([k, v]) => [
+      k,
+      v.replace(/^"|"$/g, ""),
+    ]),
   )
 }
 /** What create-signet-app copies: the tracked template files, renamed as it renames them. */
-function templateFiles(dir: string): TemplateFile[] {
+function templateFiles(dir: string, target?: string): TemplateFile[] {
   const files = execFileSync("git", ["ls-files", dir], { cwd: ROOT, encoding: "utf8" })
     .split("\n")
     .filter(Boolean)
-  return files.sort().map((f) => ({
-    path: f
-      .slice(dir.length + 1)
+  // Shared files, then the chosen target's laid over them, as the scaffolder copies.
+  const byPath = new Map<string, string>()
+  const overlay = `${dir}/_targets/${target}/`
+  for (const f of files.filter((f) => !f.startsWith(`${dir}/_targets/`)))
+    byPath.set(f.slice(dir.length + 1), f)
+  if (target)
+    for (const f of files.filter((f) => f.startsWith(overlay)))
+      byPath.set(f.slice(overlay.length), f)
+  return [...byPath.keys()].sort().map((path) => ({
+    path: path
       .replace(/^_gitignore$/, ".gitignore")
       .replace(/^_dockerignore$/, ".dockerignore")
       .replace(/^_github\//, ".github/"),
-    content: read(f),
+    content: read(byPath.get(path) as string),
   }))
 }
 const themeNames = /const THEMES = \[([^\]]*)\]/.exec(CSA)?.[1]?.match(/[\w-]+/g) ?? []
@@ -939,10 +963,10 @@ const scaffold: SignetIndex["scaffold"] = {
     devDependencies: objectConst("DEV_DEPS"),
   } satisfies ScaffoldTemplate,
   api: {
-    files: templateFiles("packages/create-signet-app/template-api"),
+    files: templateFiles("packages/create-signet-app/template-api", "cloudflare"),
     scripts: scripts("api"),
     dependencies: objectConst("API_DEPS"),
-    devDependencies: objectConst("API_DEV_DEPS"),
+    devDependencies: { ...objectConst("API_DEV_DEPS"), ...apiTarget("devDeps") },
   } satisfies ScaffoldTemplate,
 }
 

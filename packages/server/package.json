@@ -139,6 +139,10 @@
       "types": "./dist/analytics/ingest.d.ts",
       "import": "./dist/analytics/ingest.js"
     },
+    "./analytics/sinks": {
+      "types": "./dist/analytics/sinks.d.ts",
+      "import": "./dist/analytics/sinks.js"
+    },
     "./oauth-rs": {
       "types": "./dist/oauth-rs/index.d.ts",
       "import": "./dist/oauth-rs/index.js"
@@ -190,6 +194,10 @@
     "./adapters/supabase": {
       "types": "./dist/adapters/supabase.d.ts",
       "import": "./dist/adapters/supabase.js"
+    },
+    "./adapters/vercel": {
+      "types": "./dist/adapters/vercel.d.ts",
+      "import": "./dist/adapters/vercel.js"
     },
     "./adapters/s3": {
       "types": "./dist/adapters/s3.d.ts",
