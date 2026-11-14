@@ -67,7 +67,7 @@ MCP server that gives AI agents all of Signet: docs, exports, components, themes
 
 | Import | Exports | What |
 |---|---|---|
-| `@dapplelight/signet-mcp` | VERSION, signetMcpOptions, createSignetMcpServer, signetMcpFetch, SignetMcpOptions | An MCP server that gives agents everything Signet has: docs, exports, components, themes, scaffolding, convention checks, recipes and migration notes, |
+| `@dapplelight/signet-mcp` | VERSION, signetMcpOptions, signetMcpOptions, signetMcpOptions, createSignetMcpServer, signetMcpFetch, … | An MCP server that gives agents everything Signet has: docs, exports, components, themes, scaffolding, convention checks, recipes and migration notes, |
 
 ## @dapplelight/signet-payments
 
