@@ -148,6 +148,25 @@ attests builds from public repositories and this one is private.
 
 The local `bun run release` still works as before, with `npm login`.
 
+## A new package's first release
+
+npm Trusted Publishing is configured on a package's settings page, which only
+exists once the package has been published. So a new public package goes out
+by hand once, and only then joins the automated release:
+
+1. Merge it with `"version": "0.1.0"` and no `"private": true`, but **not** in
+   `ORDER` in `scripts/release.ts` or `PKGS` in `scripts/verify-publish.ts`.
+   CI then tests and builds it without trying to publish it.
+2. Publish 0.1.0 by hand, signed in as the owner:
+   `bun run --cwd packages/<name> build && cd packages/<name> && npm publish --access public`
+   (grep `dist` for private names first, as above).
+3. On npmjs.com, add the Trusted Publisher for it (repository
+   `dapplelight/signet`, workflow `release.yml`).
+4. Add it to `ORDER` (after its dependencies) and `PKGS`, so the next version
+   bump publishes from CI.
+
+`@dapplelight/signet-payments` is at step 1.
+
 ## Versioning: bump only what changed
 
 Packages are versioned independently. `bun run release` skips any package whose
