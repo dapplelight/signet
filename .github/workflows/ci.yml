@@ -27,6 +27,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun run lint
+      - run: bun run changes --check
       # Packages import each other through dist/ (see release.yml).
       - run: bun run build:all
       - name: test + typecheck
