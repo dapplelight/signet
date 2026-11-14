@@ -84,6 +84,11 @@
       "types": "./dist/admin.d.ts",
       "import": "./dist/admin.js",
       "default": "./dist/admin.js"
+    },
+    "./growth": {
+      "types": "./dist/growth.d.ts",
+      "import": "./dist/growth.js",
+      "default": "./dist/growth.js"
     }
   },
   "bin": {

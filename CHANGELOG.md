@@ -46,6 +46,18 @@ a package at the version it had when the repository was opened to the public.
   with their behaviour recipe (each component's `// Recipe:` line), parts,
   token classes and example, plus the behaviours and the build guide.
   `get_component` now returns `summary` and `recipe`.
+### signet-db: growth basics (waitlist, invites, referrals, onboarding, changelog, feedback)
+
+- New `./growth`: `createGrowth(db, { tables })` on `growthTables()` (both
+  dialects). Waitlist with idempotent join and position; invites whose token
+  is returned once and stored as SHA-256, accepted once by a conditional
+  update, with expiry, revocation and an optional email lock; referral codes,
+  one referrer per person, convert and reward once; onboarding steps and
+  changelog "last seen" on a `marks` table; feedback with kinds, rating and
+  status.
+- `growthTools(...)`: operator agent tools; writes gated on `approve`.
+- Internal: the plain tool shape and approval gate moved to `tool-kit.ts`;
+  `entitlementTools` is unchanged.
 ### signet-ai 0.4.0: AI SDK 7, usage hook, tool loops, streaming, embeddings, grounding
 
 - **Breaking peer:** `ai` is now `>=7.0.0` (was `>=5`). `aiSdkProvider` calls

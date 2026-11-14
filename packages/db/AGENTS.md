@@ -66,3 +66,12 @@ Tools come from `adminTools(admin, { db, ctx, approve })`.
 - `_create`, `_update`, `_delete` and actions ask the person to approve.
   `APPROVAL_REQUIRED` or `APPROVAL_DECLINED` means nothing changed.
 - `FORBIDDEN` is final for this caller; do not retry it another way.
+
+## Growth
+
+- `createGrowth(db, { tables: growthTables() })`. Never store or log an invite
+  token; it is shown once. Branch on `acceptInvite`'s `reason`, do not throw.
+- Reward a referrer only when `convertReferral(...).first` is true, then call
+  `markRewarded`; both are once-only.
+- `growthTools(...)` writes (`create_invite`, `revoke_invite`,
+  `set_feedback_status`) always ask a person to approve.

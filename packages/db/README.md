@@ -20,6 +20,7 @@ The core never imports a driver. Thin entry points connect it to one:
 | `@dapplelight/signet-db/entitlements` | `definePlans`, `createEntitlements`, billing events, usage limits, `entitlementTools` |
 | `@dapplelight/signet-db/flags` | `defineFlags`, `evaluateFlag`, `createFlags` |
 | `@dapplelight/signet-db/admin` | `defineAdmin(schema, { authorize })`, an admin API and admin MCP tools (needs zod) |
+| `@dapplelight/signet-db/growth` | `createGrowth`: waitlist, invites, referrals, onboarding, changelog, feedback; `growthTools` |
 
 Peers: `drizzle-orm` ^0.45, `@dapplelight/signet-lib` ^0.3, `postgres` only
 for `./postgres` and `zod` only for `./zod`. Types flow from your table definitions: rows, inserts
@@ -519,6 +520,70 @@ Read: `get_plan`, `check_entitlement`, `usage`, `list_flags`. Write (with
 `approve`; without one they change nothing and return `APPROVAL_REQUIRED`.
 They are audited as `actor`. Give writes only to agents run by staff: on a
 per-user agent the person approving is the user who benefits.
+
+## Growth: waitlist, invites, referrals, onboarding, changelog, feedback
+
+```ts
+import { growthTables } from "@dapplelight/signet-db/columns/sqlite" // or /columns/pg
+import { createGrowth } from "@dapplelight/signet-db/growth"
+
+export const { waitlist, invites, referralCodes, referrals, marks, feedback } = growthTables()
+
+const growth = createGrowth(db, {
+  tables: { waitlist, invites, referralCodes, referrals, marks, feedback },
+  inviteTtlMs: 7 * 86_400_000,          // the default
+})
+
+// Waitlist: idempotent, position among people still waiting
+await growth.joinWaitlist(email, { source: "launch", referralCode }) // { email, position, joined }
+await growth.waitlistStats()            // { total, pending, invited }
+await growth.markInvited([email])       // then send them an invite
+
+// Invites: the token is returned once; only its SHA-256 is stored
+const { invite, token } = await growth.createInvite({ invitedBy: userId, scope: orgId, role: "member", email })
+await growth.acceptInvite(token, { userId, email }) // { ok: true, invite, already } | { ok: false, reason }
+await growth.revokeInvite(invite.id)
+
+// Referrals: one referrer per person, no self-referral, reward once
+const code = await growth.referralCode(userId)   // 8 Crockford base32 characters, stable
+await growth.refer(code, newUserId)               // at sign-up
+const c = await growth.convertReferral(newUserId) // at first payment
+if (c?.first) { /* reward c.referral.referrer */ await growth.markRewarded(newUserId) }
+
+// Onboarding and "what's new"
+await growth.completeStep(userId, "profile")
+await growth.onboarding(userId, ["profile", "invite", "first-project"]) // { done, next, complete, percent }
+await growth.unseenChangelog(userId, entries) // entries newer than the last markChangelogSeen
+await growth.markChangelogSeen(userId)
+
+// Feedback
+await growth.sendFeedback({ subject: userId, kind: "bug", message, rating: 4, page: "/settings" })
+await growth.listFeedback({ status: "new" })
+```
+
+`acceptInvite` fails with `not_found`, `expired`, `used` (by someone else),
+`revoked` or `email_mismatch` (the invite names an email and the caller's
+does not match). The claim is one conditional `UPDATE`, so two people
+cannot accept the same invite. What accepting grants (org membership, a role)
+is the app's: read `invite.scope` and `invite.role`. `marks` is one timestamp
+per subject and key; onboarding uses `onboarding:<step>` keys and the
+changelog `changelog:seen`, and `mark`/`marksOf` are there for your own
+(tours dismissed, tips seen). Feedback kinds default to
+`DEFAULT_FEEDBACK_KINDS` (bug, idea, praise, other); pass `feedbackKinds` to
+change them. These writes are the user's own actions and are not audited.
+
+### Tools for agents
+
+```ts
+import { growthTools } from "@dapplelight/signet-db/growth"
+
+const tools = growthTools({ growth, allowWrites: true, invitedBy: staffId, approve })
+```
+
+For an operator agent. Read: `waitlist_stats`, `list_waitlist`,
+`list_feedback`, `referral_stats`, `list_invites`. Write (with
+`allowWrites`): `create_invite`, `revoke_invite`, `set_feedback_status`, each
+gated on `approve` like the entitlement tools.
 
 ## Errors
 

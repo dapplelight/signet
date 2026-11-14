@@ -1,11 +1,20 @@
 /**
  * Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`,
  * `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`,
- * `idempotencyKeys`, `entitlementTables` and `flagOverrides` tables.
+ * `idempotencyKeys`, `entitlementTables`, `flagOverrides` and
+ * `growthTables` tables.
  */
 
 import { sql } from "drizzle-orm"
-import { customType, index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core"
+import {
+  customType,
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core"
 import { assertCiphertext } from "../cipher.js"
 import { newId } from "../id.js"
 import { snake } from "./shared.js"
@@ -176,3 +185,89 @@ export const flagOverrides = (name = "flag_overrides") =>
     expiresAt: ms("expires_at"),
     updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
   })
+
+/**
+ * The tables for `createGrowth` from `@dapplelight/signet-db/growth`:
+ * waitlist, invites, referral codes, referrals, per-subject marks (onboarding
+ * steps, changelog last seen) and feedback. Destructure into the schema:
+ * `export const { waitlist, invites, referralCodes, referrals, marks, feedback } = growthTables()`.
+ */
+export const growthTables = (prefix = "") => ({
+  waitlist: sqliteTable(`${prefix}waitlist`, {
+    /** Lower-cased and trimmed. */
+    email: text("email").primaryKey(),
+    source: text("source"),
+    /** The referral code the person arrived with. */
+    referralCode: text("referral_code"),
+    createdAt: stamp("created_at"),
+    invitedAt: ms("invited_at"),
+  }),
+  invites: sqliteTable(
+    `${prefix}invites`,
+    {
+      id: id(),
+      /** SHA-256 of the token, hex. The token itself is never stored. */
+      tokenHash: text("token_hash").notNull(),
+      /** Only this address may accept, when set. */
+      email: text("email"),
+      invitedBy: text("invited_by").notNull(),
+      /** What the invite is to, e.g. an org id. */
+      scope: text("scope"),
+      role: text("role"),
+      createdAt: stamp("created_at"),
+      expiresAt: ms("expires_at").notNull(),
+      acceptedAt: ms("accepted_at"),
+      acceptedBy: text("accepted_by"),
+      revokedAt: ms("revoked_at"),
+    },
+    (t) => [uniqueIndex(`${prefix}invites_token`).on(t.tokenHash)],
+  ),
+  referralCodes: sqliteTable(
+    `${prefix}referral_codes`,
+    {
+      subject: text("subject").primaryKey(),
+      code: text("code").notNull(),
+      createdAt: stamp("created_at"),
+    },
+    (t) => [uniqueIndex(`${prefix}referral_codes_code`).on(t.code)],
+  ),
+  referrals: sqliteTable(
+    `${prefix}referrals`,
+    {
+      /** One referrer per person. */
+      referee: text("referee").primaryKey(),
+      referrer: text("referrer").notNull(),
+      code: text("code").notNull(),
+      createdAt: stamp("created_at"),
+      convertedAt: ms("converted_at"),
+      rewardedAt: ms("rewarded_at"),
+    },
+    (t) => [index(`${prefix}referrals_referrer`).on(t.referrer)],
+  ),
+  marks: sqliteTable(
+    `${prefix}marks`,
+    {
+      subject: text("subject").notNull(),
+      /** e.g. "onboarding:profile", "changelog:seen". */
+      key: text("key").notNull(),
+      at: stamp("at"),
+    },
+    (t) => [primaryKey({ columns: [t.subject, t.key] })],
+  ),
+  feedback: sqliteTable(`${prefix}feedback`, {
+    id: id(),
+    /** Null for anonymous feedback. */
+    subject: text("subject"),
+    /** bug | idea | praise | other */
+    kind: text("kind").notNull(),
+    message: text("message").notNull(),
+    /** 1 to 5, optional. */
+    rating: integer("rating"),
+    /** Where it was sent from, e.g. a path. */
+    page: text("page"),
+    meta: text("meta", { mode: "json" }),
+    /** new | seen | done */
+    status: text("status").notNull().default("new"),
+    createdAt: stamp("created_at"),
+  }),
+})
