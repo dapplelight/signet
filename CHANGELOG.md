@@ -5,6 +5,32 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-payments 0.1.0 (new, public; first publish is manual, see PUBLISHING.md)
+
+- New `@dapplelight/signet-payments`: one canonical model (`Payment`, `Refund`,
+  `Customer`, `PaymentMethod`, `Subscription`, `Payout`, `Settlement`, `Event`)
+  in integer minor units, over nine fetch-only adapters, each a subpath:
+  `./razorpay`, `./stripe`, `./cashfree`, `./phonepe`, `./payu`, `./paddle`,
+  `./lemonsqueezy`, `./paypal`, `./hyperswitch`. No SDKs, no runtime dependencies.
+- `capabilities` per adapter; an unsupported call rejects with `UNSUPPORTED`
+  before any network call. Features the gateways' docs did not pin down are
+  unsupported rather than guessed (see the README matrix).
+- `verifyWebhook(request)` per gateway with that gateway's scheme (Web Crypto,
+  constant-time compare, timestamp tolerance), normalised to `payment.*`,
+  `refund.*`, `subscription.*`, `payout.*` and `dispute.*` events.
+- `createPayments`: routing by currency, country or method, failover on outages
+  only, an idempotency key on every charge and refund (structural hook for
+  signet-db's `withIdempotency`), and a webhook inbox with dedupe, per-payment
+  ordering and replay.
+- Stores: `memoryStore()` and `sqlStore(client, { dialect })` for SQLite, D1 and
+  Postgres, with `paymentsSchema(dialect)`.
+- A double-entry ledger (balanced transactions enforced, keyed postings for
+  capture, fee, refund and payout) and `reconcile` / `reconcileJob` against
+  gateway settlement reports.
+- `./agent`: `paymentTools` (`find_payment`, `list_payments`,
+  `payment_timeline`, `refund_payment`) as plain MCP tools; refunds always go
+  through an approval hook and record the actor.
+
 ### signet-db 0.1.0 (new, private: not published yet)
 
 - New `@dapplelight/signet-db`: Drizzle helpers with a driver-free core and
