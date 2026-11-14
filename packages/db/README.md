@@ -19,6 +19,7 @@ The core never imports a driver. Thin entry points connect it to one:
 | `@dapplelight/signet-db/agent` | `agentTools(db, { tables, userId })`, tools for AI agents (needs zod) |
 | `@dapplelight/signet-db/entitlements` | `definePlans`, `createEntitlements`, billing events, usage limits, `entitlementTools` |
 | `@dapplelight/signet-db/flags` | `defineFlags`, `evaluateFlag`, `createFlags` |
+| `@dapplelight/signet-db/admin` | `defineAdmin(schema, { authorize })`, an admin API and admin MCP tools (needs zod) |
 | `@dapplelight/signet-db/growth` | `createGrowth`: waitlist, invites, referrals, onboarding, changelog, feedback; `growthTools` |
 
 Peers: `drizzle-orm` ^0.45, `@dapplelight/signet-lib` ^0.3, `postgres` only
@@ -245,6 +246,78 @@ Each tool is `{ name, description, annotations, input, inputSchema, run,
 handler }`: `input` and `handler` are what signet-server's MCP server
 registers; `inputSchema` is JSON Schema for other runners. `AGENTS.md` is the
 short guide for agents.
+
+## Admin API from the schema
+
+```ts
+import { adminTools, defineAdmin, roles } from "@dapplelight/signet-db/admin"
+import * as schema from "./schema"
+
+export const admin = defineAdmin(schema, {
+  authorize: roles(), // admin: all; staff: all but delete; readonly: list, get
+  tables: {
+    users: { search: ["name", "email"], readonly: ["email"], hidden: ["phone"] },
+    outbox: false, // leave a table out
+  },
+})
+
+const ctx = { actor: { type: "user", id: me.id }, role: me.role }
+await admin.list(db, ctx, "users", { filter: { plan: { eq: "pro" } }, sort: "createdAt", limit: 20 })
+await admin.update(db, ctx, "users", id, { name: "New name" })
+```
+
+Every table in the schema is included unless set to `false`; config is by SQL
+table name. Operations: `meta`, `list`, `get`, `create`, `update`, `delete`,
+`bulkDelete`, `action`, and `handle(db, ctx, request)` for HTTP (mount it with
+signet-server's `adminRoutes`). Defaults that hold without config:
+
+- **Deny by default.** Each op calls `authorize(ctx, { table, op })`, then again
+  with the `row` (each listed row, the stored row, or the new one on create).
+  Anything but `true`, or a throw, is `403 FORBIDDEN`. `roles(map)` reads
+  `ctx.role`; write your own for anything finer.
+- **Secrets hidden.** `encrypted()` columns and names matching password,
+  hash, token, secret, salt, api key or private key are never returned,
+  sorted, filtered or written. `hidden` adds more; `reveal` opts one back in.
+  Audit log snapshots are cut to the audited table's visible columns.
+- **Soft delete.** Rows with `deletedAt` set are left out unless a list or get
+  passes `withDeleted`; delete sets `deletedAt` (`soft: true` in the result).
+- **Allow-listed queries.** `sort`, `filter` and `search` columns are fixed at
+  `defineAdmin` time (defaults: visible NOT NULL scalars, visible scalars,
+  visible text). A request naming anything else is `400 VALIDATION_FAILED`,
+  and SQL is built from Drizzle columns only. Filter operators: `eq`, `ne`,
+  `in`, `isNull`, `lt`/`lte`/`gt`/`gte` (numbers, dates, text), `contains` and
+  `startsWith` (text, case-insensitive).
+- **Stable cursors.** Pages sort by the column plus the primary key, and the
+  cursor compares against the anchor row in SQL, so ties and inserts never
+  repeat or skip a row. A cursor for another sort is rejected.
+- **Audited writes.** Writes go through `audited(db, { actor: ctx.actor })`;
+  the db needs an audit table. The `auditLog()` table itself is list and get
+  only. Inputs are strict `toZod` schemas: unknown, hidden and read-only
+  fields are rejected with field-level `details`.
+
+`meta(ctx)` returns, per table this caller may use, the columns (type, enum,
+money currency, read-only, sortable, filterable, operators), relations, the
+allowed ops and actions: what an admin UI or an agent renders from.
+
+Actions add per-row operations: `actions: { refund: { description, input?,
+destructive?, run: ({ row, input, ctx, db, ops }) => ... } }`, where `ops`
+is the audited writer.
+
+### Admin tools for agents
+
+```ts
+import { requireApproval } from "@dapplelight/signet-server/mcp"
+
+tools: async ({ c }) =>
+  adminTools(admin, { db: dbFor(c), ctx: await adminCtx(c), approve: requireApproval })
+```
+
+`admin_schema`, and per table `admin_<table>_list`, `_search`, `_get`; with
+`approve`, also `_create`, `_update`, `_delete` and one tool per action. Only
+ops `authorize` allows the caller are listed, and each call is authorized
+again. A write validates and authorizes first, then calls `approve` (which
+asks the person), and writes only when it returns undefined. Writes are
+audited as `{ type: "agent", id: ctx.actor.id }` unless `actor` is given.
 
 ## Zod schemas from tables
 
