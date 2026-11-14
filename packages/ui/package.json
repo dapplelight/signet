@@ -2,7 +2,7 @@
   "name": "@dapplelight/signet-ui",
   "version": "0.2.2",
   "license": "MIT",
-  "description": "Signet component kit — token-driven React primitives.",
+  "description": "Signet component kit \u2014 token-driven React primitives.",
   "keywords": [
     "signet",
     "react",
@@ -30,6 +30,10 @@
       "types": "./dist/lib/utils.d.ts",
       "import": "./dist/lib/utils.js"
     },
+    "./behaviors": {
+      "types": "./dist/behaviors/index.d.ts",
+      "import": "./dist/behaviors/index.js"
+    },
     "./hooks/use-media-query": {
       "types": "./dist/hooks/use-media-query.d.ts",
       "import": "./dist/hooks/use-media-query.js"
@@ -38,13 +42,25 @@
       "types": "./dist/components/ui/alert.d.ts",
       "import": "./dist/components/ui/alert.js"
     },
+    "./components/alert-dialog": {
+      "types": "./dist/components/ui/alert-dialog.d.ts",
+      "import": "./dist/components/ui/alert-dialog.js"
+    },
     "./components/answer-headline": {
       "types": "./dist/components/ui/answer-headline.d.ts",
       "import": "./dist/components/ui/answer-headline.js"
     },
+    "./components/avatar": {
+      "types": "./dist/components/ui/avatar.d.ts",
+      "import": "./dist/components/ui/avatar.js"
+    },
     "./components/badge": {
       "types": "./dist/components/ui/badge.d.ts",
       "import": "./dist/components/ui/badge.js"
+    },
+    "./components/breadcrumb": {
+      "types": "./dist/components/ui/breadcrumb.d.ts",
+      "import": "./dist/components/ui/breadcrumb.js"
     },
     "./components/button": {
       "types": "./dist/components/ui/button.d.ts",
@@ -69,6 +85,10 @@
     "./components/combobox": {
       "types": "./dist/components/ui/combobox.d.ts",
       "import": "./dist/components/ui/combobox.js"
+    },
+    "./components/command": {
+      "types": "./dist/components/ui/command.d.ts",
+      "import": "./dist/components/ui/command.js"
     },
     "./components/data-table": {
       "types": "./dist/components/ui/data-table.d.ts",
@@ -97,6 +117,10 @@
     "./components/error-state": {
       "types": "./dist/components/ui/error-state.d.ts",
       "import": "./dist/components/ui/error-state.js"
+    },
+    "./components/field": {
+      "types": "./dist/components/ui/field.d.ts",
+      "import": "./dist/components/ui/field.js"
     },
     "./components/input": {
       "types": "./dist/components/ui/input.d.ts",
@@ -142,6 +166,10 @@
       "types": "./dist/components/ui/progress.d.ts",
       "import": "./dist/components/ui/progress.js"
     },
+    "./components/radio-group": {
+      "types": "./dist/components/ui/radio-group.d.ts",
+      "import": "./dist/components/ui/radio-group.js"
+    },
     "./components/responsive-sheet": {
       "types": "./dist/components/ui/responsive-sheet.d.ts",
       "import": "./dist/components/ui/responsive-sheet.js"
@@ -158,6 +186,10 @@
       "types": "./dist/components/ui/shortcuts.d.ts",
       "import": "./dist/components/ui/shortcuts.js"
     },
+    "./components/sidebar": {
+      "types": "./dist/components/ui/sidebar.d.ts",
+      "import": "./dist/components/ui/sidebar.js"
+    },
     "./components/skeleton": {
       "types": "./dist/components/ui/skeleton.d.ts",
       "import": "./dist/components/ui/skeleton.js"
@@ -166,9 +198,17 @@
       "types": "./dist/components/ui/slider.d.ts",
       "import": "./dist/components/ui/slider.js"
     },
+    "./components/spinner": {
+      "types": "./dist/components/ui/spinner.d.ts",
+      "import": "./dist/components/ui/spinner.js"
+    },
     "./components/stat-strip": {
       "types": "./dist/components/ui/stat-strip.d.ts",
       "import": "./dist/components/ui/stat-strip.js"
+    },
+    "./components/stepper": {
+      "types": "./dist/components/ui/stepper.d.ts",
+      "import": "./dist/components/ui/stepper.js"
     },
     "./components/switch": {
       "types": "./dist/components/ui/switch.d.ts",
@@ -185,6 +225,14 @@
     "./components/textarea": {
       "types": "./dist/components/ui/textarea.d.ts",
       "import": "./dist/components/ui/textarea.js"
+    },
+    "./components/timeline": {
+      "types": "./dist/components/ui/timeline.d.ts",
+      "import": "./dist/components/ui/timeline.js"
+    },
+    "./components/toast": {
+      "types": "./dist/components/ui/toast.d.ts",
+      "import": "./dist/components/ui/toast.js"
     },
     "./components/tooltip": {
       "types": "./dist/components/ui/tooltip.d.ts",
@@ -213,7 +261,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "bun run test/ui.tsx && bun run test/dom.tsx && bun run test/data-table.tsx && bun run test/shortcuts.tsx && bun run test/markdown.tsx && bun run test/dom2.tsx && bun run test/domain.tsx",
+    "test": "bun run test/ui.tsx && bun run test/dom.tsx && bun run test/data-table.tsx && bun run test/shortcuts.tsx && bun run test/markdown.tsx && bun run test/dom2.tsx && bun run test/domain.tsx && bun run test/basics.tsx && bun run test/behaviors.tsx",
     "build": "tsc -p tsconfig.build.json",
     "prepublishOnly": "bun run build"
   },
@@ -290,5 +338,9 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "dependencies": {
+    "@ui-sdk/core": "0.1.0-beta.2",
+    "@ui-sdk/react": "0.1.0-beta.2"
+  }
 }
