@@ -865,6 +865,30 @@ const setup = (over: Partial<Parameters<typeof createNotifier>[0]> = {}) => {
   ok("job: redelivered message does not send again", sent.length === 1)
 }
 {
+  // jobs integration: last attempt fails -> dead-lettered AND delivery marked failed, payload gone
+  const sent: Sent[] = []
+  const { n, kv } = setup({ channels: { email: recorder("email", sent, 99) } })
+  const msgs: JobMessage[] = []
+  const job = notifyJob(n, z, { retry: { attempts: 2, baseSeconds: 0 } })
+  const jobs = createJobs({ jobs: [job], queue: { send: async (m) => void msgs.push(m) } })
+  await n.notify("u1", "order.shipped", { orderId: "A", url: "u" }, { channels: ["email"] })
+  await flush()
+  const r1 = await jobs.handle(msgs[0] as JobMessage)
+  const mid = (await n.exportUser("u1")).deliveries[0]
+  ok(
+    "job exhausted: first attempt retries, delivery still queued",
+    r1.status === "retrying" && mid?.status === "queued",
+  )
+  const r2 = await jobs.handle(msgs[1] as JobMessage)
+  const last = (await n.exportUser("u1")).deliveries[0]
+  ok("job exhausted: dead-lettered", r2.status === "dead")
+  ok(
+    "job exhausted: delivery failed with the error code",
+    last?.status === "failed" && last.reason === "FLAKY",
+  )
+  ok("job exhausted: payload deleted", !(await kv.get(`signet-notify:pl:${last?.id}`)))
+}
+{
   // inbox ops
   const { n } = setup()
   for (let i = 0; i < 5; i++)

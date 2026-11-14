@@ -734,6 +734,15 @@ export function createNotifier<T extends Templates>(o: NotifierOptions<T>) {
     }
   }
 
+  /** Retries are used up: drop the stored payload and record the delivery as failed. */
+  async function giveUp(id: string, err: unknown): Promise<void> {
+    await store.deletePayload(id)
+    await finish(id, {
+      status: "failed",
+      reason: err instanceof NotifyError ? err.code : "SEND_FAILED",
+    })
+  }
+
   /** In-process retries for the `defer` path. */
   async function deliverWithRetry(id: string): Promise<void> {
     for (let attempt = 1; ; attempt++) {
@@ -742,11 +751,7 @@ export function createNotifier<T extends Templates>(o: NotifierOptions<T>) {
         return
       } catch (err) {
         if (attempt >= policy.attempts) {
-          await store.deletePayload(id)
-          await finish(id, {
-            status: "failed",
-            reason: err instanceof NotifyError ? err.code : "SEND_FAILED",
-          })
+          await giveUp(id, err)
           return
         }
         await new Promise((r) => setTimeout(r, retryDelay(policy, attempt) * 1000))
@@ -939,6 +944,8 @@ export function createNotifier<T extends Templates>(o: NotifierOptions<T>) {
   return {
     notify,
     deliver,
+    /** Used by `notifyJob` on the last attempt; you rarely call it. */
+    giveUp,
     getPrefs,
     updatePrefs,
     inbox,
@@ -1041,12 +1048,19 @@ export function notifyJob<T extends Templates>(
   zod: typeof z,
   opts: { name?: string; retry?: Partial<RetryPolicy> } = {},
 ): Job<z.ZodObject<{ id: z.ZodString }>> {
+  const retry = { attempts: 5, backoff: "exponential", baseSeconds: 30, ...opts.retry } as const
   const job = defineJob({
     name: opts.name ?? "signet-notify.deliver",
     input: zod.object({ id: zod.string().min(1) }),
-    retry: { attempts: 5, backoff: "exponential", baseSeconds: 30, ...opts.retry },
-    run: async ({ id }) => {
-      await notifier.deliver(id)
+    retry,
+    run: async ({ id }, ctx) => {
+      try {
+        await notifier.deliver(id)
+      } catch (err) {
+        // The jobs runtime dead-letters the run after this throw; close the delivery too.
+        if (ctx.attempt >= retry.attempts) await notifier.giveUp(id, err)
+        throw err
+      }
     },
   })
   notifier.setEnqueue((id, delaySeconds) =>
