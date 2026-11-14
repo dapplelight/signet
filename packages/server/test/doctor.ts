@@ -141,7 +141,9 @@ ok(
 )
 
 // The real scaffold template must pass its own doctor.
-const tpl = new URL("../../create-signet-app/template-api/", import.meta.url).pathname
+// Its Worker files live under the cloudflare target.
+const tpl = new URL("../../create-signet-app/template-api/_targets/cloudflare/", import.meta.url)
+  .pathname
 const tplFindings = diagnose({
   wranglerConfig: readFileSync(`${tpl}wrangler.jsonc`, "utf8"),
   entrySource: readFileSync(`${tpl}src/index.ts`, "utf8"),
