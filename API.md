@@ -69,6 +69,24 @@ MCP server that gives AI agents all of Signet: docs, exports, components, themes
 |---|---|---|
 | `@dapplelight/signet-mcp` | VERSION, signetMcpOptions, createSignetMcpServer, signetMcpFetch, SignetMcpOptions | An MCP server that gives agents everything Signet has: docs, exports, components, themes, scaffolding, convention checks, recipes and migration notes, |
 
+## @dapplelight/signet-payments
+
+One payment model over Razorpay, Stripe, Cashfree, PhonePe, PayU, Paddle, Lemon Squeezy, PayPal and Hyperswitch, with a webhook inbox, a double-entry ledger and reconciliation.
+
+| Import | Exports | What |
+|---|---|---|
+| `@dapplelight/signet-payments` | PaymentsError, isPaymentsError, PaymentsErrorCode, receivable, toEntries, post, … | re-exports errors, ledger, payments, reconcile, store, types |
+| `@dapplelight/signet-payments/agent` | paymentTools, ApprovalRequest, PaymentToolsOptions, PaymentTool | Payment tools for AI agents as plain MCP tool objects (`name`, `description`, `inputSchema` as JSON Schema, `annotations`, `run(input, ctx)`), the sha |
+| `@dapplelight/signet-payments/cashfree` | CASHFREE_API_VERSION, cashfree, CashfreeConfig | Cashfree Payments PG over its REST API (x-api-version 2026-01-01, headers x-client-id / x-client-secret) |
+| `@dapplelight/signet-payments/hyperswitch` | hyperswitch, HyperswitchConfig | Hyperswitch (open-source payments orchestrator) over its REST API, header `api-key` |
+| `@dapplelight/signet-payments/lemonsqueezy` | lemonsqueezy, LemonSqueezyConfig | Lemon Squeezy over its JSON:API (api.lemonsqueezy.com/v1, bearer key; test mode is chosen by the key) |
+| `@dapplelight/signet-payments/paddle` | paddle, PaddleConfig | Paddle Billing (not Paddle Classic) over its REST API: bearer API key, `Paddle-Version: 1`, amounts as strings of minor units |
+| `@dapplelight/signet-payments/paypal` | paypalValue, paypal, PayPalConfig | PayPal REST (Orders v2, Payments v2, Subscriptions v1, Payouts v1) with an OAuth client-credentials token, cached until it expires |
+| `@dapplelight/signet-payments/payu` | payu, PayUConfig | PayU India |
+| `@dapplelight/signet-payments/phonepe` | phonepe, PhonePeConfig | PhonePe PG, Standard Checkout v2: an OAuth client-credentials token (`/v1/oauth/token`, form body, cached until `expires_at`) sent as `Authorization:  |
+| `@dapplelight/signet-payments/razorpay` | toPayment, razorpay, RazorpayConfig | Razorpay over its REST API (api.razorpay.com/v1, HTTP Basic key_id:key_secret) |
+| `@dapplelight/signet-payments/stripe` | STRIPE_API_VERSION, stripe, StripeConfig | Stripe over its REST API (api.stripe.com/v1, form-encoded bodies, bearer secret key, `Stripe-Version` pinned) |
+
 ## @dapplelight/signet-server
 
 Signet backend primitives. Auth first.
