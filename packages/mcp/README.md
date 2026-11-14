@@ -65,7 +65,7 @@ All read-only.
 | `scaffold_app({ name, template, theme })` | The exact `create-signet-app` command, the files it will create, and the next steps |
 | `scaffold_files({ name, template, theme })` | Every file `create-signet-app` would write, with contents, for an agent without a shell |
 | `check_app({ files } or { path })` | Findings with fixes: env read at module scope in a server module, rate limiting and its `trust`, `signet-doctor`'s Durable Object checks, CSRF, the error handler, the env schema against wrangler vars, Tailwind `@source` for the components, domain vocabulary in base packages |
-| `recipe(task)` | Install line, the doc sections that do the job (with their code), and how to verify. Tasks: add-auth, add-rate-limit, add-csrf, add-error-envelope, add-env, add-api-client, add-web-push, add-ai-extraction, add-analytics, add-portability-adapters, add-mcp-tools, add-oauth, add-logging, add-theme |
+| `recipe(task)` | Install line, the doc sections that do the job (with their code), and how to verify. Tasks: add-auth, add-rate-limit, add-csrf, add-error-envelope, add-env, add-api-client, add-web-push, add-ai-extraction, add-analytics, add-portability-adapters, add-db, add-mcp-tools, add-oauth, add-logging, add-theme |
 | `migration(from, to?, package?)` | CHANGELOG entries in the range with the breaking bullets pulled out, the README's "Migrating from" notes, and current versions |
 
 `check_app({ path })` reads a directory from disk, so it is offered only by the
@@ -104,6 +104,37 @@ mountMcp(app, "/mcp", signetMcpOptions())
 Both serve 2026-07-28 and 2025-era clients. `signetMcpOptions({ tools,
 resources, prompts })` adds your own beside Signet's.
 
+### Your database, as tools
+
+Pass a signet-db instance and the tables an agent may reach (each needs a
+`userId` column) and the server adds `<table>_list`, `<table>_get` and
+`<table>_search` after Signet's own tools:
+
+```ts
+import { agentTools } from "@dapplelight/signet-db/agent"
+
+mountMcp(app, "/mcp", {
+  ...signetMcpOptions({ db: { db, agentTools, tables: [orders, notes] } }),
+  middleware: [requireToken({ verifier, resourceMetadataUrl })],
+})
+```
+
+The tools are built per request for the caller, so each user sees only their
+own rows. The user is the verified token's `sub` (`userId: (caller) => …` picks
+another); with no identity there are no db tools at all. Writes are off:
+`allowWrites: true` adds `<table>_insert` and `<table>_update`, which take
+`dryRun: true`. `maxRows` caps rows per call (default 100). Scopes are not
+checked unless you set `scopes: { read: ["db:read"], write: ["db:write"] }`:
+`read` gates the read-only tools, `write` the insert and update tools, so
+without it any caller with a verified `sub` can run every db tool. Once you set
+`scopes`, name each group explicitly: `read` always, and `write` when
+`allowWrites` is true. `signetMcpOptions` throws if one is missing or empty,
+so a half-configured gate cannot leave the writes open. A table without a
+`userId` column throws when `signetMcpOptions` is called. `agentTools` is
+passed in because signet-db is not a dependency of this package. Because the
+list depends on the caller, use `mountMcp` or `resolveMcpServer`, not
+`signetMcpFetch`.
+
 ## How it is built
 
 The server is built with Signet's own toolkit (`defineTool`,
@@ -132,9 +163,10 @@ the generator.
 bun run build && bun run test
 ```
 
-The end-to-end test spawns the built bin under Node and speaks MCP over stdio
-by hand (initialize, every tool, resources, prompts), then calls the HTTP
-handler. The unit tests check `check_theme` and `check_app` against the
+The end-to-end test spawns the built bin under Node and talks to it over stdio
+with signet-server's MCP client (every tool, resources, prompts), calls the
+HTTP handler, then serves signet-db's agent tools for two users and checks
+neither sees the other's rows and that writes stay off by default. The unit tests check `check_theme` and `check_app` against the
 shipped themes and the scaffolder's own output, mutated to break each rule,
 and check that `scaffold_files` matches running `create-signet-app` byte for
 byte.
