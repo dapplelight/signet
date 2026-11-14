@@ -37,6 +37,25 @@ jobs:
       - run: bun run typecheck
         working-directory: packages/create-signet-app
 
+  # The suites above run under Bun. This loads signet-server's built dist with
+  # plain node, through the package's own exports map: adapters, sinks, jobs.
+  node-smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+        working-directory: packages/server
+      - run: node test/node-smoke.mjs
+        working-directory: packages/server
+
   scaffolder-e2e:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest

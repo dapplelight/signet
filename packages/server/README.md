@@ -114,6 +114,10 @@ app, not here.
 secrets, constant-time compare, passcode salting, token prefixes and the
 production guard.
 
+`node test/node-smoke.mjs`, after `bun run build`, loads the built `dist`
+under plain Node through the package's own exports map and exercises the
+adapters, analytics sinks and jobs. CI runs it on Node 22 and 24.
+
 ## HTTP — error envelope and validation
 
 `@dapplelight/signet-server/http` is the server half of the contract in `@dapplelight/signet-lib/api`.
