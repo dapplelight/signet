@@ -41,7 +41,8 @@ Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit 
 | Import | Exports | What |
 |---|---|---|
 | `@dapplelight/signet-db` | isCiphertext, assertCiphertext, generateKey, createCipher, CipherConfig, Cipher, … | re-exports cipher, db, describe, errors, id, idempotency, money, outbox, query, scoped, seed, user-data |
-| `@dapplelight/signet-db/agent` | agentTools, AgentTool, AgentToolsOptions | Database tools for AI agents, safe by construction: `agentTools(db, { tables, userId })` returns plain tool definitions (list, get, search per table,  |
+| `@dapplelight/signet-db/admin` | ADMIN_OPS, AdminError, defineAdmin, DEFAULT_ROLES, roles, adminTools, … | An admin API from the schema: `defineAdmin(schema, { authorize })` gives list (cursor pages, sort, typed filters, text search), get, create, update, d |
+| `@dapplelight/signet-db/agent` | jsonSchema, agentTools, AgentTool, AgentToolsOptions | Database tools for AI agents, safe by construction: `agentTools(db, { tables, userId })` returns plain tool definitions (list, get, search per table,  |
 | `@dapplelight/signet-db/columns/pg` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotencyKeys`, `entitlem |
 | `@dapplelight/signet-db/columns/sqlite` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotency |
 | `@dapplelight/signet-db/d1` | createDb | Cloudflare D1 driver: `createDb(env.DB, config)` |
@@ -127,6 +128,7 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/env/runtime` | initRuntimeEnv, getRuntimeEnv, resetRuntimeEnv | Runtime environment access that works on both Workers and Node/Bun |
 | `@dapplelight/signet-server/env/schema` | createEnv, CreateEnvOptions | Validate environment once, lazily, against a Zod schema |
 | `@dapplelight/signet-server/http` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus, … | re-exports errors, validate |
+| `@dapplelight/signet-server/http/admin` | adminRoutes, AdminHttpRequest, AdminHandler, AdminRoutesOptions | Mount an admin API (signet-db's `defineAdmin`) as Hono routes |
 | `@dapplelight/signet-server/http/errors` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus | Server half of the error envelope |
 | `@dapplelight/signet-server/http/validate` | parseBody, parseQuery, parseParams | Zod request validation |
 | `@dapplelight/signet-server/jobs` | parseCron, cronMatches, defineSchedule, runDueSchedules, cloudflareScheduled, startScheduler, … | re-exports cron, jobs, runtimes, tools |
@@ -141,9 +143,13 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/middleware/request-id` | requestId, RequestIdOptions |  |
 | `@dapplelight/signet-server/middleware/secure-headers` | STRICT_CSP, DOCS_CSP, secureHeaders, SecureHeadersOptions | Security headers |
 | `@dapplelight/signet-server/notify` | createEmailer, EmailConfig, EmailMessage, b64urlDecode, b64urlEncode, encryptAes128gcm, … | re-exports email, push, telegram |
+| `@dapplelight/signet-server/notify/channels` | resendSender, postmarkSender, assertDlt, twilioSms, msg91Sms, smsSenderFor, … | Senders for `createNotifier`, one per provider |
 | `@dapplelight/signet-server/notify/email` | createEmailer, EmailConfig, EmailMessage | Transactional email via Resend |
+| `@dapplelight/signet-server/notify/notifier` | CHANNELS, NotifyError, defineTemplates, DEFAULT_EMAIL_THEME, escapeHtml, htmlToText, … | Notifications: one `notify(userId, "event.key", data)` call fans out to email, SMS, WhatsApp, push, Telegram and an in-app inbox, after templates, pre |
 | `@dapplelight/signet-server/notify/push` | b64urlDecode, b64urlEncode, encryptAes128gcm, vapidJwt, webCryptoPushSender, isGone, … | Web push fan-out with dead-subscription pruning |
 | `@dapplelight/signet-server/notify/telegram` | escapeMarkdown, createTelegram, TelegramConfig | Telegram messages |
+| `@dapplelight/signet-server/notify/tools` | notifyTools, NotifyToolsOptions | MCP tools for notifications: `list_my_notifications`, `notification_prefs`, `update_prefs` (the signed-in user's own), and `send_notification` (staff  |
+| `@dapplelight/signet-server/notify/webhooks` | verifyResendSignature, parseResendEvent, resendWebhook, verifyTwilioSignature, parseTwilioEvent, twilioWebhook, … | Provider delivery webhooks: verify each with the provider's documented signature scheme, then normalise to `DeliveryEvent`s for `notifier.recordEvents |
 | `@dapplelight/signet-server/oauth-rs` | SUPPORTED_ALGS, createJwksCache, Jwk, SupportedAlg, JwksOptions, JwksCache, … | re-exports jwks, metadata, verify |
 | `@dapplelight/signet-server/oauth-rs/hono` | METADATA_PATH, registerProtectedResourceMetadata, requireToken, requireScopes, RequireTokenOptions | Hono bindings for the resource server |
 | `@dapplelight/signet-server/oauth-rs/jwks` | SUPPORTED_ALGS, createJwksCache, Jwk, SupportedAlg, JwksOptions, JwksCache | JWKS fetching, caching and rotation |
@@ -168,15 +174,16 @@ Signet design tokens. One theme file per design system; all themes satisfy CONTR
 
 Signet component kit — token-driven React primitives.
 
-`import { X } from "@dapplelight/signet-ui/components/<name>"` — 41 components:
+`import { X } from "@dapplelight/signet-ui/components/<name>"` — 52 components:
 
-`alert` · `answer-headline` · `badge` · `button` · `calendar` · `card` · `chart` · `checkbox` · `combobox` · `data-table` · `dialog` · `drawer` · `dropdown-menu` · `emoji-picker` · `empty-state` · `error-state` · `input` · `input-group` · `input-otp` · `kbd` · `label` · `markdown` · `pagination` · `pill-group` · `popover` · `privacy-mask` · `progress` · `responsive-sheet` · `search-input` · `select` · `shortcuts` · `skeleton` · `slider` · `stat-strip` · `switch` · `table` · `tabs` · `textarea` · `theme-provider` · `theme-toggle` · `tooltip`
+`alert` · `alert-dialog` · `answer-headline` · `avatar` · `badge` · `breadcrumb` · `button` · `calendar` · `card` · `chart` · `checkbox` · `combobox` · `command` · `data-table` · `dialog` · `drawer` · `dropdown-menu` · `emoji-picker` · `empty-state` · `error-state` · `field` · `input` · `input-group` · `input-otp` · `kbd` · `label` · `markdown` · `pagination` · `pill-group` · `popover` · `privacy-mask` · `progress` · `radio-group` · `responsive-sheet` · `search-input` · `select` · `shortcuts` · `sidebar` · `skeleton` · `slider` · `spinner` · `stat-strip` · `stepper` · `switch` · `table` · `tabs` · `textarea` · `theme-provider` · `theme-toggle` · `timeline` · `toast` · `tooltip`
 
 Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"`.
 
 | Import | Exports | What |
 |---|---|---|
 | `@dapplelight/signet-ui` | — |  |
+| `@dapplelight/signet-ui/behaviors` | useShortcut, useShortcutLabel, useControllableState, matchScore |  |
 | `@dapplelight/signet-ui/domain/job-runs` | JobRun |  |
 | `@dapplelight/signet-ui/domain/trend-chip` | — |  |
 | `@dapplelight/signet-ui/domain/upload` | xhrUpload, UploadTarget, UploadTransport |  |

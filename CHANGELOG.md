@@ -5,6 +5,47 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-server: notifications
+
+- New `./notify/notifier`: `createNotifier` with `notify(userId, event, data)`
+  over zod-typed, per-locale, per-channel templates (`defineTemplates`);
+  preferences per user × category × channel with required categories
+  (security, otp, billing); timezone-aware quiet hours (default
+  Asia/Kolkata, urgent bypasses); signed one-click unsubscribe (RFC 8058
+  headers); in-app inbox (cursor list, unread count, mark read, archive);
+  delivery records; suppression; WhatsApp opt-in; per-user per-channel rate
+  limit; idempotent deliveries; `notifyJob` to send through `createJobs`;
+  `exportUser` / `deleteUser`; `kvNotifyStore`; themed `emailLayout` with a
+  plain-text fallback.
+- New `./notify/channels`: fetch-only senders for Resend, Postmark, Twilio SMS,
+  MSG91 SMS, the WhatsApp Cloud API, web push and Telegram; `devSender` (refuses
+  production and staging); DLT refusal for `+91` SMS; `smsSenderFor` gives
+  auth's OTP a real SMS sender.
+- New `./notify/webhooks`: signature-verified handlers for Resend (Svix),
+  Twilio and Meta, normalised into delivery events; hard bounce, complaint and
+  STOP suppress the address; `unsubscribeRoute`.
+- New `./notify/tools`: `list_my_notifications`, `notification_prefs`,
+  `update_prefs`, and staff-only `send_notification` behind `requireApproval`.
+
+### signet-ui (unreleased)
+
+- New components on UI SDK behaviours, styled with theme tokens: `toast`
+  (`<Toaster />` and a sonner-compatible `toast()`), `alert-dialog`, `field`
+  (takes TanStack Form `errors`), `avatar` (with `initials()`), `radio-group`,
+  `command` (with a ⌘K `CommandDialog`), `timeline`, `stepper`, `sidebar`
+  (collapsible, a drawer on phones, ⌘B), `breadcrumb`, `spinner`.
+- New `@dapplelight/signet-ui/behaviors`: `useShortcut`, `useShortcutLabel`,
+  `useControllableState`, `matchScore`, with Signet's own types.
+- New dependencies `@ui-sdk/core` and `@ui-sdk/react`, pinned to
+  0.1.0-beta.2. They are internal: no UI SDK type or function is re-exported.
+- Existing components are unchanged.
+
+### signet-mcp (unreleased)
+
+- New `compose_component` tool: from a need in words, the matching components
+  with their behaviour recipe (each component's `// Recipe:` line), parts,
+  token classes and example, plus the behaviours and the build guide.
+  `get_component` now returns `summary` and `recipe`.
 ### signet-ai 0.4.0: AI SDK 7, usage hook, tool loops, streaming, embeddings, grounding
 
 - **Breaking peer:** `ai` is now `>=7.0.0` (was `>=5`). `aiSdkProvider` calls
@@ -116,6 +157,24 @@ a package at the version it had when the repository was opened to the public.
   template now carry `.ts`.
 - signet-mcp's scaffold index mirrors the default (cloudflare) target, and its
   env-at-module-scope check treats a `node:http` entry as a process entry.
+
+### Admin API from the schema
+
+- signet-db: new `./admin` subpath. `defineAdmin(schema, { authorize })`
+  gives list (cursor pages, allow-listed sort and typed filters, text search),
+  get, create, update, delete (soft where the table has `deletedAt`), bulk
+  delete, per-row actions and a `meta` description for admin UIs and agents.
+  Deny by default (`roles()` for admin/staff/readonly); encrypted and
+  secret-looking columns hidden; inputs validated with `toZod`; every write
+  through `audited()` with the caller as actor; the audit table is read-only
+  and its snapshots redacted. `handle()` serves it over HTTP, framework-free.
+- signet-db: `adminTools(admin, { db, ctx, approve })`, admin MCP tools from
+  the same definition; writes only after `approve` (signet-server's
+  `requireApproval`) says yes, audited as the agent.
+- signet-db: new error codes `FORBIDDEN`, `VALIDATION_FAILED`,
+  `METHOD_NOT_ALLOWED`, `BAD_CONFIG`; `AdminError` carries an HTTP status.
+- signet-server: new `./http/admin`, `adminRoutes(admin, { db, ctx })`, mounting
+  it on Hono with the standard error envelope.
 
 ### signet-payments 0.1.0 (new, public; first publish is manual, see PUBLISHING.md)
 

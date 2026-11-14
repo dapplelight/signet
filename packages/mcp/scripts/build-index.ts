@@ -476,6 +476,28 @@ function exampleFor(
   return `${importLine}\n\n${take.join("\n").trim()}`
 }
 
+/** The leading `//` comment block (after "use client") and its `// Recipe:` line. */
+function headerOf(src: string): { summary: string; recipe: string[] } {
+  const lines = src.replace(/^"use client"\s*/, "").split("\n")
+  const block: string[] = []
+  for (const l of lines) {
+    if (!l.startsWith("//")) break
+    block.push(l.replace(/^\/\/\s?/, ""))
+  }
+  const recipeLine = block.find((l) => l.startsWith("Recipe:"))
+  return {
+    summary: block
+      .filter((l) => l !== recipeLine)
+      .join(" ")
+      .trim(),
+    recipe: recipeLine
+      ? [...new Set(recipeLine.slice(7).match(/\b[a-z]+(?:-[a-z]+)*\b/g) ?? [])].filter(
+          (w) => !["adds", "on", "phones"].includes(w),
+        )
+      : [],
+  }
+}
+
 const components: ComponentInfo[] = []
 {
   const ui = pkgJson("ui")
@@ -520,6 +542,7 @@ const components: ComponentInfo[] = []
       tokens: tokens.filter((t) => utilityRe(t.name).test(src)).map((t) => t.name),
       example: exampleFor(importPath, values, main, props[main]),
       domain: sub.startsWith("./domain/"),
+      ...headerOf(src),
     })
   }
 }
