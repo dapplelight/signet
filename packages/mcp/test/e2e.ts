@@ -1,9 +1,17 @@
-// End to end: spawn the built `signet-mcp` bin under node and speak MCP over
-// stdio by hand (newline-delimited JSON-RPC), as Claude Code or Cursor would.
-// Then the same server over HTTP through signetMcpFetch. Needs `bun run build`.
+// End to end: spawn the built `signet-mcp` bin under node and talk to it over
+// stdio as Claude Code or Cursor would, through signet-server's MCP client (its
+// fetch is bridged to the child's stdin and stdout). Then the same server over
+// HTTP through signetMcpFetch, and with signet-db's agent tools for two users.
+// Needs `bun run build:all`.
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process"
 import { existsSync } from "node:fs"
-import { signetMcpFetch } from "../src/index"
+import { resolveMcpServer } from "@dapplelight/signet-server/mcp"
+import { createMcpClient, McpClientError } from "@dapplelight/signet-server/mcp/client"
+import { createMcpHandler } from "@modelcontextprotocol/server"
+import { agentTools } from "../../db/src/agent"
+import { scoped } from "../../db/src/scoped"
+import { backends } from "../../db/test/harness"
+import { signetMcpFetch, signetMcpOptions } from "../src/index"
 
 let pass = 0,
   fail = 0
@@ -20,11 +28,10 @@ const ok = (n: string, c: boolean, d: unknown = "") => {
 
 const bin = new URL("../dist/bin.js", import.meta.url).pathname
 if (!existsSync(bin)) {
-  console.log("  FAIL dist/bin.js is missing; run `bun run build` first")
+  console.log("  FAIL dist/bin.js is missing; run `bun run build:all` first")
   process.exit(1)
 }
 
-type Rpc = { id?: number; result?: any; error?: { code: number; message: string } }
 const child: ChildProcessWithoutNullStreams = spawn("node", [bin], {
   cwd: new URL("..", import.meta.url).pathname,
 })
@@ -32,7 +39,7 @@ let stderr = ""
 child.stderr.on("data", (d) => {
   stderr += d
 })
-const pending = new Map<number, (r: Rpc) => void>()
+const waiting = new Map<number, (msg: unknown) => void>()
 const stray: string[] = []
 let buf = ""
 child.stdout.on("data", (chunk: Buffer) => {
@@ -41,46 +48,81 @@ child.stdout.on("data", (chunk: Buffer) => {
     const line = buf.slice(0, nl)
     buf = buf.slice(nl + 1)
     if (!line.trim()) continue
-    let msg: Rpc
     try {
-      msg = JSON.parse(line)
+      const msg = JSON.parse(line)
+      if (msg.id !== undefined) waiting.get(msg.id)?.(msg)
     } catch {
       stray.push(line) // anything on stdout that is not JSON-RPC breaks a client
-      continue
     }
-    if (msg.id !== undefined) pending.get(msg.id)?.(msg)
   }
 })
-let nextId = 1
-const send = (method: string, params?: unknown) =>
-  child.stdin.write(
-    `${JSON.stringify({ jsonrpc: "2.0", method, ...(params ? { params } : {}) })}\n`,
-  )
-const request = (method: string, params?: unknown): Promise<Rpc> => {
-  const id = nextId++
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`${method} timed out`)), 15_000)
-    pending.set(id, (r) => {
+// The MCP client speaks fetch; a stdio server speaks lines. One request in, one line out.
+const stdioFetch = async (req: Request): Promise<Response> => {
+  const body = await req.text()
+  const { id } = JSON.parse(body)
+  child.stdin.write(`${body}\n`)
+  if (id === undefined) return new Response(null, { status: 202 }) // a notification
+  const msg = await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`request ${id} timed out`)), 15_000)
+    waiting.set(id, (m) => {
       clearTimeout(timer)
-      resolve(r)
+      resolve(m)
     })
-    child.stdin.write(
-      `${JSON.stringify({ jsonrpc: "2.0", id, method, ...(params ? { params } : {}) })}\n`,
-    )
   })
+  return Response.json(msg)
 }
-const call = async (name: string, args: Record<string, unknown> = {}) => {
-  const r = await request("tools/call", { name, arguments: args })
-  const text = r.result?.content?.[0]?.text ?? ""
-  let json: any
+const client = createMcpClient({ url: "http://stdio.invalid/mcp", fetch: stdioFetch })
+
+// The client has no API for initialize, resources or prompts, so those go as bare JSON-RPC.
+type Rpc = { result?: any; error?: { code: number; message: string } }
+let rawId = 1_000_000
+const raw = async (method: string, params?: unknown): Promise<Rpc> =>
+  (
+    await stdioFetch(
+      new Request("http://stdio.invalid/mcp", {
+        method: "POST",
+        body: JSON.stringify({ jsonrpc: "2.0", id: rawId++, method, params }),
+      }),
+    )
+  ).json()
+
+/** A tools/call result, parsed. A JSON-RPC error (the SDK refusing the input) lands in `r.error`. */
+const callOn = async (c: typeof client, name: string, args: Record<string, unknown> = {}) => {
   try {
-    json = JSON.parse(text)
-  } catch {}
-  return { r, text, json, isError: r.result?.isError === true }
+    const r = await c.callTool(name, args)
+    const text = r.content[0]?.text ?? ""
+    let json: any
+    try {
+      json = JSON.parse(text)
+    } catch {}
+    return { r: r as any, text, json, isError: r.isError === true }
+  } catch (e) {
+    if (!(e instanceof McpClientError)) throw e
+    return { r: { error: e } as any, text: e.message, json: undefined, isError: false }
+  }
 }
+const call = (name: string, args: Record<string, unknown> = {}) => callOn(client, name, args)
+
+const EXPECTED = [
+  "search_docs",
+  "read_doc",
+  "list_exports",
+  "get_export",
+  "list_components",
+  "get_component",
+  "list_themes",
+  "get_theme",
+  "list_tokens",
+  "check_theme",
+  "scaffold_app",
+  "scaffold_files",
+  "check_app",
+  "recipe",
+  "migration",
+]
 
 try {
-  const init = await request("initialize", {
+  const init = await raw("initialize", {
     protocolVersion: "2025-06-18",
     capabilities: {},
     clientInfo: { name: "e2e", version: "0" },
@@ -90,33 +132,15 @@ try {
     "initialize: instructions point at the tools",
     String(init.result?.instructions).includes("search_docs"),
   )
-  send("notifications/initialized")
 
-  const listed = await request("tools/list")
-  const names: string[] = listed.result?.tools?.map((t: { name: string }) => t.name) ?? []
-  const EXPECTED = [
-    "search_docs",
-    "read_doc",
-    "list_exports",
-    "get_export",
-    "list_components",
-    "get_component",
-    "list_themes",
-    "get_theme",
-    "list_tokens",
-    "check_theme",
-    "scaffold_app",
-    "scaffold_files",
-    "check_app",
-    "recipe",
-    "migration",
-  ]
+  const tools = await client.listTools()
+  const names = tools.map((t) => t.name)
   ok("tools/list: every tool, in order", JSON.stringify(names) === JSON.stringify(EXPECTED), names)
   ok(
     "tools/list: every tool has a description, an object input schema and readOnlyHint",
-    listed.result.tools.every(
-      (t: any) =>
-        t.description.length > 40 &&
+    tools.every(
+      (t) =>
+        (t.description?.length ?? 0) > 40 &&
         t.inputSchema?.type === "object" &&
         t.annotations?.readOnlyHint === true,
     ),
@@ -276,6 +300,26 @@ try {
     push.json?.id === "add-web-push" && push.json.steps[0].markdown.includes("webCryptoPushSender"),
     push.json?.id,
   )
+  const dbr = await call("recipe", { task: "add a database" })
+  ok(
+    "recipe: add-db is cut from the db README headings and does not install the private signet-db",
+    dbr.json?.id === "add-db" &&
+      dbr.json.title === "Add a database (D1, SQLite, Postgres) with signet-db" &&
+      JSON.stringify(dbr.json.steps.map((st: any) => st.title)) ===
+        JSON.stringify([
+          "Quick start",
+          "Money",
+          "Encrypted fields",
+          "Per-user scope and soft delete",
+          "Transactional outbox",
+          "Idempotency keys",
+          "Tools for AI agents",
+          "Errors",
+        ]) &&
+      dbr.json.steps.some((st: any) => st.markdown.includes("agentTools(db")) &&
+      !dbr.json.install.includes("signet-db"),
+    dbr.json,
+  )
 
   const mg = await call("migration", { from: "0.3.0", to: "0.4.0", package: "server" })
   ok(
@@ -286,7 +330,7 @@ try {
     mg.json?.entries?.map((e: any) => e.heading),
   )
 
-  const resources = await request("resources/list")
+  const resources = await raw("resources/list")
   const uris: string[] = resources.result?.resources?.map((r: any) => r.uri) ?? []
   ok(
     "resources/list: every doc as signet://docs/<name>",
@@ -308,17 +352,17 @@ try {
     ].every((n) => uris.includes(`signet://docs/${n}`)),
     uris,
   )
-  const read = await request("resources/read", { uri: "signet://docs/contract" })
+  const read = await raw("resources/read", { uri: "signet://docs/contract" })
   ok(
     "resources/read: CONTRACT.md as markdown",
     read.result?.contents?.[0]?.mimeType === "text/markdown" &&
       read.result.contents[0].text.includes("**78 required, 16 optional.**"),
     read,
   )
-  const nope = await request("resources/read", { uri: "signet://docs/nope" })
+  const nope = await raw("resources/read", { uri: "signet://docs/nope" })
   ok("resources/read: an unknown doc is a JSON-RPC error", nope.error !== undefined, nope)
 
-  const prompts = await request("prompts/list")
+  const prompts = await raw("prompts/list")
   const pnames = prompts.result?.prompts?.map((p: any) => p.name) ?? []
   ok(
     "prompts/list: the three prompts",
@@ -327,7 +371,7 @@ try {
     ),
     pnames,
   )
-  const prompt = await request("prompts/get", {
+  const prompt = await raw("prompts/get", {
     name: "add-signet-feature",
     arguments: { feature: "rate limiting" },
   })
@@ -346,32 +390,205 @@ try {
 
 // --- HTTP: the same server through signetMcpFetch (stateless, 2025-era client) ---
 {
-  const fetchHandler = signetMcpFetch()
-  const res = await fetchHandler(
-    new Request("http://localhost/mcp", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        accept: "application/json, text/event-stream",
-      },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "tools/call",
-        params: { name: "check_app", arguments: { path: "/" } },
-      }),
-    }),
-  )
-  const body = await res.text()
+  const http = createMcpClient({ url: "http://localhost/mcp", fetch: signetMcpFetch() })
+  const r = await callOn(http, "check_app", { path: "/" })
   ok(
     "http: signetMcpFetch answers tools/call",
-    res.status === 200 && body.includes('"result"'),
-    `${res.status} ${body}`,
+    r.r.error === undefined && r.r.content?.length > 0,
+    r.text,
   )
   ok(
     "http: check_app has no file-system access when hosted",
-    body.includes("BAD_REQUEST") && body.includes("Pass files."),
-    body,
+    r.text.includes("BAD_REQUEST") && r.text.includes("Pass files."),
+    r.text,
+  )
+}
+
+// --- signet-db: the agent tools for the caller, scoped, writes off by default ---
+{
+  const { db, S } = await backends[0]!.make({})
+  const rowsOf = (user: string, ...labels: string[]) =>
+    Promise.all(labels.map((label) => scoped(db, { userId: user }).insert(S.tags, { label })))
+  const [[a1]] = await rowsOf("user-a", "alpha one", "alpha two")
+  const [[b1]] = await rowsOf("user-b", "beta one")
+
+  /** A client whose requests carry a verified token for `userId`, as `mountMcp` would give them. */
+  const as = (
+    options: ReturnType<typeof signetMcpOptions>,
+    userId?: string,
+    scopes: string[] = [],
+  ) => {
+    const context = userId ? { token: { claims: { sub: userId }, scopes } as never } : {}
+    const handler = createMcpHandler(() => resolveMcpServer({ ...options, context }))
+    return createMcpClient({ url: "http://localhost/mcp", fetch: (req) => handler.fetch(req) })
+  }
+  const dbOptions = (allowWrites?: boolean) =>
+    signetMcpOptions({
+      db: { db, agentTools, tables: [S.tags], ...(allowWrites ? { allowWrites } : {}) },
+    })
+
+  const reader = as(dbOptions(), "user-a")
+  const listed = await reader.listTools()
+  const listedNames = listed.map((t) => t.name)
+  ok(
+    "db: Signet's tools first, then the read tools, no write tools by default",
+    JSON.stringify(listedNames) ===
+      JSON.stringify([...EXPECTED, "tags_list", "tags_get", "tags_search"]),
+    listedNames,
+  )
+  ok(
+    "db: each read tool says what it does, its row cap, and is readOnlyHint",
+    listed
+      .filter((t) => t.name.startsWith("tags_"))
+      .every(
+        (t) => t.annotations?.readOnlyHint === true && /user's tags/.test(t.description ?? ""),
+      ) &&
+      listed.find((t) => t.name === "tags_list")?.description?.includes("At most 100 per call") ===
+        true,
+    listed.filter((t) => t.name.startsWith("tags_")),
+  )
+
+  const mine = await callOn(reader, "tags_list")
+  ok(
+    "db: a call as user A returns A's rows and never user B's",
+    mine.json?.length === 2 && !mine.text.includes("beta"),
+    mine.text,
+  )
+  const theirs = await callOn(reader, "tags_get", { id: b1!.id })
+  ok("db: user A cannot get user B's row by id", theirs.json === null, theirs.text)
+  const search = await callOn(reader, "tags_search", {
+    column: "label",
+    value: "",
+    mode: "contains",
+  })
+  ok(
+    "db: a contains-search as user A never matches B's rows",
+    search.json?.length === 2,
+    search.text,
+  )
+  const owned = await callOn(reader, "tags_get", { id: a1!.id })
+  ok("db: user A gets A's own row", owned.json?.label === "alpha one", owned.text)
+
+  const other = await callOn(as(dbOptions(), "user-b"), "tags_list")
+  ok(
+    "db: the same server as user B returns only B's rows",
+    other.json?.length === 1 && other.text.includes("beta one") && !other.text.includes("alpha"),
+    other.text,
+  )
+
+  const anonymous = await as(dbOptions()).listTools()
+  ok(
+    "db: with no caller identity there are no db tools at all",
+    JSON.stringify(anonymous.map((t) => t.name)) === JSON.stringify(EXPECTED),
+    anonymous.map((t) => t.name),
+  )
+
+  const writer = as(dbOptions(true), "user-a")
+  const writeTools = (await writer.listTools()).filter((t) => /_(insert|update)$/.test(t.name))
+  ok(
+    "db: with allowWrites the insert and update tools appear, not read-only and not destructive",
+    JSON.stringify(writeTools.map((t) => t.name)) ===
+      JSON.stringify(["tags_insert", "tags_update"]) &&
+      writeTools.every(
+        (t) => t.annotations?.readOnlyHint === false && t.annotations?.destructiveHint === false,
+      ),
+    writeTools,
+  )
+  const dry = await callOn(writer, "tags_insert", { values: { label: "draft" }, dryRun: true })
+  ok(
+    "db: dryRun returns the would-be row and writes nothing",
+    dry.json?.wouldInsert?.label === "draft" &&
+      (await callOn(writer, "tags_list")).json.length === 2,
+    dry.text,
+  )
+  const missingRow = await callOn(writer, "tags_update", { id: b1!.id, set: { label: "mine now" } })
+  ok(
+    "db: updating another user's row is a SignetDbError with its message unchanged",
+    missingRow.isError &&
+      missingRow.text.startsWith("NOT_FOUND: No tags row with id") &&
+      missingRow.text.includes("for this user. Use tags_list or tags_search to find it."),
+    missingRow.text,
+  )
+
+  const gated = signetMcpOptions({
+    db: {
+      db,
+      agentTools,
+      tables: [S.tags],
+      allowWrites: true,
+      scopes: { read: ["db:read"], write: ["db:write"] },
+    },
+  })
+  const dbNames = async (scopes: string[]) =>
+    (await as(gated, "user-a", scopes).listTools())
+      .map((t) => t.name)
+      .filter((n) => /^tags_/.test(n))
+  ok(
+    "db scopes: the tools stay listed whatever the token carries (calls are what is gated)",
+    (await dbNames([])).length === 5,
+    await dbNames([]),
+  )
+  const noScope = await callOn(as(gated, "user-a", ["docs"]), "tags_list")
+  ok(
+    "db scopes: a token without the read scope cannot run a read tool",
+    noScope.isError && /scope/i.test(noScope.text),
+    noScope.text,
+  )
+  const readOnlyToken = as(gated, "user-a", ["db:read"])
+  ok(
+    "db scopes: the read scope runs read tools",
+    (await callOn(readOnlyToken, "tags_list")).json?.length === 2,
+  )
+  const noWrite = await callOn(readOnlyToken, "tags_insert", { values: { label: "x" } })
+  ok(
+    "db scopes: the read scope cannot run a write tool",
+    noWrite.isError && /scope/i.test(noWrite.text),
+    noWrite.text,
+  )
+  const both = as(gated, "user-a", ["db:read", "db:write"])
+  ok(
+    "db scopes: the write scope runs a write tool",
+    (await callOn(both, "tags_insert", { values: { label: "x" }, dryRun: true })).json?.wouldInsert
+      ?.label === "x",
+  )
+
+  const scopeSetup = (scopes: { read?: string[]; write?: string[] }, allowWrites: boolean) => {
+    try {
+      signetMcpOptions({ db: { db, agentTools, tables: [S.tags], allowWrites, scopes } })
+      return ""
+    } catch (e) {
+      return (e as Error).message
+    }
+  }
+  const halfGated = scopeSetup({ read: ["db:read"] }, true)
+  ok(
+    "db scopes: allowWrites with only read scopes throws instead of leaving writes open",
+    halfGated.includes("db.scopes.write is required"),
+    halfGated,
+  )
+  ok(
+    "db scopes: an empty write list is rejected too",
+    scopeSetup({ read: ["db:read"], write: [] }, true).includes("db.scopes.write"),
+  )
+  ok(
+    "db scopes: only write scopes throws for the read tools",
+    scopeSetup({ write: ["db:write"] }, true).includes("db.scopes.read is required"),
+  )
+  ok(
+    "db scopes: without allowWrites, read alone is enough",
+    scopeSetup({ read: ["db:read"] }, false) === "",
+  )
+
+  let setup = ""
+  try {
+    signetMcpOptions({ db: { db, agentTools, tables: [S.users] } })
+  } catch (e) {
+    setup = (e as Error).message
+  }
+  ok(
+    "db: a table with no userId column fails when the options are built, not on a tool call",
+    setup.includes("table users has no userId column"),
+    setup,
   )
 }
 

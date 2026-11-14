@@ -33,8 +33,16 @@ export class SignetMcpError extends Error {
     super(message)
   }
 }
+/** signet-db's SignetDbError, by shape: its messages already say how to fix the call. */
+const isDbError = (err: unknown): err is Error & { code: string } =>
+  err instanceof Error &&
+  err.name === "SignetDbError" &&
+  typeof (err as { code?: unknown }).code === "string"
+
 export const mapError = (err: unknown): ToolErrorInfo | undefined =>
-  err instanceof SignetMcpError ? { code: err.code, message: err.message } : undefined
+  err instanceof SignetMcpError || isDbError(err)
+    ? { code: err.code, message: err.message }
+    : undefined
 
 const notFound = (what: string, name: string, options: string[]) =>
   new SignetMcpError("NOT_FOUND", `No ${what} "${name}". Available: ${options.join(", ")}`)

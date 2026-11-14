@@ -5,11 +5,14 @@
  */
 
 import {
+  type AnyTool,
   type CreateMcpServerOptions,
   createMcpServer,
+  type McpCaller,
   type McpPrompt,
   type McpResource,
-  type McpTool,
+  type PlainTool,
+  type ResolveMcpServerOptions,
 } from "@dapplelight/signet-server/mcp"
 import { createMcpHandler, type McpServer } from "@modelcontextprotocol/server"
 import { INDEX } from "./generated/index.js"
@@ -37,31 +40,105 @@ export type { SignetIndex } from "./types.js"
 export const VERSION =
   INDEX.packages.find((p) => p.name === "@dapplelight/signet-mcp")?.version ?? "0.0.0"
 
-export type SignetMcpOptions = ToolOptions & {
+/**
+ * A signet-db instance and the tables an agent may reach. `agentTools` is
+ * `agentTools` from `@dapplelight/signet-db/agent`, passed in because signet-db
+ * is not a dependency of this package.
+ */
+export type DbToolsOptions<D, T> = {
+  db: D
+  agentTools: (
+    db: D,
+    options: { tables: T; userId: string; allowWrites?: boolean; maxRows?: number },
+  ) => readonly PlainTool[]
+  /** Tables to expose, as a list or a schema module. Each needs a `userId` column. */
+  tables: T
+  /** Whose rows the tools reach. Default: the verified token's `sub`; with none, no db tools. */
+  userId?: (caller: McpCaller) => string | undefined
+  /** Add `<table>_insert` and `<table>_update`. Default false. */
+  allowWrites?: boolean
+  /** Most rows any call returns. Default 100. */
+  maxRows?: number
+  /**
+   * Scopes a token must carry to call the db tools: `read` for tools annotated
+   * `readOnlyHint` (the selects), `write` for the rest (`_insert`, `_update`).
+   * Without `scopes` no scope is checked: any caller with a verified `sub` gets every db tool.
+   * Once set, each group in use must be named (`write` only with `allowWrites`), or this throws.
+   */
+  scopes?: { read?: string[]; write?: string[] }
+}
+
+export type SignetMcpOptions<D = unknown, T = unknown> = ToolOptions & {
   /** More tools, resources or prompts to serve beside Signet's (e.g. an app's own). */
-  tools?: readonly McpTool[]
+  tools?: readonly AnyTool[]
   resources?: readonly McpResource[]
   prompts?: readonly McpPrompt[]
+  /**
+   * Serve the caller's rows through signet-db's agent tools, after Signet's
+   * own tools. Built per request for the caller, so host it with `mountMcp`
+   * or `resolveMcpServer` and a verified token, not `signetMcpFetch`.
+   */
+  db?: DbToolsOptions<D, T>
 }
+
+type StaticOptions = Omit<SignetMcpOptions, "db">
 
 /**
  * Options for signet-server's `createMcpServer`, or for `mountMcp(app, "/mcp", ...)`
- * from `@dapplelight/signet-server/mcp/hono` to host it on a Hono app.
+ * from `@dapplelight/signet-server/mcp/hono` to host it on a Hono app. With
+ * `db` the tool list is a function of the caller: pass it to `mountMcp` or
+ * `resolveMcpServer`.
  */
-export function signetMcpOptions(options: SignetMcpOptions = {}): CreateMcpServerOptions {
-  return {
+export function signetMcpOptions(options?: StaticOptions): CreateMcpServerOptions
+export function signetMcpOptions<D, T>(
+  options: SignetMcpOptions<D, T> & { db: DbToolsOptions<D, T> },
+): ResolveMcpServerOptions
+export function signetMcpOptions<D, T>(
+  options: SignetMcpOptions<D, T> = {},
+): CreateMcpServerOptions | ResolveMcpServerOptions {
+  const base = {
     name: "signet",
     version: VERSION,
     instructions: INSTRUCTIONS,
-    tools: [...signetTools(options), ...(options.tools ?? [])],
     resources: [...signetResources(), ...(options.resources ?? [])],
     prompts: [...signetPrompts(), ...(options.prompts ?? [])],
     mapError,
   }
+  const own = signetTools(options)
+  const mine = options.tools ?? []
+  const { db } = options
+  if (!db) return { ...base, tools: [...own, ...mine] }
+  const { agentTools, tables, allowWrites = false, maxRows } = db
+  if (db.scopes) {
+    // a group left out would get no gate at all, so each one in use must be named
+    for (const group of allowWrites ? (["read", "write"] as const) : (["read"] as const)) {
+      if (!db.scopes[group]?.length) {
+        throw new Error(
+          `db.scopes.${group} is required when db.scopes is set: leaving it out would leave those tools open`,
+        )
+      }
+    }
+  }
+  const forUser = (userId: string) =>
+    agentTools(db.db, { tables, userId, allowWrites, ...(maxRows ? { maxRows } : {}) }).map(
+      (tool): PlainTool => {
+        const scopes = tool.annotations?.readOnlyHint ? db.scopes?.read : db.scopes?.write
+        return scopes?.length ? { ...tool, scopes } : tool
+      },
+    )
+  forUser("setup-check") // a table with no userId column throws here, not on a tool call
+  const who = db.userId ?? ((c: McpCaller) => c.token?.claims.sub)
+  return {
+    ...base,
+    tools: (caller: McpCaller) => {
+      const userId = who(caller)
+      return [...own, ...(userId ? forUser(userId) : []), ...mine]
+    },
+  }
 }
 
 /** A new McpServer with every Signet tool, resource and prompt. Cheap; one per connection or request. */
-export function createSignetMcpServer(options: SignetMcpOptions = {}): McpServer {
+export function createSignetMcpServer(options: StaticOptions = {}): McpServer {
   return createMcpServer(signetMcpOptions(options))
 }
 
@@ -71,7 +148,7 @@ export function createSignetMcpServer(options: SignetMcpOptions = {}): McpServer
  * `export default { fetch: signetMcpFetch() }`. File-system access is off.
  */
 export function signetMcpFetch(
-  options: Omit<SignetMcpOptions, "fs"> = {},
+  options: Omit<StaticOptions, "fs"> = {},
 ): (req: Request) => Promise<Response> {
   const handler = createMcpHandler(() => createSignetMcpServer({ ...options, fs: false }))
   return (req) => handler.fetch(req)
