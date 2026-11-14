@@ -7,7 +7,8 @@
  * already has a place for it.
  */
 
-import type { Context } from "hono"
+import type { Context, MiddlewareHandler, ValidationTargets } from "hono"
+import { type InferInput, validator } from "hono/validator"
 import type { z } from "zod"
 import { ApiException } from "./errors.js"
 
@@ -57,4 +58,39 @@ export function parseParams<T>(c: Context, schema: z.ZodType<T>): T {
   const result = schema.safeParse(c.req.param())
   if (!result.success) fail(result)
   return result.data
+}
+
+/** What the client sends: the schema's input for JSON, strings for query/param/header/cookie/form. */
+type ClientInput<T extends keyof ValidationTargets, S extends z.ZodType> = T extends "json"
+  ? z.input<S>
+  : InferInput<z.input<S>, T>
+
+/**
+ * Hono validator middleware on a Zod schema. Same call shape as
+ * `@hono/zod-validator`, without the dependency, and failures are Signet's
+ * 400 `VALIDATION_FAILED` envelope (the same `details` as `parseBody`).
+ *
+ * Unlike `parseBody`, Hono sees the types: `c.req.valid("json")` is the parsed
+ * value, and `hc<typeof app>` types the request from the schema's input.
+ *
+ *   app.post("/notes", zValidator("json", NoteInput), (c) => c.json(save(c.req.valid("json"))))
+ *
+ * A JSON body needs a JSON `Content-Type`; Hono answers 400 without one.
+ * Query values arrive as strings (a repeated key as an array): coerce them
+ * (`z.coerce.number()`).
+ */
+export function zValidator<T extends keyof ValidationTargets, S extends z.ZodType>(
+  target: T,
+  schema: S,
+): MiddlewareHandler<
+  // biome-ignore lint/suspicious/noExplicitAny: any Env, like Hono's own validator
+  any,
+  string,
+  { in: { [K in T]: ClientInput<K, S> }; out: { [K in T]: z.output<S> } }
+> {
+  return validator(target, async (value) => {
+    const result = await schema.safeParseAsync(value)
+    if (!result.success) fail(result)
+    return result.data
+  }) as never
 }

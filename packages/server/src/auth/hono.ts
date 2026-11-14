@@ -108,6 +108,9 @@ export function sessionRoutes(opts: StoredSessionMiddlewareOptions) {
     })
 }
 
+/** For `hc<SessionRoutes>`: import it with `import type`, so no server code reaches the browser. */
+export type SessionRoutes = ReturnType<typeof sessionRoutes>
+
 /**
  * Gate on an API key from `./api-keys`. Sets `apiKey` (an `ApiKeyInfo`, no
  * hash) in the context. 401 for a missing, unknown, revoked or expired key;
