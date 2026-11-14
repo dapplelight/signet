@@ -180,7 +180,9 @@ try {
   )
   ok(
     "bundle has the Button variant classes",
-    /\.bg-primary\{/.test(css),
+    // A whole selector, alone or first in a list: the minifier merges rules with
+    // identical declarations, e.g. `.bg-primary,.bg-primary\/10{...}`.
+    /\.bg-primary[,{]/.test(css) && /\.text-primary-foreground[,{]/.test(css),
     "component utilities missing from the bundle",
   )
 } finally {

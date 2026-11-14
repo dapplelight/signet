@@ -82,11 +82,8 @@ jobs:
       test: bun test # every command is overridable; "" skips the step
 ```
 
-**The Signet repo is private, so this needs a one-off setting.** On GitHub, open
-`dapplelight/signet` → Settings → Actions → General → **Access**, and choose
-"Accessible from repositories owned by the user 'dapplelight'". Until then a caller
-fails with "workflow was not found". The calling repos must be owned by the same
-account.
+Signet is a public repo, so any repo can call it; no access setting is needed.
+Pin `@main`, a release tag, or a commit SHA.
 
 It covers what every repo repeats. Repo-specific jobs stay in the repo:
 app-a's e2e, type-ramp and app-a-rules checks, app-b's `slop:ci`,

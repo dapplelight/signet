@@ -143,8 +143,9 @@ app repo), which opens one grouped PR for the `@dapplelight/signet-*` bumps.
 
 The workflow runs lint, every package's tests and typecheck, then
 `bun run release`, which in CI skips the `npm whoami` check (there is no
-login) and publishes with npm instead of bun. No `--provenance`: npm only
-attests builds from public repositories and this one is private.
+login) and publishes with npm instead of bun. No `--provenance` flag: this
+repo is public, and npm attaches provenance on its own for Trusted Publishing
+from a public repository.
 
 The local `bun run release` still works as before, with `npm login`.
 
