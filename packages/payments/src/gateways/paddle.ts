@@ -8,8 +8,10 @@
  * Webhooks: `Paddle-Signature: ts=..;h1=..` (h1 repeats while a secret
  * rotates), HMAC-SHA256 hex of `${ts}:${rawBody}` with the endpoint secret.
  *
- * Unsupported: partial refunds (they are per line item and this adapter does
- * not guess item ids), capture, payouts and settlements (no API), idempotency
+ * Partial refunds are per line item: the amount is spread over the
+ * transaction's line items in order, each up to its total (tax included).
+ *
+ * Unsupported: capture, payouts and settlements (no API), idempotency
  * keys (Paddle has none; retries of checkout are not deduplicated by Paddle).
  */
 
@@ -126,7 +128,14 @@ export function paddle(config: PaddleConfig): PaymentGateway {
     G,
     {
       methods: ["card", "wallet"],
-      features: ["refunds", "customers", "savedMethods", "subscriptions", "webhooks"],
+      features: [
+        "refunds",
+        "partialRefunds",
+        "customers",
+        "savedMethods",
+        "subscriptions",
+        "webhooks",
+      ],
     },
     {
       raw,
@@ -157,12 +166,37 @@ export function paddle(config: PaddleConfig): PaymentGateway {
         }
       },
       getPayment: async (id) => toPayment(await one(`/transactions/${encodeURIComponent(id)}`)),
+      // Partial: items[{item_id: txnitm_..., type: "partial", amount}] from
+      // data.details.line_items[].id; amounts are minor-unit strings.
+      // https://developer.paddle.com/build/transactions/create-transaction-adjustments
+      // https://developer.paddle.com/api-reference/adjustments/create-adjustment
+      // https://github.com/PaddleHQ/paddle-node-sdk (TransactionLineItem.id, CreateAdjustmentRequestBody)
       async refund(transactionId, i) {
+        let items: Json[] | undefined
+        if (i.amount !== undefined) {
+          const t: Json = await raw("GET", `/transactions/${encodeURIComponent(transactionId)}`)
+          let left = i.amount
+          items = []
+          for (const li of t.data?.details?.line_items ?? []) {
+            const take = Math.min(left, Number(li.totals?.total ?? 0))
+            if (take > 0) items.push({ item_id: li.id, type: "partial", amount: String(take) })
+            left -= take
+          }
+          if (left > 0)
+            throw new PaymentsError(
+              "BAD_INPUT",
+              "Refund amount exceeds the transaction's line items.",
+              {
+                gateway: G,
+              },
+            )
+        }
         const r: Json = await raw("POST", "/adjustments", {
           action: "refund",
-          type: "full",
+          type: items ? "partial" : "full",
           transaction_id: transactionId,
           reason: i.reason ?? "Refund",
+          ...(items ? { items } : {}),
         })
         const a = r.data
         return {

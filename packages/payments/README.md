@@ -33,7 +33,7 @@ around them: a webhook inbox, a double-entry ledger and reconciliation.
 | emi | ✓ |  | ✓ |  |  |  |  |  |  |
 | capture | ✓ | ✓ | ✓ |  |  |  |  | ✓ | ✓ |
 | refunds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| partialRefunds | ✓ | ✓ | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
+| partialRefunds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | customers | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |  | ✓ |
 | savedMethods | ✓ | ✓ | ✓ |  |  | ✓ |  |  |  |
 | subscriptions | ✓ | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ |  |
@@ -77,6 +77,14 @@ SDK (or two official doc pages) agree. What is left out, and why:
   https://developer.phonepe.com/payment-gateway/autopay/api-integration/api-reference/subscription-status,
   https://developer.phonepe.com/payment-gateway/autopay/api-integration/api-reference/subscription-cancel,
   https://github.com/PhonePe/phonepe-pg-sdk-java.
+- **Paddle partial refunds** are per line item. The adapter reads the
+  transaction's `details.line_items` and fills them in order, each up to its
+  total (tax included, Paddle's default `tax_mode`). Pick items yourself with
+  `raw("POST", "/adjustments", ...)` if you need a different split.
+- **Lemon Squeezy refunds**: the `order_refunded` webhook only carries the
+  cumulative `refunded_amount`. Refunds made through this package line up with
+  their webhook. A second partial refund made in the Dashboard arrives with the
+  cumulative amount and over-counts the ledger.
 
 ## Quick start
 

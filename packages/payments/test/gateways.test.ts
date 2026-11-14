@@ -4,6 +4,8 @@
 import { describe, expect, test } from "bun:test"
 import { createHash, createHmac } from "node:crypto"
 import { cashfree } from "../src/gateways/cashfree"
+import { lemonsqueezy } from "../src/gateways/lemonsqueezy"
+import { paddle } from "../src/gateways/paddle"
 import { phonepe } from "../src/gateways/phonepe"
 import { razorpay } from "../src/gateways/razorpay"
 import { fakeFetch } from "./fake"
@@ -253,5 +255,79 @@ describe("phonepe", () => {
       refundId: "rf-1",
       amount: 2000,
     })
+  })
+})
+
+describe("paddle", () => {
+  test("partial refund spreads the amount over line items", async () => {
+    const f = fakeFetch({
+      "GET /transactions/txn_01": {
+        data: {
+          id: "txn_01",
+          currency_code: "USD",
+          details: {
+            line_items: [
+              { id: "txnitm_a", totals: { total: "3000" } },
+              { id: "txnitm_b", totals: { total: "2000" } },
+            ],
+          },
+        },
+      },
+      "POST /adjustments": ({ json }: any) => ({
+        data: {
+          id: "adj_01",
+          status: "pending_approval",
+          currency_code: "USD",
+          totals: { total: "3500" },
+          ...json,
+        },
+      }),
+    })
+    const g = paddle({ apiKey: "pdl_sdbx_apikey_made_up", fetch: f.fetch, ...http })
+    const r = await g.refund("txn_01", { amount: 3500, idempotencyKey: "rf-1" })
+    expect(r.amount).toBe(3500)
+    expect(JSON.parse(f.calls[1].body!)).toMatchObject({
+      action: "refund",
+      type: "partial",
+      transaction_id: "txn_01",
+      items: [
+        { item_id: "txnitm_a", type: "partial", amount: "3000" },
+        { item_id: "txnitm_b", type: "partial", amount: "500" },
+      ],
+    })
+    await expect(g.refund("txn_01", { amount: 9000, idempotencyKey: "rf-2" })).rejects.toThrow(
+      /exceeds/,
+    )
+  })
+})
+
+describe("lemonsqueezy", () => {
+  test("partial refund sends the amount in cents and keys the refund id by the running total", async () => {
+    const f = fakeFetch({
+      "POST /v1/orders/1/refund": ({ json }: any) => ({
+        data: {
+          type: "orders",
+          id: "1",
+          attributes: {
+            status: "partial_refund",
+            total: 5000,
+            currency: "USD",
+            refunded_amount: json.data.attributes.amount,
+            updated_at: "2026-01-02T10:00:00.000000Z",
+          },
+        },
+      }),
+    })
+    const g = lemonsqueezy({
+      apiKey: "k",
+      storeId: "1",
+      currency: "USD",
+      variantId: "7",
+      fetch: f.fetch,
+      ...http,
+    })
+    const r = await g.refund("1", { amount: 1500, idempotencyKey: "rf-1" })
+    expect(JSON.parse(f.calls[0].body!).data.attributes).toEqual({ amount: 1500 })
+    expect(r).toMatchObject({ gatewayId: "1:refund:1500", amount: 1500, status: "processed" })
   })
 })

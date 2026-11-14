@@ -8,9 +8,14 @@
  * secret. There is no timestamp and no event id, so the inbox id is built from
  * the event name, resource id and `updated_at`.
  *
- * Unsupported: partial refunds (the refund `amount` unit is not documented),
- * capture, saved methods, payouts and settlements (no API). Refund webhooks
- * assume one refund per order, which is all this adapter issues.
+ * Refund ids are `<order>:refund:<refunded_amount after it>`, so a refund made
+ * here and its `order_refunded` webhook share an id. The webhook only carries
+ * the cumulative `refunded_amount`.
+ * ponytail: a second partial refund made outside this package (Dashboard)
+ * arrives with the cumulative amount and over-counts the ledger; refund through
+ * this package, or post a correction, until Lemon Squeezy sends per-refund amounts.
+ *
+ * Unsupported: capture, saved methods, payouts and settlements (no API).
  */
 
 import { PaymentsError } from "../errors.js"
@@ -133,7 +138,7 @@ export function lemonsqueezy(config: LemonSqueezyConfig): PaymentGateway {
     G,
     {
       methods: ["card", "wallet"],
-      features: ["refunds", "customers", "subscriptions", "webhooks"],
+      features: ["refunds", "partialRefunds", "customers", "subscriptions", "webhooks"],
       currencies: [config.currency],
     },
     {
@@ -170,16 +175,23 @@ export function lemonsqueezy(config: LemonSqueezyConfig): PaymentGateway {
         }
       },
       getPayment: async (id) => toPayment(await one(`/orders/${encodeURIComponent(id)}`)),
-      async refund(orderId) {
+      // Partial refund: attributes.amount in cents (minor units); omitted = full.
+      // https://docs.lemonsqueezy.com/api/orders/issue-refund
+      // https://github.com/lmsqueezy/lemonsqueezy.js/blob/main/src/orders/index.ts (issueOrderRefund: "The amount in cents")
+      async refund(orderId, i) {
         const r: Json = await raw("POST", `/orders/${encodeURIComponent(orderId)}/refund`, {
-          data: { type: "orders", id: orderId, attributes: {} },
+          data: {
+            type: "orders",
+            id: orderId,
+            attributes: i.amount !== undefined ? { amount: i.amount } : {},
+          },
         })
         const p = toPayment(r.data)
         return {
           gateway: G,
-          gatewayId: `${orderId}:refund`,
+          gatewayId: `${orderId}:refund:${p.amountRefunded ?? p.amount}`,
           paymentId: orderId,
-          amount: p.amountRefunded ?? p.amount,
+          amount: i.amount ?? p.amountRefunded ?? p.amount,
           currency: p.currency,
           status:
             p.status === "refunded" || p.status === "partially_refunded" ? "processed" : "pending",
@@ -245,7 +257,7 @@ export function lemonsqueezy(config: LemonSqueezyConfig): PaymentGateway {
           occurredAt: toDate(a.updated_at ?? a.created_at),
           paymentId: isOrder ? String(d.id) : a.order_id != null ? String(a.order_id) : undefined,
           reference: e.meta?.custom_data?.reference,
-          refundId: name === "order_refunded" ? `${d.id}:refund` : undefined,
+          refundId: name === "order_refunded" ? `${d.id}:refund:${a.refunded_amount}` : undefined,
           subscriptionId:
             d.type === "subscriptions"
               ? String(d.id)
