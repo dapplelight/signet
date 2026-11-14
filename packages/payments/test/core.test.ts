@@ -595,7 +595,13 @@ describe("agent tools", () => {
   test("refund_payment never refunds without approval", async () => {
     const { f, payments } = await setup()
     const out: any = await tool(paymentTools(payments, { userId: "user-a" }), "refund_payment").run(
-      { gateway: "razorpay", id: "pay_A", amount: 2000, reason: "damaged" },
+      {
+        gateway: "razorpay",
+        id: "pay_A",
+        amount: 2000,
+        reason: "damaged",
+        idempotencyKey: "req-1",
+      },
     )
     expect(out.structuredContent.code).toBe("APPROVAL_REQUIRED")
     expect(out.structuredContent.approval.summary).toBe(
@@ -606,7 +612,7 @@ describe("agent tools", () => {
     const declined = await tool(
       paymentTools(payments, { userId: "user-a", approve: () => ({ declined: true }) }),
       "refund_payment",
-    ).run({ gateway: "razorpay", id: "pay_A", reason: "x" })
+    ).run({ gateway: "razorpay", id: "pay_A", reason: "x", idempotencyKey: "req-1" })
     expect(declined).toEqual({ declined: true })
     expect(f.calls).toHaveLength(0)
   })
@@ -624,10 +630,11 @@ describe("agent tools", () => {
       id: "pay_A",
       amount: 2000,
       reason: "damaged",
+      idempotencyKey: "req-1",
     })
     expect(r).toMatchObject({ refunded: true, refundId: "rfnd_A", amount: 2000 })
     expect(asked[0].details).toMatchObject({ amount: 2000, currency: "INR", reason: "damaged" })
-    expect(f.calls[0]!.headers["x-refund-idempotency"]).toBe("agent-refund-razorpay-pay_A-0-2000")
+    expect(f.calls[0]!.headers["x-refund-idempotency"]).toBe("agent-refund-razorpay-pay_A-req-1")
     const tl = await db.eventsFor("razorpay", "pay_A")
     expect(tl[0]?.actor).toEqual({ type: "agent", id: "support-bot" })
     expect(
@@ -637,9 +644,28 @@ describe("agent tools", () => {
           id: "pay_A",
           amount: 999999,
           reason: "x",
+          idempotencyKey: "req-2",
         }),
       ),
     ).toBe("BAD_INPUT")
+    expect(
+      await fail(
+        tool(tools, "refund_payment").run({ gateway: "razorpay", id: "pay_A", reason: "x" }),
+      ),
+    ).toBe("BAD_INPUT")
+  })
+
+  test("a retry after the refund landed keeps the same key and refunds once", async () => {
+    const { f, db, payments } = await setup()
+    const tools = paymentTools(payments, { userId: "user-a", approve: () => undefined })
+    const call = { gateway: "razorpay", id: "pay_A", amount: 2000, reason: "damaged" }
+    await tool(tools, "refund_payment").run({ ...call, idempotencyKey: "req-1" })
+    // The refund landed (as a webhook or a processed response would record it).
+    const p = (await db.getPayment("razorpay", "pay_A"))!
+    await db.savePayment({ ...p, amountRefunded: 2000, status: "partially_refunded" })
+    await tool(tools, "refund_payment").run({ ...call, idempotencyKey: "req-1" })
+    const keys = f.calls.map((c) => c.headers["x-refund-idempotency"]).filter(Boolean)
+    expect(new Set(keys)).toEqual(new Set(["agent-refund-razorpay-pay_A-req-1"]))
   })
 })
 

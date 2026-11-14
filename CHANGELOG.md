@@ -36,7 +36,8 @@ a package at the version it had when the repository was opened to the public.
   gateway settlement reports.
 - `./agent`: `paymentTools` (`find_payment`, `list_payments`,
   `payment_timeline`, `refund_payment`) as plain MCP tools; refunds always go
-  through an approval hook and record the actor.
+  through an approval hook and record the actor. `refund_payment` takes a
+  required `idempotencyKey`: retry with the same key and it refunds once.
 
 ### signet-server: jobs and storage
 

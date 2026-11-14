@@ -193,12 +193,19 @@ export function paymentTools(payments: Payments, options: PaymentToolsOptions): 
           ...ref,
           amount: { type: "integer", minimum: 1 },
           reason: { type: "string", minLength: 1 },
+          idempotencyKey: {
+            type: "string",
+            minLength: 1,
+            description:
+              "A unique id for this refund request. Reuse the same value when retrying it; use a new one for a different refund.",
+          },
         },
-        ["gateway", "id", "reason"],
+        ["gateway", "id", "reason", "idempotencyKey"],
       ),
       run: async (input, ctx) => {
         const p = await mine(input)
         const reason = str(input, "reason")
+        const key = str(input, "idempotencyKey")
         const amount = input.amount === undefined ? undefined : Number(input.amount)
         if (amount !== undefined && (!Number.isSafeInteger(amount) || amount <= 0))
           throw new PaymentsError("BAD_INPUT", "amount is a positive integer in minor units.")
@@ -228,9 +235,9 @@ export function paymentTools(payments: Payments, options: PaymentToolsOptions): 
           paymentId: p.gatewayId,
           ...(amount !== undefined ? { amount } : {}),
           reason,
-          // Same payment, amount and already-refunded total = same key, so a retried call never
-          // refunds twice but a later, separately approved refund gets its own key.
-          idempotencyKey: `agent-refund-${p.gateway}-${p.gatewayId}-${p.amountRefunded}-${amount ?? "full"}`,
+          // The caller's key, never the refunded total: the refund itself changes that total, so a
+          // retry would get a new key and refund again.
+          idempotencyKey: `agent-refund-${p.gateway}-${p.gatewayId}-${key}`,
           actor,
         })
         return {
