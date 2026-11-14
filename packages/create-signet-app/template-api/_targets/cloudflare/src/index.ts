@@ -2,7 +2,7 @@ import {
   durableObjectStore,
   type RateLimitNamespace,
 } from "@dapplelight/signet-server/middleware/rate-limit-do"
-import { createApp } from "./app"
+import { createApp } from "./app.ts"
 
 // The Durable Object behind the rate limiter. wrangler.jsonc binds it as
 // RATE_LIMIT and its first migration creates it. A Worker entry may export only

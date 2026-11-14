@@ -6,13 +6,14 @@ import { type RateLimitOptions, rateLimit } from "@dapplelight/signet-server/mid
 import { requestId } from "@dapplelight/signet-server/middleware/request-id"
 import { Hono } from "hono"
 import { z } from "zod"
-import { env } from "./env"
+import { env } from "./env.ts"
 
 type AppEnv<B> = { Bindings: B; Variables: { reqId: string } }
 
 /**
- * The API. The Worker entry (index.ts) and the Bun/Docker entry (server.ts)
- * differ only in how they rate limit, so each passes its own store and key.
+ * The API. Each target's entry (src/index.ts on Workers, src/server.ts on Bun
+ * or Node, index.ts on Vercel) differs only in how it rate limits, so each
+ * passes its own store and key.
  */
 export function createApp<B extends Record<string, unknown>>(
   limit: Pick<RateLimitOptions<AppEnv<B>>, "store" | "trust" | "keyFor">,
