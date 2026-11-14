@@ -39,9 +39,11 @@ Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit 
 |---|---|---|
 | `@dapplelight/signet-db` | isCiphertext, assertCiphertext, generateKey, createCipher, CipherConfig, Cipher, … | re-exports cipher, db, describe, errors, id, idempotency, money, outbox, query, scoped, seed, user-data |
 | `@dapplelight/signet-db/agent` | agentTools, AgentTool, AgentToolsOptions | Database tools for AI agents, safe by construction: `agentTools(db, { tables, userId })` returns plain tool definitions (list, get, search per table,  |
-| `@dapplelight/signet-db/columns/pg` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog` table. |
-| `@dapplelight/signet-db/columns/sqlite` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog` table. |
+| `@dapplelight/signet-db/columns/pg` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotencyKeys`, `entitlem |
+| `@dapplelight/signet-db/columns/sqlite` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotency |
 | `@dapplelight/signet-db/d1` | createDb | Cloudflare D1 driver: `createDb(env.DB, config)` |
+| `@dapplelight/signet-db/entitlements` | definePlans, defaultPlanIdOf, periodOf, createEntitlements, PlanDef, Plans, … | Plans, entitlements and usage limits, on the tables from `entitlementTables()` |
+| `@dapplelight/signet-db/flags` | defineFlags, bucket, evaluateFlag, createFlags, FlagValue, FlagRule, … | Feature flags defined in code, with stored overrides in `flagOverrides()` |
 | `@dapplelight/signet-db/migrations` | checkMigrationSql, formatIssues, MigrationIssueKind, MigrationIssue | Scan SQL migrations for changes that lose data or break running code: dropped tables or columns, renames, and NOT NULL added without a default |
 | `@dapplelight/signet-db/postgres` | createDb | Postgres driver on postgres-js (Supabase, Neon, RDS, a local server): `createDb(databaseUrl, config)`, or pass a `postgres()` client |
 | `@dapplelight/signet-db/sqlite` | createDb | SQLite driver on bun:sqlite (Bun runtime, e.g |
@@ -83,7 +85,7 @@ One payment model over Razorpay, Stripe, Cashfree, PhonePe, PayU, Paddle, Lemon 
 | `@dapplelight/signet-payments/lemonsqueezy` | lemonsqueezy, LemonSqueezyConfig | Lemon Squeezy over its JSON:API (api.lemonsqueezy.com/v1, bearer key; test mode is chosen by the key) |
 | `@dapplelight/signet-payments/paddle` | paddle, PaddleConfig | Paddle Billing (not Paddle Classic) over its REST API: bearer API key, `Paddle-Version: 1`, amounts as strings of minor units |
 | `@dapplelight/signet-payments/paypal` | paypalValue, paypal, PayPalConfig | PayPal REST (Orders v2, Payments v2, Subscriptions v1, Payouts v1) with an OAuth client-credentials token, cached until it expires |
-| `@dapplelight/signet-payments/payu` | payu, PayUConfig | PayU India |
+| `@dapplelight/signet-payments/payu` | payuDate, payu, PayUConfig | PayU India |
 | `@dapplelight/signet-payments/phonepe` | phonepe, PhonePeConfig | PhonePe PG, Standard Checkout v2: an OAuth client-credentials token (`/v1/oauth/token`, form body, cached until `expires_at`) sent as `Authorization:  |
 | `@dapplelight/signet-payments/razorpay` | toPayment, razorpay, RazorpayConfig | Razorpay over its REST API (api.razorpay.com/v1, HTTP Basic key_id:key_secret) |
 | `@dapplelight/signet-payments/stripe` | STRIPE_API_VERSION, stripe, StripeConfig | Stripe over its REST API (api.stripe.com/v1, form-encoded bodies, bearer secret key, `Stripe-Version` pinned) |
