@@ -122,19 +122,25 @@ export const entitlementTables = (prefix = "") => ({
   subjectPlans: sqliteTable(
     `${prefix}subject_plans`,
     {
-      /** A user or org id. */
-      subject: text("subject").primaryKey(),
+      /** `${gateway}|${subscriptionId}`: a subscription belongs to one subject. */
+      id: text("id").primaryKey(),
+      /** A user or org id. A subject has one row per source (subscription, or `manual`). */
+      subject: text("subject").notNull(),
       plan: text("plan").notNull(),
       /** pending | trialing | active | past_due | paused | cancelled | expired */
       status: text("status").notNull(),
-      gateway: text("gateway"),
-      subscriptionId: text("subscription_id"),
+      /** The gateway (appstore, googleplay, stripe, ...), or `manual` for setPlan. */
+      gateway: text("gateway").notNull(),
+      /** The gateway's subscription id; the subject for `manual`. */
+      subscriptionId: text("subscription_id").notNull(),
+      /** When the paid period ends, if the gateway says. */
+      currentPeriodEnd: ms("current_period_end"),
       graceUntil: ms("grace_until"),
       /** When the newest applied change happened; older billing events are ignored. */
       eventAt: ms("event_at").notNull(),
       updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
     },
-    (t) => [index(`${prefix}subject_plans_subscription`).on(t.gateway, t.subscriptionId)],
+    (t) => [index(`${prefix}subject_plans_subject`).on(t.subject)],
   ),
   entitlementOverrides: sqliteTable(
     `${prefix}entitlement_overrides`,

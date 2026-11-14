@@ -142,7 +142,18 @@ describe.each(backends)("$name", (backend) => {
       tables,
       now,
       periods: { seats: "total" },
-      billing: { plans: { plan_pro: "pro", plan_team: "team" }, graceMs: 86_400_000 },
+      billing: {
+        plans: {
+          plan_pro: "pro",
+          plan_team: "team",
+          "appstore:com.example.pro.monthly": "pro",
+          "googleplay:pro_monthly": "pro",
+          // The same id in two stores: the gateway-prefixed key wins.
+          shared_id: "pro",
+          "appstore:shared_id": "team",
+        },
+        graceMs: 86_400_000,
+      },
     })
     const flags = createFlags(i.db, flagDefs, { table: flagTable, entitlements: ent, now })
     return { ...i, ent, flags, tables, flagTable }
@@ -343,7 +354,7 @@ describe.each(backends)("$name", (backend) => {
     expect(await ent.get("org-p")).toMatchObject({ plan: "pro", status: "trialing" })
   })
 
-  test("billing: an old subscription's events cannot downgrade the subject's newer one", async () => {
+  test("billing: each subscription is its own source; an old one lapsing cannot downgrade a newer one", async () => {
     const { ent } = await make()
     await ent.applyBillingEvent(
       sub("a1", "subscription.activated", "2026-11-01T00:00:00Z", "plan_pro", "sub_A"),
@@ -373,9 +384,14 @@ describe.each(backends)("$name", (backend) => {
             subject: "org-1",
           },
         ),
-      ).toEqual({ applied: false, subject: "org-1", reason: "other_subscription" })
+      ).toMatchObject({ applied: true, subject: "org-1", plan: "pro" })
+      // A lapsed on its own row; B is still active, so team stays.
+      expect(await ent.get("org-1")).toMatchObject({
+        plan: "team",
+        status: "active",
+        source: { gateway: "razorpay", subscriptionId: "sub_B" },
+      })
     }
-    expect(await ent.get("org-1")).toMatchObject({ plan: "team", status: "active" })
     // B's own cancellation still applies.
     expect(
       (
@@ -385,6 +401,403 @@ describe.each(backends)("$name", (backend) => {
       ).applied,
     ).toBe(true)
     expect((await ent.get("org-1")).plan).toBe("free")
+  })
+
+  const DAY = 86_400_000
+  const apple = (
+    id: string,
+    type: string,
+    at: string,
+    o: { status: number; expires?: string; grace?: string; product?: string; tx?: string },
+  ): BillingEvent => {
+    const product = o.product ?? "com.example.pro.monthly"
+    return {
+      id,
+      gateway: "appstore",
+      type,
+      occurredAt: new Date(at),
+      subscriptionId: o.tx ?? "2000000001",
+      productId: product,
+      raw: {
+        payload: { notificationType: "X", data: { status: o.status } },
+        transaction: {
+          productId: product,
+          ...(o.expires ? { expiresDate: Date.parse(o.expires) } : {}),
+        },
+        renewalInfo: o.grace ? { gracePeriodExpiresDate: Date.parse(o.grace) } : {},
+      },
+    }
+  }
+  const google = (
+    id: string,
+    type: string,
+    at: string,
+    o: { state: string; expiry?: string; token?: string; linked?: string; product?: string },
+  ): BillingEvent => {
+    const product = o.product ?? "pro_monthly"
+    return {
+      id,
+      gateway: "googleplay",
+      type,
+      occurredAt: new Date(at),
+      subscriptionId: o.token ?? "tok-1",
+      productId: product,
+      raw: {
+        notification: {},
+        subscription: {
+          subscriptionState: `SUBSCRIPTION_STATE_${o.state}`,
+          lineItems: [{ productId: product, ...(o.expiry ? { expiryTime: o.expiry } : {}) }],
+          ...(o.linked ? { linkedPurchaseToken: o.linked } : {}),
+        },
+      },
+    }
+  }
+
+  test("stores: App Store, Google Play and web sources roll up into one entitlement per plan", async () => {
+    const { ent } = await make()
+    await ent.applyBillingEvent(
+      apple("a1", "subscription.created", "2026-11-01T00:00:00Z", {
+        status: 1,
+        expires: "2026-12-01T00:00:00Z",
+      }),
+      { subject: "u1" },
+    )
+    await ent.applyBillingEvent(
+      google("g1", "subscription.created", "2026-11-01T00:00:00Z", {
+        state: "ACTIVE",
+        expiry: "2026-12-15T00:00:00Z",
+      }),
+      { subject: "u1" },
+    )
+    await ent.applyBillingEvent(
+      {
+        ...sub("w1", "subscription.activated", "2026-11-01T00:00:00Z", "plan_pro", "sub_W"),
+        raw: {
+          payload: {
+            subscription: {
+              entity: {
+                plan_id: "plan_pro",
+                current_end: Date.parse("2026-11-20T00:00:00Z") / 1000,
+              },
+            },
+          },
+        },
+      },
+      { subject: "u1" },
+    )
+    const r = await ent.get("u1")
+    expect(r.plan).toBe("pro")
+    expect(r.currentPeriodEnd).toEqual(new Date("2026-12-15T00:00:00Z")) // latest of the three
+    expect(r.entitlements).toHaveLength(1)
+    const [e] = r.entitlements
+    expect(e?.active).toBe(true)
+    expect(e?.sources.map((x) => x.gateway).sort()).toEqual(["appstore", "googleplay", "razorpay"])
+    expect(e?.sources.find((x) => x.gateway === "razorpay")?.currentPeriodEnd).toEqual(
+      new Date("2026-11-20T00:00:00Z"),
+    )
+
+    // Same product id in two stores: the gateway-prefixed key decides.
+    await ent.applyBillingEvent(
+      apple("a2", "subscription.created", "2026-11-01T00:00:00Z", {
+        status: 1,
+        product: "shared_id",
+        tx: "2000000009",
+        expires: "2026-12-01T00:00:00Z",
+      }),
+      { subject: "u2" },
+    )
+    await ent.applyBillingEvent(
+      google("g2", "subscription.created", "2026-11-01T00:00:00Z", {
+        state: "ACTIVE",
+        product: "shared_id",
+        token: "tok-9",
+        expiry: "2026-12-01T00:00:00Z",
+      }),
+      { subject: "u3" },
+    )
+    expect((await ent.get("u2")).plan).toBe("team")
+    expect((await ent.get("u3")).plan).toBe("pro")
+  })
+
+  test("stores: two sources overlap, one expires, the other keeps the plan", async () => {
+    const { ent } = await make()
+    await ent.applyBillingEvent(
+      apple("a1", "subscription.created", "2026-11-01T00:00:00Z", {
+        status: 1,
+        expires: "2026-12-01T00:00:00Z",
+      }),
+      { subject: "u1" },
+    )
+    await ent.applyBillingEvent(
+      google("g1", "subscription.created", "2026-11-02T00:00:00Z", {
+        state: "ACTIVE",
+        expiry: "2026-12-02T00:00:00Z",
+      }),
+      { subject: "u1" },
+    )
+    expect((await ent.get("u1")).currentPeriodEnd).toEqual(new Date("2026-12-02T00:00:00Z"))
+    // Google expires; Apple still covers the plan, so its period end is the entitlement's.
+    expect(
+      await ent.applyBillingEvent(
+        google("g2", "subscription.expired", "2026-11-05T00:00:00Z", {
+          state: "EXPIRED",
+          expiry: "2026-11-05T00:00:00Z",
+        }),
+      ),
+    ).toMatchObject({ applied: true, subject: "u1", status: "expired" })
+    let r = await ent.get("u1")
+    expect(r).toMatchObject({
+      plan: "pro",
+      status: "active",
+      currentPeriodEnd: new Date("2026-12-01T00:00:00Z"),
+      source: { gateway: "appstore", subscriptionId: "2000000001" },
+    })
+    expect(r.entitlements[0]?.sources.find((x) => x.gateway === "googleplay")?.active).toBe(false)
+    // Apple renews: the period moves on.
+    await ent.applyBillingEvent(
+      apple("a2", "subscription.charged", "2026-11-30T00:00:00Z", {
+        status: 1,
+        expires: "2027-01-01T00:00:00Z",
+      }),
+    )
+    expect((await ent.get("u1")).currentPeriodEnd).toEqual(new Date("2027-01-01T00:00:00Z"))
+    // Apple expires too: back to the default plan.
+    await ent.applyBillingEvent(
+      apple("a3", "subscription.expired", "2027-01-01T00:00:00Z", {
+        status: 2,
+        expires: "2027-01-01T00:00:00Z",
+      }),
+    )
+    r = await ent.get("u1")
+    expect(r).toMatchObject({ plan: "free", currentPeriodEnd: null, source: null })
+    expect(r.entitlements[0]).toMatchObject({ plan: "pro", active: false })
+  })
+
+  test("stores: App Store grace period, billing retry, auto-renew off, refund", async () => {
+    const { ent } = await make()
+    const exp = "2026-11-10T00:00:00Z"
+    await ent.applyBillingEvent(
+      apple("a1", "subscription.created", "2026-11-01T00:00:00Z", { status: 1, expires: exp }),
+      { subject: "u1" },
+    )
+    // DID_FAIL_TO_RENEW with Billing Grace Period: access until gracePeriodExpiresDate.
+    await ent.applyBillingEvent(
+      apple("a2", "subscription.past_due", "2026-11-10T00:00:00Z", {
+        status: 4,
+        expires: exp,
+        grace: "2026-11-16T00:00:00Z",
+      }),
+    )
+    clock = new Date("2026-11-15T00:00:00Z")
+    expect(await ent.get("u1")).toMatchObject({
+      plan: "pro",
+      status: "past_due",
+      graceUntil: new Date("2026-11-16T00:00:00Z"),
+    })
+    // Grace over, now in billing retry: no access.
+    await ent.applyBillingEvent(
+      apple("a3", "subscription.past_due", "2026-11-16T00:00:00Z", { status: 3, expires: exp }),
+    )
+    expect(await ent.get("u1")).toMatchObject({
+      plan: "free",
+      status: "past_due",
+      graceUntil: null,
+    })
+    // Recovered (DID_RENEW).
+    await ent.applyBillingEvent(
+      apple("a4", "subscription.charged", "2026-11-17T00:00:00Z", {
+        status: 1,
+        expires: "2026-12-17T00:00:00Z",
+      }),
+    )
+    expect((await ent.get("u1")).plan).toBe("pro")
+    // Auto-renew off is still status 1: access runs to expiresDate.
+    await ent.applyBillingEvent(
+      apple("a5", "subscription.cancelled", "2026-11-18T00:00:00Z", {
+        status: 1,
+        expires: "2026-12-17T00:00:00Z",
+      }),
+    )
+    expect(await ent.get("u1")).toMatchObject({ plan: "pro", status: "active" })
+    // A refund (REFUND, status 5) ends it now.
+    expect(
+      await ent.applyBillingEvent(
+        apple("a6", "refund.processed", "2026-11-19T00:00:00Z", {
+          status: 5,
+          expires: "2026-12-17T00:00:00Z",
+        }),
+      ),
+    ).toMatchObject({ applied: true, status: "expired" })
+    expect((await ent.get("u1")).plan).toBe("free")
+    // A web refund event is not a subscription change.
+    expect(
+      (await ent.applyBillingEvent(sub("r1", "refund.processed", "2026-11-19T00:00:00Z"))).reason,
+    ).toBe("not_subscription")
+  })
+
+  test("stores: Google Play grace period, account hold, cancel, revoke, linked token", async () => {
+    const { ent } = await make()
+    await ent.applyBillingEvent(
+      google("g1", "subscription.created", "2026-11-01T00:00:00Z", {
+        state: "ACTIVE",
+        expiry: "2026-11-10T00:00:00Z",
+      }),
+      { subject: "u1" },
+    )
+    await ent.applyBillingEvent(
+      google("g2", "subscription.past_due", "2026-11-10T00:00:00Z", {
+        state: "IN_GRACE_PERIOD",
+        expiry: "2026-11-13T00:00:00Z",
+      }),
+    )
+    clock = new Date("2026-11-12T00:00:00Z")
+    expect(await ent.get("u1")).toMatchObject({ plan: "pro", status: "past_due" })
+    await ent.applyBillingEvent(
+      google("g3", "subscription.past_due", "2026-11-13T00:00:00Z", {
+        state: "ON_HOLD",
+        expiry: "2026-11-13T00:00:00Z",
+      }),
+    )
+    expect((await ent.get("u1")).plan).toBe("free")
+    await ent.applyBillingEvent(
+      google("g4", "subscription.charged", "2026-11-14T00:00:00Z", {
+        state: "ACTIVE",
+        expiry: "2026-12-14T00:00:00Z",
+      }),
+    )
+    // Cancelled keeps access until expiryTime.
+    await ent.applyBillingEvent(
+      google("g5", "subscription.cancelled", "2026-11-15T00:00:00Z", {
+        state: "CANCELED",
+        expiry: "2026-12-14T00:00:00Z",
+      }),
+    )
+    expect(await ent.get("u1")).toMatchObject({
+      plan: "pro",
+      currentPeriodEnd: new Date("2026-12-14T00:00:00Z"),
+    })
+    // Resubscribe on a new token linked to the old one: same subject, no claim needed.
+    expect(
+      await ent.applyBillingEvent(
+        google("g6", "subscription.created", "2026-11-16T00:00:00Z", {
+          state: "ACTIVE",
+          token: "tok-2",
+          linked: "tok-1",
+          expiry: "2027-11-16T00:00:00Z",
+        }),
+      ),
+    ).toMatchObject({ applied: true, subject: "u1" })
+    // The old token is revoked; the new one keeps the plan.
+    await ent.applyBillingEvent(
+      google("g7", "subscription.expired", "2026-11-16T00:00:01Z", {
+        state: "EXPIRED",
+        expiry: "2026-11-16T00:00:01Z",
+      }),
+    )
+    expect(await ent.get("u1")).toMatchObject({
+      plan: "pro",
+      currentPeriodEnd: new Date("2027-11-16T00:00:00Z"),
+      source: { gateway: "googleplay", subscriptionId: "tok-2" },
+    })
+  })
+
+  test("stores: an active source whose period ended with no event lapses after graceMs", async () => {
+    const { ent } = await make()
+    await ent.applyBillingEvent(
+      apple("a1", "subscription.created", "2026-11-01T00:00:00Z", {
+        status: 1,
+        expires: "2026-11-05T00:00:00Z",
+      }),
+      { subject: "u1" },
+    )
+    clock = new Date("2026-11-05T12:00:00Z")
+    expect((await ent.get("u1")).plan).toBe("pro") // a renewal event may be late
+    advance(DAY)
+    expect((await ent.get("u1")).plan).toBe("free")
+  })
+
+  test("restore: applySubscription re-attaches; another subject's subscription is refused", async () => {
+    const { ent } = await make()
+    const live = {
+      gateway: "appstore",
+      gatewayId: "2000000001",
+      status: "active" as const,
+      productId: "com.example.pro.monthly",
+      currentPeriodEnd: new Date("2026-12-01T00:00:00Z"),
+      raw: {
+        transaction: {
+          productId: "com.example.pro.monthly",
+          expiresDate: Date.parse("2026-12-01T00:00:00Z"),
+        },
+        renewalInfo: {},
+        status: 1,
+      },
+    }
+    expect(await ent.applySubscription(live, { subject: "u1" })).toMatchObject({
+      applied: true,
+      plan: "pro",
+      status: "active",
+    })
+    expect(await ent.get("u1")).toMatchObject({
+      plan: "pro",
+      currentPeriodEnd: new Date("2026-12-01T00:00:00Z"),
+    })
+    // Restoring again (same user) is fine; another user is refused, by event too.
+    advance(1000)
+    expect((await ent.applySubscription(live, { subject: "u1" })).applied).toBe(true)
+    expect(await ent.applySubscription(live, { subject: "u2" })).toEqual({
+      applied: false,
+      subject: "u2",
+      reason: "other_subject",
+    })
+    expect(
+      await ent.applyBillingEvent(
+        apple("a9", "subscription.charged", "2026-11-30T00:00:00Z", {
+          status: 1,
+          expires: "2027-01-01T00:00:00Z",
+        }),
+        { subject: "u2" },
+      ),
+    ).toMatchObject({ applied: false, reason: "other_subject" })
+    expect((await ent.get("u2")).plan).toBe("free")
+
+    // A web subscription read live: status and currentPeriodEnd; cancelled keeps access until then.
+    expect(
+      await ent.applySubscription(
+        {
+          gateway: "stripe",
+          gatewayId: "sub_S",
+          status: "cancelled",
+          productId: "plan_team",
+          currentPeriodEnd: new Date("2026-11-20T00:00:00Z"),
+        },
+        { subject: "u3" },
+      ),
+    ).toMatchObject({ applied: true, plan: "team", status: "cancelled" })
+    expect((await ent.get("u3")).plan).toBe("team")
+    clock = new Date("2026-11-21T00:00:00Z")
+    expect((await ent.get("u3")).plan).toBe("free")
+  })
+
+  test("plans: the last declared active plan wins; setPlan is one more source", async () => {
+    const { ent } = await make()
+    await ent.applyBillingEvent(
+      apple("a1", "subscription.created", "2026-11-01T00:00:00Z", {
+        status: 1,
+        expires: "2026-12-01T00:00:00Z",
+      }),
+      { subject: "u1" },
+    )
+    await ent.setPlan("u1", "team", { actor: admin })
+    expect(await ent.get("u1")).toMatchObject({
+      plan: "team",
+      source: { gateway: "manual", subscriptionId: "u1" },
+      currentPeriodEnd: null,
+    })
+    expect((await ent.get("u1")).entitlements.map((e) => e.plan)).toEqual(["pro", "team"])
+    // Moving the manual source down does not cut the paid store plan.
+    await ent.setPlan("u1", "free", { actor: admin })
+    expect((await ent.get("u1")).plan).toBe("pro")
   })
 
   test("consume: concurrent requests never exceed the limit; resets each period", async () => {
