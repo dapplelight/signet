@@ -99,7 +99,8 @@ app.post("/webhooks/:gateway", (c) => payments.handleWebhook(c.req.param("gatewa
 ```
 
 - `verifyPurchase` reads the purchase from the store and records it as the
-  user's. A purchase already recorded for another user is refused. Renewals
+  user's. It is refused when the purchase, or any payment of the subscription
+  it belongs to, is already another user's. Renewals
   and refunds that arrive later link to it through `orderId` (the original
   transaction id, or the purchase token).
 - Ids: App Store payments are transaction ids and subscriptions are original
@@ -145,9 +146,11 @@ SDK (or two official doc pages) agree. What is left out, and why:
   signature. Revocation (OCSP) is not checked. Checked:
   https://developer.apple.com/documentation/appstoreserverapi/jwsdecodedheader,
   https://www.apple.com/certificateauthority/AppleRootCA-G3.cer.
-- **App Store notifications** are accepted from both environments, and
-  `Event.environment` says which. With `appAppleId` set, production
-  notifications for another app are rejected.
+- **App Store environments**: every signed payload must match the adapter's
+  environment. A production adapter rejects Sandbox data unless
+  `allowSandbox: true` (a staging server that takes both); a `sandbox: true`
+  adapter rejects Production data. `Event.environment` says which one it was.
+  With `appAppleId` set, production notifications for another app are rejected.
 - **Google Play refunds** are full only (`orders.refund`, which revokes access
   by default; set `revokeOnRefund: false` to keep access). For a prorated
   subscription refund, call `raw("POST", "/purchases/subscriptionsv2/tokens/<token>:revoke", { revocationContext: { proratedRefund: {} } })`.

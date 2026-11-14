@@ -860,3 +860,101 @@ describe("store purchases in createPayments", () => {
     expect(asked).toHaveLength(1)
   })
 })
+
+describe("review fixes", () => {
+  const make = (o: { sandbox?: boolean; allowSandbox?: boolean }) =>
+    appstore({
+      issuerId: "issuer-made-up",
+      keyId: "KEYMADEUP1",
+      privateKey: apiKey.privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
+      bundleId: BUNDLE,
+      trustedRoots: [ROOT_FP],
+      fetch: fakeFetch({}).fetch,
+      ...o,
+      ...http,
+    })
+  const prod = (t: unknown) =>
+    new Request("https://x.test", {
+      method: "POST",
+      body: JSON.stringify({
+        signedPayload: jws({
+          notificationType: "DID_RENEW",
+          notificationUUID: "uuid-prod",
+          signedDate: T0,
+          data: { bundleId: BUNDLE, environment: "Production", signedTransactionInfo: jws(t) },
+        }),
+      }),
+    })
+
+  test("signed payloads must match the configured environment", async () => {
+    const sandboxTxn = txn()
+    const prodTxn = txn({ environment: "Production" })
+    // Production setup: Sandbox notifications and transactions are rejected.
+    expect(
+      await code(make({}).verifyWebhook(notification("DID_RENEW", undefined, sandboxTxn))),
+    ).toBe("BAD_SIGNATURE")
+    expect(await code(make({}).decodeTransaction(jws(sandboxTxn)))).toBe("BAD_SIGNATURE")
+    expect(await code(make({}).verifyWebhook(prod(sandboxTxn)))).toBe("BAD_SIGNATURE")
+    expect((await make({}).verifyWebhook(prod(prodTxn))).environment).toBe("production")
+    // Staging: allowSandbox takes both.
+    expect(
+      (
+        await make({ allowSandbox: true }).verifyWebhook(
+          notification("DID_RENEW", undefined, sandboxTxn),
+        )
+      ).environment,
+    ).toBe("sandbox")
+    expect((await make({ allowSandbox: true }).decodeTransaction(jws(prodTxn))).environment).toBe(
+      "production",
+    )
+    // Sandbox setup never takes Production data.
+    expect(await code(make({ sandbox: true }).verifyWebhook(prod(prodTxn)))).toBe("BAD_SIGNATURE")
+    expect(
+      await code(make({ sandbox: true, allowSandbox: true }).decodeTransaction(jws(prodTxn))),
+    ).toBe("BAD_SIGNATURE")
+  })
+
+  test("verifyPurchase refuses another transaction of a subscription someone else owns", async () => {
+    const db = memoryStore()
+    const { g } = apple({
+      "GET /inApps/v1/transactions/2000000002": { signedTransactionInfo: jws(txn()) },
+      "GET /inApps/v1/transactions/2000000003": {
+        signedTransactionInfo: jws(txn({ transactionId: "2000000003" })),
+      },
+      "GET /inApps/v1/transactions/3000000001": {
+        signedTransactionInfo: jws(
+          txn({ transactionId: "3000000001", originalTransactionId: "3000000001" }),
+        ),
+      },
+    })
+    const payments = createPayments({ gateways: [g], db })
+    await payments.verifyPurchase({ gateway: "appstore", id: "2000000002", userId: "u1" })
+    // A renewal of u1's subscription cannot be claimed by u2, even before its own row exists.
+    expect(
+      await code(payments.verifyPurchase({ gateway: "appstore", id: "2000000003", userId: "u2" })),
+    ).toBe("BAD_INPUT")
+    expect(await db.getPayment("appstore", "2000000003")).toBeUndefined()
+    // u1 can claim it; an unrelated subscription is free for u2.
+    await payments.verifyPurchase({ gateway: "appstore", id: "2000000003", userId: "u1" })
+    await payments.verifyPurchase({ gateway: "appstore", id: "3000000001", userId: "u2" })
+  })
+
+  test("verifyPurchase takes over payments of the subscription that arrived before the claim", async () => {
+    const db = memoryStore()
+    const { g } = apple({
+      "GET /inApps/v1/transactions/2000000003": {
+        signedTransactionInfo: jws(txn({ transactionId: "2000000003" })),
+      },
+    })
+    const payments = createPayments({ gateways: [g], db })
+    // The first purchase's webhook lands before the app calls verifyPurchase: no owner yet.
+    await payments.handleWebhook("appstore", notification("SUBSCRIBED", "INITIAL_BUY", txn()))
+    expect((await db.getPayment("appstore", "2000000002"))?.userId).toBeUndefined()
+    await payments.verifyPurchase({ gateway: "appstore", id: "2000000003", userId: "u1" })
+    expect((await db.getPayment("appstore", "2000000002"))?.userId).toBe("u1")
+    // ...and now nobody else can claim either transaction.
+    expect(
+      await code(payments.verifyPurchase({ gateway: "appstore", id: "2000000003", userId: "u2" })),
+    ).toBe("BAD_INPUT")
+  })
+})

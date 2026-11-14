@@ -63,6 +63,12 @@ export type AppStoreConfig = HttpOptions & {
   bundleId: string
   /** Your app's Apple id. When set, production notifications must carry it. */
   appAppleId?: number
+  /**
+   * With `sandbox: false`, also accept Sandbox-signed data (a staging server
+   * that takes both). Default false: a production setup rejects Sandbox
+   * payloads, and a sandbox setup always rejects Production ones.
+   */
+  allowSandbox?: boolean
   /** SHA-256 fingerprints of trusted roots. Default: Apple Root CA - G3. */
   trustedRoots?: readonly string[]
   now?: () => number
@@ -254,6 +260,17 @@ export function appstore(config: AppStoreConfig): AppStoreGateway {
       ["verify"],
     )
     if (!(await verifyJws(d, k))) throw badSignature(G)
+    const environment = d.payload.environment ?? d.payload.data?.environment
+    const allowed = config.sandbox
+      ? ["Sandbox"]
+      : config.allowSandbox
+        ? ["Production", "Sandbox"]
+        : ["Production"]
+    if (environment !== undefined && !allowed.includes(environment))
+      throw badSignature(
+        G,
+        `signed for the ${environment} environment, which this setup does not accept`,
+      )
     const bundle = d.payload.bundleId ?? d.payload.data?.bundleId
     if (bundle !== undefined && bundle !== config.bundleId)
       throw badSignature(G, `signed for bundle ${bundle}, not ${config.bundleId}`)

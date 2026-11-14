@@ -202,8 +202,10 @@ export function createPayments(config: PaymentsConfig) {
    * Record a purchase made outside checkout (App Store, Google Play) as this
    * user's: reads it from the gateway (which verifies it) and stores it. Later
    * renewals and refunds link to it through `orderId` (the original
-   * transaction id or purchase token). A purchase already recorded for another
-   * user is refused, so one receipt cannot unlock two accounts.
+   * transaction id or purchase token). A purchase is refused when it, or any
+   * payment of the subscription it belongs to, is already another user's, so
+   * one receipt cannot unlock two accounts. Payments of that subscription that
+   * arrived before the claim (webhooks first) become this user's too.
    */
   async function verifyPurchase(input: {
     gateway: string
@@ -215,11 +217,20 @@ export function createPayments(config: PaymentsConfig) {
     const p = await g.getPayment(input.id)
     if (!db) return p
     const existing = await db.getPayment(g.name, p.gatewayId)
-    if (existing?.userId && existing.userId !== input.userId)
+    // ponytail: reads up to 500 payments of one subscription; page if a subscription outgrows that.
+    const linked = p.orderId
+      ? (await db.listPayments({ gateway: g.name, orderId: p.orderId, limit: 500 })).filter(
+          (r) => r.orderId === p.orderId,
+        )
+      : []
+    if ([existing, ...linked].some((r) => r?.userId && r.userId !== input.userId))
       throw new PaymentsError("BAD_INPUT", "This purchase already belongs to another user.", {
         gateway: g.name,
       })
     const now = new Date()
+    for (const r of linked)
+      if (!r.userId && r.gatewayId !== p.gatewayId)
+        await db.savePayment({ ...r, userId: input.userId, updatedAt: now })
     await db.savePayment({
       ...existing,
       gateway: g.name,
@@ -291,6 +302,9 @@ export function createPayments(config: PaymentsConfig) {
     if (!rec && e.amount !== undefined && e.currency) {
       const now = new Date()
       rec = {
+        // The event's order (an App Store original transaction id, a Play purchase token)
+        // links this payment to its siblings, so a later claim or retry can find it.
+        ...(e.orderId ? { orderId: e.orderId } : {}),
         ...owner,
         gateway: e.gateway,
         gatewayId: e.paymentId,
