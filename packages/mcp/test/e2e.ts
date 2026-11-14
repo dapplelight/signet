@@ -552,6 +552,33 @@ try {
       ?.label === "x",
   )
 
+  const scopeSetup = (scopes: { read?: string[]; write?: string[] }, allowWrites: boolean) => {
+    try {
+      signetMcpOptions({ db: { db, agentTools, tables: [S.tags], allowWrites, scopes } })
+      return ""
+    } catch (e) {
+      return (e as Error).message
+    }
+  }
+  const halfGated = scopeSetup({ read: ["db:read"] }, true)
+  ok(
+    "db scopes: allowWrites with only read scopes throws instead of leaving writes open",
+    halfGated.includes("db.scopes.write is required"),
+    halfGated,
+  )
+  ok(
+    "db scopes: an empty write list is rejected too",
+    scopeSetup({ read: ["db:read"], write: [] }, true).includes("db.scopes.write"),
+  )
+  ok(
+    "db scopes: only write scopes throws for the read tools",
+    scopeSetup({ write: ["db:write"] }, true).includes("db.scopes.read is required"),
+  )
+  ok(
+    "db scopes: without allowWrites, read alone is enough",
+    scopeSetup({ read: ["db:read"] }, false) === "",
+  )
+
   let setup = ""
   try {
     signetMcpOptions({ db: { db, agentTools, tables: [S.users] } })

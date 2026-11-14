@@ -126,7 +126,10 @@ another); with no identity there are no db tools at all. Writes are off:
 `dryRun: true`. `maxRows` caps rows per call (default 100). Scopes are not
 checked unless you set `scopes: { read: ["db:read"], write: ["db:write"] }`:
 `read` gates the read-only tools, `write` the insert and update tools, so
-without it any caller with a verified `sub` can run every db tool. A table without a
+without it any caller with a verified `sub` can run every db tool. Once you set
+`scopes`, name each group explicitly: `read` always, and `write` when
+`allowWrites` is true. `signetMcpOptions` throws if one is missing or empty,
+so a half-configured gate cannot leave the writes open. A table without a
 `userId` column throws when `signetMcpOptions` is called. `agentTools` is
 passed in because signet-db is not a dependency of this package. Because the
 list depends on the caller, use `mountMcp` or `resolveMcpServer`, not

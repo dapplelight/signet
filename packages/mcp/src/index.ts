@@ -62,7 +62,8 @@ export type DbToolsOptions<D, T> = {
   /**
    * Scopes a token must carry to call the db tools: `read` for tools annotated
    * `readOnlyHint` (the selects), `write` for the rest (`_insert`, `_update`).
-   * Without them no scope is checked: any caller with a verified `sub` gets every db tool.
+   * Without `scopes` no scope is checked: any caller with a verified `sub` gets every db tool.
+   * Once set, each group in use must be named (`write` only with `allowWrites`), or this throws.
    */
   scopes?: { read?: string[]; write?: string[] }
 }
@@ -108,6 +109,16 @@ export function signetMcpOptions<D, T>(
   const { db } = options
   if (!db) return { ...base, tools: [...own, ...mine] }
   const { agentTools, tables, allowWrites = false, maxRows } = db
+  if (db.scopes) {
+    // a group left out would get no gate at all, so each one in use must be named
+    for (const group of allowWrites ? (["read", "write"] as const) : (["read"] as const)) {
+      if (!db.scopes[group]?.length) {
+        throw new Error(
+          `db.scopes.${group} is required when db.scopes is set: leaving it out would leave those tools open`,
+        )
+      }
+    }
+  }
   const forUser = (userId: string) =>
     agentTools(db.db, { tables, userId, allowWrites, ...(maxRows ? { maxRows } : {}) }).map(
       (tool): PlainTool => {
