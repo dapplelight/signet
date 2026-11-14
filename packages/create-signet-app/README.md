@@ -48,9 +48,30 @@ copy-paste, not configuration.
   paint — React mounts too late, and without it there is a visible flash
 - `src/lib/api.ts` with a configured `createApiClient`
 
-## `--template api`: a Worker API
+## `--template api`: a Hono API on the runtime you pick
 
-`bun create-signet-app my-api --template api` scaffolds a Hono Worker with:
+`bun create-signet-app my-api --template api [--target cloudflare|bun|node|vercel]`
+scaffolds a Hono API. Every target shares `src/app.ts`, `src/env.ts`, the tests
+and CI; `--target` decides the entry and its config, and only that target's
+files are written:
+
+| `--target` | Entry | Config | Rate limit store |
+|---|---|---|---|
+| `cloudflare` (default) | `src/index.ts` (Worker) | `wrangler.jsonc` | `RateLimitCounter` Durable Object: exact |
+| `bun` | `src/server.ts` (`Bun.serve`) | `Dockerfile` | in-process: exact for one process |
+| `node` | `src/server.ts` (`node:http`) | `engines.node >= 22.18` | in-process: exact for one process |
+| `vercel` | `index.ts` (default export) | `vercel.json` (Hono preset) | in-process: per function instance |
+
+`node` runs `src/server.ts` as is through Node's type stripping (on by default
+from 22.18), so relative imports in the template carry `.ts`. It bridges
+`node:http` to Hono's `fetch` in a few lines instead of adding
+`@hono/node-server`. `vercel` follows [Hono on
+Vercel](https://vercel.com/docs/frameworks/backend/hono); Vercel overwrites
+`x-forwarded-for` with the client IP, so one forwarded hop is trusted. On Vercel
+the in-memory count is per instance; share it through Redis (Vercel KV is
+[Upstash](https://vercel.com/docs/redis)) when it must be exact.
+
+The `cloudflare` target is a Hono Worker with:
 
 - `requestId`, `errorHandler` and `parseBody` from `@dapplelight/signet-server`, so
   every error is the envelope with a code and a request id
@@ -66,17 +87,19 @@ copy-paste, not configuration.
 - `test/env.test.ts` (`bun test`) and `.github/workflows/ci.yml`: lint,
   typecheck, test and `wrangler deploy --dry-run`
 
-- `src/server.ts` and a `Dockerfile`: the same app (`src/app.ts`) under
-  `Bun.serve` for Node/Bun hosts and containers. `bun run start` runs it;
-  rate limiting there is in-process, keyed by the socket address, or by
-  `x-forwarded-for` when `TRUSTED_PROXY_HOPS` is set
+- on `bun` and `node`, `bun run start` serves the app; rate limiting is
+  in-process, keyed by the socket address, or by `x-forwarded-for` when
+  `TRUSTED_PROXY_HOPS` is set. `bun` adds a `Dockerfile`
 
 Append migration tags; never edit one that has been deployed. A Worker entry
 may export only handlers and classes (workerd: "Incorrect type for map entry").
 
-Its test scaffolds outside the monorepo, installs, typechecks, lints, bundles
-with wrangler, then runs it under `wrangler dev` and checks the envelope and
-that exactly 60 requests pass before a 429. Removing the `RateLimitCounter`
+Its test scaffolds each target outside the monorepo, installs, typechecks and
+lints it. `cloudflare` is bundled with wrangler, then run under `wrangler dev`
+to check the envelope and that exactly 60 requests pass before a 429. `bun` and
+`node` are served under their runtime (the node check needs Node 22.18+ on
+`PATH`) and must limit by socket address whatever `x-forwarded-for` says;
+`vercel`'s default export is called in process, since a deploy needs an account. Removing the `RateLimitCounter`
 export fails it: wrangler refuses to bundle a Worker whose Durable Object is
 not exported.
 

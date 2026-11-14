@@ -8,7 +8,8 @@
     "strict": true,
     "skipLibCheck": true,
     "isolatedModules": true,
+    "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["src"]
+  "include": ["src", "*.ts"]
 }

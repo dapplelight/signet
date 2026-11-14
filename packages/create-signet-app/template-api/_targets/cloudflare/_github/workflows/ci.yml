@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      # Commit bun.lock: --frozen-lockfile fails the build if it is missing or stale.
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+      - run: bun run typecheck
+      - run: bun run test
+      # Bundles the Worker exactly as a deploy would, without credentials or
+      # uploading: catches a missing Durable Object export or a bad binding.
+      - run: bun run deploy --dry-run --outdir dist

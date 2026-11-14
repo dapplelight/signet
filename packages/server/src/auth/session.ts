@@ -14,6 +14,13 @@ export type SessionOptions = {
   cookieName: string
   /** Signing secret. Must be high-entropy and per-environment. */
   secret: string
+  /**
+   * Keys being rotated out. A cookie signed with one of these still verifies,
+   * and `checkSession` hands back a copy re-signed with `secret`, so a key
+   * rotates without signing anyone out. Drop a key once `ttlSeconds` has
+   * passed since it stopped being `secret`.
+   */
+  previousSecrets?: string[]
   /** Lifetime in seconds. Default 14 days. */
   ttlSeconds?: number
   /**
@@ -34,6 +41,11 @@ export type SessionPayload = {
   v: 1
   /** Optional opaque subject — a user id, a guest id, a household id. */
   sub?: string
+  /**
+   * Stored-session id (`./sessions`). A token carrying one is only valid
+   * against its store, so the stateless `verifySession` rejects it.
+   */
+  sid?: string
 }
 
 const DEFAULT_TTL = 60 * 60 * 24 * 14
@@ -55,7 +67,8 @@ function unb64url(input: string): Uint8Array {
 
 const MIN_SECRET_LENGTH = 32
 
-async function hmac(secret: string, data: string): Promise<string> {
+/** HMAC-SHA256 of `data`, base64url. Throws on a secret shorter than 32 characters. */
+export async function hmacSha256(secret: string, data: string): Promise<string> {
   if (!secret || secret.length < MIN_SECRET_LENGTH)
     throw new Error(`Session secret must be at least ${MIN_SECRET_LENGTH} characters.`)
   const key = await crypto.subtle.importKey(
@@ -80,35 +93,65 @@ export function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0
 }
 
-export async function issueSession(opts: SessionOptions, sub?: string): Promise<string> {
+export async function issueSession(
+  opts: SessionOptions,
+  sub?: string,
+  extra: { sid?: string; ttlSeconds?: number } = {},
+): Promise<string> {
   const now = Math.floor(Date.now() / 1000)
   const payload: SessionPayload = {
     iat: now,
-    exp: now + (opts.ttlSeconds ?? DEFAULT_TTL),
+    exp: now + (extra.ttlSeconds ?? opts.ttlSeconds ?? DEFAULT_TTL),
     v: 1,
     ...(sub ? { sub } : {}),
+    ...(extra.sid ? { sid: extra.sid } : {}),
   }
   const body = b64url(JSON.stringify(payload))
-  return `${body}.${await hmac(opts.secret, body)}`
+  return `${body}.${await hmacSha256(opts.secret, body)}`
 }
 
+/**
+ * Verify a token against `secret` and then each of `previousSecrets`. Returns
+ * the payload, and `resigned` — the same payload (same `iat`/`exp`) signed with
+ * `secret` — when an old key matched: send it back as the new cookie.
+ * Accepts stored-session tokens too; `./sessions` checks those against the store.
+ */
+export async function checkSession(
+  token: string | undefined | null,
+  opts: SessionOptions,
+): Promise<{ payload: SessionPayload; resigned?: string } | null> {
+  if (!token) return null
+  const [body, sig, extra] = token.split(".")
+  if (!body || !sig || extra !== undefined) return null
+  let keyIndex = -1
+  const keys = [opts.secret, ...(opts.previousSecrets ?? [])]
+  for (let i = 0; i < keys.length; i++) {
+    // Constant-time — a plain !== leaks signature bytes through response timing.
+    // Every key is tried, so timing does not reveal which one matched.
+    if (timingSafeEqual(sig, await hmacSha256(keys[i] as string, body)) && keyIndex < 0)
+      keyIndex = i
+  }
+  if (keyIndex < 0) return null
+  let payload: SessionPayload
+  try {
+    payload = JSON.parse(new TextDecoder().decode(unb64url(body))) as SessionPayload
+  } catch {
+    return null
+  }
+  if (payload?.v !== 1 || typeof payload.exp !== "number") return null
+  if (payload.exp < Math.floor(Date.now() / 1000)) return null
+  if (keyIndex === 0) return { payload }
+  return { payload, resigned: `${body}.${await hmacSha256(opts.secret, body)}` }
+}
+
+/** Stateless verify. Rejects stored-session tokens (they carry `sid`): use `./sessions` for those. */
 export async function verifySession(
   token: string | undefined | null,
   opts: SessionOptions,
 ): Promise<SessionPayload | null> {
-  if (!token) return null
-  const [body, sig] = token.split(".")
-  if (!body || !sig) return null
-  // Constant-time — a plain !== leaks signature bytes through response timing.
-  if (!timingSafeEqual(await hmac(opts.secret, body), sig)) return null
-  try {
-    const payload = JSON.parse(new TextDecoder().decode(unb64url(body))) as SessionPayload
-    if (payload.v !== 1) return null
-    if (payload.exp < Math.floor(Date.now() / 1000)) return null
-    return payload
-  } catch {
-    return null
-  }
+  const checked = await checkSession(token, opts)
+  if (!checked || checked.payload.sid !== undefined) return null
+  return checked.payload
 }
 
 function cookieAttrs(opts: SessionOptions): string[] {
@@ -123,11 +166,12 @@ function cookieAttrs(opts: SessionOptions): string[] {
   ]
 }
 
-export function sessionCookie(token: string, opts: SessionOptions): string {
+/** `maxAgeSeconds` defaults to `ttlSeconds`; pass `exp - now` when re-sending a re-signed token. */
+export function sessionCookie(token: string, opts: SessionOptions, maxAgeSeconds?: number): string {
   return [
     `${opts.cookieName}=${token}`,
     ...cookieAttrs(opts),
-    `Max-Age=${opts.ttlSeconds ?? DEFAULT_TTL}`,
+    `Max-Age=${Math.max(0, maxAgeSeconds ?? opts.ttlSeconds ?? DEFAULT_TTL)}`,
   ].join("; ")
 }
 
