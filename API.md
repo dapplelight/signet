@@ -107,13 +107,17 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/analytics/engine` | LIMITS, truncateBytes, toDataPoint, createAnalyticsEngine, AnalyticsEngineDataset, TrackedEvent, … | Cloudflare Workers Analytics Engine writer |
 | `@dapplelight/signet-server/analytics/ingest` | registerIngest, cloudflareEnrichment, IngestOptions | Hono ingest route for browser events |
 | `@dapplelight/signet-server/analytics/sinks` | httpSink, memorySink, consoleSink, AnalyticsSink, HttpSinkConfig | Where server-side analytics events go, independent of runtime |
-| `@dapplelight/signet-server/auth` | readBearer, verifySharedToken, sha256Hex, createApiToken, hashIncomingToken, betterAuthDefaults, … | re-exports bearer, better-auth, guards, passcode, session |
+| `@dapplelight/signet-server/auth` | kvApiKeyStore, createApiKey, listApiKeys, revokeApiKey, verifyApiKey, ApiKeyRecord, … | re-exports api-keys, bearer, better-auth, guards, otp, passcode, session, sessions |
+| `@dapplelight/signet-server/auth/api-keys` | kvApiKeyStore, createApiKey, listApiKeys, revokeApiKey, verifyApiKey, ApiKeyRecord, … | API-key manager: create (secret shown once), list, revoke, with scopes and optional expiry |
 | `@dapplelight/signet-server/auth/bearer` | readBearer, verifySharedToken, sha256Hex, createApiToken, hashIncomingToken | Bearer-token auth for machine callers — CLIs, MCP servers, webhooks, cron |
 | `@dapplelight/signet-server/auth/better-auth` | betterAuthDefaults, socialProviders, BetterAuthEnv, BetterAuthDefaultsOptions | Opinionated defaults for Better Auth |
 | `@dapplelight/signet-server/auth/guards` | isDevAuthEnabled, requireEnv, checkEnv | Configuration guards |
-| `@dapplelight/signet-server/auth/hono` | requireSession, requireSharedToken, requireAuth, DualAuthOptions | Hono middleware |
+| `@dapplelight/signet-server/auth/hono` | requireSession, requireStoredSession, sessionRoutes, requireApiKey, requireSharedToken, requireAuth, … | Hono middleware |
+| `@dapplelight/signet-server/auth/mcp` | authTools, AuthToolsOptions | Per-user MCP tools for sessions and API keys: `list_my_sessions`, `revoke_session`, `list_api_keys`, `revoke_api_key` |
+| `@dapplelight/signet-server/auth/otp` | devSmsSender, normalizePhone, maskPhone, requestPhoneOtp, verifyPhoneOtp, SmsSender, … | Phone one-time codes: request, then verify |
 | `@dapplelight/signet-server/auth/passcode` | hashPasscode, verifyPasscode | Shared-passcode auth |
-| `@dapplelight/signet-server/auth/session` | timingSafeEqual, issueSession, verifySession, sessionCookie, clearCookie, readSessionCookie, … | Stateless HMAC-signed session cookie |
+| `@dapplelight/signet-server/auth/session` | hmacSha256, timingSafeEqual, issueSession, checkSession, verifySession, sessionCookie, … | Stateless HMAC-signed session cookie |
+| `@dapplelight/signet-server/auth/sessions` | kvSessionStore, cachedSessionStore, deviceLabel, startSession, validateSession, rotateSession, … | Stored sessions: a "your devices" list, revoke one, sign out everywhere |
 | `@dapplelight/signet-server/env` | initRuntimeEnv, getRuntimeEnv, resetRuntimeEnv, createEnv, CreateEnvOptions | re-exports runtime, schema |
 | `@dapplelight/signet-server/env/runtime` | initRuntimeEnv, getRuntimeEnv, resetRuntimeEnv | Runtime environment access that works on both Workers and Node/Bun |
 | `@dapplelight/signet-server/env/schema` | createEnv, CreateEnvOptions | Validate environment once, lazily, against a Zod schema |
