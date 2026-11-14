@@ -282,6 +282,30 @@ Validation failures put `flatten()` output in `details`, where the envelope has
 a place for it. app-a stringified it into the message field, forcing the client
 to `JSON.parse` an error string to render field errors.
 
+### Admin routes
+
+`@dapplelight/signet-server/http/admin` mounts signet-db's `defineAdmin(...)`
+as Hono routes. Typed by shape, so this package does not depend on signet-db.
+
+```ts
+import { adminRoutes } from "@dapplelight/signet-server/http/admin"
+
+app.onError(errorHandler({ isProduction }))
+app.route("/admin", adminRoutes(admin, {
+  db: (c) => createDb(c.env.DB, { audit }),
+  ctx: async (c) => {
+    const user = await currentUser(c)
+    return user ? { actor: { type: "user", id: user.id }, role: user.role } : undefined
+  },
+}))
+```
+
+`GET /` metadata; `GET|POST /:table` list (`?limit&cursor&sort&order&q&withDeleted&filter=<json>`)
+and create; `GET|PATCH|DELETE /:table/:id`; `POST /:table/bulk-delete` with
+`{ ids }`; `POST /:table/:id/:action`. A missing context is 401; signet-db's
+`AdminError` becomes an `ApiException`, so the envelope carries its status,
+code, field `details` and the request id.
+
 ## Env — Workers-safe configuration
 
 ```ts

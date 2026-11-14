@@ -24,6 +24,10 @@ export type SignetDbErrorCode =
   | "IDEMPOTENCY_IN_FLIGHT"
   | "BAD_INPUT"
   | "NOT_FOUND"
+  | "FORBIDDEN"
+  | "VALIDATION_FAILED"
+  | "METHOD_NOT_ALLOWED"
+  | "BAD_CONFIG"
 
 export class SignetDbError extends Error {
   readonly code: SignetDbErrorCode
