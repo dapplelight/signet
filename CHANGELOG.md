@@ -46,6 +46,26 @@ a package at the version it had when the repository was opened to the public.
   with their behaviour recipe (each component's `// Recipe:` line), parts,
   token classes and example, plus the behaviours and the build guide.
   `get_component` now returns `summary` and `recipe`.
+### signet-ai 0.4.0: AI SDK 7, usage hook, tool loops, streaming, embeddings, grounding
+
+- **Breaking peer:** `ai` is now `>=7.0.0` (was `>=5`). `aiSdkProvider` calls
+  `generateText` with `output: Output.object({ schema })` instead of the
+  deprecated `generateObject`; its behaviour and `meta` are unchanged.
+- `onUsage` on `createExtractor`: tokens and cost of every provider call that
+  returned, with the budget key for per-user cost. `analyticsUsage(sink)` turns
+  any `AnalyticsSink` into an `onUsage`. A throwing hook or rejecting sink is
+  ignored. `UsageReport`, `OnUsage` and `reportUsage` are on the barrel.
+- New `./chat`: `runTools` (multi-step tool calling with `maxSteps`, default 5,
+  and a `capped` flag) and `streamChat` (UI message stream `Response` from
+  `useChat` messages, usage sent as message metadata).
+- New `./react`: `useSignetChat`, `useChat` from `@ai-sdk/react` pointed at a
+  `streamChat` route, plus the conversation's summed `usage`; `sumUsage`.
+  `@ai-sdk/react` is a new optional peer.
+- New `./ground`: `embedDocuments`, `searchDocuments` (cosine similarity, `topK`,
+  `minScore`) and `groundedAnswer`, which answers from app-provided documents
+  and keeps only citations whose quote appears verbatim in the cited document.
+- Tests drive every helper through the SDK's mock models (`ai/test`).
+
 ### signet-server: auth backend (sessions, key rotation, phone OTP, API keys)
 
 - New `./auth/sessions`: opt-in stored sessions. `SessionStore` (create, get,
