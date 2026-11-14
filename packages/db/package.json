@@ -69,6 +69,11 @@
       "types": "./dist/agent.d.ts",
       "import": "./dist/agent.js",
       "default": "./dist/agent.js"
+    },
+    "./admin": {
+      "types": "./dist/admin.d.ts",
+      "import": "./dist/admin.js",
+      "default": "./dist/admin.js"
     }
   },
   "bin": {
