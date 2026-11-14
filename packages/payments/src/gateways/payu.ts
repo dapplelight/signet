@@ -19,8 +19,13 @@
  * Unsupported: subscriptions (PayU standing instructions are merchant-run
  * `si_transaction` debits on a mandate, not a gateway-run subscription to get
  * or cancel), customers (PayU has none; saved cards hang off a user string),
- * payouts (a separate product with its own OAuth; its reference pages could not
- * be read, see the README).
+ * payouts (a separate product whose reference contradicts itself on body
+ * format, the `pid` location and the production path; see the README).
+ *
+ * Settlements come from the Settlement Detail Range API (`GET /settlement/range`,
+ * HMAC `sha512(body|date|salt)` over the Date header). PayU writes its
+ * timestamps without a zone; they are read as IST (+05:30), the offset PayU
+ * prints where it does give one.
  */
 
 import { PaymentsError } from "../errors.js"
@@ -43,9 +48,16 @@ export type PayUConfig = HttpOptions & {
   salt: string
   /** Override the postservice URL. */
   postserviceUrl?: string
+  /** Override the Settlement Detail Range API URL. */
+  settlementUrl?: string
 }
 
 const G = "payu"
+/** PayU's zone-less "YYYY-MM-DD HH:mm:ss[.ffffff]" as IST; anything else via toDate. */
+export function payuDate(v: unknown): Date {
+  const m = typeof v === "string" && /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})/.exec(v)
+  return m ? new Date(`${m[1]}T${m[2]}+05:30`) : toDate(v)
+}
 const pipe = (parts: unknown[]) =>
   parts.map((p) => (p === undefined || p === null ? "" : String(p))).join("|")
 
@@ -58,6 +70,11 @@ export function payu(config: PayUConfig): PaymentGateway {
     (config.sandbox
       ? "https://test.payu.in/merchant/postservice.php?form=2"
       : "https://info.payu.in/merchant/postservice.php?form=2")
+  const rangeUrl =
+    config.settlementUrl ??
+    (config.sandbox
+      ? "https://apitest.payu.in/settlement/range"
+      : "https://info.payu.in/settlement/range")
 
   async function command(cmd: string, vars: string[]): Promise<Json> {
     const fields: Record<string, string> = {
@@ -75,7 +92,7 @@ export function payu(config: PayUConfig): PaymentGateway {
         url: postUrl,
         headers: { "content-type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams(fields).toString(),
-        retryable: cmd === "verify_payment" || cmd === "get_settlement_details",
+        retryable: cmd === "verify_payment",
       },
       config,
     )
@@ -101,7 +118,7 @@ export function payu(config: PayUConfig): PaymentGateway {
             ? "failed"
             : "pending",
       method: t.mode ?? undefined,
-      createdAt: toDate(t.addedon),
+      createdAt: payuDate(t.addedon),
       raw: t,
     }
   }
@@ -222,29 +239,77 @@ export function payu(config: PayUConfig): PaymentGateway {
           raw: r,
         }
       },
+      // GET /settlement/range for one day, paged; each settlement (UTR) holds its
+      // transactions, whose `action` is capture, refund, chargeback or an ADJ_* adjustment.
+      // https://docs.payu.in/reference/settlement-detail-range-api
       async listSettlements({ date }) {
-        const r: Json = await command("get_settlement_details", [date])
-        const rows: Json[] = Array.isArray(r.result) ? r.result : []
-        const lines: SettlementLine[] = rows.map((x) => {
-          const refund = String(x.requestaction ?? "")
-            .toLowerCase()
-            .includes("refund")
-          const fee =
-            toMinor(String(x.mer_service_fee ?? "0"), "INR") +
-            toMinor(String(x.mer_service_tax ?? "0"), "INR")
-          return {
-            kind: refund ? "refund" : "payment",
-            gatewayId: refund ? String(x.requestid) : String(x.txnId),
-            paymentId: String(x.txnId),
-            amount: toMinor(String(refund ? (x.requestamount ?? x.amount) : x.amount), "INR"),
-            currency: "INR",
-            fee,
-            settlementId: x.mer_utr ?? undefined,
-            createdAt: toDate(x.txndate),
-            raw: x,
+        const pageSize = 1000
+        const pages: Json[] = []
+        const rows: Json[] = []
+        for (let page = 1; ; page++) {
+          const now = new Date().toUTCString()
+          const sig = await sha512Hex(`|${now}|${config.salt}`)
+          const q = new URLSearchParams({
+            dateFrom: date,
+            dateTo: date,
+            page: String(page),
+            pageSize: String(pageSize),
+          })
+          const r: Json = await request(
+            {
+              gateway: G,
+              method: "GET",
+              url: `${rangeUrl}?${q}`,
+              headers: {
+                date: now,
+                authorization: `hmac username="${config.key}", algorithm="sha512", headers="date", signature="${sig}"`,
+              },
+              retryable: true,
+            },
+            config,
+          )
+          if (Number(r.status) !== 0) {
+            if (/no data/i.test(String(r.message ?? r.result))) break
+            throw new PaymentsError(
+              "GATEWAY_ERROR",
+              `payu settlements: ${r.message ?? "refused"}`,
+              {
+                gateway: G,
+                raw: r,
+              },
+            )
           }
-        })
-        return [{ gateway: G, date, lines, raw: r }]
+          pages.push(r)
+          const data: Json[] = Array.isArray(r.result?.data) ? r.result.data : []
+          rows.push(...data)
+          if (data.length < pageSize || page * pageSize >= Number(r.result?.totalCount ?? 0)) break
+        }
+        const amt = (v: unknown) => toMinor(String(v ?? "") || "0", "INR")
+        const lines: SettlementLine[] = rows.flatMap((s) =>
+          (Array.isArray(s.transaction) ? s.transaction : []).map((t: Json): SettlementLine => {
+            const action = String(t.action ?? "").toLowerCase()
+            const kind =
+              action === "capture" ? "payment" : action === "refund" ? "refund" : "adjustment"
+            const adj = action.startsWith("adj")
+            return {
+              kind,
+              gatewayId: String(
+                kind === "payment" ? t.merchantTransactionId : (t.requestId ?? t.payuId),
+              ),
+              ...(adj ? {} : { paymentId: String(t.merchantTransactionId) }),
+              amount: amt(t.transactionAmount),
+              currency: "INR",
+              fee:
+                t.totalProcessingFee !== undefined
+                  ? amt(t.totalProcessingFee) + amt(t.totalServiceTax)
+                  : amt(t.merchantServiceFee) + amt(t.merchantServiceTax),
+              settlementId: s.settlementId === undefined ? undefined : String(s.settlementId),
+              createdAt: payuDate(t.transactionDate),
+              raw: t,
+            }
+          }),
+        )
+        return [{ gateway: G, date, lines, raw: pages }]
       },
       async verifyWebhook(req) {
         const text = await req.text()
@@ -293,7 +358,7 @@ export function payu(config: PayUConfig): PaymentGateway {
               ? "payment.failed"
               : "unknown",
           gatewayType: `payment.${d.status}`,
-          occurredAt: d.addedon ? toDate(d.addedon) : new Date(),
+          occurredAt: d.addedon ? payuDate(d.addedon) : new Date(),
           paymentId: d.txnid,
           orderId: d.mihpayid,
           amount: d.amount ? toMinor(String(d.amount), "INR") : undefined,

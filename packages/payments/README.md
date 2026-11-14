@@ -85,13 +85,27 @@ SDK (or two official doc pages) agree. What is left out, and why:
   command. Checked:
   https://docs.payu.in/docs/cards-subscription-integration-merchant-hosted-checkout,
   https://docs.payu.in/docs/cb-subscriptions-integration-non-seamless.
-- **PayU payouts, settlement `requestaction` values and the `addedon`
-  timezone** are not re-verified this round. The PayU reference pages
-  (initiate-transfer, generate-token, get_settlement_details) answered with a
-  Cloudflare rate-limit page (error 1015) for every fetch. Payouts stay
-  unsupported. Settlements keep the first-round mapping: a refund is any
-  `requestaction` containing "refund", and dates are parsed as given. Checked:
-  https://docs.payu.in/docs/apis-used-for-payouts-integration (index only).
+- **PayU settlements** list through the Settlement Detail Range API
+  (`GET https://info.payu.in/settlement/range`, sandbox
+  `https://apitest.payu.in/settlement/range`; override with `settlementUrl`).
+  Auth is an HMAC header: `hmac username="<key>", algorithm="sha512",
+  headers="date", signature=sha512("|" + Date + "|" + salt)`. A transaction's
+  `action` maps capture to `payment`, refund to `refund` and anything else
+  (chargeback, `ADJ_*`) to `adjustment`. The fee is `totalProcessingFee` plus
+  `totalServiceTax`. PayU's timestamps (`addedon`, `transactionDate`) carry no
+  zone and the docs never state one; they are read as IST (+05:30), because
+  PayU prints +05:30 wherever it does give an offset (e.g. the mandate status
+  API). `payuDate` is the exported parser. The old `get_settlement_details`
+  postservice command is gone from PayU's docs. Checked:
+  https://docs.payu.in/reference/settlements/llms.txt,
+  https://docs.payu.in/reference/check-mandate-status-api.
+- **PayU payouts** stay unsupported because PayU's payout reference
+  contradicts itself at https://docs.payu.in/reference/initiate-transfer-api:
+  the samples send a JSON array body while the embedded OpenAPI says a
+  form-urlencoded `BODY` field; the prose puts `pid` in a header while the
+  OpenAPI puts it in the query; and the test URL
+  (`https://uatoneapi.payu.in/payout/v2/payment`) and production URL
+  (`https://payout.payumoney.com/payout/payment`) use different version paths.
 - **Paddle partial refunds** are per line item. The adapter reads the
   transaction's `details.line_items` and fills them in order, each up to its
   total (tax included, Paddle's default `tax_mode`). Pick items yourself with

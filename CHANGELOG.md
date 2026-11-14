@@ -19,6 +19,12 @@ a package at the version it had when the repository was opened to the public.
   Paddle and Lemon Squeezy partial refunds; PayPal saved methods (Vault v3);
   Hyperswitch saved methods, payouts, subscriptions and safe refund retries;
   Dodo Payments (merchant of record) with Standard Webhooks.
+- PayU settlements use the Settlement Detail Range API (the old
+  `get_settlement_details` command is no longer documented); capture, refund
+  and adjustment (chargeback, `ADJ_*`) lines are mapped, and PayU's zone-less
+  timestamps are read as IST. New `settlementUrl` option. PayU payouts remain
+  unsupported: the payout reference contradicts itself on body format, `pid`
+  placement and test versus production URLs.
 - `capabilities` per adapter; an unsupported call rejects with `UNSUPPORTED`
   before any network call. Features the gateways' docs did not pin down are
   unsupported rather than guessed (see the README matrix).
