@@ -2,7 +2,7 @@
 // the docs and SDK examples cited in each adapter; signatures are computed here
 // with node:crypto, independent of the adapter's Web Crypto code.
 import { describe, expect, test } from "bun:test"
-import { createHash, createHmac } from "node:crypto"
+import { constants, createHash, createHmac, generateKeyPairSync, privateDecrypt } from "node:crypto"
 import { cashfree } from "../src/gateways/cashfree"
 import { lemonsqueezy } from "../src/gateways/lemonsqueezy"
 import { paddle } from "../src/gateways/paddle"
@@ -92,6 +92,37 @@ describe("cashfree", () => {
     await expect(
       g.createPayout({ amount: 1, currency: "INR", idempotencyKey: "has-dash", destination: "b" }),
     ).rejects.toThrow(/transfer_id/)
+  })
+
+  test("payouts carry x-cf-signature when a 2FA public key is set", async () => {
+    const { publicKey, privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 })
+    const pem = publicKey.export({ type: "spki", format: "pem" }).toString()
+    const f = fakeFetch({
+      "POST /payout/transfers": ({ json }: any) => ({
+        transfer_id: json.transfer_id,
+        status: "RECEIVED",
+      }),
+    })
+    const g = cashfree({
+      clientId: "TEST_APP_ID",
+      clientSecret: SECRET,
+      payoutPublicKey: pem,
+      fetch: f.fetch,
+      ...http,
+    })
+    await g.createPayout({
+      amount: 100,
+      currency: "INR",
+      idempotencyKey: "payout_2",
+      destination: "b",
+    })
+    const plain = privateDecrypt(
+      { key: privateKey, padding: constants.RSA_PKCS1_OAEP_PADDING, oaepHash: "sha1" },
+      Buffer.from(f.calls[0].headers["x-cf-signature"], "base64"),
+    ).toString()
+    const [id, ts] = plain.split(".")
+    expect(id).toBe("TEST_APP_ID")
+    expect(Math.abs(Number(ts) - Date.now() / 1000)).toBeLessThan(5)
   })
 
   test("settlements page through /settlement/recon", async () => {

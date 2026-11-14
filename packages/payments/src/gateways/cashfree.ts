@@ -11,9 +11,9 @@
  * `x-webhook-timestamp + rawBody` (no separator) with the client secret.
  *
  * Payouts use Cashfree Payouts v2 (api.cashfree.com/payout, x-api-version
- * 2024-01-01) with the same client id and secret. The optional `x-cf-signature`
- * 2FA header is not sent, so payouts need the server's IP whitelisted in the
- * Cashfree dashboard.
+ * 2024-01-01) with the same client id and secret. Either whitelist the
+ * server's IP in the Cashfree dashboard or pass `payoutPublicKey` (the 2FA
+ * public key PEM) so each call carries `x-cf-signature`.
  */
 
 import { PaymentsError } from "../errors.js"
@@ -50,6 +50,8 @@ export type CashfreeConfig = HttpOptions & {
   clientId: string
   clientSecret: string
   apiVersion?: string
+  /** Payouts 2FA public key ("-----BEGIN PUBLIC KEY-----" PEM). Not needed with a whitelisted IP. */
+  payoutPublicKey?: string
 }
 
 const G = "cashfree"
@@ -136,10 +138,14 @@ const toSubscription = (s: Json): Subscription => ({
   raw: s,
 })
 
-const toPayout = (t: Json): Payout => ({
+// Every CreateTransferResponse field is optional in the spec; fall back to what was sent.
+const toPayout = (t: Json, sent?: number): Payout => ({
   gateway: G,
   gatewayId: t.transfer_id,
-  amount: toMinor(t.transfer_amount, t.transfer_currency ?? "INR"),
+  amount:
+    t.transfer_amount != null
+      ? toMinor(t.transfer_amount, t.transfer_currency ?? "INR")
+      : (sent ?? 0),
   currency: t.transfer_currency ?? "INR",
   status: PAYOUT[t.status] ?? "pending",
   createdAt: toDate(t.added_on),
@@ -185,14 +191,35 @@ export function cashfree(config: CashfreeConfig): PaymentGateway {
     }),
     config,
   )
+  // x-cf-signature = Base64(RSA-OAEP-SHA1(publicKey, `${clientId}.${unixSeconds}`)).
+  // https://www.cashfree.com/docs/payouts/payouts/integrations/payouts-2fa.md
+  // https://www.cashfree.com/docs/api-reference/payouts/getting-started-with-payouts-apis.md
+  let payoutKey: Promise<CryptoKey> | undefined
+  const signature = async (pem: string) => {
+    payoutKey ??= crypto.subtle.importKey(
+      "spki",
+      Uint8Array.from(atob(pem.replace(/-----[^-]+-----|\s/g, "")), (c) => c.charCodeAt(0)),
+      { name: "RSA-OAEP", hash: "SHA-1" },
+      false,
+      ["encrypt"],
+    )
+    const msg = new TextEncoder().encode(`${config.clientId}.${Math.floor(Date.now() / 1000)}`)
+    const out = new Uint8Array(
+      await crypto.subtle.encrypt({ name: "RSA-OAEP" }, await payoutKey, msg),
+    )
+    return btoa(String.fromCharCode(...out))
+  }
   const payoutRaw = jsonRaw(
     G,
     () =>
       config.sandbox ? "https://sandbox.cashfree.com/payout" : "https://api.cashfree.com/payout",
-    () => ({
+    async () => ({
       "x-api-version": CASHFREE_PAYOUT_API_VERSION,
       "x-client-id": config.clientId,
       "x-client-secret": config.clientSecret,
+      ...(config.payoutPublicKey
+        ? { "x-cf-signature": await signature(config.payoutPublicKey) }
+        : {}),
     }),
     config,
   )
@@ -360,6 +387,7 @@ export function cashfree(config: CashfreeConfig): PaymentGateway {
             },
             { idempotencyKey: i.idempotencyKey },
           ),
+          i.amount,
         )
       },
       // POST /settlement/recon, cursor-paged, filtered by settlement processed date (UTC day).
