@@ -10,10 +10,10 @@
  * Webhooks: `x-webhook-signature` = Base64 HMAC-SHA256 of
  * `x-webhook-timestamp + rawBody` (no separator) with the client secret.
  *
- * Not implemented, because the docs did not pin them down: subscriptions
- * (status values and the manage body), settlements (only batch totals are
- * documented clearly; per-payment recon fields were not), payouts (a separate
- * product with its own signing).
+ * Payouts use Cashfree Payouts v2 (api.cashfree.com/payout, x-api-version
+ * 2024-01-01) with the same client id and secret. The optional `x-cf-signature`
+ * 2FA header is not sent, so payouts need the server's IP whitelisted in the
+ * Cashfree dashboard.
  */
 
 import { PaymentsError } from "../errors.js"
@@ -36,10 +36,15 @@ import type {
   Payment,
   PaymentGateway,
   PaymentStatus,
+  Payout,
   Refund,
+  SettlementLine,
+  Subscription,
+  SubscriptionStatus,
 } from "../types.js"
 
 export const CASHFREE_API_VERSION = "2026-01-01"
+export const CASHFREE_PAYOUT_API_VERSION = "2024-01-01"
 
 export type CashfreeConfig = HttpOptions & {
   clientId: string
@@ -55,6 +60,41 @@ const ORDER: Record<string, PaymentStatus> = {
   EXPIRED: "cancelled",
   TERMINATED: "cancelled",
   TERMINATION_REQUESTED: "cancelled",
+}
+
+// `subscription_status` is a plain string in the OpenAPI; the values come from
+// https://www.cashfree.com/docs/payments/subscription/create.md ("Subscription lifecycle").
+const SUB: Record<string, SubscriptionStatus> = {
+  INITIALIZED: "pending",
+  BANK_APPROVAL_PENDING: "pending",
+  ACTIVE: "active",
+  ON_HOLD: "past_due",
+  PAUSED: "paused",
+  CUSTOMER_PAUSED: "paused",
+  COMPLETED: "expired",
+  EXPIRED: "expired",
+  LINK_EXPIRED: "expired",
+  CARD_EXPIRED: "expired",
+  CANCELLED: "cancelled",
+  CUSTOMER_CANCELLED: "cancelled",
+}
+
+const SUB_EVENT: Partial<Record<SubscriptionStatus, EventType>> = {
+  active: "subscription.activated",
+  past_due: "subscription.past_due",
+  paused: "subscription.paused",
+  expired: "subscription.expired",
+  cancelled: "subscription.cancelled",
+}
+
+// Transfer `status` is a plain string; values from
+// https://www.cashfree.com/docs/api-reference/payouts/v2/transfers-v2/get-transfer-status-v2.md
+const PAYOUT: Record<string, Payout["status"]> = {
+  SUCCESS: "paid",
+  FAILED: "failed",
+  REJECTED: "failed",
+  MANUALLY_REJECTED: "failed",
+  REVERSED: "reversed",
 }
 
 const major = (amount: number, currency: string) => Number(toMajor(amount, currency))
@@ -87,8 +127,35 @@ const toRefund = (r: Json): Refund => ({
   raw: r,
 })
 
+// SubscriptionEntity has no created time, so `createdAt` is the epoch.
+const toSubscription = (s: Json): Subscription => ({
+  gateway: G,
+  gatewayId: s.subscription_id,
+  status: SUB[s.subscription_status] ?? "pending",
+  createdAt: toDate(undefined),
+  raw: s,
+})
+
+const toPayout = (t: Json): Payout => ({
+  gateway: G,
+  gatewayId: t.transfer_id,
+  amount: toMinor(t.transfer_amount, t.transfer_currency ?? "INR"),
+  currency: t.transfer_currency ?? "INR",
+  status: PAYOUT[t.status] ?? "pending",
+  createdAt: toDate(t.added_on),
+  raw: t,
+})
+
 function eventType(type: string, d: Json): EventType {
   const t = type.replace(/_WEBHOOK$/, "")
+  if (t === "SUBSCRIPTION_STATUS_CHANGED")
+    return (
+      SUB_EVENT[SUB[d.subscription_details?.subscription_status] ?? "pending"] ??
+      "subscription.updated"
+    )
+  if (t === "TRANSFER_SUCCESS") return "payout.processed"
+  if (t === "TRANSFER_FAILED" || t === "TRANSFER_REJECTED") return "payout.failed"
+  if (t === "TRANSFER_REVERSED") return "payout.reversed"
   if (t === "PAYMENT_SUCCESS") return "payment.captured"
   if (t === "PAYMENT_FAILED") return "payment.failed"
   if (t === "REFUND_STATUS")
@@ -118,6 +185,17 @@ export function cashfree(config: CashfreeConfig): PaymentGateway {
     }),
     config,
   )
+  const payoutRaw = jsonRaw(
+    G,
+    () =>
+      config.sandbox ? "https://sandbox.cashfree.com/payout" : "https://api.cashfree.com/payout",
+    () => ({
+      "x-api-version": CASHFREE_PAYOUT_API_VERSION,
+      "x-client-id": config.clientId,
+      "x-client-secret": config.clientSecret,
+    }),
+    config,
+  )
   const order = async (id: string) =>
     toPayment(await raw("GET", `/orders/${encodeURIComponent(id)}`))
 
@@ -125,7 +203,17 @@ export function cashfree(config: CashfreeConfig): PaymentGateway {
     G,
     {
       methods: ["upi", "card", "netbanking", "wallet", "emi"],
-      features: ["capture", "refunds", "partialRefunds", "customers", "savedMethods", "webhooks"],
+      features: [
+        "capture",
+        "refunds",
+        "partialRefunds",
+        "customers",
+        "savedMethods",
+        "subscriptions",
+        "payouts",
+        "settlements",
+        "webhooks",
+      ],
     },
     {
       raw,
@@ -228,21 +316,125 @@ export function cashfree(config: CashfreeConfig): PaymentGateway {
           raw: t,
         }))
       },
+      // https://www.cashfree.com/docs/openapi/payments/v2026-01-01.yaml (GET /subscriptions/{subscription_id})
+      // https://github.com/cashfree/cashfree-pg-sdk-nodejs/blob/main/api.ts (SubsFetchSubscription)
+      async getSubscription(id) {
+        return toSubscription(await raw("GET", `/subscriptions/${encodeURIComponent(id)}`))
+      },
+      // POST /subscriptions/{id}/manage with action CANCEL; the response is the SubscriptionEntity.
+      // https://www.cashfree.com/docs/openapi/payments/v2026-01-01.yaml (ManageSubscriptionRequest)
+      // https://github.com/cashfree/cashfree-pg-sdk-nodejs/blob/main/api.ts (SubsManageSubscription)
+      async cancelSubscription(id, o) {
+        if (o?.atPeriodEnd)
+          throw new PaymentsError("BAD_INPUT", "Cashfree cancels subscriptions immediately.", {
+            gateway: G,
+          })
+        return toSubscription(
+          await raw("POST", `/subscriptions/${encodeURIComponent(id)}/manage`, {
+            subscription_id: id,
+            action: "CANCEL",
+          }),
+        )
+      },
+      // POST /transfers; `destination` is a beneficiary_id, amounts are rupee numbers.
+      // https://www.cashfree.com/docs/openapi/payouts/payoutsv2extra.yaml (CreateTransferRequest)
+      // https://github.com/cashfree/cashfree-payout-sdk-nodejs (PayoutInitiateTransfer)
+      async createPayout(i) {
+        const transferId = i.reference ?? i.idempotencyKey
+        if (!/^\w{1,40}$/.test(transferId))
+          throw new PaymentsError(
+            "BAD_INPUT",
+            "Cashfree transfer_id (reference or idempotencyKey) must be 1-40 letters, digits or underscores.",
+            { gateway: G },
+          )
+        return toPayout(
+          await payoutRaw(
+            "POST",
+            "/transfers",
+            {
+              transfer_id: transferId,
+              transfer_amount: major(i.amount, i.currency),
+              transfer_currency: i.currency,
+              beneficiary_details: { beneficiary_id: i.destination },
+              ...i.extra,
+            },
+            { idempotencyKey: i.idempotencyKey },
+          ),
+        )
+      },
+      // POST /settlement/recon, cursor-paged, filtered by settlement processed date (UTC day).
+      // https://www.cashfree.com/docs/openapi/payments/v2026-01-01.yaml (SettlementFetchReconRequest, SettlementReconEntity)
+      // https://github.com/cashfree/cashfree-pg-sdk-nodejs/blob/main/api.ts (PGSettlementFetchRecon)
+      async listSettlements({ date }) {
+        const items: Json[] = []
+        for (let cursor: string | null = null; ; ) {
+          const r: Json = await raw("POST", "/settlement/recon", {
+            pagination: { limit: 1000, cursor },
+            filters: {
+              start_date_processed_on: `${date}T00:00:00Z`,
+              end_date_processed_on: `${date}T23:59:59Z`,
+            },
+          })
+          const data: Json[] = r.data ?? []
+          items.push(...data)
+          if (!r.cursor || data.length < 1000) break
+          cursor = r.cursor
+        }
+        const lines: SettlementLine[] = items.map((it) => {
+          const e = it.event_details ?? {}
+          const cur = e.event_currency ?? "INR"
+          const fee = (e.event_service_charge ?? 0) + (e.event_service_tax ?? 0)
+          return {
+            kind:
+              e.event_type === "PAYMENT"
+                ? "payment"
+                : e.event_type === "REFUND"
+                  ? "refund"
+                  : "adjustment",
+            gatewayId: String(e.event_id),
+            paymentId: it.order_details?.order_id ?? undefined,
+            amount: toMinor(Math.abs(e.event_amount ?? 0), cur),
+            currency: cur,
+            fee: fee ? toMinor(fee, cur) : undefined,
+            settlementId:
+              it.settlement_details?.cf_settlement_id !== undefined
+                ? String(it.settlement_details.cf_settlement_id)
+                : undefined,
+            createdAt: toDate(e.event_time),
+            raw: it,
+          }
+        })
+        return [{ gateway: G, date, lines, raw: items }]
+      },
       async verifyWebhook(req, o) {
         const body = await req.text()
         const ts = req.headers.get("x-webhook-timestamp") ?? ""
         const sig = req.headers.get("x-webhook-signature") ?? ""
         if (!ts || !safeEqual(await hmac("SHA-256", config.clientSecret, ts + body, "base64"), sig))
           throw badSignature(G)
-        checkTimestamp(G, Number(ts) / 1000, o)
+        // Same scheme for PG, subscription and payout webhooks: no separator, Base64.
+        // https://github.com/cashfree/cashfree-pg-sdk-nodejs/blob/main/api.ts (PGVerifyWebhookSignature)
+        // https://www.cashfree.com/docs/payments/subscription/webhook-signature.md
+        // PG timestamps are in ms; the payout docs do not say, so accept seconds too.
+        checkTimestamp(G, Number(ts) > 1e12 ? Number(ts) / 1000 : Number(ts), o)
         const e: Json = JSON.parse(body)
         const d = e.data ?? {}
+        // Payout v2 webhooks put the transfer fields directly under `data`.
+        // https://www.cashfree.com/docs/api-reference/payouts/v2/webhooks/webhooks-v2.md
+        const transfer = String(e.type).startsWith("TRANSFER_") ? d : undefined
+        const sub = d.subscription_details
         const cur =
-          d.refund?.refund_currency ?? d.payment?.payment_currency ?? d.order?.order_currency
+          d.refund?.refund_currency ??
+          d.payment?.payment_currency ??
+          d.order?.order_currency ??
+          (transfer ? (transfer.transfer_currency ?? "INR") : undefined)
         const amt =
-          d.refund?.refund_amount ?? d.dispute?.dispute_amount ?? d.payment?.payment_amount
+          d.refund?.refund_amount ??
+          d.dispute?.dispute_amount ??
+          d.payment?.payment_amount ??
+          transfer?.transfer_amount
         const out: Event = {
-          id: `${e.type}:${d.refund?.cf_refund_id ?? d.dispute?.dispute_id ?? d.payment?.cf_payment_id ?? d.order?.order_id}:${e.event_time}`,
+          id: `${e.type}:${d.refund?.cf_refund_id ?? d.dispute?.dispute_id ?? d.payment?.cf_payment_id ?? d.order?.order_id ?? transfer?.transfer_id ?? sub?.subscription_id}:${e.event_time}`,
           gateway: G,
           type: eventType(String(e.type), d),
           gatewayType: e.type,
@@ -250,6 +442,8 @@ export function cashfree(config: CashfreeConfig): PaymentGateway {
           paymentId: d.order?.order_id ?? d.refund?.order_id,
           orderId: d.order?.order_id ?? d.refund?.order_id,
           refundId: d.refund?.refund_id,
+          subscriptionId: sub?.subscription_id,
+          payoutId: transfer?.transfer_id,
           disputeId: d.dispute?.dispute_id !== undefined ? String(d.dispute.dispute_id) : undefined,
           amount: amt !== undefined && cur ? toMinor(amt, cur) : undefined,
           currency: cur,

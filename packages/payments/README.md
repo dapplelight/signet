@@ -36,14 +36,30 @@ around them: a webhook inbox, a double-entry ledger and reconciliation.
 | partialRefunds | ✓ | ✓ | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
 | customers | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |  | ✓ |
 | savedMethods | ✓ | ✓ | ✓ |  |  | ✓ |  |  |  |
-| subscriptions | ✓ | ✓ |  |  |  | ✓ | ✓ | ✓ |  |
-| payouts | ✓ | ✓ |  |  |  |  |  | ✓ |  |
-| settlements | ✓ | ✓ |  |  | ✓ |  |  |  |  |
+| subscriptions | ✓ | ✓ | ✓ |  |  | ✓ | ✓ | ✓ |  |
+| payouts | ✓ | ✓ | ✓ |  |  |  |  | ✓ |  |
+| settlements | ✓ | ✓ | ✓ |  | ✓ |  |  |  |  |
 | webhooks | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 Razorpay payouts are RazorpayX and need `accountNumber`. Hyperswitch methods
 depend on the connectors enabled in your account. What each unsupported cell
 is missing is at the top of that adapter's source file.
+
+### Notes on gaps
+
+A feature is supported only where the official API spec or docs and an official
+SDK (or two official doc pages) agree. What is left out, and why:
+
+- **Cashfree payouts** do not send the optional `x-cf-signature` 2FA header (RSA
+  over `clientId.timestamp` with a dashboard key). Two doc pages describe it but
+  the official payout SDK has no code for it, so whitelist your server IP
+  instead. Checked: https://www.cashfree.com/docs/payouts/payouts/integrations/payouts-2fa.md,
+  https://www.cashfree.com/docs/openapi/payouts/payoutsv2extra.yaml,
+  https://github.com/cashfree/cashfree-payout-sdk-nodejs.
+- **Cashfree subscriptions** cancel immediately only (`atPeriodEnd` is refused)
+  and report no created time or period end: `SubscriptionEntity` has neither.
+  Checked: https://www.cashfree.com/docs/openapi/payments/v2026-01-01.yaml,
+  https://www.cashfree.com/docs/payments/subscription/create.md.
 
 ## Quick start
 
@@ -85,6 +101,7 @@ const pi = await s.createCheckout({ amount: 1999, currency: "USD", idempotencyKe
 // Cashfree: an Order; clientSecret is the payment_session_id. Needs customer id and phone.
 const cf = cashfree({ clientId, clientSecret, sandbox: true })
 await cf.createCheckout({ amount: 49900, currency: "INR", idempotencyKey: orderUuid /* Cashfree expects a UUID */, customer: { id: "c1", phone: "9999999999" } })
+await cf.createPayout({ amount: 10000, currency: "INR", idempotencyKey: "payout_42", destination: beneficiaryId }) // Payouts v2, IP whitelisted
 
 // PhonePe: Standard Checkout v2 (OAuth); redirect to url. Poll getPayment: webhooks are unsupported.
 const pp = phonepe({ clientId, clientSecret, clientVersion: 1, sandbox: true })

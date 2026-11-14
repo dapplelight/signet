@@ -5,7 +5,8 @@
  * body with the webhook secret; the event id is the `x-razorpay-event-id` header.
  *
  * Checkout creates an Order; pass `order_id` to Razorpay Checkout in the browser.
- * Capture mode (auto or manual) is a Dashboard setting, not a per-order field.
+ * `capture: "manual"` sets the order's `payment.capture`, overriding the Dashboard
+ * auto-capture setting; leave it out to keep the Dashboard setting.
  */
 
 import { PaymentsError } from "../errors.js"
@@ -177,6 +178,10 @@ export function razorpay(config: RazorpayConfig): PaymentGateway {
           // `receipt` is unique per account and at most 40 characters.
           receipt: (i.reference ?? i.idempotencyKey).slice(0, 40),
           ...(i.metadata ? { notes: i.metadata } : {}),
+          // Per-order capture setting; `capture_options` is optional for manual.
+          // https://razorpay.com/docs/payments/payments/capture-settings/api.md
+          // https://github.com/razorpay/razorpay-node/blob/master/lib/types/orders.d.ts (RazorpayCapturePayment)
+          ...(i.capture === "manual" ? { payment: { capture: "manual" } } : {}),
           ...i.extra,
         })
         return { gateway: G, gatewayId: o.id, amount: o.amount, currency: o.currency, raw: o }
