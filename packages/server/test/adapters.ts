@@ -20,6 +20,7 @@ import {
 import { fsBlobStore } from "../src/adapters/node"
 import { supabaseBlobStore } from "../src/adapters/supabase"
 import { qstashQueue, upstashKv } from "../src/adapters/upstash"
+import { vercelDefer } from "../src/adapters/vercel"
 
 let pass = 0,
   fail = 0
@@ -243,6 +244,26 @@ const json = (v: unknown, status = 200) => new Response(JSON.stringify(v), { sta
   sent.length = 0
   await q.sendBatch([])
   ok("cloudflareQueue empty sendBatch makes no call", sent.length === 0)
+}
+
+// --- vercelDefer ---
+{
+  const handed: Promise<unknown>[] = []
+  const errors: unknown[] = []
+  const defer = vercelDefer(
+    (p) => handed.push(p),
+    (e) => errors.push(e),
+  )
+  defer(Promise.resolve("done"))
+  defer(Promise.reject(new Error("boom")))
+  ok("vercelDefer hands every promise to waitUntil", handed.length === 2)
+  const settled = await Promise.allSettled(handed)
+  ok(
+    "vercelDefer catches a rejection into onError; waitUntil never sees it reject",
+    settled.every((s) => s.status === "fulfilled") &&
+      errors.length === 1 &&
+      (errors[0] as Error).message === "boom",
+  )
 }
 
 // --- upstash ---

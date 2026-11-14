@@ -3,7 +3,8 @@
  *
  * Providers live in sibling subpaths: `./adapters/node` (filesystem blobs),
  * `./adapters/cloudflare` (KV, R2, Queues), `./adapters/upstash` (Redis REST, QStash)
- * and `./adapters/supabase` (Storage). None adds a dependency: each is fetch or
+ * `./adapters/supabase` (Storage), `./adapters/s3` and `./adapters/vercel`
+ * (`waitUntil`). None adds a dependency: each is fetch or
  * a structural binding type. Every adapter takes its config as an argument.
  */
 

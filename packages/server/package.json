@@ -195,6 +195,10 @@
       "types": "./dist/adapters/supabase.d.ts",
       "import": "./dist/adapters/supabase.js"
     },
+    "./adapters/vercel": {
+      "types": "./dist/adapters/vercel.d.ts",
+      "import": "./dist/adapters/vercel.js"
+    },
     "./adapters/s3": {
       "types": "./dist/adapters/s3.d.ts",
       "import": "./dist/adapters/s3.js"

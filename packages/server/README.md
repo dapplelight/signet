@@ -268,7 +268,7 @@ path handles them without a special case.
 ## Portability adapters
 
 Server pieces default to Cloudflare. These plugs let the same app run on
-Node/Bun (Docker included), Upstash, Supabase and Netlify. Four interfaces in
+Node/Bun (Docker included), Vercel, Upstash, Supabase and Netlify. Four interfaces in
 `@dapplelight/signet-server/adapters`: `KeyValue`, `Queue<T>`, `BlobStore` and
 `Defer`. No adapter adds a dependency (each is fetch or a structural binding
 type) and each takes its config as an argument, never from env at import.
@@ -283,6 +283,7 @@ type) and each takes its config as an argument, never from env at import.
 | `…/adapters/cloudflare` | `cloudflareKv(ns)`, `r2BlobStore(bucket)`, `cloudflareQueue(binding)` | Workers KV, R2, Queues producer |
 | `…/adapters/upstash` | `upstashKv`, `upstashRateLimitStore`, `qstashQueue` | anywhere fetch runs |
 | `…/adapters/supabase` | `supabaseBlobStore` | Supabase Storage, incl. signed GET and upload URLs and TUS resumable targets |
+| `…/adapters/vercel` | `vercelDefer(waitUntil)` | Vercel Functions: pass `waitUntil` from `@vercel/functions` |
 | `…/adapters/s3` | `s3BlobStore` | S3, R2's S3 API, MinIO: SigV4 presigned GET/PUT and multipart, fetch only |
 
 ```ts
@@ -298,6 +299,17 @@ Workers KV has no atomic increment, so `kvRateLimitStore(cloudflareKv(ns))` is
 approximate; use the Durable Object store for an exact count there.
 `@dapplelight/signet-ai`'s `kvCache` and `kvBudgetStore` take any of these
 `KeyValue`s.
+
+**On Vercel**, background work is `vercelDefer(waitUntil)` with `waitUntil`
+from [`@vercel/functions`](https://vercel.com/docs/functions/functions-api-reference/vercel-functions-package#waituntil)
+(Signet takes the function, so it does not depend on the package). Key-value
+and rate limiting are the Upstash adapters: [Vercel KV is now Upstash
+Redis](https://vercel.com/docs/redis) from the Marketplace, so pass the REST URL
+and token the integration adds to `upstashKv` / `upstashRateLimitStore`, and use
+`qstashQueue` for a queue. **No Vercel Blob adapter**: Vercel documents
+[Blob](https://vercel.com/docs/vercel-blob) only through its SDKs, not as an
+HTTP API, so there is nothing stable to call over fetch. Use `s3BlobStore`,
+`supabaseBlobStore`, or `@vercel/blob` directly.
 
 **No Netlify Blobs adapter.** Netlify documents Blobs only through its
 `@netlify/blobs` SDK, not as an HTTP API, so there is nothing stable to call
