@@ -8,7 +8,13 @@ import { defineGateway, toMajor, toMinor } from "../src/http"
 import { post, postings, receivable, toEntries } from "../src/ledger"
 import { createPayments } from "../src/payments"
 import { reconcile } from "../src/reconcile"
-import { memoryStore, type PaymentsStore, paymentsSchema, sqlStore } from "../src/store"
+import {
+  memoryStore,
+  type PaymentsStore,
+  paymentsSchema,
+  type StatusGuard,
+  sqlStore,
+} from "../src/store"
 import { fakeFetch } from "./fake"
 
 const SECRET = "whsec_made_up"
@@ -286,6 +292,81 @@ for (const [name, make] of [
       expect((await db.getPayment("razorpay", "pay_B"))?.status).toBe("captured")
       expect(await payments.processInbox()).toEqual({ processed: 0, failed: 0 })
     })
+
+    test("a stale read cannot write a lower status over a higher one", async () => {
+      const db = make()
+      const at = new Date(1000)
+      const base = {
+        gateway: "g",
+        gatewayId: "p1",
+        amount: 100,
+        currency: "INR",
+        amountRefunded: 0,
+        createdAt: at,
+        updatedAt: at,
+      }
+      const authorized: StatusGuard = {
+        lower: ["created", "pending"],
+        same: ["authorized", "failed", "cancelled"],
+      }
+      // Both webhooks read "created"; captured lands first, authorized writes last.
+      await db.savePayment({ ...base, status: "captured", lastEventAt: new Date(2000) })
+      await db.savePayment(
+        { ...base, status: "authorized", lastEventAt: new Date(1999) },
+        authorized,
+      )
+      expect((await db.getPayment("g", "p1"))?.status).toBe("captured")
+      // A same-rank write with an older event loses; a newer one wins.
+      await db.savePayment({ ...base, gatewayId: "p2", status: "failed", lastEventAt: new Date(5) })
+      await db.savePayment(
+        { ...base, gatewayId: "p2", status: "authorized", lastEventAt: new Date(4) },
+        authorized,
+      )
+      expect((await db.getPayment("g", "p2"))?.status).toBe("failed")
+      await db.savePayment(
+        { ...base, gatewayId: "p2", status: "authorized", lastEventAt: new Date(6) },
+        authorized,
+      )
+      expect((await db.getPayment("g", "p2"))?.status).toBe("authorized")
+    })
+
+    test("a retry on the same order keeps the owner of the failed first attempt", async () => {
+      const db = make()
+      const payments = createPayments({
+        gateways: [
+          razorpay({
+            keyId: "k",
+            keySecret: "s",
+            webhookSecret: SECRET,
+            fetch: fakeFetch(rzpRoutes).fetch,
+          }),
+        ],
+        db,
+      })
+      await payments.checkout({
+        amount: 5000,
+        currency: "INR",
+        idempotencyKey: "chk-retry",
+        reference: "order-2",
+        userId: "user-a",
+      })
+      const pay = { amount: 5000, currency: "INR", order_id: "order_A" }
+      await payments.receive(
+        "razorpay",
+        rzpHook("payment.failed", { ...pay, id: "pay_1", status: "failed" }, "ev_f", 100),
+      )
+      await payments.receive(
+        "razorpay",
+        rzpHook("payment.captured", { ...pay, id: "pay_2", status: "captured" }, "ev_c", 200),
+      )
+      expect((await db.getPayment("razorpay", "pay_1"))?.status).toBe("failed")
+      expect(await db.getPayment("razorpay", "pay_2")).toMatchObject({
+        status: "captured",
+        userId: "user-a",
+        reference: "order-2",
+        orderId: "order_A",
+      })
+    })
   })
 }
 
@@ -546,7 +627,7 @@ describe("agent tools", () => {
     })
     expect(r).toMatchObject({ refunded: true, refundId: "rfnd_A", amount: 2000 })
     expect(asked[0].details).toMatchObject({ amount: 2000, currency: "INR", reason: "damaged" })
-    expect(f.calls[0]!.headers["x-refund-idempotency"]).toBe("agent-refund-razorpay-pay_A-2000")
+    expect(f.calls[0]!.headers["x-refund-idempotency"]).toBe("agent-refund-razorpay-pay_A-0-2000")
     const tl = await db.eventsFor("razorpay", "pay_A")
     expect(tl[0]?.actor).toEqual({ type: "agent", id: "support-bot" })
     expect(

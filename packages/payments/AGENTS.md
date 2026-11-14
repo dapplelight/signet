@@ -34,5 +34,6 @@ Tools come from `paymentTools(payments, { userId, approve, maxRows })`.
   person the `approval.summary` and stop. Never retry to get around it.
 - `amount` is minor units; omit it for a full refund of what is left. Give a
   `reason`; it is recorded with your actor id in the payment's timeline.
-- Calling `refund_payment` twice for the same payment and amount does not
-  refund twice.
+- Retrying a `refund_payment` call does not refund twice, but a later refund
+  of the same amount, after the first one landed, is a new refund and needs
+  its own approval.

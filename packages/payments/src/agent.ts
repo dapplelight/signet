@@ -228,8 +228,9 @@ export function paymentTools(payments: Payments, options: PaymentToolsOptions): 
           paymentId: p.gatewayId,
           ...(amount !== undefined ? { amount } : {}),
           reason,
-          // Same payment + amount = same key, so a retried call never refunds twice.
-          idempotencyKey: `agent-refund-${p.gateway}-${p.gatewayId}-${amount ?? "full"}`,
+          // Same payment, amount and already-refunded total = same key, so a retried call never
+          // refunds twice but a later, separately approved refund gets its own key.
+          idempotencyKey: `agent-refund-${p.gateway}-${p.gatewayId}-${p.amountRefunded}-${amount ?? "full"}`,
           actor,
         })
         return {

@@ -227,16 +227,28 @@ export function createPayments(config: PaymentsConfig) {
   async function record(e: Event): Promise<PaymentRecord | undefined> {
     if (!db || !e.paymentId) return undefined
     let rec = await db.getPayment(e.gateway, e.paymentId)
+    let owner: Partial<PaymentRecord> = {}
     if (!rec && (e.orderId || e.reference)) {
       const linked = await db.findLinked(e.gateway, { orderId: e.orderId, reference: e.reference })
       if (linked && linked.status === "created") {
         await db.renamePayment(e.gateway, linked.gatewayId, e.paymentId)
         rec = { ...linked, gatewayId: e.paymentId }
+      } else if (linked) {
+        // A retry on the same order: the first attempt already took the checkout record,
+        // so the new attempt inherits who it belongs to.
+        const { userId, customerId, reference, orderId } = linked
+        owner = {
+          ...(userId ? { userId } : {}),
+          ...(customerId ? { customerId } : {}),
+          ...(reference ? { reference } : {}),
+          ...(orderId ? { orderId } : {}),
+        }
       }
     }
     if (!rec && e.amount !== undefined && e.currency) {
       const now = new Date()
       rec = {
+        ...owner,
         gateway: e.gateway,
         gatewayId: e.paymentId,
         status: "created",
@@ -256,16 +268,25 @@ export function createPayments(config: PaymentsConfig) {
     if (RANK[status] < RANK[rec.status]) return
     if (rec.lastEventAt && e.occurredAt < rec.lastEventAt && RANK[status] === RANK[rec.status])
       return
-    await db.savePayment({
-      ...rec,
-      status,
-      ...(e.paymentId && e.type.startsWith("payment.") && e.amount !== undefined
-        ? { amount: e.amount }
-        : {}),
-      ...(e.fee !== undefined && e.type === "payment.captured" ? { fee: e.fee } : {}),
-      lastEventAt: e.occurredAt,
-      updatedAt: new Date(),
-    })
+    // The checks above read a copy; the store re-checks on the row so two webhooks
+    // handled at once cannot write a lower status over a higher one.
+    const all = Object.keys(RANK) as PaymentStatus[]
+    await db.savePayment(
+      {
+        ...rec,
+        status,
+        ...(e.paymentId && e.type.startsWith("payment.") && e.amount !== undefined
+          ? { amount: e.amount }
+          : {}),
+        ...(e.fee !== undefined && e.type === "payment.captured" ? { fee: e.fee } : {}),
+        lastEventAt: e.occurredAt,
+        updatedAt: new Date(),
+      },
+      {
+        lower: all.filter((s) => RANK[s] < RANK[status]),
+        same: all.filter((s) => RANK[s] === RANK[status]),
+      },
+    )
   }
 
   async function apply(e: Event): Promise<void> {

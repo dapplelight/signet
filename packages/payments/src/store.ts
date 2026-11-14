@@ -28,6 +28,21 @@ export type StoredEvent = Event & {
   actor?: Actor
 }
 
+/** Which existing statuses a write may replace: all of `lower`, and `same` unless a newer event was applied. */
+export type StatusGuard = { lower: PaymentStatus[]; same: PaymentStatus[] }
+
+function canOverwrite(
+  status: PaymentStatus,
+  lastEventAt: Date | undefined,
+  at: Date | undefined,
+  when: StatusGuard,
+): boolean {
+  if (when.lower.includes(status)) return true
+  return (
+    when.same.includes(status) && (!lastEventAt || lastEventAt.getTime() <= (at?.getTime() ?? 0))
+  )
+}
+
 export type PaymentRecord = {
   gateway: string
   gatewayId: string
@@ -82,7 +97,12 @@ export type PaymentsStore = {
     error?: string,
   ): Promise<void>
   eventsFor(gateway: string, paymentId: string): Promise<StoredEvent[]>
-  savePayment(p: PaymentRecord): Promise<void>
+  /**
+   * Upsert. With `when`, an existing row is only overwritten if its status is in `lower`,
+   * or is in `same` and its lastEventAt is not newer than `p.lastEventAt`. The check must
+   * happen atomically in the store, so concurrent webhooks cannot downgrade a status.
+   */
+  savePayment(p: PaymentRecord, when?: StatusGuard): Promise<void>
   getPayment(gateway: string, gatewayId: string): Promise<PaymentRecord | undefined>
   /** A record created at checkout under an order id or your reference. */
   findLinked(
@@ -147,7 +167,9 @@ export function memoryStore(): PaymentsStore {
         .sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime())
         .map(clone)
     },
-    async savePayment(p) {
+    async savePayment(p, when) {
+      const cur = payments.get(k(p.gateway, p.gatewayId))
+      if (cur && when && !canOverwrite(cur.status, cur.lastEventAt, p.lastEventAt, when)) return
       payments.set(k(p.gateway, p.gatewayId), clone(p))
     },
     async getPayment(g, id) {
@@ -355,7 +377,7 @@ export function sqlStore(client: SqlClient, options: { dialect: Dialect }): Paym
         )
       ).map(reviveEvent)
     },
-    async savePayment(p) {
+    async savePayment(p, when) {
       const cols = [
         "gateway",
         "gateway_id",
@@ -388,12 +410,16 @@ export function sqlStore(client: SqlClient, options: { dialect: Dialect }): Paym
         p.createdAt.getTime(),
         p.updatedAt.getTime(),
       ]
+      const marks = (l: string[]) => l.map(() => "?").join(", ")
+      const guard = when
+        ? ` WHERE pay_payments.status IN (${marks(when.lower)}) OR (pay_payments.status IN (${marks(when.same)}) AND (pay_payments.last_event_at IS NULL OR pay_payments.last_event_at <= ?))`
+        : ""
       await q(
-        `INSERT INTO pay_payments (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")}) ON CONFLICT (gateway, gateway_id) DO UPDATE SET ${cols
+        `INSERT INTO pay_payments (${cols.join(", ")}) VALUES (${marks(cols)}) ON CONFLICT (gateway, gateway_id) DO UPDATE SET ${cols
           .slice(2)
           .map((c) => `${c} = excluded.${c}`)
-          .join(", ")}`,
-        vals,
+          .join(", ")}${guard}`,
+        when ? [...vals, ...when.lower, ...when.same, p.lastEventAt?.getTime() ?? 0] : vals,
       )
     },
     async getPayment(g, id) {
