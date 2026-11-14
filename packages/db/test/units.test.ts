@@ -78,7 +78,13 @@ describe("cipher", () => {
   test("rejects tampering and bad config", async () => {
     const c = createCipher({ keys: { k1: generateKey() }, current: "k1" })
     const ct = await c.encrypt("x")
-    const tampered = `${ct.slice(0, -2)}${ct.endsWith("A") ? "B" : "A"}=`
+    // Flip a whole byte of the decoded ciphertext; flipping the last base64 char can hit padding bits only.
+    const parts = ct.split(":")
+    const bytes = Uint8Array.from(atob(parts[4]!), (ch) => ch.charCodeAt(0))
+    bytes[0] = bytes[0]! ^ 0xff
+    parts[4] = btoa(String.fromCharCode(...bytes))
+    const tampered = parts.join(":")
+    expect(tampered).not.toBe(ct)
     expect(c.decrypt(tampered)).rejects.toThrow()
     expect(() => createCipher({ keys: { k1: generateKey() }, current: "k9" })).toThrow(/current/)
   })
