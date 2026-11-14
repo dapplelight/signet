@@ -5,6 +5,36 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-db: plans, entitlements and feature flags
+
+- New `@dapplelight/signet-db/entitlements`: `definePlans` (plans in code;
+  `can`, `limit`, `consume` and `setPlan` only accept declared keys) and
+  `createEntitlements(db, { plans, default, tables })`. Per subject (a user
+  or org id): stored plan, overrides that grant or revoke a feature or set a
+  limit, optionally until `expiresAt` (newest unexpired per key wins), all
+  written through `audited`.
+- `applyBillingEvent(event)` applies signet-payments `subscription.*` events
+  to the subject's plan: gateway plan or price ids map to plan keys through
+  `billing.plans`; idempotent per event via `withIdempotency`; an event older
+  than the stored state is ignored (the guard is in the UPDATE's WHERE);
+  `past_due` keeps the plan for `graceMs` (3 days). `created`/`updated` read
+  the status from the payload (`statusOf`; Stripe, Paddle, Razorpay shapes by
+  default), and events for an old subscription cannot downgrade a newer one. The event type is a local
+  structural one, so signet-db does not depend on signet-payments.
+- `consume(subject, key, n)`: per-period (month, day or total) usage with the
+  check and the increment in one UPDATE, so concurrent requests cannot
+  overspend.
+- New `@dapplelight/signet-db/flags`: `defineFlags`, `evaluateFlag` and
+  `createFlags`. Order: subject override, everyone override, targeting rules
+  (plan, attributes), percentage rollout by a stable FNV-1a bucket, default.
+  Results carry the reason.
+- `entitlementTools(...)`: `get_plan`, `check_entitlement`, `usage`,
+  `list_flags` for one subject, and with `allowWrites` `grant_feature`,
+  `set_plan`, `set_flag`, which always go through `approve` (signet-server's
+  `requireApproval`) and are audited as the agent.
+- Column helpers `entitlementTables()` and `flagOverrides()` in
+  `./columns/sqlite` and `./columns/pg`.
+
 ### signet-server: Phase 1 portability
 
 - `cloudflareQueue(binding)` in `./adapters/cloudflare`: a Queues producer as a

@@ -812,6 +812,34 @@ const RECIPES: RecipeSpec[] = [
     ],
   },
   {
+    id: "add-plans",
+    title: "Add plans, entitlements, usage limits and feature flags (signet-db)",
+    keywords: [
+      "plans",
+      "pricing",
+      "entitlements",
+      "subscription",
+      "billing",
+      "limits",
+      "quota",
+      "usage",
+      "credits",
+      "feature flags",
+      "flags",
+      "rollout",
+    ],
+    // signet-db is `private: true` (not on npm yet), so it is not in the install line.
+    install: ["drizzle-orm"],
+    refs: [
+      ["db", "Plans and entitlements"],
+      ["db", "Feature flags"],
+    ],
+    verify: [
+      "bun run test; replay a subscription event twice and confirm the second returns the stored result",
+      "call tools/list and confirm grant_feature, set_plan and set_flag appear only with allowWrites",
+    ],
+  },
+  {
     id: "add-mcp-tools",
     title: "Add MCP tools to an app",
     keywords: ["mcp", "tools", "model context protocol", "agent", "defineTool", "stdio"],
