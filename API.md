@@ -31,6 +31,20 @@ Signet's shared Biome preset and TypeScript bases.
 | `@dapplelight/signet-config/package.json` | — |  |
 | `@dapplelight/signet-config/tsconfig/*.json` | — |  |
 
+## @dapplelight/signet-db
+
+Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit trail, migration checks.
+
+| Import | Exports | What |
+|---|---|---|
+| `@dapplelight/signet-db` | isCiphertext, assertCiphertext, generateKey, createCipher, CipherConfig, Cipher, … | re-exports cipher, db, describe, errors, id, money, query, scoped, seed, user-data |
+| `@dapplelight/signet-db/columns/pg` | id, timestamps, softDelete, money, encrypted, auditLog | Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog` table. |
+| `@dapplelight/signet-db/columns/sqlite` | id, timestamps, softDelete, money, encrypted, auditLog | Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog` table. |
+| `@dapplelight/signet-db/d1` | createDb | Cloudflare D1 driver: `createDb(env.DB, config)` |
+| `@dapplelight/signet-db/migrations` | checkMigrationSql, formatIssues, MigrationIssueKind, MigrationIssue | Scan SQL migrations for changes that lose data or break running code: dropped tables or columns, renames, and NOT NULL added without a default |
+| `@dapplelight/signet-db/postgres` | createDb | Postgres driver on postgres-js (Supabase, Neon, RDS, a local server): `createDb(databaseUrl, config)`, or pass a `postgres()` client |
+| `@dapplelight/signet-db/sqlite` | createDb | SQLite driver on bun:sqlite (Bun runtime, e.g |
+
 ## @dapplelight/signet-lib
 
 Signet client primitives. API client, the wire contract, and search.

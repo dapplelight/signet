@@ -5,6 +5,29 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-db 0.1.0 (new, private: not published yet)
+
+- New `@dapplelight/signet-db`: Drizzle helpers with a driver-free core and
+  thin `createDb` entry points for Cloudflare D1 (`./d1`), bun:sqlite
+  (`./sqlite`) and postgres-js (`./postgres`); `fromDrizzle` for any other driver.
+- Columns for SQLite and Postgres (`./columns/sqlite`, `./columns/pg`): `id()`
+  (sortable, time-ordered), `timestamps()`, `softDelete()`, `money()`
+  (integer minor units + currency), `encrypted()`, and an `auditLog()` table.
+- `scoped(db, { userId })`: every read, update and delete filtered to the
+  user, inserts owned by them, soft-deleted rows hidden unless `withDeleted`.
+- `audited()`: who (`{ type: "user" | "agent" | "system", id }`), what, when,
+  before and after for each changed row.
+- `createCipher`: AES-GCM field encryption with key ids, rotation and
+  fail-closed reads (reuses `@dapplelight/signet-lib/crypto`).
+- Money helpers that refuse floats and mixed currencies, with exact formatting.
+- `exportUser` / `deleteUser` (atomic, audited), `seed()` (deterministic,
+  Indian names, +91 numbers, PIN codes), `describeSchema()`, `defineQuery()`.
+- `signet-db-check` CLI and `checkMigrationSql`: flags table/column drops,
+  renames and NOT NULL without a default; exits non-zero for CI.
+- Errors are `SignetDbError` with a stable `code`.
+- Tests run on bun:sqlite, a D1 stand-in and PGlite always, and on a real
+  Postgres server when `SIGNET_TEST_PG_URL` is set.
+
 ### signet-server: portability adapters
 
 - New `@dapplelight/signet-server/adapters` with `KeyValue`, `Queue<T>`,
