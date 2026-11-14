@@ -226,7 +226,8 @@ export type BillingResult = {
 /** What a source looks like after an event: status, period end and grace end. */
 export type SourceState = {
   status: SubscriptionStatus
-  currentPeriodEnd?: Date
+  /** null: no end (access ended or never ends); undefined: unknown, keep the stored one. */
+  currentPeriodEnd?: Date | null
   /** For past_due: until when access stays. null: no access (billing retry, account hold). */
   graceUntil?: Date | null
 }
@@ -698,8 +699,16 @@ export function createEntitlements<P extends Plans>(
       STATUS[event.type] ??
       (src?.status as SubscriptionStatus | undefined) ??
       "active"
+    // A refund of an earlier renewal leaves the subscription active: its
+    // expiresDate is in the past, so never move the end backwards.
+    const keepEnd =
+      event.type === "refund.processed" && state && (status === "active" || status === "trialing")
     const end = state
-      ? state.currentPeriodEnd
+      ? keepEnd &&
+        src?.currentPeriodEnd &&
+        src.currentPeriodEnd.getTime() > (state.currentPeriodEnd?.getTime() ?? 0)
+        ? src.currentPeriodEnd
+        : state.currentPeriodEnd
       : cfg.periodEndOf
         ? cfg.periodEndOf(event)
         : status === "cancelled"
@@ -770,7 +779,7 @@ export function createEntitlements<P extends Plans>(
    * `getSubscription`, or `restorePurchases`) to a subject: the restore path.
    * Refused with `other_subject` when the subscription is already another
    * subject's. Store subscriptions are read with `storeStateOf`; others by
-   * `status` and `currentPeriodEnd` (`cancelled` keeps access until then).
+   * `status` and `currentPeriodEnd` (`cancelled` ends access now).
    */
   async function applySubscription(
     sub: SubscriptionLike,
@@ -787,9 +796,10 @@ export function createEntitlements<P extends Plans>(
       ...(sub.productId ? { productId: sub.productId } : {}),
       raw: sub.raw,
     }
+    // A web gateway's cancelled means access already ended (a cancel at period end stays active).
     const state = storeStateOf(sub.gateway, sub.raw) ?? {
       status: sub.status,
-      currentPeriodEnd: sub.currentPeriodEnd,
+      currentPeriodEnd: sub.status === "cancelled" ? null : sub.currentPeriodEnd,
     }
     return settle(applySource(event, opts, state))
   }

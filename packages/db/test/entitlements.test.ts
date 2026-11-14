@@ -619,6 +619,17 @@ describe.each(backends)("$name", (backend) => {
       }),
     )
     expect(await ent.get("u1")).toMatchObject({ plan: "pro", status: "active" })
+    // A refund of an earlier renewal (status still 1, old expiresDate) keeps the period end.
+    await ent.applyBillingEvent(
+      apple("a5b", "refund.processed", "2026-11-18T12:00:00Z", {
+        status: 1,
+        expires: "2026-10-17T00:00:00Z",
+      }),
+    )
+    expect(await ent.get("u1")).toMatchObject({
+      plan: "pro",
+      currentPeriodEnd: new Date("2026-12-17T00:00:00Z"),
+    })
     // A refund (REFUND, status 5) ends it now.
     expect(
       await ent.applyBillingEvent(
@@ -761,7 +772,7 @@ describe.each(backends)("$name", (backend) => {
     ).toMatchObject({ applied: false, reason: "other_subject" })
     expect((await ent.get("u2")).plan).toBe("free")
 
-    // A web subscription read live: status and currentPeriodEnd; cancelled keeps access until then.
+    // A web subscription read live as cancelled: access already ended, even with a future period end.
     expect(
       await ent.applySubscription(
         {
@@ -774,9 +785,19 @@ describe.each(backends)("$name", (backend) => {
         { subject: "u3" },
       ),
     ).toMatchObject({ applied: true, plan: "team", status: "cancelled" })
-    expect((await ent.get("u3")).plan).toBe("team")
-    clock = new Date("2026-11-21T00:00:00Z")
     expect((await ent.get("u3")).plan).toBe("free")
+    // A web subscription set to cancel at period end is still active until then.
+    await ent.applySubscription(
+      {
+        gateway: "stripe",
+        gatewayId: "sub_T",
+        status: "active",
+        productId: "plan_team",
+        currentPeriodEnd: new Date("2026-11-20T00:00:00Z"),
+      },
+      { subject: "u4" },
+    )
+    expect((await ent.get("u4")).plan).toBe("team")
   })
 
   test("plans: the last declared active plan wins; setPlan is one more source", async () => {
