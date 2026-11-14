@@ -22,6 +22,12 @@ agent acting on payments** through the tools it generates.
 - Run `reconcile` daily for gateways with `settlements`; act on `missing`
   first (usually a webhook that never arrived: `replay` or re-sync).
 - Errors are `PaymentsError`; branch on `e.code`.
+- App Store and Google Play purchases happen on the device. After one, call
+  `payments.verifyPurchase({ gateway, id, userId })` with the transaction id
+  (App Store) or order id (Google Play). Never trust a client's claim that a
+  user is subscribed: read `getSubscription` or the stored events.
+- Store subscriptions: `past_due` with `inGracePeriod: true` still has access;
+  `cancelled` keeps access until `currentPeriodEnd`.
 
 ## Acting on payments
 
@@ -31,6 +37,12 @@ Tools come from `paymentTools(payments, { userId, approve, maxRows })`.
   `NOT_FOUND`.
 - `find_payment` and `payment_timeline` take `gateway` and `id`;
   `list_payments` is capped at `maxRows`, page with `offset`.
+- `find_subscription` takes `gateway` and the subscription `id` (App Store:
+  original transaction id; Google Play: purchase token) and reads it live.
+  It only finds subscriptions linked to one of the user's payments.
+- App Store payments cannot be refunded from the server: `refund_payment`
+  returns `UNSUPPORTED` without asking anyone. Tell the person that the customer
+  requests the refund from Apple. Google Play refunds are full only.
 - `refund_payment` always asks the person first. If it returns
   `APPROVAL_REQUIRED` or `APPROVAL_DECLINED`, nothing was refunded: show the
   person the `approval.summary` and stop. Never retry to get around it.
