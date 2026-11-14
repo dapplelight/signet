@@ -17,6 +17,10 @@ Two cases: you are **writing app code** that uses the package, or you are
 - Validate request bodies with `toZod(table, { mode: "insert" | "update" })`.
 - Wrap writes that change something a person cares about in
   `audited(...)`; machine jobs use `{ actor: { type: "system", id } }`.
+- Admin screens and back-office APIs: `defineAdmin(schema, { authorize })`
+  from `./admin`, never hand-rolled unscoped queries. `authorize` decides;
+  leave the secret-column defaults on and add `hidden` for anything else
+  private.
 - New migration? Run `signet-db-check` on the new SQL files before committing.
 - Errors are `SignetDbError`; branch on `e.code`, and the message says how to
   fix it.
@@ -35,3 +39,15 @@ Tools come from `agentTools(db, { tables, userId, allowWrites, maxRows })`.
 - Every write is recorded in the audit log as `{ type: "agent", id }`.
 - A `BAD_INPUT` error lists the fields to fix; `NOT_FOUND` means the row is
   not this user's or does not exist; search before retrying.
+
+## Acting as an admin agent
+
+Tools come from `adminTools(admin, { db, ctx, approve })`.
+
+- Call `admin_schema` first: it lists the tables, columns, filter operators
+  and ops you may use. Hidden columns do not exist as far as you can tell.
+- `admin_<table>_list` pages with `nextCursor`; keep the same `sort` and
+  `order` when you pass it back.
+- `_create`, `_update`, `_delete` and actions ask the person to approve.
+  `APPROVAL_REQUIRED` or `APPROVAL_DECLINED` means nothing changed.
+- `FORBIDDEN` is final for this caller; do not retry it another way.
