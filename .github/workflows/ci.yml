@@ -31,7 +31,7 @@ jobs:
       - run: bun run build:all
       - name: test + typecheck
         run: |
-          for p in config tokens lib ui server ai db mcp; do
+          for p in config tokens lib ui server ai db payments mcp; do
             (cd packages/$p && bun run test && bun run typecheck)
           done
       - run: bun run typecheck

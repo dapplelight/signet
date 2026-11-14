@@ -147,6 +147,14 @@
         "zod": ">=4.2.0",
       },
     },
+    "packages/payments": {
+      "name": "@dapplelight/signet-payments",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
+        "typescript": "^7.0.2",
+      },
+    },
     "packages/server": {
       "name": "@dapplelight/signet-server",
       "version": "0.4.0",
@@ -286,6 +294,8 @@
     "@dapplelight/signet-lib": ["@dapplelight/signet-lib@workspace:packages/lib"],
 
     "@dapplelight/signet-mcp": ["@dapplelight/signet-mcp@workspace:packages/mcp"],
+
+    "@dapplelight/signet-payments": ["@dapplelight/signet-payments@workspace:packages/payments"],
 
     "@dapplelight/signet-server": ["@dapplelight/signet-server@workspace:packages/server"],
 
