@@ -12,10 +12,15 @@
  * (dispute notifications) cannot be verified and are rejected; split-payment
  * payloads (`splitInfo`) are rejected too.
  *
- * Unsupported: capture (the docs give two different hosts for it),
- * subscriptions (recurring debit commands not documented clearly), customers
- * (PayU has none; saved cards hang off a user string), payouts (a separate
- * product with its own OAuth).
+ * Manual capture: checkout adds `pre_authorize=1` (same hash), and `capture`
+ * sends `capture_transaction` (var1 mihpayid, var2 your idempotency key as the
+ * request token, var3 amount) to the same postservice host as verify.
+ *
+ * Unsupported: subscriptions (PayU standing instructions are merchant-run
+ * `si_transaction` debits on a mandate, not a gateway-run subscription to get
+ * or cancel), customers (PayU has none; saved cards hang off a user string),
+ * payouts (a separate product with its own OAuth; its reference pages could not
+ * be read, see the README).
  */
 
 import { PaymentsError } from "../errors.js"
@@ -105,7 +110,7 @@ export function payu(config: PayUConfig): PaymentGateway {
     G,
     {
       methods: ["upi", "card", "netbanking", "wallet"],
-      features: ["refunds", "partialRefunds", "settlements", "webhooks"],
+      features: ["capture", "refunds", "partialRefunds", "settlements", "webhooks"],
       currencies: ["INR"],
     },
     {
@@ -119,7 +124,6 @@ export function payu(config: PayUConfig): PaymentGateway {
         return command(b.command, b.vars)
       },
       async createCheckout(i) {
-        if (i.capture === "manual") throw unsupported(G, "manual capture")
         if (!i.returnUrl || !i.customer?.email || !i.customer.name)
           throw new PaymentsError(
             "BAD_INPUT",
@@ -161,6 +165,9 @@ export function payu(config: PayUConfig): PaymentGateway {
           surl: i.returnUrl,
           furl: i.returnUrl,
           hash,
+          // Pre-authorize only; the hash is unchanged.
+          // https://docs.payu.in/docs/credit-card-merchant-hosted-integration-pre-authorize-payment
+          ...(i.capture === "manual" ? { pre_authorize: "1" } : {}),
           ...(i.extra as Record<string, string>),
         }
         return {
@@ -173,6 +180,24 @@ export function payu(config: PayUConfig): PaymentGateway {
         }
       },
       getPayment: verify,
+      // capture_transaction on the postservice host (test.payu.in / info.payu.in).
+      // https://docs.payu.in/docs/credit-card-merchant-hosted-integration-pre-authorize-payment (Step 3)
+      // https://docs.payu.in/docs/debit-card-merchant-hosted-integration-preauthorize-payments
+      async capture(txnid, i) {
+        const p = await verify(txnid)
+        const r: Json = await command("capture_transaction", [
+          String(p.orderId),
+          i.idempotencyKey,
+          toMajor(i.amount ?? p.amount, "INR"),
+        ])
+        if (Number(r.status) !== 1)
+          throw new PaymentsError("GATEWAY_ERROR", `payu capture: ${r.msg ?? "refused"}`, {
+            gateway: G,
+            raw: r,
+          })
+        // Capture is queued; the payment flips to captured when PayU processes it.
+        return verify(txnid)
+      },
       async refund(txnid, i) {
         const p = await verify(txnid)
         const amount = i.amount ?? p.amount

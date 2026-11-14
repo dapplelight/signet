@@ -31,7 +31,7 @@ around them: a webhook inbox, a double-entry ledger and reconciliation.
 | netbanking | ✓ |  | ✓ | ✓ | ✓ |  |  |  | ✓ |  |
 | wallet | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | emi | ✓ |  | ✓ |  |  |  |  |  |  |  |
-| capture | ✓ | ✓ | ✓ |  |  |  |  | ✓ | ✓ |  |
+| capture | ✓ | ✓ | ✓ |  | ✓ |  |  | ✓ | ✓ |  |
 | refunds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | partialRefunds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | customers | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |  | ✓ | ✓ |
@@ -74,6 +74,24 @@ SDK (or two official doc pages) agree. What is left out, and why:
   https://developer.phonepe.com/payment-gateway/autopay/api-integration/api-reference/subscription-status,
   https://developer.phonepe.com/payment-gateway/autopay/api-integration/api-reference/subscription-cancel,
   https://github.com/PhonePe/phonepe-pg-sdk-java.
+- **PayU capture** uses `pre_authorize=1` at checkout and `capture_transaction`
+  on the same postservice host as verify (two pre-authorization guides agree on
+  the host, the vars and the sample). Checked:
+  https://docs.payu.in/docs/credit-card-merchant-hosted-integration-pre-authorize-payment,
+  https://docs.payu.in/docs/debit-card-merchant-hosted-integration-preauthorize-payments.
+- **PayU subscriptions**: standing instructions are merchant-initiated
+  `si_transaction` debits on a mandate. There is no gateway-run subscription
+  to get or cancel. Charge renewals through `raw` with the `si_transaction`
+  command. Checked:
+  https://docs.payu.in/docs/cards-subscription-integration-merchant-hosted-checkout,
+  https://docs.payu.in/docs/cb-subscriptions-integration-non-seamless.
+- **PayU payouts, settlement `requestaction` values and the `addedon`
+  timezone** are not re-verified this round. The PayU reference pages
+  (initiate-transfer, generate-token, get_settlement_details) answered with a
+  Cloudflare rate-limit page (error 1015) for every fetch. Payouts stay
+  unsupported. Settlements keep the first-round mapping: a refund is any
+  `requestaction` containing "refund", and dates are parsed as given. Checked:
+  https://docs.payu.in/docs/apis-used-for-payouts-integration (index only).
 - **Paddle partial refunds** are per line item. The adapter reads the
   transaction's `details.line_items` and fills them in order, each up to its
   total (tax included, Paddle's default `tax_mode`). Pick items yourself with

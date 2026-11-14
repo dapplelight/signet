@@ -9,6 +9,7 @@ import { hyperswitch } from "../src/gateways/hyperswitch"
 import { lemonsqueezy } from "../src/gateways/lemonsqueezy"
 import { paddle } from "../src/gateways/paddle"
 import { paypal } from "../src/gateways/paypal"
+import { payu } from "../src/gateways/payu"
 import { phonepe } from "../src/gateways/phonepe"
 import { razorpay } from "../src/gateways/razorpay"
 import { fakeFetch } from "./fake"
@@ -654,5 +655,55 @@ describe("dodo", () => {
     expect(c.gatewayId).toBe("cus_2")
     const [m] = await g.listPaymentMethods("cus_2")
     expect(m).toMatchObject({ gatewayId: "pm_dd1", type: "card", label: "VISA 4242" })
+  })
+})
+
+describe("payu", () => {
+  test("manual capture: pre_authorize on checkout, capture_transaction with mihpayid, token and amount", async () => {
+    let state = "auth"
+    const f = fakeFetch({
+      "POST /merchant/postservice.php": ({ form }: any) => {
+        if (form.get("command") === "verify_payment")
+          return {
+            status: 1,
+            transaction_details: {
+              "txn-1": {
+                mihpayid: "15246574846",
+                status: "success",
+                unmappedstatus: state,
+                amt: "50.00",
+                addedon: "2026-01-01 10:00:00",
+              },
+            },
+          }
+        state = "captured"
+        return { status: 1, msg: "Capture Request Queued", request_id: "R1", bank_ref_num: "B1" }
+      },
+    })
+    const g = payu({ key: "TESTKEY", salt: "test_salt", fetch: f.fetch, ...http })
+    const c = await g.createCheckout({
+      amount: 5000,
+      currency: "INR",
+      idempotencyKey: "txn-1",
+      capture: "manual",
+      returnUrl: "https://shop.example.test/done",
+      customer: { email: "buyer@example.test", name: "Test Buyer" },
+    })
+    expect(c.form?.fields.pre_authorize).toBe("1")
+    expect((await g.getPayment("txn-1")).status).toBe("authorized")
+    const p = await g.capture("txn-1", { amount: 3000, idempotencyKey: "cap-1" })
+    expect(p.status).toBe("captured")
+    const cap = new URLSearchParams(
+      f.calls.find((x) => x.body?.includes("capture_transaction"))!.body!,
+    )
+    expect([cap.get("var1"), cap.get("var2"), cap.get("var3")]).toEqual([
+      "15246574846",
+      "cap-1",
+      "30.00",
+    ])
+    const want = createHash("sha512")
+      .update("TESTKEY|capture_transaction|15246574846|test_salt")
+      .digest("hex")
+    expect(cap.get("hash")).toBe(want)
   })
 })
