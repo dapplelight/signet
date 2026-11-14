@@ -915,6 +915,13 @@ describe.each(backends)("$name", (backend) => {
       },
     })
     await tool(approved, "set_plan").run({ subject: "org-1", plan: "team", reason: "comp" })
+    expect(await tool(approved, "get_plan").run({ subject: "org-1" })).toMatchObject({
+      plan: "team",
+      source: { gateway: "manual", subscriptionId: "org-1" },
+      entitlements: [
+        { plan: "team", active: true, sources: [{ gateway: "manual", active: true }] },
+      ],
+    })
     await tool(approved, "grant_feature").run({ subject: "org-2", feature: "sso", reason: "trial" })
     await tool(approved, "set_flag").run({
       everyone: true,

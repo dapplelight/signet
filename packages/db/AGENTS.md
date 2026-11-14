@@ -45,6 +45,13 @@ Tools come from `agentTools(db, { tables, userId, allowWrites, maxRows })`.
   and stop when `ok` is false.
 - Feed every signet-payments event to `ent.applyBillingEvent(event)`; it
   ignores non-subscription, duplicate and out-of-order events.
+- Map every store product id and web plan id to a plan in `billing.plans`
+  (`"appstore:<id>"`, `"googleplay:<id>"` when ids clash). Declare plans
+  lowest first. After `payments.restorePurchases`, pass each returned
+  `subscription` to `ent.applySubscription(sub, { subject: userId })`;
+  `other_subject` means another account owns it: tell the user, never move it.
+- Read `currentPeriodEnd`, `source` and `entitlements` from `ent.get`, not
+  from a gateway, to show "renews on" or "paid via".
 - Tools from `entitlementTools(...)`: `get_plan`, `check_entitlement`,
   `usage`, `list_flags` read. `grant_feature`, `set_plan` and `set_flag`
   exist only with `allowWrites`, always ask a person to approve, and return

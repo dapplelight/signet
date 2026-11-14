@@ -353,9 +353,18 @@ await ent.grant(orgId, "audit", { actor, expiresAt: trialEnd }) // also revoke, 
 await ent.removeOverride(orgId, overrideId, { actor })
 ```
 
-A subject is any id: a user or an org. Its plan is its stored row (written
-by billing events or `setPlan`) while that is `active`, `trialing`, or
-`past_due` within the grace period; otherwise `default`. Overrides apply on
+A subject is any id: a user or an org. It has one stored row per source:
+each subscription (App Store, Google Play, Stripe, Razorpay, ...) and
+`manual` for `setPlan`. Sources roll up into one entitlement per plan, active
+while any of its sources is. A source is active while it is `active` or
+`trialing` (until `currentPeriodEnd`, plus `graceMs` if the period ends with
+no event), `cancelled` with a future `currentPeriodEnd`, or `past_due` before
+`graceUntil`. Declare plans lowest first: the plan in effect is the last
+declared plan with an active entitlement, else `default`. So `setPlan` sets
+the manual source, and a live subscription on a later plan still wins.
+`ent.get(subject)` returns `plan`, `currentPeriodEnd` (the latest among that
+plan's active sources), `source` (the one behind it) and `entitlements`
+(every plan with its sources). Overrides apply on
 top, newest unexpired per key. Every write goes through `audited`, so the db
 needs an audit table; usage counters are not audited.
 
@@ -376,22 +385,66 @@ await ent.applyBillingEvent(event, { subject: orgId }) // or billing.subjectOf(e
 ```
 
 Applies `subscription.created`, `activated`, `charged`, `updated`, `paused`,
-`resumed`, `past_due`, `cancelled` and `expired` to the subject's row, found
-by `opts.subject`, `billing.subjectOf(event)` or the stored subscription id.
+`resumed`, `past_due`, `cancelled` and `expired` (and App Store refunds) to
+the source row of the event's gateway and subscription id. The subject is
+`opts.subject`, `billing.subjectOf(event)`, the subject already stored for
+the subscription, or for Google Play the subject of the `linkedPurchaseToken`.
+A subscription belongs to one subject: an event or restore that names another
+returns `{ applied: false, reason: "other_subject" }`.
 The gateway plan id is read by `billing.planIdOf` (default: Razorpay's
-`payload.subscription.entity.plan_id`, Stripe's item price or plan id) and
-mapped through `billing.plans`. For `created` and `updated`, whose type does
+`payload.subscription.entity.plan_id`, Stripe's item price or plan id, then
+the event's store `productId`) and mapped through `billing.plans`, trying
+`"<gateway>:<id>"` before `<id>`. `currentPeriodEnd` comes from
+`billing.periodEndOf` (default: Stripe `current_period_end`, Razorpay
+`current_end`, Paddle `current_billing_period.ends_at`; a web gateway's
+`subscription.cancelled` ends access now). For `created` and `updated`, whose type does
 not say whether the subscription is live, the status comes from the payload
 via `billing.statusOf` (default: Stripe's `data.object.status`, Paddle's
 `data.status`, Razorpay's entity status), falling back to the stored one.
-An event for a subscription other than the subject's current one (the old
-one after a cancel-and-recreate upgrade) is ignored with
-`reason: "other_subscription"` unless it makes that subscription live. Each
+Each subscription is its own source, so the old one lapsing after a
+cancel-and-recreate upgrade does not touch the new one. Each
 event applies once (`withIdempotency`,
 so the db needs an idempotency table), and an event older than the stored
 state returns `{ applied: false, reason: "stale" }`: a late `cancelled` cannot
 undo a newer upgrade. `no_subject` and `unknown_plan` are not stored as done,
 so a retry after linking the subject or fixing the map applies.
+
+### App Store, Google Play and restore
+
+```ts
+const ent = createEntitlements(db, {
+  plans, default: "free", tables,
+  billing: {
+    plans: {
+      price_9f: "pro",                       // Stripe
+      "appstore:pro.monthly": "pro",         // App Store product id
+      "googleplay:pro": "pro",               // Google Play subscription product id
+    },
+    // First event before the app claimed the purchase: look the owner up in signet-payments.
+    subjectOf: async (e) =>
+      (await store.findLinked(e.gateway, { orderId: (e as { orderId?: string }).orderId }))?.userId,
+  },
+})
+
+// Restore purchases: re-verify on the store, claim, re-attach.
+const { restored, refused } = await payments.restorePurchases({ userId, purchases })
+for (const r of restored)
+  if (r.subscription) await ent.applySubscription(r.subscription, { subject: userId })
+```
+
+App Store and Google Play events are read with `storeStateOf`, from the
+store's own state, not the event type:
+
+| Store state | Source | Access |
+|---|---|---|
+| App Store status 1 (auto-renew on or off) / Play `ACTIVE`, `CANCELED` | `active` | until `currentPeriodEnd` (expiresDate / expiryTime) |
+| App Store status 4 (Billing Grace Period) / Play `IN_GRACE_PERIOD` | `past_due` | until `gracePeriodExpiresDate` / `expiryTime` |
+| App Store status 3 (billing retry) / Play `ON_HOLD` | `past_due` | none |
+| App Store status 2, 5 (expired, refunded or revoked) / Play `EXPIRED`, revoked | `expired` | none |
+| Play `PAUSED` | `paused` | none |
+
+`applySubscription(sub, { subject })` applies a subscription read live (a
+signet-payments `Subscription`), so a restore also fixes a missed webhook.
 
 ## Feature flags
 

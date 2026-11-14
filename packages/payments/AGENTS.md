@@ -43,6 +43,13 @@ Tools come from `paymentTools(payments, { userId, approve, maxRows })`.
 - `find_subscription` takes `gateway` and the subscription `id` (App Store:
   original transaction id; Google Play: purchase token) and reads it live.
   It only finds subscriptions linked to one of the user's payments.
+- `refresh_entitlement` (only with `entitlements`) takes the same input,
+  reads the subscription live and re-applies it to its owner's plan. Use it
+  when access looks wrong after a renewal, refund or restore; it changes
+  nothing the store does not already say.
+- `restorePurchases` refuses a purchase another user owns (`BAD_INPUT` in
+  `refused`). Tell the user it belongs to another account; never retry it
+  under a different user id.
 - App Store payments cannot be refunded from the server: `refund_payment`
   returns `UNSUPPORTED` without asking anyone. Tell the person that the customer
   requests the refund from Apple. Google Play refunds are full only.

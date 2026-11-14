@@ -5,6 +5,33 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### Store purchases to plans (signet-db, signet-payments)
+
+- signet-db `/entitlements`: `subject_plans` now holds one row per source
+  (id `${gateway}|${subscriptionId}`; `manual` for `setPlan`), with a new
+  `current_period_end` column. App Store, Google Play and web gateway
+  subscriptions of one subject roll up into one entitlement per plan, active
+  while any source is; `currentPeriodEnd` is the latest among active sources.
+  `get` adds `currentPeriodEnd`, `source` and `entitlements`. Plans are
+  declared lowest first; the last declared active plan wins, so `setPlan`
+  no longer overrides a live subscription on a later plan.
+- `billing.plans` keys may be prefixed with the gateway
+  (`"appstore:pro.monthly"`); `planIdOf` falls back to the event's
+  `productId`; new `billing.periodEndOf` (Stripe, Razorpay, Paddle defaults).
+- `storeStateOf` reads App Store (`data.status`, `expiresDate`,
+  `gracePeriodExpiresDate`) and Google Play (`subscriptionState`, `expiryTime`)
+  state: renewals, expiry, refund or revoke, grace period, billing retry and
+  account hold. App Store refunds of a subscription now apply.
+- `applySubscription(sub, { subject })`: the restore path for a subscription
+  read live. A subscription owned by another subject is refused
+  (`reason: "other_subject"`, replacing `other_subscription`). Google Play
+  tokens linked by `linkedPurchaseToken` keep their subject.
+- `get_plan` shows entitlements and sources; `set_plan` sets the manual plan.
+- signet-payments: `restorePurchases({ userId, purchases })` re-verifies App
+  Store signed transactions and Google Play purchase tokens against the store
+  and claims them under `verifyPurchase`'s rule; `paymentTools` takes
+  `entitlements` to add `refresh_entitlement`.
+
 ### signet-server: auth backend (sessions, key rotation, phone OTP, API keys)
 
 - New `./auth/sessions`: opt-in stored sessions. `SessionStore` (create, get,
@@ -51,7 +78,7 @@ a package at the version it had when the repository was opened to the public.
   than the stored state is ignored (the guard is in the UPDATE's WHERE);
   `past_due` keeps the plan for `graceMs` (3 days). `created`/`updated` read
   the status from the payload (`statusOf`; Stripe, Paddle, Razorpay shapes by
-  default), and events for an old subscription cannot downgrade a newer one. The event type is a local
+  default), and each subscription is tracked as its own source. The event type is a local
   structural one, so signet-db does not depend on signet-payments.
 - `consume(subject, key, n)`: per-period (month, day or total) usage with the
   check and the increment in one UPDATE, so concurrent requests cannot
