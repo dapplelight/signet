@@ -246,9 +246,13 @@ export function createPayments(config: PaymentsConfig) {
     amount: number,
     currency: string,
     at: Date,
+    approximate?: boolean,
   ) {
     if (!db) return
-    await post(db, postings.refund({ gateway: g, paymentId, refundId, amount, currency, at }))
+    await post(
+      db,
+      postings.refund({ gateway: g, paymentId, refundId, amount, currency, at, approximate }),
+    )
     const rec = await db.getPayment(g, paymentId)
     if (!rec) return
     const refunded = (await db.entries({ ref: paymentId, account: "refunds" })).reduce(
@@ -353,6 +357,7 @@ export function createPayments(config: PaymentsConfig) {
               db,
               postings.capture({
                 gateway: e.gateway,
+                approximate: e.approximate,
                 paymentId: e.paymentId,
                 amount,
                 currency: cur,
@@ -364,6 +369,7 @@ export function createPayments(config: PaymentsConfig) {
                 db,
                 postings.fee({
                   gateway: e.gateway,
+                  approximate: e.approximate,
                   paymentId: e.paymentId,
                   amount: e.fee,
                   currency: cur,
@@ -376,7 +382,15 @@ export function createPayments(config: PaymentsConfig) {
         case "refund.processed":
           if (rec && !(await db.getPayment(e.gateway, e.paymentId))) await db.savePayment(rec)
           if (e.refundId && e.amount && cur)
-            await applyRefund(e.gateway, e.paymentId, e.refundId, e.amount, cur, e.occurredAt)
+            await applyRefund(
+              e.gateway,
+              e.paymentId,
+              e.refundId,
+              e.amount,
+              cur,
+              e.occurredAt,
+              e.approximate,
+            )
           break
       }
     }

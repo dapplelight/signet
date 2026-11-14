@@ -42,6 +42,10 @@ a package at the version it had when the repository was opened to the public.
   events that carry an amount as the capture. New agent tool:
   `find_subscription`. `refund_payment` rejects UNSUPPORTED up front for
   gateways that cannot refund.
+- App Store amounts (Apple's configured price, not settled revenue) are
+  flagged: `Payment.approximate` and `Event.approximate`, and their ledger
+  postings use kind `capture:approximate` / `refund:approximate`
+  (`Transaction.approximate` in the ledger API; no schema change).
 - `capabilities` per adapter; an unsupported call rejects with `UNSUPPORTED`
   before any network call. Features the gateways' docs did not pin down are
   unsupported rather than guessed (see the README matrix).

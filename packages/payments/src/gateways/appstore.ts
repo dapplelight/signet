@@ -128,6 +128,8 @@ export function toAppStorePayment(t: Json): Payment {
     productId: t.productId,
     ...(env(t.environment) ? { environment: env(t.environment) } : {}),
     createdAt: ms(t.purchaseDate) ?? new Date(0),
+    // Apple's configured price, not settled revenue: Apple says App Store Connect reports are the record.
+    approximate: true,
     raw: t,
   }
 }
@@ -334,7 +336,7 @@ export function appstore(config: AppStoreConfig): AppStoreGateway {
           ...(isSub ? { subscriptionId: String(t.originalTransactionId) } : {}),
           ...(refund ? { refundId: `${pay.gatewayId}:refund`, amount: pay.amountRefunded } : {}),
           ...(pay && !refund ? { amount: pay.amount } : {}),
-          ...(pay ? { currency: pay.currency, productId: pay.productId } : {}),
+          ...(pay ? { currency: pay.currency, productId: pay.productId, approximate: true } : {}),
           ...(env(data.environment) ? { environment: env(data.environment) } : {}),
           raw: { payload: p, transaction: t, renewalInfo: rn },
         }

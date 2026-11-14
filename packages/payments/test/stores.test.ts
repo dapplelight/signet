@@ -9,6 +9,7 @@ import { paymentTools } from "../src/agent"
 import { isPaymentsError } from "../src/errors"
 import { appstore } from "../src/gateways/appstore"
 import { googleplay } from "../src/gateways/googleplay"
+import { balance } from "../src/ledger"
 import { createPayments } from "../src/payments"
 import { memoryStore } from "../src/store"
 import type { Feature, PaymentGateway } from "../src/types"
@@ -324,6 +325,7 @@ describe("appstore", () => {
       productId: "pro.monthly",
       environment: "sandbox",
       customerId: "6f1c3c2e-made-up",
+      approximate: true,
     })
     expect(f.calls[0].url).toBe(
       "https://api.storekit-sandbox.apple.com/inApps/v1/transactions/2000000002",
@@ -586,6 +588,7 @@ describe("googleplay", () => {
       orderId: "tok-1",
       productId: "pro.monthly",
     })
+    expect((await g.getPayment(id)).approximate).toBeUndefined() // Play orders are what was paid
     expect(await code(g.refund(id, { amount: 100, idempotencyKey: "k" }))).toBe("UNSUPPORTED")
     const r = await g.refund(id, { idempotencyKey: "k" })
     expect(r).toMatchObject({
@@ -774,6 +777,25 @@ describe("store purchases in createPayments", () => {
       amount: 499,
       orderId: "2000000001",
     })
+    // On the ledger, flagged approximate: Apple's configured price, not settled revenue.
+    const captured = await db.entries({ ref: "2000000003" })
+    expect(captured.map((e) => [e.account, e.amount, e.kind])).toEqual([
+      ["receivable:appstore", 499, "capture:approximate"],
+      ["revenue", -499, "capture:approximate"],
+    ])
+    expect(await balance(db, "revenue", "USD")).toBe(-499)
+    await payments.handleWebhook(
+      "appstore",
+      notification(
+        "REFUND",
+        undefined,
+        txn({ transactionId: "2000000003", revocationDate: T0, revocationType: "REFUND_FULL" }),
+      ),
+    )
+    expect(
+      (await db.entries({ ref: "2000000003", account: "refunds" })).map((e) => [e.amount, e.kind]),
+    ).toEqual([[499, "refund:approximate"]])
+    expect((await db.getPayment("appstore", "2000000003"))?.status).toBe("refunded")
 
     const approvals: unknown[] = []
     const tools = paymentTools(payments, {
@@ -784,7 +806,7 @@ describe("store purchases in createPayments", () => {
       tools.find((t) => t.name === n)!.run(input)
     expect(await run("find_payment", { gateway: "appstore", id: "2000000003" })).toMatchObject({
       amount: 499,
-      status: "captured",
+      status: "refunded",
     })
     expect(await run("find_subscription", { gateway: "appstore", id: "2000000001" })).toMatchObject(
       { status: "active", productId: "pro.monthly", autoRenew: true },

@@ -63,6 +63,12 @@ export type Payment = Base &
     productId?: string
     /** App store purchases: which store environment the purchase was made in. */
     environment?: Environment
+    /**
+     * The amount is not what settles: App Store amounts are Apple's configured
+     * price, before tax handling and Apple's commission. Ledger postings for it
+     * carry the same flag (kind `capture:approximate`, `refund:approximate`).
+     */
+    approximate?: boolean
   }
 
 export type Environment = "production" | "sandbox"
@@ -174,6 +180,8 @@ export type Event = {
   fee?: number
   productId?: string
   environment?: Environment
+  /** `amount` is indicative, not settled revenue (see `Payment.approximate`). */
+  approximate?: boolean
   raw: unknown
 }
 

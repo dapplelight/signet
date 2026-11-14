@@ -110,7 +110,8 @@ app.post("/webhooks/:gateway", (c) => payments.handleWebhook(c.req.param("gatewa
   future `currentPeriodEnd` means renewal is off and access runs until then.
 - Events: a purchase or renewal is `subscription.created` / `subscription.charged`
   carrying the charge (`paymentId`, `amount`), which the inbox records as a
-  capture; refunds are `refund.processed`.
+  capture; refunds are `refund.processed`. App Store amounts are marked
+  `approximate` (see the gap notes).
 - App Store extras: `decodeTransaction(jws)` verifies a StoreKit
   `jwsRepresentation`; `transactionHistory`, `refundHistory`. Google Play
   extras: `getProductPurchase(token)`, `acknowledgeProduct`,
@@ -128,9 +129,15 @@ SDK (or two official doc pages) agree. What is left out, and why:
 
 - **App Store refunds and cancellation**: customers ask Apple for refunds and
   cancel in their account settings, so the API has no refund or cancel call
-  for this package to make. Apple's `price` is the configured price; Apple says
-  App Store Connect reports are the record for revenue, so treat ledger
-  amounts as indicative. Checked:
+  for this package to make. Checked:
+  https://developer.apple.com/documentation/appstoreservernotifications/notificationtype.
+- **App Store amounts are approximate.** They are Apple's configured `price`,
+  not settled revenue: tax handling and Apple's commission are not in them,
+  and Apple says App Store Connect reports are the record. App Store payments
+  carry `approximate: true`, and their ledger postings go in as kind
+  `capture:approximate` / `refund:approximate`, so `balance` includes them while
+  anything that reports revenue can split them out. There is no settlement
+  report, so they are never reconciled. Checked:
   https://developer.apple.com/documentation/appstoreserverapi/jwstransactiondecodedpayload.
 - **App Store signature checks** verify the full x5c chain up to Apple Root
   CA - G3 (pinned by SHA-256 fingerprint): the leaf and intermediate extension
@@ -389,6 +396,8 @@ const job = reconcileJob(store, payments.gateway("razorpay"), { onMismatch: aler
 await job() // yesterday, UTC: call from a cron
 ```
 
+App Store amounts are Apple's configured price, not settled revenue: they
+post as `capture:approximate` and are never reconciled (no settlement report).
 Settlement lines come from Razorpay's settlement recon, Stripe's balance
 transactions for the day, and PayU's settlement details.
 

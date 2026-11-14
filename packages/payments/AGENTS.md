@@ -26,6 +26,9 @@ agent acting on payments** through the tools it generates.
   `payments.verifyPurchase({ gateway, id, userId })` with the transaction id
   (App Store) or order id (Google Play). Never trust a client's claim that a
   user is subscribed: read `getSubscription` or the stored events.
+- App Store amounts are Apple's configured price, not settled revenue
+  (`approximate: true`; ledger kind `capture:approximate`). Never report them
+  as revenue without saying so.
 - Store subscriptions: `past_due` with `inGracePeriod: true` still has access;
   `cancelled` keeps access until `currentPeriodEnd`.
 
