@@ -3,14 +3,15 @@
 Provider-agnostic structured LLM calls with budget caps, caching and failover.
 Resolves [signet#1](https://github.com/dapplelight/signet/issues/1).
 
-**Structured output only.** Every call goes through a Zod schema and returns a
-typed, validated object — never free text. That keeps the surface small and every
-call verifiable.
+**The extractor is structured output only.** Every `extract` call goes through
+a Zod schema and returns a typed, validated object, never free text. Tool loops,
+streaming chat, embeddings and grounded answers live on their own subpaths (see
+"AI SDK helpers" below), so the core stays small and needs no `ai` install.
 
 ```ts
 import { createExtractor, memoryCache, createBudgetLedger } from "@dapplelight/signet-ai"
 // The AI SDK adapter is a SUBPATH, not on the barrel — see "Why the adapter is
-// a separate import" below. Requires `ai` installed.
+// a separate import" below. Requires `ai` 7 or later.
 import { aiSdkProvider } from "@dapplelight/signet-ai/providers/ai-sdk"
 import { createWorkersAI } from "workers-ai-provider"
 
@@ -138,6 +139,134 @@ database off Workers.
 Calls in flight are not reserved, so concurrent calls can overshoot a cap by
 their own cost.
 
+## Usage reporting
+
+Every call can report its tokens and cost. Pass `onUsage` to `createExtractor`
+or to any helper below; each call that reached a model reports once:
+
+```ts
+import { analyticsUsage } from "@dapplelight/signet-ai"
+
+const ai = createExtractor({
+  providers,
+  onUsage: (r) => log.info("ai.usage", r),
+  // or straight to an AnalyticsSink from @dapplelight/signet-server/analytics:
+  // onUsage: analyticsUsage(sink),
+})
+```
+
+A report is `{ operation, provider, model, usage, costUsd, key, durationMs }`.
+`operation` is `extract`, `tools`, `stream`, `embed` or `ground`; `key` is the
+budget key (a user id), so cost can be attributed per user. Cache hits and
+fallbacks spend nothing and are not reported. A call refused by the per-call cap
+after the spend is reported, because the money is gone. A hook that throws, or a
+sink that rejects, is ignored: analytics must not fail a paid call.
+`analyticsUsage(sink, name?)` writes one `ai.usage` event per report.
+
+## AI SDK helpers
+
+Requires `ai` 7 or later. Each helper takes a model from any AI SDK provider
+package, so nothing here names a provider. Each takes `onUsage`, `pricing`,
+`key`, `provider` (the label in reports) and `abortSignal`, and turns the SDK's
+own retries off, as the extractor does.
+
+### Tool loops
+
+```ts
+import { runTools } from "@dapplelight/signet-ai/chat"
+import { tool } from "ai"
+
+const r = await runTools({
+  model,
+  tools: { lookupOrder: tool({ description, inputSchema, execute }) },
+  prompt: "Where is order A1?",
+  maxSteps: 5, // default 5; each model call is a step
+  onUsage,
+})
+if (r.capped) { /* stopped at maxSteps while the model still wanted tools */ }
+// { text, steps, capped, toolCalls, usage, costUsd }
+```
+
+`usage` is the total over every step. A `perCallUsd` price is charged once per
+step. Check `capped`: a capped run's `text` is often empty.
+
+### Streaming chat
+
+The server returns `streamChat(...)`; the client reads it with `useSignetChat`,
+which wraps `useChat` from `@ai-sdk/react` (an optional peer, install it in the
+web app).
+
+```ts
+// server (Hono, Workers, Next route handler: anything that returns a Response)
+import { streamChat } from "@dapplelight/signet-ai/chat"
+
+app.post("/api/chat", async (c) => {
+  const { messages } = await c.req.json()
+  return streamChat({ model, messages, tools, maxSteps: 5, onUsage, key: userId,
+    abortSignal: c.req.raw.signal })
+})
+```
+
+```tsx
+// client
+import { useSignetChat } from "@dapplelight/signet-ai/react"
+
+const { messages, sendMessage, status, stop, usage } = useSignetChat({ api: "/api/chat" })
+```
+
+Usage reaches `onUsage` on the server when the stream ends, and the client as
+`message.metadata.usage` on each assistant message; `usage` from the hook is the
+conversation's sum. `api` and `headers` are read once per chat `id`, as in
+`useChat`; pass `headers` as a function for a value that changes. Authenticate
+the route and cap `messages` yourself: the client sends the whole history.
+
+`messages` is untrusted input. `streamChat` drops `system` messages (set
+instructions with `system`) and every tool part from the history, so a browser
+cannot plant a system prompt or a fake tool result. Tools the model calls during
+the request still run; their results from earlier turns are not replayed.
+
+### Embeddings and search
+
+```ts
+import { embedDocuments, searchDocuments } from "@dapplelight/signet-ai/ground"
+
+const indexed = await embedDocuments(embeddingModel, docs) // [{ id, text, embedding }]
+// store `indexed` anywhere (JSON column, KV); vectors are plain number arrays
+const hits = await searchDocuments(embeddingModel, "how long is delivery", indexed, {
+  topK: 5, minScore: 0.3,
+})
+// [{ id, text, score }], best first
+```
+
+There is no vector store: ranking is cosine similarity in memory, which is fine
+for a few thousand documents. Past that, use the platform's index (Vectorize,
+pgvector) and pass its results to `groundedAnswer`.
+
+### Grounded answers
+
+```ts
+import { groundedAnswer } from "@dapplelight/signet-ai/ground"
+
+const r = await groundedAnswer({ model, question, documents: hits })
+if (!r.grounded) return "I couldn't find that in our help pages."
+// r.answer, r.citations: [{ id, quote }], r.rejected
+```
+
+The model must cite each claim with a document id and a verbatim quote. Every
+citation is checked: an unknown id, or a quote that does not appear in that
+document (ignoring case and whitespace), goes to `rejected`. `grounded` is true
+when at least one citation survives. This checks the citations, not the
+reasoning: a model can quote a real line and still over-claim, so show the
+quotes beside the answer. Documents are wrapped in `<document>` tags and the
+model is told their text is data, which reduces but does not remove prompt
+injection from document content.
+
+### Testing the helpers
+
+Use the SDK's mock models from `ai/test` (`MockLanguageModelV4`,
+`MockEmbeddingModelV4`); `test/sdk.ts` in this package shows each helper driven
+by them with no network.
+
 ## Why the adapter is a separate import
 
 `aiSdkProvider` lives at `@dapplelight/signet-ai/providers/ai-sdk` and is deliberately
@@ -156,6 +285,9 @@ The core package is transport-agnostic and depends on nothing but
 ```ts
 import { createExtractor } from "@dapplelight/signet-ai"              // no `ai` needed
 import { aiSdkProvider } from "@dapplelight/signet-ai/providers/ai-sdk" // needs `ai`
+import { runTools, streamChat } from "@dapplelight/signet-ai/chat"     // needs `ai`
+import { groundedAnswer } from "@dapplelight/signet-ai/ground"         // needs `ai`
+import { useSignetChat } from "@dapplelight/signet-ai/react"           // needs `ai`, `@ai-sdk/react`
 ```
 
 ## Testing without network or spend
@@ -284,12 +416,14 @@ decision the app can act on. The fallback is used, with a `reason`, when:
 
 ## Out of scope
 
-Streaming, chat state, agents and tool loops, embeddings, RAG. Add when a second
-product needs them, not before.
+Chat history storage, vector databases, and agents beyond a single tool loop.
+Add when a second product needs them, not before.
 
 ## Test
 
-`bun run test` runs 54 extractor assertions (failover, retry classification,
-budget fail-closed, cache keying and schema enforcement) and 59 Jev assertions
-(the confident path, every fallback reason, the privacy gate, batch, and the
-key never leaking), all against a fake fetch with no network.
+`bun run test` runs 62 extractor assertions (failover, retry classification,
+budget fail-closed, cache keying, schema enforcement), 59 Jev assertions (the
+confident path, every fallback reason, the privacy gate, batch, and the key
+never leaking) and 37 AI SDK helper assertions (the adapter, `onUsage`, tool
+loops and the step cap, streaming, embeddings, search and citation checks), all
+with no network.
