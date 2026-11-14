@@ -167,15 +167,16 @@ Signet design tokens. One theme file per design system; all themes satisfy CONTR
 
 Signet component kit — token-driven React primitives.
 
-`import { X } from "@dapplelight/signet-ui/components/<name>"` — 41 components:
+`import { X } from "@dapplelight/signet-ui/components/<name>"` — 52 components:
 
-`alert` · `answer-headline` · `badge` · `button` · `calendar` · `card` · `chart` · `checkbox` · `combobox` · `data-table` · `dialog` · `drawer` · `dropdown-menu` · `emoji-picker` · `empty-state` · `error-state` · `input` · `input-group` · `input-otp` · `kbd` · `label` · `markdown` · `pagination` · `pill-group` · `popover` · `privacy-mask` · `progress` · `responsive-sheet` · `search-input` · `select` · `shortcuts` · `skeleton` · `slider` · `stat-strip` · `switch` · `table` · `tabs` · `textarea` · `theme-provider` · `theme-toggle` · `tooltip`
+`alert` · `alert-dialog` · `answer-headline` · `avatar` · `badge` · `breadcrumb` · `button` · `calendar` · `card` · `chart` · `checkbox` · `combobox` · `command` · `data-table` · `dialog` · `drawer` · `dropdown-menu` · `emoji-picker` · `empty-state` · `error-state` · `field` · `input` · `input-group` · `input-otp` · `kbd` · `label` · `markdown` · `pagination` · `pill-group` · `popover` · `privacy-mask` · `progress` · `radio-group` · `responsive-sheet` · `search-input` · `select` · `shortcuts` · `sidebar` · `skeleton` · `slider` · `spinner` · `stat-strip` · `stepper` · `switch` · `table` · `tabs` · `textarea` · `theme-provider` · `theme-toggle` · `timeline` · `toast` · `tooltip`
 
 Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"`.
 
 | Import | Exports | What |
 |---|---|---|
 | `@dapplelight/signet-ui` | — |  |
+| `@dapplelight/signet-ui/behaviors` | useShortcut, useShortcutLabel, useControllableState, matchScore |  |
 | `@dapplelight/signet-ui/domain/job-runs` | JobRun |  |
 | `@dapplelight/signet-ui/domain/trend-chip` | — |  |
 | `@dapplelight/signet-ui/domain/upload` | xhrUpload, UploadTarget, UploadTransport |  |

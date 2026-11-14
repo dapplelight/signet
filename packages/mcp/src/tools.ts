@@ -249,6 +249,64 @@ export function signetTools(options: ToolOptions = {}): McpTool[] {
     }),
 
     defineTool({
+      name: "compose_component",
+      description:
+        'Plan a UI piece from Signet behaviours and parts. Give the need in words ("command palette", "collapsible navigation", "progress through steps"); returns the closest signet-ui components with their behaviour recipe, parts, token classes and an example, plus the signet-ui/behaviors hooks and the guide for building something new from them.',
+      annotations: { title: "Compose a component", ...READ },
+      input: z.object({
+        need: z.string().min(2).describe("What the UI must do, e.g. 'a searchable command menu'"),
+        limit: z.number().int().min(1).max(10).default(3),
+      }),
+      handler: ({ need, limit }) => {
+        const words = need.toLowerCase().match(/[a-z]{3,}/g) ?? []
+        const stem = (w: string) => w.replace(/(?:ing|es|s)$/, "")
+        const scored = INDEX.components
+          .filter((c) => !c.domain)
+          .map((c) => {
+            const name = c.name.replace(/-/g, " ")
+            const recipe = c.recipe.join(" ").replace(/-/g, " ")
+            const text = `${c.summary} ${c.exports.join(" ")}`.toLowerCase()
+            const score = words.reduce((n, w) => {
+              const s = stem(w)
+              return (
+                n +
+                (name.includes(s) ? 5 : 0) +
+                (recipe.includes(s) ? 3 : 0) +
+                (text.includes(s) ? 1 : 0)
+              )
+            }, 0)
+            return { c, score }
+          })
+          .filter((x) => x.score > 0)
+          .sort((a, b) => b.score - a.score || a.c.name.localeCompare(b.c.name))
+          .slice(0, limit)
+        const behaviors = INDEX.exports.find((e) => e.path === "@dapplelight/signet-ui/behaviors")
+        const ui = doc("ui")
+        return {
+          matches: scored.map(({ c, score }) => ({
+            name: c.name,
+            importPath: c.importPath,
+            score,
+            recipe: c.recipe,
+            summary: c.summary,
+            parts: c.exports,
+            tokens: c.tokens,
+            example: c.example,
+          })),
+          behaviors: (behaviors?.symbols ?? []).map((s) => ({
+            name: s.name,
+            signature: s.signature,
+            doc: s.doc,
+          })),
+          guide: ui ? section(ui, "Build a new component") : null,
+          next: scored.length
+            ? "Use the top match as is, or compose its recipe from signet-ui/behaviors and the listed token classes. get_component gives full props."
+            : "No component matches. Build one from signet-ui/behaviors and theme tokens, following the guide.",
+        }
+      },
+    }),
+
+    defineTool({
       name: "list_themes",
       description: "List the shipped themes and how to import one.",
       annotations: { title: "List themes", ...READ },
@@ -494,4 +552,4 @@ export function signetPrompts(): McpPrompt[] {
 
 export const INSTRUCTIONS = `Signet is a TypeScript kit for web apps and their APIs: token-driven React components, CSS-variable themes, a Hono/Workers server kit, a client lib and structured AI calls. These tools answer from the Signet repo itself, indexed when this server was built.
 
-Start with search_docs when unsure. Before writing an import, confirm it with get_export. New app: scaffold_app (or scaffold_files without a shell). A feature: recipe. UI: list_components, get_component. Themes: list_themes, get_theme, check_theme. Before finishing: check_app. Upgrading: migration. Docs are resources at signet://docs/<name> and through read_doc.`
+Start with search_docs when unsure. Before writing an import, confirm it with get_export. New app: scaffold_app (or scaffold_files without a shell). A feature: recipe. UI: list_components, get_component, compose_component for a need described in words. Themes: list_themes, get_theme, check_theme. Before finishing: check_app. Upgrading: migration. Docs are resources at signet://docs/<name> and through read_doc.`
