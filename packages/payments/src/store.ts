@@ -80,6 +80,8 @@ export type PaymentQuery = {
   gateway?: string
   userId?: string
   status?: PaymentStatus
+  /** Payments linked to one order, subscription or store purchase (`PaymentRecord.orderId`). */
+  orderId?: string
   limit: number
   offset?: number
 }
@@ -196,7 +198,8 @@ export function memoryStore(): PaymentsStore {
           (p) =>
             (!q.gateway || p.gateway === q.gateway) &&
             (!q.userId || p.userId === q.userId) &&
-            (!q.status || p.status === q.status),
+            (!q.status || p.status === q.status) &&
+            (!q.orderId || p.orderId === q.orderId),
         )
         .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
         .slice(q.offset ?? 0, (q.offset ?? 0) + q.limit)
@@ -449,6 +452,7 @@ export function sqlStore(client: SqlClient, options: { dialect: Dialect }): Paym
         ["gateway = ?", f.gateway],
         ["user_id = ?", f.userId],
         ["status = ?", f.status],
+        ["order_id = ?", f.orderId],
       ])
       return (
         await q(`SELECT * FROM pay_payments${w.sql} ORDER BY created_at DESC LIMIT ? OFFSET ?`, [
