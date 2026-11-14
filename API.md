@@ -140,9 +140,13 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/middleware/request-id` | requestId, RequestIdOptions |  |
 | `@dapplelight/signet-server/middleware/secure-headers` | STRICT_CSP, DOCS_CSP, secureHeaders, SecureHeadersOptions | Security headers |
 | `@dapplelight/signet-server/notify` | createEmailer, EmailConfig, EmailMessage, b64urlDecode, b64urlEncode, encryptAes128gcm, … | re-exports email, push, telegram |
+| `@dapplelight/signet-server/notify/channels` | resendSender, postmarkSender, assertDlt, twilioSms, msg91Sms, smsSenderFor, … | Senders for `createNotifier`, one per provider |
 | `@dapplelight/signet-server/notify/email` | createEmailer, EmailConfig, EmailMessage | Transactional email via Resend |
+| `@dapplelight/signet-server/notify/notifier` | CHANNELS, NotifyError, defineTemplates, DEFAULT_EMAIL_THEME, escapeHtml, htmlToText, … | Notifications: one `notify(userId, "event.key", data)` call fans out to email, SMS, WhatsApp, push, Telegram and an in-app inbox, after templates, pre |
 | `@dapplelight/signet-server/notify/push` | b64urlDecode, b64urlEncode, encryptAes128gcm, vapidJwt, webCryptoPushSender, isGone, … | Web push fan-out with dead-subscription pruning |
 | `@dapplelight/signet-server/notify/telegram` | escapeMarkdown, createTelegram, TelegramConfig | Telegram messages |
+| `@dapplelight/signet-server/notify/tools` | notifyTools, NotifyToolsOptions | MCP tools for notifications: `list_my_notifications`, `notification_prefs`, `update_prefs` (the signed-in user's own), and `send_notification` (staff  |
+| `@dapplelight/signet-server/notify/webhooks` | verifyResendSignature, parseResendEvent, resendWebhook, verifyTwilioSignature, parseTwilioEvent, twilioWebhook, … | Provider delivery webhooks: verify each with the provider's documented signature scheme, then normalise to `DeliveryEvent`s for `notifier.recordEvents |
 | `@dapplelight/signet-server/oauth-rs` | SUPPORTED_ALGS, createJwksCache, Jwk, SupportedAlg, JwksOptions, JwksCache, … | re-exports jwks, metadata, verify |
 | `@dapplelight/signet-server/oauth-rs/hono` | METADATA_PATH, registerProtectedResourceMetadata, requireToken, requireScopes, RequireTokenOptions | Hono bindings for the resource server |
 | `@dapplelight/signet-server/oauth-rs/jwks` | SUPPORTED_ALGS, createJwksCache, Jwk, SupportedAlg, JwksOptions, JwksCache | JWKS fetching, caching and rotation |

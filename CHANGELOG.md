@@ -5,6 +5,28 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-server: notifications
+
+- New `./notify/notifier`: `createNotifier` with `notify(userId, event, data)`
+  over zod-typed, per-locale, per-channel templates (`defineTemplates`);
+  preferences per user × category × channel with required categories
+  (security, otp, billing); timezone-aware quiet hours (default
+  Asia/Kolkata, urgent bypasses); signed one-click unsubscribe (RFC 8058
+  headers); in-app inbox (cursor list, unread count, mark read, archive);
+  delivery records; suppression; WhatsApp opt-in; per-user per-channel rate
+  limit; idempotent deliveries; `notifyJob` to send through `createJobs`;
+  `exportUser` / `deleteUser`; `kvNotifyStore`; themed `emailLayout` with a
+  plain-text fallback.
+- New `./notify/channels`: fetch-only senders for Resend, Postmark, Twilio SMS,
+  MSG91 SMS, the WhatsApp Cloud API, web push and Telegram; `devSender` (refuses
+  production and staging); DLT refusal for `+91` SMS; `smsSenderFor` gives
+  auth's OTP a real SMS sender.
+- New `./notify/webhooks`: signature-verified handlers for Resend (Svix),
+  Twilio and Meta, normalised into delivery events; hard bounce, complaint and
+  STOP suppress the address; `unsubscribeRoute`.
+- New `./notify/tools`: `list_my_notifications`, `notification_prefs`,
+  `update_prefs`, and staff-only `send_notification` behind `requireApproval`.
+
 ### signet-ui (unreleased)
 
 - New components on UI SDK behaviours, styled with theme tokens: `toast`
