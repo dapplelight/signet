@@ -48,6 +48,33 @@ binding = "ANALYTICS"
 dataset = "app_events"
 ```
 
+### Off Cloudflare: any `AnalyticsSink`
+
+`registerIngest`'s `engine` takes any `AnalyticsSink` from
+`@dapplelight/signet-server/analytics/sinks`. `createAnalyticsEngine` is one;
+the others run anywhere fetch does:
+
+| Sink | Use |
+|---|---|
+| `httpSink({ url, headers?, defer?, maxBatch? })` | batches events and POSTs `{ events }` as JSON to your collector, flushed after the response through a `Defer` |
+| `memorySink()` | tests: every event lands in `.events` |
+| `consoleSink()` | local dev: logs each event |
+
+```ts
+// Node/Bun: flushes in the background (processDefer is the default)
+registerIngest(app, "/api/events", { engine: httpSink({ url: env.COLLECTOR_URL }) })
+// Workers: make it per request and hand it waitUntil
+app.post("/api/track", (c) => {
+  const sink = httpSink({ url: c.env.COLLECTOR_URL, defer: waitUntilDefer(c.executionCtx) })
+  sink.write([{ name: "signup" }])
+  return c.body(null, 204)
+})
+```
+
+A failed POST is reported to `onEvent` as `analytics.flush_failed` and the
+batch is dropped, not retried: analytics never fails a request. Call
+`await sink.flush()` before a process exits.
+
 ## Tier 3 — app-a and app-e
 
 **Nothing.** Financial data, and you are the primary user. Sentry covers errors,

@@ -139,6 +139,10 @@
       "types": "./dist/analytics/ingest.d.ts",
       "import": "./dist/analytics/ingest.js"
     },
+    "./analytics/sinks": {
+      "types": "./dist/analytics/sinks.d.ts",
+      "import": "./dist/analytics/sinks.js"
+    },
     "./oauth-rs": {
       "types": "./dist/oauth-rs/index.d.ts",
       "import": "./dist/oauth-rs/index.js"
