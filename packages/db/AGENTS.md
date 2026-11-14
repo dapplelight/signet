@@ -35,3 +35,18 @@ Tools come from `agentTools(db, { tables, userId, allowWrites, maxRows })`.
 - Every write is recorded in the audit log as `{ type: "agent", id }`.
 - A `BAD_INPUT` error lists the fields to fix; `NOT_FOUND` means the row is
   not this user's or does not exist; search before retrying.
+
+## Plans, entitlements and flags
+
+- Check access with `ent.can(subject, feature)` and `ent.limit(subject,
+  key)`; never compare plan names in app code, since overrides and lapsed
+  subscriptions change the answer.
+- Metered actions call `ent.consume(subject, key, n)` before doing the work
+  and stop when `ok` is false.
+- Feed every signet-payments event to `ent.applyBillingEvent(event)`; it
+  ignores non-subscription, duplicate and out-of-order events.
+- Tools from `entitlementTools(...)`: `get_plan`, `check_entitlement`,
+  `usage`, `list_flags` read. `grant_feature`, `set_plan` and `set_flag`
+  exist only with `allowWrites`, always ask a person to approve, and return
+  `APPROVAL_REQUIRED` with nothing changed when the client cannot ask. Show
+  the person the summary; do not retry to get around it.

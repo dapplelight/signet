@@ -51,6 +51,22 @@
       "types": "./dist/auth/hono.d.ts",
       "import": "./dist/auth/hono.js"
     },
+    "./auth/sessions": {
+      "types": "./dist/auth/sessions.d.ts",
+      "import": "./dist/auth/sessions.js"
+    },
+    "./auth/otp": {
+      "types": "./dist/auth/otp.d.ts",
+      "import": "./dist/auth/otp.js"
+    },
+    "./auth/api-keys": {
+      "types": "./dist/auth/api-keys.d.ts",
+      "import": "./dist/auth/api-keys.js"
+    },
+    "./auth/mcp": {
+      "types": "./dist/auth/mcp.d.ts",
+      "import": "./dist/auth/mcp.js"
+    },
     "./http": {
       "types": "./dist/http/index.d.ts",
       "import": "./dist/http/index.js"
@@ -139,6 +155,10 @@
       "types": "./dist/analytics/ingest.d.ts",
       "import": "./dist/analytics/ingest.js"
     },
+    "./analytics/sinks": {
+      "types": "./dist/analytics/sinks.d.ts",
+      "import": "./dist/analytics/sinks.js"
+    },
     "./oauth-rs": {
       "types": "./dist/oauth-rs/index.d.ts",
       "import": "./dist/oauth-rs/index.js"
@@ -191,6 +211,10 @@
       "types": "./dist/adapters/supabase.d.ts",
       "import": "./dist/adapters/supabase.js"
     },
+    "./adapters/vercel": {
+      "types": "./dist/adapters/vercel.d.ts",
+      "import": "./dist/adapters/vercel.js"
+    },
     "./adapters/s3": {
       "types": "./dist/adapters/s3.d.ts",
       "import": "./dist/adapters/s3.js"
@@ -206,7 +230,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "bun run test/smoke.ts && bun run test/env-middleware.ts && bun run test/auth-http.ts && bun run test/notify.ts && bun run test/web-push.ts && bun run test/analytics.ts && bun run test/oauth-rs.ts && bun run test/rate-limit.ts && bun run test/doctor.ts && bun run test/mcp.ts && bun run test/mcp-primitives.ts && bun run test/mcp-interaction.ts && bun run test/mcp-agentic.ts && bun run test/logger.ts && bun run test/adapters.ts && bun run test/jobs.ts && bun run test/jobs-workflows.ts && bun run test/storage.ts && bun run test/storage-extras.ts",
+    "test": "bun run test/smoke.ts && bun run test/env-middleware.ts && bun run test/auth-http.ts && bun run test/auth-sessions.ts && bun run test/notify.ts && bun run test/web-push.ts && bun run test/analytics.ts && bun run test/oauth-rs.ts && bun run test/rate-limit.ts && bun run test/doctor.ts && bun run test/mcp.ts && bun run test/mcp-primitives.ts && bun run test/mcp-interaction.ts && bun run test/mcp-agentic.ts && bun run test/logger.ts && bun run test/adapters.ts && bun run test/jobs.ts && bun run test/jobs-workflows.ts && bun run test/storage.ts && bun run test/storage-extras.ts",
     "build": "tsc -p tsconfig.build.json && chmod +x dist/doctor/cli.js",
     "prepublishOnly": "bun run build"
   },

@@ -2,7 +2,7 @@
   "name": "@dapplelight/signet-payments",
   "version": "0.1.0",
   "license": "MIT",
-  "description": "One payment model over Razorpay, Stripe, Cashfree, PhonePe, PayU, Paddle, Lemon Squeezy, PayPal, Hyperswitch and Dodo Payments, with a webhook inbox, a double-entry ledger and reconciliation.",
+  "description": "One payment model over Razorpay, Stripe, Cashfree, PhonePe, PayU, Paddle, Lemon Squeezy, PayPal, Hyperswitch, Dodo Payments, the App Store and Google Play, with a webhook inbox, a double-entry ledger and reconciliation.",
   "keywords": [
     "signet",
     "payments",
@@ -84,6 +84,16 @@
       "types": "./dist/gateways/dodo.d.ts",
       "import": "./dist/gateways/dodo.js",
       "default": "./dist/gateways/dodo.js"
+    },
+    "./appstore": {
+      "types": "./dist/gateways/appstore.d.ts",
+      "import": "./dist/gateways/appstore.js",
+      "default": "./dist/gateways/appstore.js"
+    },
+    "./googleplay": {
+      "types": "./dist/gateways/googleplay.d.ts",
+      "import": "./dist/gateways/googleplay.js",
+      "default": "./dist/gateways/googleplay.js"
     }
   },
   "scripts": {

@@ -28,7 +28,11 @@ package ships all three rather than forcing them together.
 | `@dapplelight/signet-server/auth/bearer` | none | API tokens, prefixed and stored hashed. |
 | `@dapplelight/signet-server/auth/guards` | none | Config guards that fail loudly. |
 | `@dapplelight/signet-server/auth/better-auth` | none | Opinionated Better Auth options object. |
-| `@dapplelight/signet-server/auth/hono` | `hono` (optional peer) | `requireAuth`, `requireSession`. |
+| `@dapplelight/signet-server/auth/sessions` | none | Stored sessions: devices list, revoke, id rotation. See [Stored sessions](#stored-sessions-devices-and-revocation). |
+| `@dapplelight/signet-server/auth/otp` | none | Phone one-time codes over a pluggable `SmsSender`. |
+| `@dapplelight/signet-server/auth/api-keys` | none | API-key manager: scoped, expiring, stored as hashes. |
+| `@dapplelight/signet-server/auth/mcp` | `@modelcontextprotocol/server`, `zod` (optional peers) | `authTools`: per-user session and API-key tools for agents. |
+| `@dapplelight/signet-server/auth/hono` | `hono` (optional peer) | `requireAuth`, `requireSession`, `requireStoredSession`, `sessionRoutes`, `requireApiKey`. |
 | `@dapplelight/signet-server/mcp` | `@modelcontextprotocol/server` ^2.1, `zod` >=4.2 (optional peers; not `hono`) | `defineTool`, `createMcpServer`; stdio via the SDK's `serveStdio`. See [MCP servers](#mcp-servers). |
 | `@dapplelight/signet-server/jobs` | `zod` (optional peer) | `defineJob`, `createJobs`, retries, schedules, Cloudflare/QStash/Node runtimes. See [Jobs](#jobs). |
 | `@dapplelight/signet-server/storage` | none | `createUploads`: checked presigned or streamed uploads. See [Storage](#storage). |
@@ -83,6 +87,138 @@ would have quietly weakened every other app. Each option says what it costs:
 | `rateLimit` | Better Auth's own limiter on `/api/auth/*` | a second limiter on top of the app's |
 | `baseURL`, `trustedOrigins` | override `BETTER_AUTH_URL` / `WEB_URL` and the env-built origin list | |
 
+## Stored sessions, devices and revocation
+
+A stateless cookie (`./auth/session`) cannot be listed or revoked before it
+expires. Stored sessions are the opt-in answer: the cookie is still an
+HMAC-signed token, but it carries a session id (`sid`) and is only valid while
+that id is in a `SessionStore`. Nothing changes for apps that do not opt in.
+
+```ts
+import { kvSessionStore, startSession, rotateSession } from "@dapplelight/signet-server/auth/sessions"
+import { requireStoredSession, sessionRoutes } from "@dapplelight/signet-server/auth/hono"
+import { readSessionCookie, sessionCookie } from "@dapplelight/signet-server/auth/session"
+import { clientIp } from "@dapplelight/signet-server/middleware/rate-limit"
+
+const sessions = (env: Env) => ({
+  cookieName: "app_session",
+  secret: env.SESSION_SECRET,
+  store: kvSessionStore(cloudflareKv(env.SESSIONS)), // or memoryKv(), upstashKv(...)
+  trust: "cloudflare" as const,
+})
+
+// sign-in: always a new id; the cookie the request came with is revoked (no fixation)
+const { token } = await startSession(sessions(env), {
+  sub: user.id,
+  userAgent: c.req.header("user-agent"),
+  ip: clientIp(c, "cloudflare"),
+  previousToken: readSessionCookie(c.req.header("cookie"), sessions(env)),
+})
+c.header("Set-Cookie", sessionCookie(token, sessions(env)))
+
+// password / passcode change: new id, old one dead
+const rotated = await rotateSession(currentToken, sessions(env))
+
+app.use("/api/*", (c, next) => requireStoredSession(sessions(c.env))(c, next))
+app.route("/api/sessions", sessionRoutes(sessions(env)))
+//   GET / · DELETE /:id · POST /revoke-others
+```
+
+- **Records** hold `device` ("Chrome on macOS", parsed from the user agent
+  without a dependency), `ip` (from `clientIp` under your `trust` setting),
+  `createdAt`, `lastSeenAt` and `expiresAt`. `lastSeenAt` is written at most
+  once per `touchEverySeconds` (default 300), in its own key so a late write
+  can never bring a revoked session back.
+- **Reads per request.** Validation costs one store read. `cachedSessionStore(store, { seconds })`
+  caches it in memory; the cost is that a session revoked through another
+  isolate stays valid here for up to `seconds`. Revokes through the wrapper
+  apply at once. Off unless you wrap the store.
+- **The KV index is best-effort.** Each user's list of ids is
+  read-modify-write, so two sign-ins in the same instant can drop one from the
+  list (and from `revokeAll`). Revoking by id is always exact. Where "sign out
+  everywhere" must be exact, implement `SessionStore` over SQL.
+- **Stateless verify refuses stored tokens.** `verifySession` and
+  `requireSession` reject a token that carries `sid`, so a route wired to the
+  wrong guard fails closed instead of skipping the revocation check.
+- `sessionRoutes` are cookie-authenticated writes: add `csrfMiddleware` when the
+  cookie is `SameSite=None`.
+
+### Signing-key rotation
+
+Both cookie kinds accept `previousSecrets`. A cookie signed with an old key
+still verifies, and `requireSession` / `requireStoredSession` send it back
+signed with the current `secret` (same `exp`), so rotating a key signs nobody
+out. Remove an old key once `ttlSeconds` has passed.
+
+```ts
+{ cookieName: "app_session", secret: env.SESSION_SECRET, previousSecrets: [env.SESSION_SECRET_OLD] }
+```
+
+## Phone one-time codes
+
+```ts
+import { requestPhoneOtp, verifyPhoneOtp, devSmsSender } from "@dapplelight/signet-server/auth/otp"
+import { upstashRateLimitStore } from "@dapplelight/signet-server/adapters/upstash"
+
+const otp = {
+  kv,
+  secret: env.OTP_SECRET,
+  sender: devSmsSender({ appEnv: env.APP_ENV }), // your SMS provider in production
+  rateLimit: upstashRateLimitStore(upstash), // an exact store: this is a security control
+}
+const sent = await requestPhoneOtp(otp, { phone: body.phone, ip: clientIp(c, "cloudflare") })
+const checked = await verifyPhoneOtp(otp, { phone: body.phone, code: body.code, ip: clientIp(c, "cloudflare") })
+if (checked.ok) // sign in checked.phone with startSession
+```
+
+- Codes are stored as an HMAC keyed by `secret` and the phone, with an expiry
+  (default 5 minutes). Verify compares in constant time, is single use and
+  destroys the code after `maxAttempts` (default 5) wrong guesses.
+- Requests are limited per IP (default 10 an hour) and per phone (default 3 per
+  15 minutes). A new request replaces the old code.
+- Verifies are limited per IP with `verifyFailuresPerIp` (default 30 an hour),
+  so one address cannot spread 5 guesses across many numbers. The slot is
+  taken before the code is checked and the decision comes from the store's
+  atomic count, so a parallel burst is held to the limit too; the cost is that
+  successful verifies use a slot as well. Past it, verify answers
+  `TOO_MANY_ATTEMPTS` without checking the code or using up that phone's
+  attempts. Pass `ip` to `verifyPhoneOtp`; without one this limit is skipped,
+  since a shared bucket would let anyone lock every user out.
+- `normalizePhone` gives E.164: Indian numbers in their national forms
+  (`98765 43210`, `098765…`, `91…`), everything else with `+` or `00`.
+- Results carry `INVALID_PHONE`, `RATE_LIMITED`, `INVALID_CODE`, `CODE_EXPIRED`
+  and `TOO_MANY_ATTEMPTS`, all with default copy in `signet-lib/api`.
+- No code is ever logged. `devSmsSender` prints the SMS for local work and
+  throws when `appEnv` is production or staging. A real SMS sender is a
+  `{ send(to, message) }` object.
+- On Workers KV the attempt counter is read-modify-write, so concurrent guesses
+  can pass the cap by a few; keep OTP state in a store with `incr`.
+
+## API keys
+
+```ts
+import { createApiKey, kvApiKeyStore, listApiKeys, revokeApiKey } from "@dapplelight/signet-server/auth/api-keys"
+import { requireApiKey } from "@dapplelight/signet-server/auth/hono"
+
+const keys = kvApiKeyStore(kv)
+const { token, key } = await createApiKey(keys, { sub: user.id, name: "CI", prefix: "app", scopes: ["read"], expiresInSeconds: 90 * 86400 })
+// show `token` once. `key` (id, name, start, scopes, createdAt, lastUsedAt, expiresAt) is safe to list.
+
+app.use("/api/export/*", requireApiKey({ store: keys, prefix: "app", scopes: ["read"] }))
+```
+
+Only the SHA-256 hash is stored (`createApiToken` from `./auth/bearer`). A
+missing, revoked or expired key is 401; a missing scope is 403. `lastUsedAt` is
+written at most once a minute per key, in its own key, and `defer` moves the
+write off the response.
+
+### For agents
+
+`authTools({ sessions, apiKeys })` from `./auth/mcp` gives `list_my_sessions`,
+`revoke_session`, `list_api_keys` and `revoke_api_key`, scoped to the caller's
+token `sub`. Revokes go through `requireApproval`; no tool returns a secret, a
+hash or a code.
+
 ## Carried forward deliberately
 
 Things one product got right that the others lacked:
@@ -113,6 +249,10 @@ app, not here.
 `bun run test` — 39 assertions covering signature tampering, expiry, wrong
 secrets, constant-time compare, passcode salting, token prefixes and the
 production guard.
+
+`node test/node-smoke.mjs`, after `bun run build`, loads the built `dist`
+under plain Node through the package's own exports map and exercises the
+adapters, analytics sinks and jobs. CI runs it on Node 22 and 24.
 
 ## HTTP — error envelope and validation
 
@@ -268,7 +408,7 @@ path handles them without a special case.
 ## Portability adapters
 
 Server pieces default to Cloudflare. These plugs let the same app run on
-Node/Bun (Docker included), Upstash, Supabase and Netlify. Four interfaces in
+Node/Bun (Docker included), Vercel, Upstash, Supabase and Netlify. Four interfaces in
 `@dapplelight/signet-server/adapters`: `KeyValue`, `Queue<T>`, `BlobStore` and
 `Defer`. No adapter adds a dependency (each is fetch or a structural binding
 type) and each takes its config as an argument, never from env at import.
@@ -280,9 +420,10 @@ type) and each takes its config as an argument, never from env at import.
 | `…/adapters` | `waitUntilDefer(ctx)` | Workers `ctx`, Netlify Functions `context`: anything with `waitUntil` |
 | `…/adapters` | `kvRateLimitStore(kv)` | any `KeyValue`; exact with `incr`, approximate without |
 | `…/adapters/node` | `fsBlobStore(dir)` | Node/Bun/Docker (mount a volume); rejects `..` and absolute keys |
-| `…/adapters/cloudflare` | `cloudflareKv(ns)`, `r2BlobStore(bucket)` | Workers KV, R2 |
+| `…/adapters/cloudflare` | `cloudflareKv(ns)`, `r2BlobStore(bucket)`, `cloudflareQueue(binding)` | Workers KV, R2, Queues producer |
 | `…/adapters/upstash` | `upstashKv`, `upstashRateLimitStore`, `qstashQueue` | anywhere fetch runs |
 | `…/adapters/supabase` | `supabaseBlobStore` | Supabase Storage, incl. signed GET and upload URLs and TUS resumable targets |
+| `…/adapters/vercel` | `vercelDefer(waitUntil)` | Vercel Functions: pass `waitUntil` from `@vercel/functions` |
 | `…/adapters/s3` | `s3BlobStore` | S3, R2's S3 API, MinIO: SigV4 presigned GET/PUT and multipart, fetch only |
 
 ```ts
@@ -290,11 +431,25 @@ type) and each takes its config as an argument, never from env at import.
 rateLimit({ store: (c) => upstashRateLimitStore({ url: c.env.UPSTASH_URL, token: c.env.UPSTASH_TOKEN }), trust: { forwardedHops: 1 } })
 ```
 
-A Cloudflare Queues binding already is a `Queue<T>`, so it needs no wrapper.
+A Cloudflare Queues binding can be passed as a `Queue<T>` as is;
+`cloudflareQueue(binding)` adds whole-second delays and a `sendBatch` split
+into Cloudflare's 100-message calls. `cloudflareConsumer` in `./jobs` is the
+receiving end.
 Workers KV has no atomic increment, so `kvRateLimitStore(cloudflareKv(ns))` is
 approximate; use the Durable Object store for an exact count there.
 `@dapplelight/signet-ai`'s `kvCache` and `kvBudgetStore` take any of these
 `KeyValue`s.
+
+**On Vercel**, background work is `vercelDefer(waitUntil)` with `waitUntil`
+from [`@vercel/functions`](https://vercel.com/docs/functions/functions-api-reference/vercel-functions-package#waituntil)
+(Signet takes the function, so it does not depend on the package). Key-value
+and rate limiting are the Upstash adapters: [Vercel KV is now Upstash
+Redis](https://vercel.com/docs/redis) from the Marketplace, so pass the REST URL
+and token the integration adds to `upstashKv` / `upstashRateLimitStore`, and use
+`qstashQueue` for a queue. **No Vercel Blob adapter**: Vercel documents
+[Blob](https://vercel.com/docs/vercel-blob) only through its SDKs, not as an
+HTTP API, so there is nothing stable to call over fetch. Use `s3BlobStore`,
+`supabaseBlobStore`, or `@vercel/blob` directly.
 
 **No Netlify Blobs adapter.** Netlify documents Blobs only through its
 `@netlify/blobs` SDK, not as an HTTP API, so there is nothing stable to call

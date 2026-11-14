@@ -55,6 +55,11 @@ export const ERROR_CODES = [
   "QUOTA_EXCEEDED",
   "PRESIGN_UNSUPPORTED",
   "RESUMABLE_UNSUPPORTED",
+  // auth: phone one-time codes
+  "INVALID_PHONE",
+  "INVALID_CODE",
+  "CODE_EXPIRED",
+  "TOO_MANY_ATTEMPTS",
   // oauth-rs (RFC 6750)
   "invalid_token",
   "insufficient_scope",

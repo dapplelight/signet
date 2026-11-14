@@ -39,9 +39,11 @@ Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit 
 |---|---|---|
 | `@dapplelight/signet-db` | isCiphertext, assertCiphertext, generateKey, createCipher, CipherConfig, Cipher, … | re-exports cipher, db, describe, errors, id, idempotency, money, outbox, query, scoped, seed, user-data |
 | `@dapplelight/signet-db/agent` | agentTools, AgentTool, AgentToolsOptions | Database tools for AI agents, safe by construction: `agentTools(db, { tables, userId })` returns plain tool definitions (list, get, search per table,  |
-| `@dapplelight/signet-db/columns/pg` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog` table. |
-| `@dapplelight/signet-db/columns/sqlite` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog` table. |
+| `@dapplelight/signet-db/columns/pg` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotencyKeys`, `entitlem |
+| `@dapplelight/signet-db/columns/sqlite` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotency |
 | `@dapplelight/signet-db/d1` | createDb | Cloudflare D1 driver: `createDb(env.DB, config)` |
+| `@dapplelight/signet-db/entitlements` | definePlans, defaultStatusOf, defaultPlanIdOf, periodOf, createEntitlements, PlanDef, … | Plans, entitlements and usage limits, on the tables from `entitlementTables()` |
+| `@dapplelight/signet-db/flags` | defineFlags, bucket, evaluateFlag, createFlags, FlagValue, FlagRule, … | Feature flags defined in code, with stored overrides in `flagOverrides()` |
 | `@dapplelight/signet-db/migrations` | checkMigrationSql, formatIssues, MigrationIssueKind, MigrationIssue | Scan SQL migrations for changes that lose data or break running code: dropped tables or columns, renames, and NOT NULL added without a default |
 | `@dapplelight/signet-db/postgres` | createDb | Postgres driver on postgres-js (Supabase, Neon, RDS, a local server): `createDb(databaseUrl, config)`, or pass a `postgres()` client |
 | `@dapplelight/signet-db/sqlite` | createDb | SQLite driver on bun:sqlite (Bun runtime, e.g |
@@ -71,14 +73,16 @@ MCP server that gives AI agents all of Signet: docs, exports, components, themes
 
 ## @dapplelight/signet-payments
 
-One payment model over Razorpay, Stripe, Cashfree, PhonePe, PayU, Paddle, Lemon Squeezy, PayPal, Hyperswitch and Dodo Payments, with a webhook inbox, a double-entry ledger and reconciliation.
+One payment model over Razorpay, Stripe, Cashfree, PhonePe, PayU, Paddle, Lemon Squeezy, PayPal, Hyperswitch, Dodo Payments, the App Store and Google Play, with a webhook inbox, a double-entry ledger and reconciliation.
 
 | Import | Exports | What |
 |---|---|---|
 | `@dapplelight/signet-payments` | PaymentsError, isPaymentsError, PaymentsErrorCode, receivable, toEntries, post, … | re-exports errors, ledger, payments, reconcile, store, types, wallets |
 | `@dapplelight/signet-payments/agent` | paymentTools, ApprovalRequest, PaymentToolsOptions, PaymentTool | Payment tools for AI agents as plain MCP tool objects (`name`, `description`, `inputSchema` as JSON Schema, `annotations`, `run(input, ctx)`), the sha |
+| `@dapplelight/signet-payments/appstore` | APPLE_ROOT_CA_G3_SHA256, toAppStorePayment, appstore, AppStoreConfig, AppStoreGateway | Apple App Store over the App Store Server API and App Store Server Notifications V2 |
 | `@dapplelight/signet-payments/cashfree` | CASHFREE_API_VERSION, CASHFREE_PAYOUT_API_VERSION, cashfree, CashfreeConfig | Cashfree Payments PG over its REST API (x-api-version 2026-01-01, headers x-client-id / x-client-secret) |
 | `@dapplelight/signet-payments/dodo` | dodo, DodoConfig | Dodo Payments (merchant of record) over its REST API: `Authorization: Bearer <key>`, test.dodopayments.com or live.dodopayments.com (the key's mode mu |
+| `@dapplelight/signet-payments/googleplay` | toGooglePlayPayment, toGooglePlaySubscription, googleplay, GooglePlayConfig, GooglePlayGateway | Google Play over the Play Developer API (androidpublisher v3) and Real-time Developer Notifications |
 | `@dapplelight/signet-payments/hyperswitch` | hyperswitch, HyperswitchConfig | Hyperswitch (open-source payments orchestrator) over its REST API, header `api-key` |
 | `@dapplelight/signet-payments/lemonsqueezy` | lemonsqueezy, LemonSqueezyConfig | Lemon Squeezy over its JSON:API (api.lemonsqueezy.com/v1, bearer key; test mode is chosen by the key) |
 | `@dapplelight/signet-payments/paddle` | paddle, PaddleConfig | Paddle Billing (not Paddle Classic) over its REST API: bearer API key, `Paddle-Version: 1`, amounts as strings of minor units |
@@ -95,21 +99,27 @@ Signet backend primitives. Auth first.
 | Import | Exports | What |
 |---|---|---|
 | `@dapplelight/signet-server/adapters` | memoryKv, memoryQueue, processDefer, waitUntilDefer, kvRateLimitStore, assertBlobKey, … | Small plug interfaces so server code runs off Cloudflare too, plus in-memory and Node/Bun versions |
-| `@dapplelight/signet-server/adapters/cloudflare` | cloudflareKv, r2BlobStore, KvNamespaceLike, R2BucketLike | Cloudflare bindings as Signet adapters: Workers KV and R2 |
+| `@dapplelight/signet-server/adapters/cloudflare` | cloudflareKv, r2BlobStore, QUEUE_BATCH_MAX, cloudflareQueue, KvNamespaceLike, R2BucketLike, … | Cloudflare bindings as Signet adapters: Workers KV, R2 and a Queues producer |
 | `@dapplelight/signet-server/adapters/node` | fsBlobStore | Filesystem `BlobStore` for Node, Bun and Docker (mount a volume at `dir`) |
 | `@dapplelight/signet-server/adapters/s3` | s3BlobStore, S3Config, S3BlobStore | S3-compatible storage (AWS S3, Cloudflare R2's S3 API, MinIO) as a `BlobStore` with presigned URLs and multipart uploads, signed with SigV4 over Web C |
 | `@dapplelight/signet-server/adapters/supabase` | supabaseBlobStore, SupabaseStorageConfig, SupabaseBlobStore | Supabase Storage as a `BlobStore`, over its REST API with plain fetch |
 | `@dapplelight/signet-server/adapters/upstash` | upstashKv, upstashRateLimitStore, qstashQueue, UpstashConfig, QstashConfig | Upstash over plain fetch: Redis REST as a `KeyValue` (atomic `incr`), and QStash as a `Queue` |
-| `@dapplelight/signet-server/analytics` | LIMITS, truncateBytes, toDataPoint, createAnalyticsEngine, AnalyticsEngineDataset, TrackedEvent, … | re-exports engine, ingest |
+| `@dapplelight/signet-server/adapters/vercel` | vercelDefer | Vercel as Signet adapters |
+| `@dapplelight/signet-server/analytics` | LIMITS, truncateBytes, toDataPoint, createAnalyticsEngine, AnalyticsEngineDataset, TrackedEvent, … | re-exports engine, ingest, sinks |
 | `@dapplelight/signet-server/analytics/engine` | LIMITS, truncateBytes, toDataPoint, createAnalyticsEngine, AnalyticsEngineDataset, TrackedEvent, … | Cloudflare Workers Analytics Engine writer |
 | `@dapplelight/signet-server/analytics/ingest` | registerIngest, cloudflareEnrichment, IngestOptions | Hono ingest route for browser events |
-| `@dapplelight/signet-server/auth` | readBearer, verifySharedToken, sha256Hex, createApiToken, hashIncomingToken, betterAuthDefaults, … | re-exports bearer, better-auth, guards, passcode, session |
+| `@dapplelight/signet-server/analytics/sinks` | httpSink, memorySink, consoleSink, AnalyticsSink, HttpSinkConfig | Where server-side analytics events go, independent of runtime |
+| `@dapplelight/signet-server/auth` | kvApiKeyStore, createApiKey, listApiKeys, revokeApiKey, verifyApiKey, ApiKeyRecord, … | re-exports api-keys, bearer, better-auth, guards, otp, passcode, session, sessions |
+| `@dapplelight/signet-server/auth/api-keys` | kvApiKeyStore, createApiKey, listApiKeys, revokeApiKey, verifyApiKey, ApiKeyRecord, … | API-key manager: create (secret shown once), list, revoke, with scopes and optional expiry |
 | `@dapplelight/signet-server/auth/bearer` | readBearer, verifySharedToken, sha256Hex, createApiToken, hashIncomingToken | Bearer-token auth for machine callers — CLIs, MCP servers, webhooks, cron |
 | `@dapplelight/signet-server/auth/better-auth` | betterAuthDefaults, socialProviders, BetterAuthEnv, BetterAuthDefaultsOptions | Opinionated defaults for Better Auth |
 | `@dapplelight/signet-server/auth/guards` | isDevAuthEnabled, requireEnv, checkEnv | Configuration guards |
-| `@dapplelight/signet-server/auth/hono` | requireSession, requireSharedToken, requireAuth, DualAuthOptions | Hono middleware |
+| `@dapplelight/signet-server/auth/hono` | requireSession, requireStoredSession, sessionRoutes, requireApiKey, requireSharedToken, requireAuth, … | Hono middleware |
+| `@dapplelight/signet-server/auth/mcp` | authTools, AuthToolsOptions | Per-user MCP tools for sessions and API keys: `list_my_sessions`, `revoke_session`, `list_api_keys`, `revoke_api_key` |
+| `@dapplelight/signet-server/auth/otp` | devSmsSender, normalizePhone, maskPhone, requestPhoneOtp, verifyPhoneOtp, SmsSender, … | Phone one-time codes: request, then verify |
 | `@dapplelight/signet-server/auth/passcode` | hashPasscode, verifyPasscode | Shared-passcode auth |
-| `@dapplelight/signet-server/auth/session` | timingSafeEqual, issueSession, verifySession, sessionCookie, clearCookie, readSessionCookie, … | Stateless HMAC-signed session cookie |
+| `@dapplelight/signet-server/auth/session` | hmacSha256, timingSafeEqual, issueSession, checkSession, verifySession, sessionCookie, … | Stateless HMAC-signed session cookie |
+| `@dapplelight/signet-server/auth/sessions` | kvSessionStore, cachedSessionStore, deviceLabel, startSession, validateSession, rotateSession, … | Stored sessions: a "your devices" list, revoke one, sign out everywhere |
 | `@dapplelight/signet-server/env` | initRuntimeEnv, getRuntimeEnv, resetRuntimeEnv, createEnv, CreateEnvOptions | re-exports runtime, schema |
 | `@dapplelight/signet-server/env/runtime` | initRuntimeEnv, getRuntimeEnv, resetRuntimeEnv | Runtime environment access that works on both Workers and Node/Bun |
 | `@dapplelight/signet-server/env/schema` | createEnv, CreateEnvOptions | Validate environment once, lazily, against a Zod schema |
