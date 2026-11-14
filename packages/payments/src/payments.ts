@@ -198,6 +198,56 @@ export function createPayments(config: PaymentsConfig) {
     )
   }
 
+  /**
+   * Record a purchase made outside checkout (App Store, Google Play) as this
+   * user's: reads it from the gateway (which verifies it) and stores it. Later
+   * renewals and refunds link to it through `orderId` (the original
+   * transaction id or purchase token). A purchase is refused when it, or any
+   * payment of the subscription it belongs to, is already another user's, so
+   * one receipt cannot unlock two accounts. Payments of that subscription that
+   * arrived before the claim (webhooks first) become this user's too.
+   */
+  async function verifyPurchase(input: {
+    gateway: string
+    /** The store's payment id: a transaction id (App Store) or order id (Google Play). */
+    id: string
+    userId: string
+  }): Promise<Payment> {
+    const g = gateway(input.gateway)
+    const p = await g.getPayment(input.id)
+    if (!db) return p
+    const existing = await db.getPayment(g.name, p.gatewayId)
+    // ponytail: reads up to 500 payments of one subscription; page if a subscription outgrows that.
+    const linked = p.orderId
+      ? (await db.listPayments({ gateway: g.name, orderId: p.orderId, limit: 500 })).filter(
+          (r) => r.orderId === p.orderId,
+        )
+      : []
+    if ([existing, ...linked].some((r) => r?.userId && r.userId !== input.userId))
+      throw new PaymentsError("BAD_INPUT", "This purchase already belongs to another user.", {
+        gateway: g.name,
+      })
+    const now = new Date()
+    for (const r of linked)
+      if (!r.userId && r.gatewayId !== p.gatewayId)
+        await db.savePayment({ ...r, userId: input.userId, updatedAt: now })
+    await db.savePayment({
+      ...existing,
+      gateway: g.name,
+      gatewayId: p.gatewayId,
+      status: p.status,
+      amount: p.amount,
+      currency: p.currency,
+      amountRefunded: p.amountRefunded ?? existing?.amountRefunded ?? 0,
+      userId: input.userId,
+      ...(p.orderId ? { orderId: p.orderId } : {}),
+      ...(p.customerId ? { customerId: p.customerId } : {}),
+      createdAt: existing?.createdAt ?? p.createdAt,
+      updatedAt: now,
+    })
+    return p
+  }
+
   // ------------------------------------------------------------ inbox
 
   async function applyRefund(
@@ -207,9 +257,13 @@ export function createPayments(config: PaymentsConfig) {
     amount: number,
     currency: string,
     at: Date,
+    approximate?: boolean,
   ) {
     if (!db) return
-    await post(db, postings.refund({ gateway: g, paymentId, refundId, amount, currency, at }))
+    await post(
+      db,
+      postings.refund({ gateway: g, paymentId, refundId, amount, currency, at, approximate }),
+    )
     const rec = await db.getPayment(g, paymentId)
     if (!rec) return
     const refunded = (await db.entries({ ref: paymentId, account: "refunds" })).reduce(
@@ -248,6 +302,9 @@ export function createPayments(config: PaymentsConfig) {
     if (!rec && e.amount !== undefined && e.currency) {
       const now = new Date()
       rec = {
+        // The event's order (an App Store original transaction id, a Play purchase token)
+        // links this payment to its siblings, so a later claim or retry can find it.
+        ...(e.orderId ? { orderId: e.orderId } : {}),
         ...owner,
         gateway: e.gateway,
         gatewayId: e.paymentId,
@@ -300,7 +357,13 @@ export function createPayments(config: PaymentsConfig) {
         case "payment.failed":
           await moveTo(rec, "failed", e)
           break
+        // App store purchases and renewals arrive only as subscription events that carry the
+        // charge (paymentId + amount); treat those as the capture. Postings are keyed, so a
+        // gateway that also sends payment.captured for the same payment never double-posts.
+        case "subscription.created":
+        case "subscription.charged":
         case "payment.captured": {
+          if (e.type !== "payment.captured" && e.amount === undefined) break
           await moveTo(rec, "captured", e)
           const amount = e.amount ?? rec?.amount
           if (amount && cur) {
@@ -308,6 +371,7 @@ export function createPayments(config: PaymentsConfig) {
               db,
               postings.capture({
                 gateway: e.gateway,
+                approximate: e.approximate,
                 paymentId: e.paymentId,
                 amount,
                 currency: cur,
@@ -319,6 +383,7 @@ export function createPayments(config: PaymentsConfig) {
                 db,
                 postings.fee({
                   gateway: e.gateway,
+                  approximate: e.approximate,
                   paymentId: e.paymentId,
                   amount: e.fee,
                   currency: cur,
@@ -331,7 +396,15 @@ export function createPayments(config: PaymentsConfig) {
         case "refund.processed":
           if (rec && !(await db.getPayment(e.gateway, e.paymentId))) await db.savePayment(rec)
           if (e.refundId && e.amount && cur)
-            await applyRefund(e.gateway, e.paymentId, e.refundId, e.amount, cur, e.occurredAt)
+            await applyRefund(
+              e.gateway,
+              e.paymentId,
+              e.refundId,
+              e.amount,
+              cur,
+              e.occurredAt,
+              e.approximate,
+            )
           break
       }
     }
@@ -436,6 +509,7 @@ export function createPayments(config: PaymentsConfig) {
     checkout,
     capture,
     refund,
+    verifyPurchase,
     receive,
     handleWebhook,
     processInbox,

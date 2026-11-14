@@ -7,6 +7,10 @@
  *   amount_differs  both have it, amounts or fees differ
  *   extra           in the ledger inside the report's time span, not settled
  *
+ * Entries posted as approximate (kind `capture:approximate`, App Store amounts:
+ * Apple's configured price, not settled revenue) are never matched; the App
+ * Store has no settlement report, so it is not reconciled.
+ *
  * `reconcileJob` is the same thing shaped for a scheduler: yesterday (UTC) by
  * default, mismatches handed to `onMismatch`.
  */

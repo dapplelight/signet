@@ -1,8 +1,10 @@
 # @dapplelight/signet-payments
 
 One payment model over Razorpay, Stripe, Cashfree, PhonePe, PayU, Paddle,
-Lemon Squeezy, PayPal, Hyperswitch and Dodo Payments, plus the parts every app rebuilds
-around them: a webhook inbox, a double-entry ledger and reconciliation.
+Lemon Squeezy, PayPal, Hyperswitch and Dodo Payments, and over the App Store
+and Google Play, plus the parts every app rebuilds around them: a webhook
+inbox, a double-entry ledger and reconciliation. One answer to "what has this
+user bought, and are they subscribed", in your own backend.
 
 - **One model.** `Payment`, `Refund`, `Customer`, `PaymentMethod`,
   `Subscription`, `Payout`, `Settlement`, `Event`. Amounts are integer
@@ -20,28 +22,29 @@ around them: a webhook inbox, a double-entry ledger and reconciliation.
 |---|---|
 | `@dapplelight/signet-payments` | Types, `createPayments`, stores, ledger, `reconcile`, errors, `applePayDomainAssociation` |
 | `@dapplelight/signet-payments/razorpay` ... `/dodo` | One adapter per subpath |
+| `@dapplelight/signet-payments/appstore`, `/googleplay` | App store billing: purchases made on the device, verified and tracked on the server |
 | `@dapplelight/signet-payments/agent` | `paymentTools`: MCP tools for agents |
 
 ## Capability matrix
 
-| | razorpay | stripe | cashfree | phonepe | payu | paddle | lemonsqueezy | paypal | hyperswitch | dodo |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| upi | ✓ |  | ✓ | ✓ | ✓ |  |  |  | ✓ |  |
-| card | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| netbanking | ✓ |  | ✓ | ✓ | ✓ |  |  |  | ✓ |  |
-| wallet | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| emi | ✓ |  | ✓ |  |  |  |  |  |  |  |
-| applepay | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| googlepay |  | ✓ |  |  |  | ✓ | ✓ | ✓ | ✓ | ✓ |
-| capture | ✓ | ✓ | ✓ |  | ✓ |  |  | ✓ | ✓ |  |
-| refunds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| partialRefunds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| customers | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |  | ✓ | ✓ |
-| savedMethods | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ | ✓ | ✓ |
-| subscriptions | ✓ | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ | ✓ |
-| payouts | ✓ | ✓ | ✓ |  |  |  |  | ✓ | ✓ |  |
-| settlements | ✓ | ✓ | ✓ |  | ✓ |  |  |  |  |  |
-| webhooks | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| | razorpay | stripe | cashfree | phonepe | payu | paddle | lemonsqueezy | paypal | hyperswitch | dodo | appstore | googleplay |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| upi | ✓ |  | ✓ | ✓ | ✓ |  |  |  | ✓ |  |  |  |
+| card | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  |  |
+| netbanking | ✓ |  | ✓ | ✓ | ✓ |  |  |  | ✓ |  |  |  |
+| wallet | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  |  |
+| emi | ✓ |  | ✓ |  |  |  |  |  |  |  |  |  |
+| applepay | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  |  |
+| googlepay |  | ✓ |  |  |  | ✓ | ✓ | ✓ | ✓ | ✓ |  |  |
+| capture | ✓ | ✓ | ✓ |  | ✓ |  |  | ✓ | ✓ |  |  |  |
+| refunds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  | ✓ |
+| partialRefunds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  |  |
+| customers | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |  | ✓ | ✓ |  |  |
+| savedMethods | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ | ✓ | ✓ |  |  |
+| subscriptions | ✓ | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| payouts | ✓ | ✓ | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |
+| settlements | ✓ | ✓ | ✓ |  | ✓ |  |  |  |  |  |  |  |
+| webhooks | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 Razorpay payouts are RazorpayX and need `accountNumber`. Hyperswitch
 subscriptions need `profileId`, and its methods depend on the connectors
@@ -68,12 +71,95 @@ Dodo give you a file to host; serve it with `applePayDomainAssociation(file)`
 (at `APPLE_PAY_DOMAIN_ASSOCIATION_PATH`). Stripe has no file: register each
 domain with `stripe.raw("POST", "/payment_method_domains", { domain_name })`.
 Paddle verifies in its dashboard. Hosted checkout pages need none of this.
+### App Store and Google Play
+
+Purchases happen on the device (StoreKit, Play Billing), so `createCheckout`
+is UNSUPPORTED for both. The server verifies and tracks them:
+
+```ts
+import { appstore } from "@dapplelight/signet-payments/appstore"
+import { googleplay } from "@dapplelight/signet-payments/googleplay"
+
+const payments = createPayments({
+  gateways: [
+    appstore({ issuerId, keyId, privateKey: p8, bundleId, appAppleId }),
+    googleplay({
+      packageName,
+      serviceAccount: { client_email, private_key }, // from the service account JSON key
+      pubsub: { audience: "https://api.example.com/webhooks/googleplay", serviceAccountEmail: pushSa },
+    }),
+  ],
+  db,
+})
+
+// The app sends the transaction id (App Store) or order id (Google Play) after a purchase.
+await payments.verifyPurchase({ gateway: "appstore", id: transactionId, userId })
+await payments.gateway("appstore").getSubscription(originalTransactionId) // status, currentPeriodEnd, autoRenew
+app.post("/webhooks/:gateway", (c) => payments.handleWebhook(c.req.param("gateway"), c.req.raw))
+```
+
+- `verifyPurchase` reads the purchase from the store and records it as the
+  user's. It is refused when the purchase, or any payment of the subscription
+  it belongs to, is already another user's. Renewals
+  and refunds that arrive later link to it through `orderId` (the original
+  transaction id, or the purchase token).
+- Ids: App Store payments are transaction ids and subscriptions are original
+  transaction ids. Google Play payments are order ids and subscriptions are
+  purchase tokens.
+- Subscription status: `past_due` covers billing retry and account hold;
+  `inGracePeriod: true` means the customer still has access. `cancelled` with a
+  future `currentPeriodEnd` means renewal is off and access runs until then.
+- Events: a purchase or renewal is `subscription.created` / `subscription.charged`
+  carrying the charge (`paymentId`, `amount`), which the inbox records as a
+  capture; refunds are `refund.processed`. App Store amounts are marked
+  `approximate` (see the gap notes).
+- App Store extras: `decodeTransaction(jws)` verifies a StoreKit
+  `jwsRepresentation`; `transactionHistory`, `refundHistory`. Google Play
+  extras: `getProductPurchase(token)`, `acknowledgeProduct`,
+  `acknowledgeSubscription` (unacknowledged purchases are refunded after three
+  days), `consumeProduct`, `listVoided`.
+- Google Play's notifications come through Pub/Sub push with authentication
+  on. Each push's OIDC token is verified, and then the current state is read
+  from the API. The service account needs the Orders API (financial data)
+  permission, because amounts come from `orders.get`.
 
 ### Notes on gaps
 
 A feature is supported only where the official API spec or docs and an official
 SDK (or two official doc pages) agree. What is left out, and why:
 
+- **App Store refunds and cancellation**: customers ask Apple for refunds and
+  cancel in their account settings, so the API has no refund or cancel call
+  for this package to make. Checked:
+  https://developer.apple.com/documentation/appstoreservernotifications/notificationtype.
+- **App Store amounts are approximate.** They are Apple's configured `price`,
+  not settled revenue: tax handling and Apple's commission are not in them,
+  and Apple says App Store Connect reports are the record. App Store payments
+  carry `approximate: true`, and their ledger postings go in as kind
+  `capture:approximate` / `refund:approximate`, so `balance` includes them while
+  anything that reports revenue can split them out. There is no settlement
+  report, so they are never reconciled. Checked:
+  https://developer.apple.com/documentation/appstoreserverapi/jwstransactiondecodedpayload.
+- **App Store signature checks** verify the full x5c chain up to Apple Root
+  CA - G3 (pinned by SHA-256 fingerprint): the leaf and intermediate extension
+  ids, every signature, validity at the payload's `signedDate`, then the ES256
+  signature. Revocation (OCSP) is not checked. Checked:
+  https://developer.apple.com/documentation/appstoreserverapi/jwsdecodedheader,
+  https://www.apple.com/certificateauthority/AppleRootCA-G3.cer.
+- **App Store environments**: every signed payload must match the adapter's
+  environment. A production adapter rejects Sandbox data unless
+  `allowSandbox: true` (a staging server that takes both); a `sandbox: true`
+  adapter rejects Production data. `Event.environment` says which one it was.
+  With `appAppleId` set, production notifications for another app are rejected.
+- **Google Play refunds** are full only (`orders.refund`, which revokes access
+  by default; set `revokeOnRefund: false` to keep access). For a prorated
+  subscription refund, call `raw("POST", "/purchases/subscriptionsv2/tokens/<token>:revoke", { revocationContext: { proratedRefund: {} } })`.
+  Cancelling stops renewal at the period end only: `subscriptionsv2.cancel`
+  has no immediate mode. Checked:
+  https://developers.google.com/android-publisher/api-ref/rest/v3/orders/refund,
+  https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.subscriptionsv2/cancel.
+- **Google Play pending-refund reviews** (`pendingRefundReviewNotification`)
+  arrive as `unknown` events: answering them is `orders.reviewrefund` through `raw`.
 - **Cashfree payouts** need either a whitelisted server IP or `payoutPublicKey`
   (the 2FA public key PEM), which adds `x-cf-signature` to each call.
 - **Cashfree subscriptions** cancel immediately only (`atPeriodEnd` is refused)
@@ -313,13 +399,16 @@ const job = reconcileJob(store, payments.gateway("razorpay"), { onMismatch: aler
 await job() // yesterday, UTC: call from a cron
 ```
 
+App Store amounts are Apple's configured price, not settled revenue: they
+post as `capture:approximate` and are never reconciled (no settlement report).
 Settlement lines come from Razorpay's settlement recon, Stripe's balance
 transactions for the day, and PayU's settlement details.
 
 ## Agent tools
 
 `paymentTools(payments, { userId, approve })` returns plain MCP tools
-(`find_payment`, `list_payments`, `payment_timeline`, `refund_payment`) that
+(`find_payment`, `list_payments`, `payment_timeline`, `find_subscription`,
+`refund_payment`) that
 signet-server's `createMcpServer({ tools })` takes. Refunds always go through
 `approve`; pass signet-server's `requireApproval`. Without it, the tool
 returns `APPROVAL_REQUIRED` and refunds nothing. See `AGENTS.md`.

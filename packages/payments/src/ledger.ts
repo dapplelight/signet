@@ -11,6 +11,10 @@
  *   refunds               money returned (a contra-revenue account)
  *   fees                  gateway fees
  *   bank                  paid out to your bank
+ *
+ * An `approximate` transaction (App Store amounts are Apple's configured price,
+ * not settled revenue) is written with kind `<kind>:approximate`, so the flag
+ * survives in every store without a schema change.
  */
 
 import { PaymentsError } from "./errors.js"
@@ -25,6 +29,8 @@ export type Transaction = {
   gateway?: string
   ref?: string
   at?: Date
+  /** The amount is indicative, not settled: kind becomes `<kind>:approximate`. */
+  approximate?: boolean
 }
 
 export const receivable = (gateway: string) => `receivable:${gateway}`
@@ -55,7 +61,7 @@ export function toEntries(tx: Transaction): LedgerEntry[] {
     account: l.account,
     amount: l.amount,
     currency: l.currency,
-    kind: tx.kind,
+    kind: tx.approximate ? `${tx.kind}:approximate` : tx.kind,
     ...(tx.gateway ? { gateway: tx.gateway } : {}),
     ...(tx.ref ? { ref: tx.ref } : {}),
     at,
@@ -78,7 +84,7 @@ export const transfer = (
   { account: credit, amount: -amount, currency },
 ]
 
-type Ctx = { gateway: string; currency: string; at?: Date }
+type Ctx = { gateway: string; currency: string; at?: Date; approximate?: boolean }
 
 /** The postings `createPayments` makes. Each txId is derived from the object, so replays never double-post. */
 export const postings = {
@@ -88,6 +94,7 @@ export const postings = {
     gateway: c.gateway,
     ref: c.paymentId,
     at: c.at,
+    ...(c.approximate ? { approximate: true } : {}),
     legs: transfer(receivable(c.gateway), "revenue", c.amount, c.currency),
   }),
   fee: (c: Ctx & { paymentId: string; amount: number }): Transaction => ({
@@ -96,6 +103,7 @@ export const postings = {
     gateway: c.gateway,
     ref: c.paymentId,
     at: c.at,
+    ...(c.approximate ? { approximate: true } : {}),
     legs: transfer("fees", receivable(c.gateway), c.amount, c.currency),
   }),
   refund: (c: Ctx & { paymentId: string; refundId: string; amount: number }): Transaction => ({
@@ -104,6 +112,7 @@ export const postings = {
     gateway: c.gateway,
     ref: c.paymentId,
     at: c.at,
+    ...(c.approximate ? { approximate: true } : {}),
     legs: transfer("refunds", receivable(c.gateway), c.amount, c.currency),
   }),
   payout: (c: Ctx & { payoutId: string; amount: number }): Transaction => ({
@@ -112,6 +121,7 @@ export const postings = {
     gateway: c.gateway,
     ref: c.payoutId,
     at: c.at,
+    ...(c.approximate ? { approximate: true } : {}),
     legs: transfer("bank", receivable(c.gateway), c.amount, c.currency),
   }),
   payoutReversal: (c: Ctx & { payoutId: string; amount: number }): Transaction => ({
@@ -120,6 +130,7 @@ export const postings = {
     gateway: c.gateway,
     ref: c.payoutId,
     at: c.at,
+    ...(c.approximate ? { approximate: true } : {}),
     legs: transfer(receivable(c.gateway), "bank", c.amount, c.currency),
   }),
 }

@@ -122,6 +122,22 @@ a package at the version it had when the repository was opened to the public.
   gateway documents them; Cashfree, Hyperswitch and Dodo limit the checkout to
   the wallet when it is passed as `method`. New `applePayDomainAssociation`
   serves the domain-association file Razorpay, PayPal and Dodo give you.
+- App store billing: `./appstore` (App Store Server API and App Store Server
+  Notifications V2, ES256 JWT auth, every JWS verified up to Apple Root CA -
+  G3) and `./googleplay` (Play Developer API through a service account,
+  Real-time Developer Notifications over authenticated Pub/Sub push, state read
+  back from subscriptionsv2 and orders). Fetch and Web Crypto only.
+  `createPayments().verifyPurchase` records a store purchase as a user's, and
+  later renewals link to it. `Subscription` gains `productId`, `autoRenew`,
+  `inGracePeriod` and `environment`; `Payment` and `Event` gain `productId` and
+  `environment`. The inbox treats `subscription.created` / `subscription.charged`
+  events that carry an amount as the capture. New agent tool:
+  `find_subscription`. `refund_payment` rejects UNSUPPORTED up front for
+  gateways that cannot refund.
+- App Store amounts (Apple's configured price, not settled revenue) are
+  flagged: `Payment.approximate` and `Event.approximate`, and their ledger
+  postings use kind `capture:approximate` / `refund:approximate`
+  (`Transaction.approximate` in the ledger API; no schema change).
 - `capabilities` per adapter; an unsupported call rejects with `UNSUPPORTED`
   before any network call. Features the gateways' docs did not pin down are
   unsupported rather than guessed (see the README matrix).

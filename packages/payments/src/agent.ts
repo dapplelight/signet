@@ -6,7 +6,10 @@
  *   find_payment      one payment by gateway + id
  *   list_payments     newest first, scoped to `userId`, at most `maxRows`
  *   payment_timeline  every stored event for a payment, including who asked for refunds
- *   refund_payment    ALWAYS gated on approval
+ *   find_subscription a subscription linked to one of the user's payments (App Store
+ *                     original transaction id, Google Play purchase token), read live
+ *   refund_payment    ALWAYS gated on approval; UNSUPPORTED up front where the gateway
+ *                     cannot refund from the server (the App Store)
  *
  * `refund_payment` calls `approve(ctx, { summary, details, args })` and refunds
  * only when it returns undefined. Pass signet-server's `requireApproval`; with
@@ -184,6 +187,37 @@ export function paymentTools(payments: Payments, options: PaymentToolsOptions): 
       },
     },
     {
+      name: "find_subscription",
+      description:
+        "Get a subscription the user owns, live from the gateway: status, product, period end, whether it renews. id is the subscription id linked to one of the user's payments (App Store: original transaction id; Google Play: purchase token).",
+      annotations: { readOnlyHint: true, destructiveHint: false },
+      inputSchema: obj(
+        {
+          gateway: ref.gateway,
+          id: { type: "string", description: "The gateway's subscription id" },
+        },
+        ["gateway", "id"],
+      ),
+      run: async (input) => {
+        const gateway = str(input, "gateway")
+        const id = str(input, "id")
+        const linked = await store.findLinked(gateway, { orderId: id })
+        if (!linked || (!allUsers && linked.userId !== userId))
+          throw new PaymentsError("NOT_FOUND", "No such subscription for this user.")
+        const s = await payments.gateway(gateway).getSubscription(id)
+        return {
+          gateway: s.gateway,
+          id: s.gatewayId,
+          status: s.status,
+          ...(s.productId ? { productId: s.productId } : {}),
+          ...(s.currentPeriodEnd ? { currentPeriodEnd: s.currentPeriodEnd.toISOString() } : {}),
+          ...(s.autoRenew !== undefined ? { autoRenew: s.autoRenew } : {}),
+          ...(s.inGracePeriod ? { inGracePeriod: true } : {}),
+          ...(s.environment ? { environment: s.environment } : {}),
+        }
+      },
+    },
+    {
       name: "refund_payment",
       description:
         "Refund a payment, fully or partly. Always asks the person to approve first; nothing is refunded without approval. amount is minor units (paise, cents); omit for a full refund.",
@@ -204,6 +238,13 @@ export function paymentTools(payments: Payments, options: PaymentToolsOptions): 
       ),
       run: async (input, ctx) => {
         const p = await mine(input)
+        // Ask no one to approve what cannot happen: App Store refunds are the customer's to request.
+        if (!payments.gateway(p.gateway).supports("refunds"))
+          throw new PaymentsError(
+            "UNSUPPORTED",
+            `${p.gateway} payments cannot be refunded from the server.`,
+            { gateway: p.gateway },
+          )
         const reason = str(input, "reason")
         const key = str(input, "idempotencyKey")
         const amount = input.amount === undefined ? undefined : Number(input.amount)
