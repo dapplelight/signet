@@ -250,6 +250,10 @@ app, not here.
 secrets, constant-time compare, passcode salting, token prefixes and the
 production guard.
 
+`node test/node-smoke.mjs`, after `bun run build`, loads the built `dist`
+under plain Node through the package's own exports map and exercises the
+adapters, analytics sinks and jobs. CI runs it on Node 22 and 24.
+
 ## HTTP — error envelope and validation
 
 `@dapplelight/signet-server/http` is the server half of the contract in `@dapplelight/signet-lib/api`.
@@ -404,7 +408,7 @@ path handles them without a special case.
 ## Portability adapters
 
 Server pieces default to Cloudflare. These plugs let the same app run on
-Node/Bun (Docker included), Upstash, Supabase and Netlify. Four interfaces in
+Node/Bun (Docker included), Vercel, Upstash, Supabase and Netlify. Four interfaces in
 `@dapplelight/signet-server/adapters`: `KeyValue`, `Queue<T>`, `BlobStore` and
 `Defer`. No adapter adds a dependency (each is fetch or a structural binding
 type) and each takes its config as an argument, never from env at import.
@@ -416,9 +420,10 @@ type) and each takes its config as an argument, never from env at import.
 | `…/adapters` | `waitUntilDefer(ctx)` | Workers `ctx`, Netlify Functions `context`: anything with `waitUntil` |
 | `…/adapters` | `kvRateLimitStore(kv)` | any `KeyValue`; exact with `incr`, approximate without |
 | `…/adapters/node` | `fsBlobStore(dir)` | Node/Bun/Docker (mount a volume); rejects `..` and absolute keys |
-| `…/adapters/cloudflare` | `cloudflareKv(ns)`, `r2BlobStore(bucket)` | Workers KV, R2 |
+| `…/adapters/cloudflare` | `cloudflareKv(ns)`, `r2BlobStore(bucket)`, `cloudflareQueue(binding)` | Workers KV, R2, Queues producer |
 | `…/adapters/upstash` | `upstashKv`, `upstashRateLimitStore`, `qstashQueue` | anywhere fetch runs |
 | `…/adapters/supabase` | `supabaseBlobStore` | Supabase Storage, incl. signed GET and upload URLs and TUS resumable targets |
+| `…/adapters/vercel` | `vercelDefer(waitUntil)` | Vercel Functions: pass `waitUntil` from `@vercel/functions` |
 | `…/adapters/s3` | `s3BlobStore` | S3, R2's S3 API, MinIO: SigV4 presigned GET/PUT and multipart, fetch only |
 
 ```ts
@@ -426,11 +431,25 @@ type) and each takes its config as an argument, never from env at import.
 rateLimit({ store: (c) => upstashRateLimitStore({ url: c.env.UPSTASH_URL, token: c.env.UPSTASH_TOKEN }), trust: { forwardedHops: 1 } })
 ```
 
-A Cloudflare Queues binding already is a `Queue<T>`, so it needs no wrapper.
+A Cloudflare Queues binding can be passed as a `Queue<T>` as is;
+`cloudflareQueue(binding)` adds whole-second delays and a `sendBatch` split
+into Cloudflare's 100-message calls. `cloudflareConsumer` in `./jobs` is the
+receiving end.
 Workers KV has no atomic increment, so `kvRateLimitStore(cloudflareKv(ns))` is
 approximate; use the Durable Object store for an exact count there.
 `@dapplelight/signet-ai`'s `kvCache` and `kvBudgetStore` take any of these
 `KeyValue`s.
+
+**On Vercel**, background work is `vercelDefer(waitUntil)` with `waitUntil`
+from [`@vercel/functions`](https://vercel.com/docs/functions/functions-api-reference/vercel-functions-package#waituntil)
+(Signet takes the function, so it does not depend on the package). Key-value
+and rate limiting are the Upstash adapters: [Vercel KV is now Upstash
+Redis](https://vercel.com/docs/redis) from the Marketplace, so pass the REST URL
+and token the integration adds to `upstashKv` / `upstashRateLimitStore`, and use
+`qstashQueue` for a queue. **No Vercel Blob adapter**: Vercel documents
+[Blob](https://vercel.com/docs/vercel-blob) only through its SDKs, not as an
+HTTP API, so there is nothing stable to call over fetch. Use `s3BlobStore`,
+`supabaseBlobStore`, or `@vercel/blob` directly.
 
 **No Netlify Blobs adapter.** Netlify documents Blobs only through its
 `@netlify/blobs` SDK, not as an HTTP API, so there is nothing stable to call

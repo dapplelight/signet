@@ -7,6 +7,7 @@ import {
   truncateBytes,
 } from "../src/analytics/engine"
 import { registerIngest } from "../src/analytics/ingest"
+import { type AnalyticsSink, consoleSink, httpSink, memorySink } from "../src/analytics/sinks"
 
 let pass = 0,
   fail = 0
@@ -134,6 +135,105 @@ ok(
   "client cannot spoof enriched fields",
   written[0].blobs?.includes("IN") === true && !written[0].blobs?.includes("XX"),
 )
+
+// --- sinks ---
+{
+  // The Analytics Engine writer is one sink among several.
+  const engineSink: AnalyticsSink = createAnalyticsEngine({ dataset })
+  ok("createAnalyticsEngine satisfies AnalyticsSink", typeof engineSink.write === "function")
+
+  const mem = memorySink()
+  const memApp = new Hono()
+  registerIngest(memApp as never, "/events", { engine: mem })
+  const r = await memApp.request("/events", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ events: [{ name: "a" }, { name: "b" }] }),
+  })
+  const rb = (await r.json()) as { written?: number }
+  ok(
+    "registerIngest takes any sink",
+    r.status === 202 && rb.written === 2 && mem.events.length === 2,
+  )
+
+  const logged: string[] = []
+  ok(
+    "consoleSink logs each event and counts them",
+    consoleSink((e) => logged.push(e.name)).write([{ name: "x" }, { name: "y" }]) === 2 &&
+      logged.join() === "x,y",
+  )
+
+  // httpSink against a fake fetch
+  const posts: { url: string; headers: Record<string, string>; body: { events: unknown[] } }[] = []
+  let status = 200
+  const realFetch = globalThis.fetch
+  globalThis.fetch = (async (url: string, init: RequestInit = {}) => {
+    if (status === 0) throw new Error("network down")
+    posts.push({
+      url: String(url),
+      headers: Object.fromEntries(new Headers(init.headers).entries()),
+      body: JSON.parse(String(init.body)),
+    })
+    return new Response(null, { status })
+  }) as typeof fetch
+  try {
+    const deferred: Promise<unknown>[] = []
+    const failures: Record<string, unknown>[] = []
+    const sink = httpSink({
+      url: "https://collector.example/e",
+      headers: { authorization: "Bearer t" },
+      defer: (p) => deferred.push(p),
+      maxBatch: 2,
+      onEvent: (_e, d) => failures.push(d),
+    })
+    ok(
+      "httpSink write returns the count accepted",
+      sink.write([{ name: "1" }, { name: "2" }]) === 2,
+    )
+    sink.write([{ name: "3" }])
+    ok("httpSink coalesces writes in one tick into one deferred flush", deferred.length === 1)
+    ok("httpSink sends nothing before the flush runs", posts.length === 0)
+    await Promise.all(deferred)
+    ok(
+      "httpSink POSTs batches of maxBatch as JSON { events }",
+      posts.length === 2 &&
+        posts[0]?.body.events.length === 2 &&
+        posts[1]?.body.events.length === 1,
+      JSON.stringify(posts.map((p) => p.body.events.length)),
+    )
+    ok(
+      "httpSink sends to the url with content type and extra headers",
+      posts[0]?.url === "https://collector.example/e" &&
+        posts[0]?.headers["content-type"] === "application/json" &&
+        posts[0]?.headers.authorization === "Bearer t",
+    )
+    ok("httpSink empty write schedules nothing", sink.write([]) === 0 && deferred.length === 1)
+
+    posts.length = 0
+    status = 500
+    sink.write([{ name: "lost" }])
+    await Promise.all(deferred)
+    ok(
+      "httpSink reports a failed POST and does not throw",
+      failures.length === 1 && failures[0]?.status === 500 && failures[0]?.count === 1,
+    )
+    status = 0
+    sink.write([{ name: "lost" }])
+    await Promise.all(deferred)
+    ok("httpSink reports a network error", failures.length === 2 && "err" in (failures[1] ?? {}))
+
+    status = 200
+    posts.length = 0
+    const manual = httpSink({ url: "https://collector.example/e", defer: () => {} })
+    manual.write([{ name: "m" }])
+    await manual.flush()
+    ok("httpSink flush() sends the buffer now", posts.length === 1)
+    await manual.flush()
+    ok("httpSink flush() with nothing buffered sends nothing", posts.length === 1)
+  } finally {
+    globalThis.fetch = realFetch
+  }
+}
 
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail) process.exit(1)

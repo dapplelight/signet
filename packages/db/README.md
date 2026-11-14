@@ -17,6 +17,8 @@ The core never imports a driver. Thin entry points connect it to one:
 | `@dapplelight/signet-db/migrations` | `checkMigrationSql`; the `signet-db-check` CLI |
 | `@dapplelight/signet-db/zod` | `toZod(table, { mode })` (zod is an optional peer) |
 | `@dapplelight/signet-db/agent` | `agentTools(db, { tables, userId })`, tools for AI agents (needs zod) |
+| `@dapplelight/signet-db/entitlements` | `definePlans`, `createEntitlements`, billing events, usage limits, `entitlementTools` |
+| `@dapplelight/signet-db/flags` | `defineFlags`, `evaluateFlag`, `createFlags` |
 
 Peers: `drizzle-orm` ^0.45, `@dapplelight/signet-lib` ^0.3, `postgres` only
 for `./postgres` and `zod` only for `./zod`. Types flow from your table definitions: rows, inserts
@@ -316,6 +318,134 @@ await openOrders(userId).run(db)
 Plain `{ key, run(db) }` objects with inferred result and key types, usable
 from handlers, jobs and tests; the key names the query for caching, logs or
 devtools.
+
+## Plans and entitlements
+
+```ts
+import { entitlementTables } from "@dapplelight/signet-db/columns/sqlite" // or /columns/pg
+import { createEntitlements, definePlans } from "@dapplelight/signet-db/entitlements"
+
+export const { subjectPlans, entitlementOverrides, usageCounters } = entitlementTables()
+
+const plans = definePlans({
+  free: { features: ["export"], limits: { seats: 1, aiCredits: 20 } },
+  pro: { features: ["export", "sso"], limits: { seats: 10, aiCredits: 1000 } },
+  team: { features: ["export", "sso", "audit"], limits: { seats: Infinity, aiCredits: 5000 } },
+})
+
+const ent = createEntitlements(db, {
+  plans,
+  default: "free",
+  tables: { subjectPlans, entitlementOverrides, usageCounters },
+  periods: { seats: "total" },                    // aiCredits: "month" by default
+  billing: { plans: { plan_Nx1: "pro", price_9f: "team" }, graceMs: 3 * 86_400_000 },
+})
+
+await ent.can(orgId, "sso")              // an undeclared feature is a type error, and throws at runtime
+await ent.limit(orgId, "seats")          // a limit a plan leaves out is 0; Infinity is unlimited
+await ent.get(orgId)                     // { plan, storedPlan, status, graceUntil, features, limits, overrides }
+await ent.consume(orgId, "aiCredits", 5) // { ok, used, limit, remaining, period }
+await ent.usage(orgId)                   // this period, every limit
+
+const actor = { type: "user", id: adminId }
+await ent.setPlan(orgId, "pro", { actor })
+await ent.grant(orgId, "audit", { actor, expiresAt: trialEnd }) // also revoke, setLimit (null = unlimited)
+await ent.removeOverride(orgId, overrideId, { actor })
+```
+
+A subject is any id: a user or an org. Its plan is its stored row (written
+by billing events or `setPlan`) while that is `active`, `trialing`, or
+`past_due` within the grace period; otherwise `default`. Overrides apply on
+top, newest unexpired per key. Every write goes through `audited`, so the db
+needs an audit table; usage counters are not audited.
+
+`consume` adds to the counter only if the result stays within the limit, in
+one `UPDATE … WHERE used + n <= limit`, so concurrent requests cannot
+overspend. Periods are UTC calendar months (`"2026-11"`), days, or `"total"`.
+
+### Billing events
+
+```ts
+const payments = createPayments({
+  gateways,
+  db: store,
+  onEvent: (event) => ent.applyBillingEvent(event),
+})
+// At checkout, link the subscription to the subject on its first event:
+await ent.applyBillingEvent(event, { subject: orgId }) // or billing.subjectOf(event), e.g. from notes
+```
+
+Applies `subscription.created`, `activated`, `charged`, `updated`, `paused`,
+`resumed`, `past_due`, `cancelled` and `expired` to the subject's row, found
+by `opts.subject`, `billing.subjectOf(event)` or the stored subscription id.
+The gateway plan id is read by `billing.planIdOf` (default: Razorpay's
+`payload.subscription.entity.plan_id`, Stripe's item price or plan id) and
+mapped through `billing.plans`. For `created` and `updated`, whose type does
+not say whether the subscription is live, the status comes from the payload
+via `billing.statusOf` (default: Stripe's `data.object.status`, Paddle's
+`data.status`, Razorpay's entity status), falling back to the stored one.
+An event for a subscription other than the subject's current one (the old
+one after a cancel-and-recreate upgrade) is ignored with
+`reason: "other_subscription"` unless it makes that subscription live. Each
+event applies once (`withIdempotency`,
+so the db needs an idempotency table), and an event older than the stored
+state returns `{ applied: false, reason: "stale" }`: a late `cancelled` cannot
+undo a newer upgrade. `no_subject` and `unknown_plan` are not stored as done,
+so a retry after linking the subject or fixing the map applies.
+
+## Feature flags
+
+```ts
+import { flagOverrides } from "@dapplelight/signet-db/columns/sqlite"
+import { createFlags, defineFlags } from "@dapplelight/signet-db/flags"
+
+const flags = defineFlags({
+  newEditor: {
+    default: false,
+    rules: [
+      { when: { plan: ["team"] }, value: true },
+      { when: { attributes: { country: ["IN", "LK"] } }, value: true },
+    ],
+    rollout: { percent: 10, value: true },
+  },
+})
+const ff = createFlags(db, flags, { table: schema.flagOverrides, entitlements: ent })
+
+await ff.get("newEditor", { id: userId, attributes: { country } }) // { value, reason: "rule", rule: 1 }
+await ff.all({ id: userId })
+await ff.set("newEditor", true, { subject: "*", actor })           // everyone; or one subject id
+await ff.clear("newEditor", { subject: "*", actor })
+```
+
+First match wins: the subject's override, the everyone (`"*"`) override,
+rules in order, the rollout, the default. The rollout bucket is FNV-1a of
+`salt:subjectId` (salt defaults to the flag key) in 0–9999, so a subject keeps
+its answer, raising the percent only adds subjects, and changing `salt`
+reshuffles. `evaluateFlag(key, def, subject, override?)` is the same order as
+a pure function. With `entitlements`, a subject without `plan` gets its plan
+looked up. Overrides can expire and are audited. Every result says why.
+
+### Tools for agents
+
+```ts
+import { entitlementTools } from "@dapplelight/signet-db/entitlements"
+import { requireApproval } from "@dapplelight/signet-server/mcp"
+
+const tools = entitlementTools({
+  entitlements: ent,
+  flags: ff,
+  subject: orgId,       // or allSubjects: true for an operator agent; tools then take `subject`
+  allowWrites: true,    // default false: read tools only
+  actor: { type: "agent", id: "support-agent" },
+  approve: (ctx, r) => requireApproval(ctx as never, r),
+})
+```
+
+Read: `get_plan`, `check_entitlement`, `usage`, `list_flags`. Write (with
+`allowWrites`): `grant_feature`, `set_plan`, `set_flag`. Writes always call
+`approve`; without one they change nothing and return `APPROVAL_REQUIRED`.
+They are audited as `actor`. Give writes only to agents run by staff: on a
+per-user agent the person approving is the user who benefits.
 
 ## Errors
 

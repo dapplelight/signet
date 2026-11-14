@@ -37,6 +37,66 @@ a package at the version it had when the repository was opened to the public.
 - `ERROR_CODES` and `DEFAULT_ERROR_COPY` gain `INVALID_PHONE`, `INVALID_CODE`,
   `CODE_EXPIRED` and `TOO_MANY_ATTEMPTS`.
 
+### signet-db: plans, entitlements and feature flags
+
+- New `@dapplelight/signet-db/entitlements`: `definePlans` (plans in code;
+  `can`, `limit`, `consume` and `setPlan` only accept declared keys) and
+  `createEntitlements(db, { plans, default, tables })`. Per subject (a user
+  or org id): stored plan, overrides that grant or revoke a feature or set a
+  limit, optionally until `expiresAt` (newest unexpired per key wins), all
+  written through `audited`.
+- `applyBillingEvent(event)` applies signet-payments `subscription.*` events
+  to the subject's plan: gateway plan or price ids map to plan keys through
+  `billing.plans`; idempotent per event via `withIdempotency`; an event older
+  than the stored state is ignored (the guard is in the UPDATE's WHERE);
+  `past_due` keeps the plan for `graceMs` (3 days). `created`/`updated` read
+  the status from the payload (`statusOf`; Stripe, Paddle, Razorpay shapes by
+  default), and events for an old subscription cannot downgrade a newer one. The event type is a local
+  structural one, so signet-db does not depend on signet-payments.
+- `consume(subject, key, n)`: per-period (month, day or total) usage with the
+  check and the increment in one UPDATE, so concurrent requests cannot
+  overspend.
+- New `@dapplelight/signet-db/flags`: `defineFlags`, `evaluateFlag` and
+  `createFlags`. Order: subject override, everyone override, targeting rules
+  (plan, attributes), percentage rollout by a stable FNV-1a bucket, default.
+  Results carry the reason.
+- `entitlementTools(...)`: `get_plan`, `check_entitlement`, `usage`,
+  `list_flags` for one subject, and with `allowWrites` `grant_feature`,
+  `set_plan`, `set_flag`, which always go through `approve` (signet-server's
+  `requireApproval`) and are audited as the agent.
+- Column helpers `entitlementTables()` and `flagOverrides()` in
+  `./columns/sqlite` and `./columns/pg`.
+
+### signet-server: Phase 1 portability
+
+- `cloudflareQueue(binding)` in `./adapters/cloudflare`: a Queues producer as a
+  `Queue<T>`, delays rounded up to whole seconds, plus `sendBatch` split into
+  Cloudflare's 100-message calls. `cloudflareConsumer` in `./jobs` is the other
+  end. A raw binding still passes as a `Queue<T>`.
+- `AnalyticsSink` in `./analytics/sinks` (also re-exported from `./analytics`):
+  `createAnalyticsEngine` is one implementation; new `httpSink` (batched JSON
+  POSTs, flushed through a `Defer`, failures reported to `onEvent` and never
+  thrown), `memorySink` and `consoleSink`. `registerIngest`'s `engine` now
+  accepts any sink; existing callers are unchanged.
+- New `./adapters/vercel`: `vercelDefer(waitUntil)`, taking `waitUntil` from
+  `@vercel/functions` so Signet does not depend on it. KV on Vercel is Upstash
+  (use `./adapters/upstash`). No Vercel Blob adapter: Vercel documents Blob only
+  through its SDKs, not as an HTTP API.
+- `test/node-smoke.mjs`: the built dist under plain Node; CI runs it on Node 22
+  and 24.
+
+### create-signet-app: `--target`
+
+- `--template api --target cloudflare|bun|node|vercel` (default `cloudflare`).
+  Shared `src/app.ts`, env, tests and CI; only the chosen target's entry and
+  config are written: Worker + `wrangler.jsonc`, `Bun.serve` + `Dockerfile`, a
+  `node:http` bridge run by Node 22.18+ type stripping, or a Vercel `index.ts` +
+  `vercel.json`. A cloudflare scaffold no longer includes `src/server.ts` and
+  the `Dockerfile`; use `--target bun` for those. Relative imports in the
+  template now carry `.ts`.
+- signet-mcp's scaffold index mirrors the default (cloudflare) target, and its
+  env-at-module-scope check treats a `node:http` entry as a process entry.
+
 ### signet-payments 0.1.0 (new, public; first publish is manual, see PUBLISHING.md)
 
 - New `@dapplelight/signet-payments`: one canonical model (`Payment`, `Refund`,

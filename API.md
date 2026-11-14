@@ -39,9 +39,11 @@ Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit 
 |---|---|---|
 | `@dapplelight/signet-db` | isCiphertext, assertCiphertext, generateKey, createCipher, CipherConfig, Cipher, … | re-exports cipher, db, describe, errors, id, idempotency, money, outbox, query, scoped, seed, user-data |
 | `@dapplelight/signet-db/agent` | agentTools, AgentTool, AgentToolsOptions | Database tools for AI agents, safe by construction: `agentTools(db, { tables, userId })` returns plain tool definitions (list, get, search per table,  |
-| `@dapplelight/signet-db/columns/pg` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog` table. |
-| `@dapplelight/signet-db/columns/sqlite` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog` table. |
+| `@dapplelight/signet-db/columns/pg` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotencyKeys`, `entitlem |
+| `@dapplelight/signet-db/columns/sqlite` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotency |
 | `@dapplelight/signet-db/d1` | createDb | Cloudflare D1 driver: `createDb(env.DB, config)` |
+| `@dapplelight/signet-db/entitlements` | definePlans, defaultStatusOf, defaultPlanIdOf, periodOf, createEntitlements, PlanDef, … | Plans, entitlements and usage limits, on the tables from `entitlementTables()` |
+| `@dapplelight/signet-db/flags` | defineFlags, bucket, evaluateFlag, createFlags, FlagValue, FlagRule, … | Feature flags defined in code, with stored overrides in `flagOverrides()` |
 | `@dapplelight/signet-db/migrations` | checkMigrationSql, formatIssues, MigrationIssueKind, MigrationIssue | Scan SQL migrations for changes that lose data or break running code: dropped tables or columns, renames, and NOT NULL added without a default |
 | `@dapplelight/signet-db/postgres` | createDb | Postgres driver on postgres-js (Supabase, Neon, RDS, a local server): `createDb(databaseUrl, config)`, or pass a `postgres()` client |
 | `@dapplelight/signet-db/sqlite` | createDb | SQLite driver on bun:sqlite (Bun runtime, e.g |
@@ -95,14 +97,16 @@ Signet backend primitives. Auth first.
 | Import | Exports | What |
 |---|---|---|
 | `@dapplelight/signet-server/adapters` | memoryKv, memoryQueue, processDefer, waitUntilDefer, kvRateLimitStore, assertBlobKey, … | Small plug interfaces so server code runs off Cloudflare too, plus in-memory and Node/Bun versions |
-| `@dapplelight/signet-server/adapters/cloudflare` | cloudflareKv, r2BlobStore, KvNamespaceLike, R2BucketLike | Cloudflare bindings as Signet adapters: Workers KV and R2 |
+| `@dapplelight/signet-server/adapters/cloudflare` | cloudflareKv, r2BlobStore, QUEUE_BATCH_MAX, cloudflareQueue, KvNamespaceLike, R2BucketLike, … | Cloudflare bindings as Signet adapters: Workers KV, R2 and a Queues producer |
 | `@dapplelight/signet-server/adapters/node` | fsBlobStore | Filesystem `BlobStore` for Node, Bun and Docker (mount a volume at `dir`) |
 | `@dapplelight/signet-server/adapters/s3` | s3BlobStore, S3Config, S3BlobStore | S3-compatible storage (AWS S3, Cloudflare R2's S3 API, MinIO) as a `BlobStore` with presigned URLs and multipart uploads, signed with SigV4 over Web C |
 | `@dapplelight/signet-server/adapters/supabase` | supabaseBlobStore, SupabaseStorageConfig, SupabaseBlobStore | Supabase Storage as a `BlobStore`, over its REST API with plain fetch |
 | `@dapplelight/signet-server/adapters/upstash` | upstashKv, upstashRateLimitStore, qstashQueue, UpstashConfig, QstashConfig | Upstash over plain fetch: Redis REST as a `KeyValue` (atomic `incr`), and QStash as a `Queue` |
-| `@dapplelight/signet-server/analytics` | LIMITS, truncateBytes, toDataPoint, createAnalyticsEngine, AnalyticsEngineDataset, TrackedEvent, … | re-exports engine, ingest |
+| `@dapplelight/signet-server/adapters/vercel` | vercelDefer | Vercel as Signet adapters |
+| `@dapplelight/signet-server/analytics` | LIMITS, truncateBytes, toDataPoint, createAnalyticsEngine, AnalyticsEngineDataset, TrackedEvent, … | re-exports engine, ingest, sinks |
 | `@dapplelight/signet-server/analytics/engine` | LIMITS, truncateBytes, toDataPoint, createAnalyticsEngine, AnalyticsEngineDataset, TrackedEvent, … | Cloudflare Workers Analytics Engine writer |
 | `@dapplelight/signet-server/analytics/ingest` | registerIngest, cloudflareEnrichment, IngestOptions | Hono ingest route for browser events |
+| `@dapplelight/signet-server/analytics/sinks` | httpSink, memorySink, consoleSink, AnalyticsSink, HttpSinkConfig | Where server-side analytics events go, independent of runtime |
 | `@dapplelight/signet-server/auth` | kvApiKeyStore, createApiKey, listApiKeys, revokeApiKey, verifyApiKey, ApiKeyRecord, … | re-exports api-keys, bearer, better-auth, guards, otp, passcode, session, sessions |
 | `@dapplelight/signet-server/auth/api-keys` | kvApiKeyStore, createApiKey, listApiKeys, revokeApiKey, verifyApiKey, ApiKeyRecord, … | API-key manager: create (secret shown once), list, revoke, with scopes and optional expiry |
 | `@dapplelight/signet-server/auth/bearer` | readBearer, verifySharedToken, sha256Hex, createApiToken, hashIncomingToken | Bearer-token auth for machine callers — CLIs, MCP servers, webhooks, cron |

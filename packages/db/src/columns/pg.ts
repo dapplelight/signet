@@ -1,11 +1,13 @@
 /**
  * Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`,
- * `money`, `encrypted`, and the `auditLog` table.
+ * `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotencyKeys`,
+ * `entitlementTables` and `flagOverrides` tables.
  */
 
 import {
   bigint,
   customType,
+  index,
   integer,
   jsonb,
   pgTable,
@@ -118,3 +120,69 @@ export const idempotencyKeys = (name = "idempotency_keys") =>
     },
     (t) => [primaryKey({ columns: [t.scope, t.key] })],
   )
+
+const tz = (name: string) => timestamp(name, { withTimezone: true, mode: "date" })
+
+/**
+ * The plan, override and usage tables for `createEntitlements` from
+ * `@dapplelight/signet-db/entitlements`. Spread or destructure into the schema:
+ * `export const { subjectPlans, entitlementOverrides, usageCounters } = entitlementTables()`.
+ */
+export const entitlementTables = (prefix = "") => ({
+  subjectPlans: pgTable(
+    `${prefix}subject_plans`,
+    {
+      /** A user or org id. */
+      subject: text("subject").primaryKey(),
+      plan: text("plan").notNull(),
+      /** pending | trialing | active | past_due | paused | cancelled | expired */
+      status: text("status").notNull(),
+      gateway: text("gateway"),
+      subscriptionId: text("subscription_id"),
+      graceUntil: tz("grace_until"),
+      /** When the newest applied change happened; older billing events are ignored. */
+      eventAt: tz("event_at").notNull(),
+      updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
+    },
+    (t) => [index(`${prefix}subject_plans_subscription`).on(t.gateway, t.subscriptionId)],
+  ),
+  entitlementOverrides: pgTable(
+    `${prefix}entitlement_overrides`,
+    {
+      id: id(),
+      subject: text("subject").notNull(),
+      /** feature | limit */
+      kind: text("kind").notNull(),
+      key: text("key").notNull(),
+      /** feature: 1 grant, 0 revoke. limit: the value; null is unlimited. */
+      value: bigint("value", { mode: "number" }),
+      expiresAt: tz("expires_at"),
+      createdAt: stamp("created_at"),
+    },
+    (t) => [index(`${prefix}entitlement_overrides_subject`).on(t.subject)],
+  ),
+  usageCounters: pgTable(
+    `${prefix}usage_counters`,
+    {
+      subject: text("subject").notNull(),
+      key: text("key").notNull(),
+      /** "2026-11" (month), "2026-11-15" (day) or "all". */
+      period: text("period").notNull(),
+      used: bigint("used", { mode: "number" }).notNull().default(0),
+    },
+    (t) => [primaryKey({ columns: [t.subject, t.key, t.period] })],
+  ),
+})
+
+/** Stored flag overrides for `createFlags` from `@dapplelight/signet-db/flags`. */
+export const flagOverrides = (name = "flag_overrides") =>
+  pgTable(name, {
+    /** `${flag}|${subject}` */
+    id: text("id").primaryKey(),
+    flag: text("flag").notNull(),
+    /** A subject id, or "*" for everyone. */
+    subject: text("subject").notNull(),
+    value: jsonb("value").notNull(),
+    expiresAt: tz("expires_at"),
+    updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
+  })

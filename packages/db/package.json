@@ -69,6 +69,16 @@
       "types": "./dist/agent.d.ts",
       "import": "./dist/agent.js",
       "default": "./dist/agent.js"
+    },
+    "./entitlements": {
+      "types": "./dist/entitlements.d.ts",
+      "import": "./dist/entitlements.js",
+      "default": "./dist/entitlements.js"
+    },
+    "./flags": {
+      "types": "./dist/flags.d.ts",
+      "import": "./dist/flags.js",
+      "default": "./dist/flags.js"
     }
   },
   "bin": {
