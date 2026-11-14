@@ -4,6 +4,7 @@
 // hover and focus, F6 to reach the region, and live-region announcements.
 // The API mirrors sonner's (`toast()`, `toast.success()`, `<Toaster />`), so
 // an app can switch by changing two imports. UI SDK stays an internal detail.
+// Recipe: live-region + timers + swipe + dismiss + shortcut
 import {
   toast as sdkToast,
   ToastAction as ToastActionPrimitive,

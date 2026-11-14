@@ -5,6 +5,26 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-ui (unreleased)
+
+- New components on UI SDK behaviours, styled with theme tokens: `toast`
+  (`<Toaster />` and a sonner-compatible `toast()`), `alert-dialog`, `field`
+  (takes TanStack Form `errors`), `avatar` (with `initials()`), `radio-group`,
+  `command` (with a ⌘K `CommandDialog`), `timeline`, `stepper`, `sidebar`
+  (collapsible, a drawer on phones, ⌘B), `breadcrumb`, `spinner`.
+- New `@dapplelight/signet-ui/behaviors`: `useShortcut`, `useShortcutLabel`,
+  `useControllableState`, `matchScore`, with Signet's own types.
+- New dependencies `@ui-sdk/core` and `@ui-sdk/react`, pinned to
+  0.1.0-beta.2. They are internal: no UI SDK type or function is re-exported.
+- Existing components are unchanged.
+
+### signet-mcp (unreleased)
+
+- New `compose_component` tool: from a need in words, the matching components
+  with their behaviour recipe (each component's `// Recipe:` line), parts,
+  token classes and example, plus the behaviours and the build guide.
+  `get_component` now returns `summary` and `recipe`.
+
 ### signet-payments 0.1.0 (new, public; first publish is manual, see PUBLISHING.md)
 
 - New `@dapplelight/signet-payments`: one canonical model (`Payment`, `Refund`,

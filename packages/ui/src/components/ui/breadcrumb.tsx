@@ -1,5 +1,6 @@
 // A breadcrumb trail: a nav landmark around an ordered list, with
 // aria-current="page" on the last crumb. No behaviour beyond HTML is needed.
+// Recipe: landmark
 import { ChevronRightIcon, MoreHorizontalIcon } from "lucide-react"
 import type * as React from "react"
 import { cloneElement } from "react"

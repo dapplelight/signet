@@ -3,6 +3,7 @@
 // A command menu on UI SDK's command behaviour: typing filters and ranks,
 // arrow keys move the highlight while focus stays in the input, Enter runs.
 // CommandDialog puts it in Signet's Dialog and opens it with ⌘K / Ctrl+K.
+// Recipe: selection + typeahead + filter; CommandDialog adds popup + focus-trap + dismiss + shortcut + controllable-state
 import {
   CommandEmpty as CommandEmptyPrimitive,
   CommandGroupLabel,
@@ -14,9 +15,9 @@ import {
   CommandSeparator as CommandSeparatorPrimitive,
   CommandShortcut as CommandShortcutPrimitive,
 } from "@ui-sdk/react/command"
-import { useShortcut } from "@ui-sdk/react/shortcuts"
 import { SearchIcon } from "lucide-react"
-import * as React from "react"
+import type * as React from "react"
+import { useControllableState, useShortcut } from "../../behaviors/index.js"
 import { cn } from "../../lib/utils.js"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./dialog.js"
 
@@ -168,12 +169,11 @@ function CommandDialog({
   contentClassName,
   ...props
 }: CommandDialogProps) {
-  const [own, setOwn] = React.useState(defaultOpen)
-  const open = openProp ?? own
-  const setOpen = (next: boolean) => {
-    if (openProp === undefined) setOwn(next)
-    onOpenChange?.(next)
-  }
+  const [open, setOpen] = useControllableState({
+    value: openProp,
+    defaultValue: defaultOpen,
+    onChange: onOpenChange,
+  })
   useShortcut(shortcut, (event) => {
     event.preventDefault()
     setOpen(!open)

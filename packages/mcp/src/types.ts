@@ -59,6 +59,10 @@ export type ComponentInfo = {
   tokens: string[]
   example: string
   domain: boolean
+  /** The file's leading comment: what the component is and does. */
+  summary: string
+  /** Behaviours it is composed from, from its `// Recipe:` line. Empty when it has none. */
+  recipe: string[]
 }
 
 export type ThemeInfo = {

@@ -3,6 +3,7 @@
 // A confirmation dialog on UI SDK's alert-dialog behaviour: always modal,
 // never closed by an outside press, focus on the least destructive answer.
 // The surface matches Dialog's.
+// Recipe: popup + focus-trap + dismiss
 import {
   AlertDialogBackdrop,
   AlertDialogClose,

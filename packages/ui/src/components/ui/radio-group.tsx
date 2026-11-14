@@ -2,6 +2,7 @@
 
 // A radio group on UI SDK's radio behaviour: one tab stop, arrow keys move
 // and check, a hidden native radio takes part in forms. Styled like Checkbox.
+// Recipe: selection + roving-focus
 import {
   RadioGroup as RadioGroupPrimitive,
   RadioIndicator,

@@ -3,6 +3,7 @@
 // Dated events in order, on UI SDK's timeline behaviour: a named list with
 // one tab stop and arrow keys between events. An item's optional `status`
 // ("complete" | "current" | "upcoming") marks progress and sets aria-current.
+// Recipe: roving-focus
 import {
   TimelineConnector as TimelineConnectorPrimitive,
   TimelineDescription as TimelineDescriptionPrimitive,

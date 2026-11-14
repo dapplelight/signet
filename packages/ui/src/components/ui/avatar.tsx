@@ -2,6 +2,7 @@
 
 // An avatar on UI SDK's avatar behaviour: a real <img> that the browser can
 // fetch before hydration, with a fallback shown until it loads or if it fails.
+// Recipe: image-loading
 import {
   AvatarFallback as AvatarFallbackPrimitive,
   AvatarImage as AvatarImagePrimitive,

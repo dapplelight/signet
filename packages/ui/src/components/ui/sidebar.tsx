@@ -3,9 +3,10 @@
 // An app sidebar. UI SDK ships none, so it is composed here: a collapsible
 // panel on desktop (to icons, or fully off-canvas), Signet's Drawer from the
 // left on phones, and UI SDK's shortcut behaviour for ⌘B / Ctrl+B.
-import { useShortcut } from "@ui-sdk/react/shortcuts"
+// Recipe: disclosure + controllable-state + shortcut; on phones popup + focus-trap + dismiss + swipe (Drawer)
 import { PanelLeftIcon } from "lucide-react"
 import * as React from "react"
+import { useControllableState, useShortcut } from "../../behaviors/index.js"
 import { DESKTOP_QUERY, useMediaQuery } from "../../hooks/use-media-query.js"
 import { cn } from "../../lib/utils.js"
 import { Button } from "./button.js"
@@ -51,17 +52,13 @@ function SidebarProvider({
   ...props
 }: SidebarProviderProps) {
   const isMobile = !useMediaQuery(desktopQuery)
-  const [own, setOwn] = React.useState(defaultOpen)
+  const [open, setOpen] = useControllableState({
+    value: openProp,
+    defaultValue: defaultOpen,
+    onChange: onOpenChange,
+  })
   const [openMobile, setOpenMobile] = React.useState(false)
   const panelId = React.useId()
-  const open = openProp ?? own
-  const setOpen = React.useCallback(
-    (next: boolean) => {
-      if (openProp === undefined) setOwn(next)
-      onOpenChange?.(next)
-    },
-    [openProp, onOpenChange],
-  )
   const toggle = React.useCallback(
     () => (isMobile ? setOpenMobile((o) => !o) : setOpen(!open)),
     [isMobile, open, setOpen],

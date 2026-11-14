@@ -4,6 +4,7 @@
 // description and error describe it, and aria-invalid follows the error.
 // `errors` takes a TanStack Form field's `state.meta.errors` as they are, the
 // same shape `@dapplelight/signet-lib/form`'s `errorMessages` reads.
+// Recipe: field-wiring
 import {
   FieldControl as FieldControlPrimitive,
   FieldDescription as FieldDescriptionPrimitive,

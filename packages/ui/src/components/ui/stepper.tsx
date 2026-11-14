@@ -3,6 +3,7 @@
 // Progress through numbered steps. UI SDK ships no stepper, so this is its
 // horizontal timeline behaviour (one tab stop, Left/Right between steps,
 // aria-current="step" on the current one) with a numbered indicator.
+// Recipe: roving-focus + status
 import {
   TimelineConnector,
   TimelineDescription,
