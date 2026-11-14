@@ -90,17 +90,10 @@ extensionless imports and would have hidden the third bug.
 
 ## Consumers
 
-Every consuming repo and CI job needs an npm token, because the scope is
-private:
-
-```
-# .npmrc
-//registry.npmjs.org/:_authToken=${NPM_TOKEN}
-@signet:registry=https://registry.npmjs.org/
-```
-
-**Wrangler deploys need it too.** That is the cost of the private scope — it was
-chosen with that tradeoff understood.
+The `@dapplelight` scope is public, so consuming repos and CI jobs install the
+packages like any other npm package: no `.npmrc`, no `NPM_TOKEN`. That includes
+Wrangler deploys. A consumer that still carries an `NPM_TOKEN` or an `.npmrc`
+line only for this scope can delete it.
 
 ## Verified
 
@@ -143,10 +136,12 @@ app repo), which opens one grouped PR for the `@dapplelight/signet-*` bumps.
 
 The workflow runs lint, every package's tests and typecheck, then
 `bun run release`, which in CI skips the `npm whoami` check (there is no
-login) and publishes with npm instead of bun. No `--provenance`: npm only
-attests builds from public repositories and this one is private.
+login) and publishes with npm instead of bun, passing `--provenance`. The repo
+is public, so every release carries a signed attestation linking the tarball to
+the commit and workflow run that built it (shown on the package's npm page).
 
-The local `bun run release` still works as before, with `npm login`.
+The local `bun run release` still works as before, with `npm login`. It publishes
+with bun and has no provenance: only a CI run has an OIDC identity to attest with.
 
 ## Versioning: bump only what changed
 
