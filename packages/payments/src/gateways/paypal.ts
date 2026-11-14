@@ -202,7 +202,10 @@ export function paypal(config: PayPalConfig): PaymentGateway {
   return defineGateway(
     G,
     {
-      methods: ["wallet", "card"],
+      // Apple Pay and Google Pay run through the PayPal JS SDK against the same order.
+      // https://developer.paypal.com/docs/checkout/apm/apple-pay/
+      // https://developer.paypal.com/docs/checkout/apm/google-pay/
+      methods: ["wallet", "card", "applepay", "googlepay"],
       features: [
         "capture",
         "refunds",

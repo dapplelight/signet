@@ -156,7 +156,10 @@ export function razorpay(config: RazorpayConfig): PaymentGateway {
   return defineGateway(
     G,
     {
-      methods: ["upi", "card", "netbanking", "wallet", "emi"],
+      // Apple Pay shows on Standard Checkout once enabled and the domain file is hosted;
+      // nothing changes on the order. Google Pay on Razorpay is UPI.
+      // https://razorpay.com/docs/payments/payment-methods/apple-pay.md
+      methods: ["upi", "card", "netbanking", "wallet", "emi", "applepay"],
       features: [
         "capture",
         "refunds",

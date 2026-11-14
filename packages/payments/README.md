@@ -18,7 +18,7 @@ around them: a webhook inbox, a double-entry ledger and reconciliation.
 
 | Import | What |
 |---|---|
-| `@dapplelight/signet-payments` | Types, `createPayments`, stores, ledger, `reconcile`, errors |
+| `@dapplelight/signet-payments` | Types, `createPayments`, stores, ledger, `reconcile`, errors, `applePayDomainAssociation` |
 | `@dapplelight/signet-payments/razorpay` ... `/dodo` | One adapter per subpath |
 | `@dapplelight/signet-payments/agent` | `paymentTools`: MCP tools for agents |
 
@@ -31,6 +31,8 @@ around them: a webhook inbox, a double-entry ledger and reconciliation.
 | netbanking | ✓ |  | ✓ | ✓ | ✓ |  |  |  | ✓ |  |
 | wallet | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | emi | ✓ |  | ✓ |  |  |  |  |  |  |  |
+| applepay | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| googlepay |  | ✓ |  |  |  | ✓ | ✓ | ✓ | ✓ | ✓ |
 | capture | ✓ | ✓ | ✓ |  | ✓ |  |  | ✓ | ✓ |  |
 | refunds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | partialRefunds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
@@ -45,6 +47,27 @@ Razorpay payouts are RazorpayX and need `accountNumber`. Hyperswitch
 subscriptions need `profileId`, and its methods depend on the connectors
 enabled in your account. What each unsupported cell
 is missing is at the top of that adapter's source file.
+
+### Apple Pay and Google Pay
+
+`applepay` and `googlepay` are the device wallets. Google Pay's UPI app in
+India is `upi`, which is why Razorpay, Cashfree and PayU have no `googlepay`:
+their Google Pay is UPI. Checkout with `method: "applepay"` (or
+`"googlepay"`) routes only to gateways that take it, and where the gateway's
+API takes a method list it limits the checkout:
+
+| Gateway | What `method` sends |
+|---|---|
+| cashfree | `order_meta.payment_methods: "applepay"` |
+| hyperswitch | `allowed_payment_method_types: ["apple_pay"]` (or `google_pay`) |
+| dodo | `allowed_payment_method_types: ["apple_pay", "credit", "debit"]`: Dodo says to always keep cards as the fallback |
+| the rest | nothing: the wallet shows in the gateway's own checkout or SDK once enabled |
+
+Apple Pay on your own domain needs domain verification. Razorpay, PayPal and
+Dodo give you a file to host; serve it with `applePayDomainAssociation(file)`
+(at `APPLE_PAY_DOMAIN_ASSOCIATION_PATH`). Stripe has no file: register each
+domain with `stripe.raw("POST", "/payment_method_domains", { domain_name })`.
+Paddle verifies in its dashboard. Hosted checkout pages need none of this.
 
 ### Notes on gaps
 
@@ -74,6 +97,22 @@ SDK (or two official doc pages) agree. What is left out, and why:
   https://developer.phonepe.com/payment-gateway/autopay/api-integration/api-reference/subscription-status,
   https://developer.phonepe.com/payment-gateway/autopay/api-integration/api-reference/subscription-cancel,
   https://github.com/PhonePe/phonepe-pg-sdk-java.
+- **PayU Apple Pay** is shown on PayU Hosted Checkout but not forced: the
+  hosted-checkout samples send `pg=APPLEPAY&bankcode=APPLEPAY`, while the
+  merchant-hosted parameter table says `bankcode=CCAP`. Checked:
+  https://docs.payu.in/docs/apple-pay-integration-payu-hosted-checkout.md,
+  https://docs.payu.in/docs/apple-pay-integration-merchant-hosted-checkout.md.
+  PayU's Google Pay is an Android SDK over UPI and saved instruments, not the
+  web wallet: https://docs.payu.in/docs/android-google-pay-sdk.md.
+- **Stripe, Razorpay, Paddle, PayPal and Lemon Squeezy** have no server-side
+  way to limit a checkout to one wallet: Stripe shows wallets in the Payment
+  Element, Razorpay in Standard Checkout, Paddle filters with Paddle.js
+  `allowedPaymentMethods`, PayPal runs them through its JS SDK. Checked:
+  https://docs.stripe.com/apple-pay.md?platform=web,
+  https://razorpay.com/docs/payments/payment-methods/apple-pay.md,
+  https://developer.paddle.com/concepts/payment-methods/apple-pay.md,
+  https://developer.paypal.com/docs/checkout/apm/google-pay/,
+  https://docs.lemonsqueezy.com/help/checkout/payment-methods.
 - **PayU capture** uses `pre_authorize=1` at checkout and `capture_transaction`
   on the same postservice host as verify (two pre-authorization guides agree on
   the host, the vars and the sample). Checked:

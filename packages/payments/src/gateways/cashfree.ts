@@ -229,7 +229,7 @@ export function cashfree(config: CashfreeConfig): PaymentGateway {
   return defineGateway(
     G,
     {
-      methods: ["upi", "card", "netbanking", "wallet", "emi"],
+      methods: ["upi", "card", "netbanking", "wallet", "emi", "applepay"],
       features: [
         "capture",
         "refunds",
@@ -264,7 +264,16 @@ export function cashfree(config: CashfreeConfig): PaymentGateway {
               ...(i.customer.email ? { customer_email: i.customer.email } : {}),
               ...(i.customer.name ? { customer_name: i.customer.name } : {}),
             },
-            ...(i.returnUrl ? { order_meta: { return_url: i.returnUrl } } : {}),
+            // method "applepay" limits the order to Apple Pay (order_meta.payment_methods).
+            // https://www.cashfree.com/docs/openapi/payments/v2026-01-01.yaml (OrderMeta)
+            ...(i.returnUrl || i.method === "applepay"
+              ? {
+                  order_meta: {
+                    ...(i.returnUrl ? { return_url: i.returnUrl } : {}),
+                    ...(i.method === "applepay" ? { payment_methods: "applepay" } : {}),
+                  },
+                }
+              : {}),
             ...(i.description ? { order_note: i.description } : {}),
             ...(i.metadata ? { order_tags: i.metadata } : {}),
             ...i.extra,
