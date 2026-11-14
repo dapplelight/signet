@@ -10,15 +10,18 @@ Provider-agnostic structured LLM calls with budget caps, caching and failover.
 
 | Import | Exports | What |
 |---|---|---|
-| `@dapplelight/signet-ai` | costOf, memoryBudgetStore, kvBudgetStore, createBudgetLedger, BudgetStore, BudgetKv, … | re-exports budget, cache, errors, extract, fake, types |
+| `@dapplelight/signet-ai` | costOf, memoryBudgetStore, kvBudgetStore, createBudgetLedger, BudgetStore, BudgetKv, … | re-exports budget, cache, errors, extract, fake, types, usage |
 | `@dapplelight/signet-ai/budget` | costOf, memoryBudgetStore, kvBudgetStore, createBudgetLedger, BudgetStore, BudgetKv, … |  |
 | `@dapplelight/signet-ai/budget-do` | BudgetCounter, durableObjectBudgetStore, BudgetCounterState, BudgetNamespace | An exact, global AI budget on Cloudflare Workers, backed by a Durable Object |
 | `@dapplelight/signet-ai/cache` | cacheKey, fingerprintSchema, memoryCache, kvCache |  |
+| `@dapplelight/signet-ai/chat` | runTools, streamChat, RunToolsOptions, RunToolsResult, ChatMetadata, ChatMessage, … | Tool loops and streaming chat over the Vercel AI SDK |
 | `@dapplelight/signet-ai/errors` | AiError, BUDGET_EXCEEDED, ALL_PROVIDERS_FAILED, SCHEMA_INVALID, NO_PROVIDERS, UNPRICED_PROVIDER, … |  |
 | `@dapplelight/signet-ai/extract` | createExtractor, ExtractConfig, ExtractArgs, Extractor |  |
 | `@dapplelight/signet-ai/fake` | fakeProvider |  |
+| `@dapplelight/signet-ai/ground` | embedDocuments, searchDocuments, groundedAnswer, Doc, EmbeddedDoc, SearchHit, … | Embeddings, similarity search and grounded answers over app-provided documents |
 | `@dapplelight/signet-ai/jev` | JEV_DEFAULT_MODEL, JEV_DEFAULT_MIN_CONFIDENCE, JEV_DEFAULT_TIMEOUT_MS, JEV_DEFAULT_BASE_URL, createJev, JevJson, … | Jev (TypeSafe System One): a classifier that returns a typed decision, never text |
-| `@dapplelight/signet-ai/providers/ai-sdk` | aiSdkProvider, workersAiProvider, AiSdkProviderOptions | Vercel AI SDK adapter |
+| `@dapplelight/signet-ai/providers/ai-sdk` | modelIdOf, toUsage, aiSdkProvider, workersAiProvider, AiSdkProviderOptions | Vercel AI SDK adapter |
+| `@dapplelight/signet-ai/react` | sumUsage, useSignetChat, UseSignetChatOptions | Client half of `streamChat` |
 
 ## @dapplelight/signet-config
 
