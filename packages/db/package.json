@@ -1,0 +1,113 @@
+{
+  "name": "@dapplelight/signet-db",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit trail, migration checks.",
+  "keywords": [
+    "signet",
+    "drizzle",
+    "sqlite",
+    "d1",
+    "postgres",
+    "encryption",
+    "audit"
+  ],
+  "homepage": "https://signet.dapplelight.in/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dapplelight/signet.git",
+    "directory": "packages/db"
+  },
+  "bugs": {
+    "url": "https://github.com/dapplelight/signet/issues"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./columns/sqlite": {
+      "types": "./dist/columns/sqlite.d.ts",
+      "import": "./dist/columns/sqlite.js",
+      "default": "./dist/columns/sqlite.js"
+    },
+    "./columns/pg": {
+      "types": "./dist/columns/pg.d.ts",
+      "import": "./dist/columns/pg.js",
+      "default": "./dist/columns/pg.js"
+    },
+    "./d1": {
+      "types": "./dist/d1.d.ts",
+      "import": "./dist/d1.js",
+      "default": "./dist/d1.js"
+    },
+    "./sqlite": {
+      "types": "./dist/sqlite.d.ts",
+      "import": "./dist/sqlite.js",
+      "default": "./dist/sqlite.js"
+    },
+    "./postgres": {
+      "types": "./dist/postgres.d.ts",
+      "import": "./dist/postgres.js",
+      "default": "./dist/postgres.js"
+    },
+    "./migrations": {
+      "types": "./dist/migrations/check.d.ts",
+      "import": "./dist/migrations/check.js",
+      "default": "./dist/migrations/check.js"
+    },
+    "./zod": {
+      "types": "./dist/zod.d.ts",
+      "import": "./dist/zod.js",
+      "default": "./dist/zod.js"
+    },
+    "./agent": {
+      "types": "./dist/agent.d.ts",
+      "import": "./dist/agent.js",
+      "default": "./dist/agent.js"
+    }
+  },
+  "bin": {
+    "signet-db-check": "./dist/migrations/cli.js"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "bun test",
+    "build": "tsc -p tsconfig.build.json && chmod +x dist/migrations/cli.js",
+    "prepublishOnly": "bun run build"
+  },
+  "peerDependencies": {
+    "@dapplelight/signet-lib": "^0.3.0",
+    "drizzle-orm": "^0.45.0",
+    "postgres": ">=3.4.0",
+    "zod": ">=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "postgres": {
+      "optional": true
+    },
+    "zod": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@dapplelight/signet-lib": "^0.3.0",
+    "@electric-sql/pglite": "^0.5.16",
+    "@types/bun": "^1.4.2",
+    "@types/node": "^26.6.2",
+    "drizzle-orm": "^0.45.4",
+    "postgres": "^3.4.7",
+    "typescript": "^7.0.2",
+    "zod": "^4.6.5"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist"
+  ]
+}
