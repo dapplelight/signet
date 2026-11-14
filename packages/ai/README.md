@@ -220,6 +220,11 @@ conversation's sum. `api` and `headers` are read once per chat `id`, as in
 `useChat`; pass `headers` as a function for a value that changes. Authenticate
 the route and cap `messages` yourself: the client sends the whole history.
 
+`messages` is untrusted input. `streamChat` drops `system` messages (set
+instructions with `system`) and every tool part from the history, so a browser
+cannot plant a system prompt or a fake tool result. Tools the model calls during
+the request still run; their results from earlier turns are not replayed.
+
 ### Embeddings and search
 
 ```ts

@@ -119,6 +119,23 @@ export type StreamChatOptions = CommonOptions & {
   messages: UIMessage[]
 }
 
+const isToolPart = (p: { type: string }) => p.type === "dynamic-tool" || p.type.startsWith("tool-")
+
+/**
+ * The client owns `messages`, so they are untrusted input. Keep only user and
+ * assistant messages (system instructions come from `options.system`), and drop
+ * tool parts: a browser could invent a tool result the model would take as real.
+ * Tools the model calls in this request still run with their own `execute`.
+ * ponytail: tool history from earlier turns is not replayed; keep it server-side if needed.
+ */
+function untrusted(messages: UIMessage[]): UIMessage[] {
+  if (!Array.isArray(messages)) throw new TypeError("streamChat: messages must be an array")
+  return messages
+    .filter((m) => m?.role === "user" || m?.role === "assistant")
+    .map((m) => ({ ...m, parts: (m.parts ?? []).filter((p) => !isToolPart(p)) }))
+    .filter((m) => m.parts.length > 0)
+}
+
 /**
  * Server half of a streaming chat: takes the UI messages from the client,
  * streams the reply (tools and step cap included) and returns the `Response`
@@ -138,7 +155,9 @@ export async function streamChat(options: StreamChatOptions): Promise<Response> 
     model: options.model,
     system: options.system,
     tools: options.tools,
-    messages: await convertToModelMessages(options.messages, { tools: options.tools }),
+    messages: await convertToModelMessages(untrusted(options.messages), {
+      tools: options.tools,
+    }),
     stopWhen: isStepCount(options.maxSteps ?? DEFAULT_MAX_STEPS),
     abortSignal: options.abortSignal,
     maxRetries: 0,
