@@ -297,6 +297,8 @@ Runs the function once per (scope, key) and replays its stored JSON result on
 retries for `ttlMs` (24 h). A duplicate that arrives while the first is still
 running gets `IDEMPOTENCY_IN_FLIGHT` (answer 409); a claim left by a crash
 expires after `leaseMs` (60 s). If the function throws, the key is released.
+With a cipher on the db the stored result is encrypted, so `encrypted()` fields
+the function returns are not left as plaintext in the table.
 `pruneIdempotency(db)` deletes expired keys.
 
 ## Named queries

@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { eq } from "drizzle-orm"
+import { createCipher, generateKey, isCiphertext } from "../src/cipher"
 import { isSignetDbError } from "../src/errors"
 import { pruneIdempotency, withIdempotency } from "../src/idempotency"
 import { drainOutbox, enqueue, type OutboxMessage, pruneOutbox } from "../src/outbox"
+import { scoped } from "../src/scoped"
 import { toZod } from "../src/zod"
 import { backends, type Instance, pgSchema, sqliteSchema } from "./harness"
 
@@ -141,6 +143,21 @@ describe.each(backends)("$name", (backend) => {
     expect(await withIdempotency(db, "k1", "user-a", op)).toEqual({ n: 1 })
     expect(await withIdempotency(db, "k1", "user-b", op)).toEqual({ n: 2 })
     expect(runs).toBe(2)
+  })
+
+  test("idempotency: with a cipher the stored result is encrypted and still replays", async () => {
+    const cipher = createCipher({ keys: { k: generateKey() }, current: "k" })
+    open = await backend.make({ cipher })
+    const { db, S } = open
+    const op = () =>
+      scoped(db, { userId: "u" }).insert(S.notes, { title: "t", price: 1, secret: "ABCDE1234F" })
+    const first = await withIdempotency(db, "k1", "u", op)
+    const [row] = await db.orm.select().from(S.idem)
+    expect(JSON.stringify(row.result)).not.toContain("ABCDE1234F")
+    expect(isCiphertext(row.result)).toBe(true)
+    const replay = await withIdempotency(db, "k1", "u", async () => [] as typeof first)
+    expect(replay[0]?.secret).toBe("ABCDE1234F")
+    expect(replay[0]?.id).toBe(first[0]?.id)
   })
 
   test("idempotency: rejects a concurrent duplicate; releases the key when fn throws", async () => {

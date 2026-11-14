@@ -11,10 +11,13 @@
  * A retry while the first call is still running is rejected with
  * `IDEMPOTENCY_IN_FLIGHT` (answer 409). If the operation throws, its key is
  * released so the client can retry. Results are stored as JSON, so a replay
- * returns the JSON form (Dates as ISO strings).
+ * returns the JSON form (Dates as ISO strings). When the db has a cipher the
+ * stored JSON is encrypted, so decrypted `encrypted()` fields in a result never
+ * sit in the table as plaintext.
  */
 
 import { and, eq, getTableColumns, lt, type Table } from "drizzle-orm"
+import { isCiphertext } from "./cipher.js"
 import type { SignetDb } from "./db.js"
 import { SignetDbError } from "./errors.js"
 
@@ -68,9 +71,13 @@ export async function withIdempotency<R>(
         await o.delete(t).where(mine)
         throw err
       }
+      // The result may hold decrypted encrypted() fields: never store it as plain JSON.
+      const stored = db.cipher
+        ? await db.cipher.encrypt(JSON.stringify(result ?? null))
+        : (result ?? null)
       await o
         .update(t)
-        .set({ status: "done", result: result ?? null, expiresAt: new Date(Date.now() + ttlMs) })
+        .set({ status: "done", result: stored, expiresAt: new Date(Date.now() + ttlMs) })
         .where(mine)
       return result
     }
@@ -80,7 +87,12 @@ export async function withIdempotency<R>(
       await o.delete(t).where(and(mine, eq(c.expiresAt, row.expiresAt)))
       continue
     }
-    if (row.status === "done") return row.result as R
+    if (row.status === "done")
+      return (
+        db.cipher && isCiphertext(row.result)
+          ? JSON.parse(await db.cipher.decrypt(row.result))
+          : row.result
+      ) as R
     throw new SignetDbError(
       "IDEMPOTENCY_IN_FLIGHT",
       `A request with idempotency key "${key}" is still running. Retry after it finishes (respond 409).`,
