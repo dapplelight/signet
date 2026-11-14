@@ -14,8 +14,17 @@
  */
 
 import type { z } from "zod"
-import { type KeyValue, memoryKv, type Queue } from "../adapters/index.js"
+import { type KeyValue, kvRateLimitStore, memoryKv, type Queue } from "../adapters/index.js"
+import type { RateLimitStore } from "../middleware/rate-limit.js"
 import { runDueSchedules, type Schedule } from "./cron.js"
+import {
+  approvalEvent,
+  makeSteps,
+  type PendingApproval,
+  type Steps,
+  Suspend,
+  stepStore,
+} from "./steps.js"
 
 /** Who caused a run. Same shape as signet-db's audit actor, so `ctx.actor` can go straight to `audited()`. */
 export type JobActor = { type: "user" | "agent" | "system"; id: string }
@@ -37,6 +46,8 @@ export type JobMessage = {
   attempt: number
   key?: string
   actor?: JobActor
+  /** Set on a step's own timer message (sleep, wait timeout). */
+  wake?: string
 }
 
 export type JobContext = {
@@ -47,6 +58,8 @@ export type JobContext = {
   actor: JobActor
   /** Aborted when `timeoutSeconds` passes. Hand it to fetch and other cancellable work. */
   signal: AbortSignal
+  /** Durable steps: `run`, `sleep`, `waitFor`, `waitForApproval`. */
+  step: Steps
 }
 
 type Schema = z.ZodType
@@ -57,6 +70,10 @@ export type JobDefinition<S extends Schema> = {
   input: S
   retry?: Partial<RetryPolicy>
   timeoutSeconds?: number
+  /** At most `limit` runs at once per key. Over the limit: re-enqueued with a delay, never dropped. */
+  concurrency?: { key: (input: z.output<S>) => string; limit: number }
+  /** At most `max` runs per key per window (counted in `rateLimitStore`). Over: re-enqueued for the next window. */
+  rateLimit?: { key: (input: z.output<S>) => string; max: number; windowSeconds: number }
   run(input: z.output<S>, ctx: JobContext): unknown
 }
 
@@ -171,7 +188,7 @@ export type JobRunEvent = {
 }
 
 export type HandleResult = {
-  status: "done" | "retrying" | "dead" | "paused" | "skipped"
+  status: "done" | "retrying" | "dead" | "paused" | "skipped" | "sleeping" | "waiting" | "throttled"
   code?: string
 }
 
@@ -195,6 +212,17 @@ export type CreateJobsOptions = {
   keyTtlSeconds?: number
   /** A paused job's messages come back after this long. Default 60. */
   pausedDelaySeconds?: number
+  /** Jobs started by `jobs.emit(event)`, as `{ "order.paid": [sendReceipt] }`. `jobs.on` adds more. */
+  // biome-ignore lint/suspicious/noExplicitAny: see AnyJob
+  triggers?: Record<string, readonly Job<any>[]>
+  /** Counts for jobs' `rateLimit`. Default `kvRateLimitStore(store)`. */
+  rateLimitStore?: RateLimitStore
+  /** How long a throttled run waits before trying again (concurrency). Default 5. */
+  throttleDelaySeconds?: number
+  /** How long step results and waits are kept. Default 30 days. */
+  stepTtlSeconds?: number
+  /** The clock for steps and tests. Default `Date.now`. */
+  now?: () => number
   /** `defineSchedule(...)`s for `jobs.runDueSchedules(now)`. */
   schedules?: readonly Schedule[]
   onJobRun?: (event: JobRunEvent) => unknown
@@ -221,6 +249,30 @@ export type Jobs = {
   pause(name: string): Promise<void>
   resume(name: string): Promise<void>
   isPaused(name: string): Promise<boolean>
+  /** Start the jobs listed for `event` (keyed per job when `key` is given) and wake runs waiting on it. */
+  emit(
+    event: string,
+    payload: unknown,
+    opts?: { key?: string; actor?: JobActor },
+  ): Promise<{ started: number; woken: number }>
+  /** Same as `emit`. */
+  send(
+    event: string,
+    payload: unknown,
+    opts?: { key?: string; actor?: JobActor },
+  ): Promise<{ started: number; woken: number }>
+  // biome-ignore lint/suspicious/noExplicitAny: see AnyJob
+  on(event: string, jobs: readonly Job<any>[]): void
+  /** Steps waiting on `waitForApproval`. */
+  listApprovals(): Promise<PendingApproval[]>
+  /** Answer a `waitForApproval`. False when nothing is waiting there. */
+  approve(
+    id: string,
+    step: string,
+    decision?: { approved?: boolean; by?: string },
+  ): Promise<boolean>
+  /** The outbox row for an event: `enqueue(db, m.topic, m.payload)`; `outboxQueue` emits it. */
+  outboxEvent(event: string, payload: unknown): { topic: string; payload: unknown }
   /** Enqueue the schedules due at `now`'s UTC minute (default: now). Returns their names. */
   runDueSchedules(now?: Date): Promise<string[]>
   /** The row for signet-db's outbox: `enqueue(db, m.topic, m.payload)`. Validates now. */
@@ -289,8 +341,12 @@ export function createJobs(options: CreateJobsOptions): Jobs {
     store = memoryKv(),
     keyTtlSeconds = 86_400,
     pausedDelaySeconds = 60,
+    throttleDelaySeconds = 5,
+    stepTtlSeconds = 2_592_000,
+    now = Date.now,
     onError = console.error,
   } = options
+  const limits = options.rateLimitStore ?? kvRateLimitStore(store, "signet-job:rl")
   const dead = options.deadLetter ?? kvDeadLetter(store)
   const byName = new Map<string, AnyJob>()
   for (const job of options.jobs) {
@@ -298,6 +354,20 @@ export function createJobs(options: CreateJobsOptions): Jobs {
     byName.set(job.name, job)
   }
   const pausedKey = (name: string) => `signet-job:paused:${name}`
+  const doneKey = (id: string) => `signet-job:done:${id}`
+  const stepDeps = {
+    store,
+    now,
+    ttlSeconds: stepTtlSeconds,
+    send: (m: JobMessage, delaySeconds?: number) =>
+      queue.send(m, delaySeconds ? { delaySeconds } : undefined),
+  }
+  const steps = stepStore(stepDeps)
+  const triggers = new Map<string, AnyJob[]>()
+  const on = (event: string, list: readonly AnyJob[]) => {
+    for (const job of list) lookup(job.name)
+    triggers.set(event, [...(triggers.get(event) ?? []), ...list])
+  }
 
   const lookup = (name: string) => {
     const job = byName.get(name)
@@ -347,6 +417,26 @@ export function createJobs(options: CreateJobsOptions): Jobs {
     return { status: "dead", code: codeOf(err) }
   }
 
+  /** A concurrency slot: claim one of `limit` keys, release by deleting it. Exact with `incr`. */
+  const acquire = async (job: AnyJob, input: unknown) => {
+    const c = job.concurrency
+    if (!c) return async () => {}
+    const lease = Math.max(60, Math.ceil(job.timeoutSeconds ?? 900))
+    const base = `signet-job:slot:${job.name}:${c.key(input)}`
+    for (let i = 0; i < c.limit; i++) {
+      const k = `${base}:${i}`
+      let mine: boolean
+      if (store.incr) mine = (await store.incr(k, lease)) === 1
+      else {
+        // ponytail: without incr (Workers KV) two runs can take the same slot.
+        mine = !(await store.get(k))
+        if (mine) await store.set(k, "1", { ttlSeconds: lease })
+      }
+      if (mine) return () => store.delete(k)
+    }
+    return null
+  }
+
   const handle = async (message: JobMessage): Promise<HandleResult> => {
     const job = byName.get(message.job)
     if (!job) {
@@ -355,6 +445,7 @@ export function createJobs(options: CreateJobsOptions): Jobs {
         new JobError("UNKNOWN_JOB", `No job named "${message.job}" is registered.`),
       )
     }
+    if (await store.get(doneKey(message.id))) return { status: "skipped" }
     if (await store.get(pausedKey(job.name))) {
       await queue.send(message, { delaySeconds: pausedDelaySeconds })
       return { status: "paused" }
@@ -379,12 +470,42 @@ export function createJobs(options: CreateJobsOptions): Jobs {
       })
       return result
     }
+    const release = await acquire(job, input)
+    if (!release) {
+      await queue.send(message, { delaySeconds: throttleDelaySeconds })
+      return { status: "throttled" }
+    }
+    try {
+      if (job.rateLimit) {
+        const r = job.rateLimit
+        const hit = await limits.hit(`job:${job.name}`, r.key(input), r.max, r.windowSeconds)
+        if (!hit.ok) {
+          await queue.send(message, { delaySeconds: Math.max(1, hit.resetSeconds) })
+          return { status: "throttled" }
+        }
+      }
+      return await execute(job, message, input, actor, ac, started)
+    } finally {
+      await release()
+    }
+  }
+
+  const execute = async (
+    job: AnyJob,
+    message: JobMessage,
+    input: unknown,
+    actor: JobActor,
+    ac: AbortController,
+    started: number,
+  ): Promise<HandleResult> => {
+    const used = { value: false }
     const ctx: JobContext = {
       id: message.id,
       name: job.name,
       attempt: message.attempt,
       actor,
       signal: ac.signal,
+      step: makeSteps(stepDeps, steps, message, used, async () => {}),
       ...(message.key ? { key: message.key } : {}),
     }
     const run = async () => {
@@ -397,6 +518,7 @@ export function createJobs(options: CreateJobsOptions): Jobs {
           : run(),
       )
     } catch (err) {
+      if (err instanceof Suspend) return { status: err.status }
       const code = codeOf(err)
       const base = { name: job.name, id: message.id, attempt: message.attempt, actor }
       await report({ ...base, durationMs: Date.now() - started, ok: false, code, error: err })
@@ -410,6 +532,8 @@ export function createJobs(options: CreateJobsOptions): Jobs {
       }
       return toDead(message, err)
     }
+    // Stray wake-ups (a wait's timer after the event resumed it) skip a finished run.
+    if (used.value) await store.set(doneKey(message.id), "1", { ttlSeconds: stepTtlSeconds })
     await report({
       name: job.name,
       id: message.id,
@@ -420,6 +544,16 @@ export function createJobs(options: CreateJobsOptions): Jobs {
     })
     return { status: "done" }
   }
+
+  const emit: Jobs["emit"] = async (event, payload, opts = {}) => {
+    let started = 0
+    for (const job of triggers.get(event) ?? []) {
+      const r = await enqueueByName(job.name, payload, opts)
+      if (r.enqueued) started++
+    }
+    return { started, woken: await steps.wake(event, payload) }
+  }
+  for (const [event, list] of Object.entries(options.triggers ?? {})) on(event, list)
 
   const runtime: Jobs = {
     jobs: byName,
@@ -448,13 +582,28 @@ export function createJobs(options: CreateJobsOptions): Jobs {
     async isPaused(name) {
       return (await store.get(pausedKey(name))) !== null
     },
-    runDueSchedules: (now) => runDueSchedules(runtime, options.schedules ?? [], now),
+    runDueSchedules: (at) => runDueSchedules(runtime, options.schedules ?? [], at),
+    emit,
+    send: emit,
+    on,
+    listApprovals: () => steps.listApprovals(),
+    async approve(id, step, decision = {}) {
+      if (!(await steps.removeApproval(id, step))) return false
+      const payload = {
+        approved: decision.approved ?? true,
+        ...(decision.by ? { by: decision.by } : {}),
+      }
+      await steps.wake(approvalEvent(id, step), payload)
+      return true
+    },
+    outboxEvent: (event, payload) => ({ topic: `event:${event}`, payload }),
     outboxMessage(job, input) {
       return { topic: job.name, payload: validate(lookup(job.name), input) }
     },
     outboxQueue: {
       async send({ id, topic, payload }) {
-        await enqueueByName(topic, payload, { key: `outbox:${id}` })
+        if (topic.startsWith("event:")) await emit(topic.slice(6), payload, { key: `outbox:${id}` })
+        else await enqueueByName(topic, payload, { key: `outbox:${id}` })
       },
     },
   }

@@ -22,6 +22,14 @@ a package at the version it had when the repository was opened to the public.
   `inProcessJobs` (memoryQueue) and `startWorker` (polling).
 - `jobTools(jobs)`: plain MCP tools `list_failed_jobs`, `retry_job` (behind
   `requireApproval`), `pause_job`, `resume_job`.
+- Durable steps: `ctx.step.run` (memoised in the `KeyValue`), `step.sleep`
+  (re-enqueues in 12 h legs), `step.waitFor({ event, timeoutSeconds })` and
+  `step.waitForApproval`, answered by `jobs.emit`/`jobs.send` and
+  `jobs.approve` or the new `list_pending_approvals` / `decide_job_approval`
+  tools. Per-key `concurrency` and `rateLimit` (re-enqueue with delay). Event
+  triggers: `jobs.on(event, jobs)`, `triggers`, `jobs.emit`, `outboxEvent`.
+  `createTestJobs` with `runAll({ advanceTime })` and a virtual clock.
+  `jobTools`' `retryWithoutApproval` option is now `withoutApproval`.
 - New `@dapplelight/signet-server/storage`: `createUploads({ store, maxBytes, allowedTypes })`
   with `presignUpload` (checks before signing), `presignDownload`,
   `confirmUpload` (re-checks what landed, deletes a bad file, runs

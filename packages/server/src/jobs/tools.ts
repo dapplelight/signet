@@ -1,17 +1,17 @@
 /**
- * Agent tools for jobs as plain MCP tool objects: `list_failed_jobs`, `retry_job` (gated by `requireApproval`), `pause_job`, `resume_job`.
+ * Agent tools for jobs as plain MCP tool objects: `list_failed_jobs`, `retry_job`, `pause_job`, `resume_job`, `list_pending_approvals`, `decide_job_approval`.
  *
  * `createMcpServer({ tools: [...jobTools(jobs)] })`. Retrying runs work again
- * (an email, a charge), so it asks the person first; pausing is reversible
- * and does not. The MCP SDK is loaded only when `retry_job` runs.
+ * (an email, a charge) and an approval decides a step, so both ask the person
+ * through `requireApproval` first; pausing is reversible and does not. The MCP SDK is loaded only when `retry_job` runs.
  */
 
 import type { PlainTool, ToolContext } from "../mcp/server.js"
 import type { Jobs } from "./jobs.js"
 
 export type JobToolsOptions = {
-  /** Skip the approval step for `retry_job`. Only for a trusted, internal agent. Default false. */
-  retryWithoutApproval?: boolean
+  /** Skip `requireApproval` for `retry_job` and `decide_job_approval`. Only for a trusted, internal agent. Default false. */
+  withoutApproval?: boolean
 }
 
 // An error result sent as-is: the same marker `toolResult` sets, without loading the SDK.
@@ -34,6 +34,14 @@ const byName = {
 } as const
 
 export function jobTools(jobs: Jobs, options: JobToolsOptions = {}): PlainTool[] {
+  const approval = async (
+    ctx: ToolContext,
+    a: { summary: string; details: Record<string, unknown>; args: unknown },
+  ) => {
+    if (options.withoutApproval) return undefined
+    const { requireApproval } = await import("../mcp/interaction.js")
+    return requireApproval(ctx, a)
+  }
   const pauseTool = (paused: boolean): PlainTool => ({
     name: paused ? "pause_job" : "resume_job",
     description: paused
@@ -72,20 +80,57 @@ export function jobTools(jobs: Jobs, options: JobToolsOptions = {}): PlainTool[]
       async run({ id }: { id: string }, ctx: ToolContext) {
         const entry = (await jobs.listDead()).find((d) => d.id === id)
         if (!entry) return err("NOT_FOUND", `No failed job with id "${id}".`)
-        if (!options.retryWithoutApproval) {
-          const { requireApproval } = await import("../mcp/interaction.js")
-          const gate = await requireApproval(ctx, {
-            summary: `Retry job ${entry.job} (${id})`,
-            details: { error: entry.error.message, input: entry.input },
-            args: { id },
-          })
-          if (gate) return gate
-        }
+        const gate = await approval(ctx, {
+          summary: `Retry job ${entry.job} (${id})`,
+          details: { error: entry.error.message, input: entry.input },
+          args: { id },
+        })
+        if (gate) return gate
         await jobs.retryDead(id)
         return { id, job: entry.job, retried: true }
       },
     },
     pauseTool(true),
     pauseTool(false),
+    {
+      name: "list_pending_approvals",
+      description:
+        "List job steps waiting for a person's approval: id, job, step, summary, when asked.",
+      annotations: { readOnlyHint: true },
+      inputSchema: { type: "object", properties: {}, additionalProperties: false },
+      async run() {
+        return { pending: await jobs.listApprovals() }
+      },
+    },
+    {
+      name: "decide_job_approval",
+      description:
+        "Approve or reject a job step from list_pending_approvals. The person confirms it first.",
+      annotations: { destructiveHint: true },
+      inputSchema: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          step: { type: "string" },
+          approved: { type: "boolean" },
+        },
+        required: ["id", "step", "approved"],
+        additionalProperties: false,
+      },
+      async run(input: { id: string; step: string; approved: boolean }, ctx: ToolContext) {
+        const entry = (await jobs.listApprovals()).find(
+          (a) => a.id === input.id && a.step === input.step,
+        )
+        if (!entry) return err("NOT_FOUND", `Nothing is waiting at ${input.id} / ${input.step}.`)
+        const gate = await approval(ctx, {
+          summary: `${input.approved ? "Approve" : "Reject"}: ${entry.summary}`,
+          details: { job: entry.job, step: entry.step },
+          args: input,
+        })
+        if (gate) return gate
+        await jobs.approve(input.id, input.step, { approved: input.approved, by: "agent" })
+        return { ...input, decided: true }
+      },
+    },
   ]
 }

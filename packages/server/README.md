@@ -348,6 +348,25 @@ await sendReceipt.enqueue({ orderId }, { key: orderId }) // once per key
   `retry_job` (gated by `requireApproval`; `retryWithoutApproval` to skip),
   `pause_job`, `resume_job`.
 
+- **Steps (durable workflows).** `run: async (input, { step }) => …` with
+  `step.run(name, fn)` (result memoised in the store, so a retry resumes after
+  the last finished step), `step.sleep(name, seconds)` (re-enqueues, any
+  length), `step.waitFor(name, { event, timeoutSeconds })` (resumes on
+  `jobs.emit(event, payload)`, null on timeout) and
+  `step.waitForApproval(name, summary)` (resumes on `jobs.approve(id, step)`
+  or the `decide_job_approval` agent tool, which asks the person via
+  `requireApproval`). Step results replay as JSON.
+- **Concurrency and rate limits.** `concurrency: { key: (input) => input.accountId, limit: 1 }`
+  and `rateLimit: { key, max, windowSeconds }` (any `RateLimitStore`). Over the
+  limit the message is re-enqueued with a delay, never dropped. Every wake-up
+  of a stepped job counts as a run.
+- **Events.** `jobs.on("user.signup", [welcome, crm])` (or `triggers`), then
+  `jobs.emit("user.signup", payload)` starts each job and wakes runs waiting
+  on that event. Through the outbox: `const e = jobs.outboxEvent(event, payload)`, then `enqueue(db, e.topic, e.payload)`.
+- **Tests.** `createTestJobs({ jobs })` queues in memory with a virtual
+  clock; `await jobs.runAll()` runs everything, retries, sleeps and timeouts
+  included (`{ advanceTime: false }` runs only what is due now).
+
 Delivery is at least once. Make `run` safe to repeat, or key it.
 
 ### Wiring: Cloudflare (Queues + KV + cron trigger)

@@ -427,7 +427,7 @@ console.log("agent tools")
   }
   ok("retry_job unknown id", missing.structuredContent?.code === "NOT_FOUND")
   const trusted = Object.fromEntries(
-    jobTools(jobs, { retryWithoutApproval: true }).map((t) => [t.name, t]),
+    jobTools(jobs, { withoutApproval: true }).map((t) => [t.name, t]),
   )
   await (trusted.retry_job!.run as (i: unknown, c: ToolContext) => Promise<unknown>)(
     { id: deadId },

@@ -189,3 +189,56 @@ export function startWorker(
     clearTimeout(timer)
   }
 }
+
+export type TestJobs = Jobs & {
+  /** Messages not yet run, with when they are due (virtual ms). */
+  readonly queued: readonly { message: JobMessage; dueAt: number }[]
+  /** The virtual clock, in ms. Starts at the real time. */
+  now(): number
+  /**
+   * Run everything queued, including what runs enqueue: retries, sleeps,
+   * throttled runs. With `advanceTime` (default true) the virtual clock jumps
+   * to each delayed message; without it, only messages due now run. Stops
+   * after `maxRuns` (default 1000) so a job that re-enqueues forever fails
+   * the test instead of hanging it. Returns each run's result in order.
+   */
+  runAll(opts?: {
+    advanceTime?: boolean
+    maxRuns?: number
+  }): Promise<{ message: JobMessage; status: string; code?: string }[]>
+}
+
+/** Jobs for tests: an in-memory queue you drain with `runAll`, and a virtual clock for steps. */
+export function createTestJobs(options: Omit<CreateJobsOptions, "queue" | "now">): TestJobs {
+  let clock = Date.now()
+  const queued: { message: JobMessage; dueAt: number }[] = []
+  const jobs = createJobs({
+    ...options,
+    now: () => clock,
+    queue: {
+      async send(message, opts) {
+        queued.push({ message, dueAt: clock + (opts?.delaySeconds ?? 0) * 1000 })
+      },
+    },
+  })
+  return Object.assign(jobs, {
+    queued,
+    now: () => clock,
+    async runAll({ advanceTime = true, maxRuns = 1000 } = {}) {
+      const results: { message: JobMessage; status: string; code?: string }[] = []
+      for (;;) {
+        if (!queued.length) return results
+        queued.sort((a, b) => a.dueAt - b.dueAt)
+        const next = queued[0] as { message: JobMessage; dueAt: number }
+        if (next.dueAt > clock) {
+          if (!advanceTime) return results
+          clock = next.dueAt
+        }
+        if (results.length >= maxRuns)
+          throw new Error(`runAll: still busy after ${maxRuns} runs; a job may re-enqueue forever.`)
+        queued.shift()
+        results.push({ message: next.message, ...(await jobs.handle(next.message)) })
+      }
+    },
+  })
+}
