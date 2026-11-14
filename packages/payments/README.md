@@ -35,14 +35,15 @@ around them: a webhook inbox, a double-entry ledger and reconciliation.
 | refunds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | partialRefunds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | customers | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |  | ✓ |
-| savedMethods | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ |  |
-| subscriptions | ✓ | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ |  |
-| payouts | ✓ | ✓ | ✓ |  |  |  |  | ✓ |  |
+| savedMethods | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ | ✓ |
+| subscriptions | ✓ | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |
+| payouts | ✓ | ✓ | ✓ |  |  |  |  | ✓ | ✓ |
 | settlements | ✓ | ✓ | ✓ |  | ✓ |  |  |  |  |
 | webhooks | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
-Razorpay payouts are RazorpayX and need `accountNumber`. Hyperswitch methods
-depend on the connectors enabled in your account. What each unsupported cell
+Razorpay payouts are RazorpayX and need `accountNumber`. Hyperswitch
+subscriptions need `profileId`, and its methods depend on the connectors
+enabled in your account. What each unsupported cell
 is missing is at the top of that adapter's source file.
 
 ### Notes on gaps
@@ -92,6 +93,15 @@ SDK (or two official doc pages) agree. What is left out, and why:
   sign. Checked: https://developer.paypal.com/api/rest/webhooks/rest/.
 - **PayPal customers**: PayPal has no customer object. Vault customer ids come
   from vaulting a payment source, and `listPaymentMethods` takes that id.
+- **Hyperswitch payouts** send `destination` as `payout_method_id` (a saved
+  payout method). The guide says to pass the customer list's `payment_token`
+  but names no field; the OpenAPI spec settles it. Payouts are never retried,
+  because `merchant_order_reference_id` does not deduplicate. Subscriptions
+  report no period end: `SubscriptionResponse` has none. Checked:
+  https://api-reference.hyperswitch.io/v1/payouts/payouts--create,
+  https://raw.githubusercontent.com/juspay/hyperswitch/main/api-reference/v1/openapi_spec_v1.json.
+- **Hyperswitch settlements**: no public settlement or recon API. Checked:
+  https://api-reference.hyperswitch.io/llms.txt.
 
 ## Quick start
 

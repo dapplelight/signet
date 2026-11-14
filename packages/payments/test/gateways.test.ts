@@ -4,6 +4,7 @@
 import { describe, expect, test } from "bun:test"
 import { constants, createHash, createHmac, generateKeyPairSync, privateDecrypt } from "node:crypto"
 import { cashfree } from "../src/gateways/cashfree"
+import { hyperswitch } from "../src/gateways/hyperswitch"
 import { lemonsqueezy } from "../src/gateways/lemonsqueezy"
 import { paddle } from "../src/gateways/paddle"
 import { paypal } from "../src/gateways/paypal"
@@ -444,5 +445,120 @@ describe("paypal", () => {
       paymentId: "5O190127TN364715T",
       orderId: "5O190127TN364715T",
     })
+  })
+})
+
+describe("hyperswitch", () => {
+  const make = (routes: Record<string, unknown>, profileId?: string) => {
+    const f = fakeFetch(routes)
+    return {
+      f,
+      g: hyperswitch({
+        apiKey: "snd_made_up",
+        ...(profileId ? { profileId } : {}),
+        fetch: f.fetch,
+        ...http,
+      }),
+    }
+  }
+
+  test("refund_id is 30 chars and stable per idempotency key", async () => {
+    const { f, g } = make({
+      "POST /refunds": ({ json }: any) => ({
+        refund_id: json.refund_id,
+        payment_id: json.payment_id,
+        amount: 100,
+        currency: "USD",
+        status: "pending",
+      }),
+    })
+    await g.refund("pay_hs1", { amount: 100, idempotencyKey: "rf-1" })
+    await g.refund("pay_hs1", { amount: 100, idempotencyKey: "rf-1" })
+    const [a, b] = f.calls.map((c) => JSON.parse(c.body!).refund_id)
+    expect(a).toHaveLength(30)
+    expect(a).toMatch(/^ref_[0-9a-f]{26}$/)
+    expect(b).toBe(a)
+  })
+
+  test("saved methods", async () => {
+    const { g } = make({
+      "GET /customers/cus_1/payment_methods": {
+        customer_payment_methods: [
+          {
+            payment_token: "token_tmp",
+            payment_method_id: "pm_1",
+            customer_id: "cus_1",
+            payment_method: "card",
+            requires_cvv: true,
+            default_payment_method_set: true,
+            card: {
+              scheme: "Visa",
+              card_network: "Visa",
+              last4_digits: "4242",
+              saved_to_locker: true,
+            },
+            created: "2026-01-01T10:00:00Z",
+          },
+        ],
+      },
+    })
+    const [m] = await g.listPaymentMethods("cus_1")
+    expect(m).toMatchObject({ gatewayId: "pm_1", type: "card", label: "Visa 4242" })
+  })
+
+  test("payouts are sent once, confirmed and fulfilled", async () => {
+    const { f, g } = make({
+      "POST /payouts/create": ({ json }: any) => ({
+        payout_id: "po_1",
+        amount: json.amount,
+        currency: json.currency,
+        status: "success",
+        created: "2026-01-01T10:00:00Z",
+      }),
+    })
+    const p = await g.createPayout({
+      amount: 5000,
+      currency: "USD",
+      idempotencyKey: "po-key",
+      destination: "pm_1",
+    })
+    expect(p).toMatchObject({ gatewayId: "po_1", amount: 5000, status: "paid" })
+    expect(JSON.parse(f.calls[0].body!)).toMatchObject({
+      payout_method_id: "pm_1",
+      confirm: true,
+      auto_fulfill: true,
+    })
+    const down = make({ "POST /payouts/create": {} })
+    const failing = fakeFetch(
+      { "POST /payouts/create": {} },
+      { status: { "POST /payouts/create": 503 } },
+    )
+    const g2 = hyperswitch({ apiKey: "k", fetch: failing.fetch, ...http })
+    await expect(
+      g2.createPayout({ amount: 1, currency: "USD", idempotencyKey: "k2", destination: "pm_1" }),
+    ).rejects.toThrow()
+    expect(failing.calls).toHaveLength(1)
+    expect(down.g.supports("subscriptions")).toBe(false)
+  })
+
+  test("subscriptions need profileId and send X-Profile-Id", async () => {
+    const sub = (status: string) => ({
+      id: "sub_1",
+      status,
+      profile_id: "pro_1",
+      merchant_id: "m",
+      customer_id: "cus_1",
+    })
+    const { f, g } = make(
+      {
+        "GET /subscriptions/sub_1": sub("active"),
+        "POST /subscriptions/sub_1/cancel": sub("cancelled"),
+      },
+      "pro_1",
+    )
+    expect((await g.getSubscription("sub_1")).status).toBe("active")
+    expect((await g.cancelSubscription("sub_1", { atPeriodEnd: true })).status).toBe("cancelled")
+    expect(f.calls[0].headers["x-profile-id"]).toBe("pro_1")
+    expect(JSON.parse(f.calls[1].body!)).toEqual({ cancel_option: "end_of_term" })
   })
 })
