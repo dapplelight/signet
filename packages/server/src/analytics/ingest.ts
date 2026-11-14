@@ -7,10 +7,12 @@
  */
 
 import type { Hono } from "hono"
-import type { AnalyticsEngine, TrackedEvent } from "./engine.js"
+import type { TrackedEvent } from "./engine.js"
+import type { AnalyticsSink } from "./sinks.js"
 
 export type IngestOptions = {
-  engine: AnalyticsEngine
+  /** Any sink: `createAnalyticsEngine(...)`, `httpSink(...)`, `memorySink()`. */
+  engine: AnalyticsSink
   /** Max events accepted per request. Default 50. */
   maxEvents?: number
   /** Max event-name length. Default 64. */
@@ -52,7 +54,7 @@ export function registerIngest(app: Hono<never>, path: string, opts: IngestOptio
       })
     }
 
-    const written = opts.engine.write(events)
+    const written = await opts.engine.write(events)
     // 202: accepted, nothing to report back. The client never waits on this.
     return c.json({ success: true as const, written }, 202)
   })

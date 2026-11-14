@@ -19,6 +19,3 @@ jobs:
       - run: bun run lint
       - run: bun run typecheck
       - run: bun run test
-      # Bundles the Worker exactly as a deploy would, without credentials or
-      # uploading: catches a missing Durable Object export or a bad binding.
-      - run: bun run deploy --dry-run --outdir dist

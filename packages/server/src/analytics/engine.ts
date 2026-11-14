@@ -84,6 +84,7 @@ export function toDataPoint(event: TrackedEvent, indexBy?: EngineConfig["indexBy
   }
 }
 
+/** The Analytics Engine as an `AnalyticsSink` (see `./sinks`): `write` is synchronous and returns how many landed. */
 export function createAnalyticsEngine(config: EngineConfig) {
   return {
     write(events: TrackedEvent[]): number {

@@ -95,14 +95,16 @@ Signet backend primitives. Auth first.
 | Import | Exports | What |
 |---|---|---|
 | `@dapplelight/signet-server/adapters` | memoryKv, memoryQueue, processDefer, waitUntilDefer, kvRateLimitStore, assertBlobKey, … | Small plug interfaces so server code runs off Cloudflare too, plus in-memory and Node/Bun versions |
-| `@dapplelight/signet-server/adapters/cloudflare` | cloudflareKv, r2BlobStore, KvNamespaceLike, R2BucketLike | Cloudflare bindings as Signet adapters: Workers KV and R2 |
+| `@dapplelight/signet-server/adapters/cloudflare` | cloudflareKv, r2BlobStore, QUEUE_BATCH_MAX, cloudflareQueue, KvNamespaceLike, R2BucketLike, … | Cloudflare bindings as Signet adapters: Workers KV, R2 and a Queues producer |
 | `@dapplelight/signet-server/adapters/node` | fsBlobStore | Filesystem `BlobStore` for Node, Bun and Docker (mount a volume at `dir`) |
 | `@dapplelight/signet-server/adapters/s3` | s3BlobStore, S3Config, S3BlobStore | S3-compatible storage (AWS S3, Cloudflare R2's S3 API, MinIO) as a `BlobStore` with presigned URLs and multipart uploads, signed with SigV4 over Web C |
 | `@dapplelight/signet-server/adapters/supabase` | supabaseBlobStore, SupabaseStorageConfig, SupabaseBlobStore | Supabase Storage as a `BlobStore`, over its REST API with plain fetch |
 | `@dapplelight/signet-server/adapters/upstash` | upstashKv, upstashRateLimitStore, qstashQueue, UpstashConfig, QstashConfig | Upstash over plain fetch: Redis REST as a `KeyValue` (atomic `incr`), and QStash as a `Queue` |
-| `@dapplelight/signet-server/analytics` | LIMITS, truncateBytes, toDataPoint, createAnalyticsEngine, AnalyticsEngineDataset, TrackedEvent, … | re-exports engine, ingest |
+| `@dapplelight/signet-server/adapters/vercel` | vercelDefer | Vercel as Signet adapters |
+| `@dapplelight/signet-server/analytics` | LIMITS, truncateBytes, toDataPoint, createAnalyticsEngine, AnalyticsEngineDataset, TrackedEvent, … | re-exports engine, ingest, sinks |
 | `@dapplelight/signet-server/analytics/engine` | LIMITS, truncateBytes, toDataPoint, createAnalyticsEngine, AnalyticsEngineDataset, TrackedEvent, … | Cloudflare Workers Analytics Engine writer |
 | `@dapplelight/signet-server/analytics/ingest` | registerIngest, cloudflareEnrichment, IngestOptions | Hono ingest route for browser events |
+| `@dapplelight/signet-server/analytics/sinks` | httpSink, memorySink, consoleSink, AnalyticsSink, HttpSinkConfig | Where server-side analytics events go, independent of runtime |
 | `@dapplelight/signet-server/auth` | readBearer, verifySharedToken, sha256Hex, createApiToken, hashIncomingToken, betterAuthDefaults, … | re-exports bearer, better-auth, guards, passcode, session |
 | `@dapplelight/signet-server/auth/bearer` | readBearer, verifySharedToken, sha256Hex, createApiToken, hashIncomingToken | Bearer-token auth for machine callers — CLIs, MCP servers, webhooks, cron |
 | `@dapplelight/signet-server/auth/better-auth` | betterAuthDefaults, socialProviders, BetterAuthEnv, BetterAuthDefaultsOptions | Opinionated defaults for Better Auth |
