@@ -94,6 +94,16 @@
       "types": "./dist/gateways/googleplay.d.ts",
       "import": "./dist/gateways/googleplay.js",
       "default": "./dist/gateways/googleplay.js"
+    },
+    "./upi": {
+      "types": "./dist/upi.d.ts",
+      "import": "./dist/upi.js",
+      "default": "./dist/upi.js"
+    },
+    "./gst": {
+      "types": "./dist/gst.d.ts",
+      "import": "./dist/gst.js",
+      "default": "./dist/gst.js"
     }
   },
   "scripts": {
