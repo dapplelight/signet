@@ -89,8 +89,8 @@ for (const pkg of ORDER) {
     // NOT .quiet(): bun prompts for the 2FA one-time password on stdout, and
     // suppressing it leaves the release hanging on an invisible prompt.
     // CI uses npm, not bun: Trusted Publishing's OIDC exchange lives in
-    // `npm publish` (npm >= 11.5.1). No --provenance: npm only attests
-    // builds from public repositories, and this one is private.
+    // `npm publish` (npm >= 11.5.1). No --provenance flag: this repo is
+    // public, and npm attaches provenance on its own for Trusted Publishing.
     if (inCI) await $`npm publish ${flags}`.cwd(dir)
     else await $`bun publish ${flags}`.cwd(dir)
     console.log(`   ${name} published`)
