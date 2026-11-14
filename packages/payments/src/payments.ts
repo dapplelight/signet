@@ -198,6 +198,45 @@ export function createPayments(config: PaymentsConfig) {
     )
   }
 
+  /**
+   * Record a purchase made outside checkout (App Store, Google Play) as this
+   * user's: reads it from the gateway (which verifies it) and stores it. Later
+   * renewals and refunds link to it through `orderId` (the original
+   * transaction id or purchase token). A purchase already recorded for another
+   * user is refused, so one receipt cannot unlock two accounts.
+   */
+  async function verifyPurchase(input: {
+    gateway: string
+    /** The store's payment id: a transaction id (App Store) or order id (Google Play). */
+    id: string
+    userId: string
+  }): Promise<Payment> {
+    const g = gateway(input.gateway)
+    const p = await g.getPayment(input.id)
+    if (!db) return p
+    const existing = await db.getPayment(g.name, p.gatewayId)
+    if (existing?.userId && existing.userId !== input.userId)
+      throw new PaymentsError("BAD_INPUT", "This purchase already belongs to another user.", {
+        gateway: g.name,
+      })
+    const now = new Date()
+    await db.savePayment({
+      ...existing,
+      gateway: g.name,
+      gatewayId: p.gatewayId,
+      status: p.status,
+      amount: p.amount,
+      currency: p.currency,
+      amountRefunded: p.amountRefunded ?? existing?.amountRefunded ?? 0,
+      userId: input.userId,
+      ...(p.orderId ? { orderId: p.orderId } : {}),
+      ...(p.customerId ? { customerId: p.customerId } : {}),
+      createdAt: existing?.createdAt ?? p.createdAt,
+      updatedAt: now,
+    })
+    return p
+  }
+
   // ------------------------------------------------------------ inbox
 
   async function applyRefund(
@@ -300,7 +339,13 @@ export function createPayments(config: PaymentsConfig) {
         case "payment.failed":
           await moveTo(rec, "failed", e)
           break
+        // App store purchases and renewals arrive only as subscription events that carry the
+        // charge (paymentId + amount); treat those as the capture. Postings are keyed, so a
+        // gateway that also sends payment.captured for the same payment never double-posts.
+        case "subscription.created":
+        case "subscription.charged":
         case "payment.captured": {
+          if (e.type !== "payment.captured" && e.amount === undefined) break
           await moveTo(rec, "captured", e)
           const amount = e.amount ?? rec?.amount
           if (amount && cur) {
@@ -436,6 +481,7 @@ export function createPayments(config: PaymentsConfig) {
     checkout,
     capture,
     refund,
+    verifyPurchase,
     receive,
     handleWebhook,
     processInbox,

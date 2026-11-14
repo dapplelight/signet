@@ -59,7 +59,13 @@ export type Payment = Base &
     /** Gateway fee in minor units, when the gateway reports it on the payment. */
     fee?: number
     amountRefunded?: number
+    /** App store purchases: the store's product id. */
+    productId?: string
+    /** App store purchases: which store environment the purchase was made in. */
+    environment?: Environment
   }
+
+export type Environment = "production" | "sandbox"
 
 export type Refund = Base &
   Money & {
@@ -80,10 +86,21 @@ export type SubscriptionStatus =
   | "cancelled"
   | "expired"
 
+/**
+ * `cancelled` with a `currentPeriodEnd` in the future means the customer turned
+ * renewal off and keeps access until then (Lemon Squeezy, App Store, Google Play).
+ */
 export type Subscription = Base & {
   status: SubscriptionStatus
   customerId?: string
+  /** When the current period ends: the renewal or expiry date. */
   currentPeriodEnd?: Date
+  productId?: string
+  /** Whether it renews at `currentPeriodEnd`, where the gateway reports it. */
+  autoRenew?: boolean
+  /** In a billing grace period: a renewal failed but the customer keeps access (status `past_due`). */
+  inGracePeriod?: boolean
+  environment?: Environment
 }
 
 export type Payout = Base &
@@ -155,6 +172,8 @@ export type Event = {
   currency?: string
   /** Gateway fee in minor units, when the event carries it. */
   fee?: number
+  productId?: string
+  environment?: Environment
   raw: unknown
 }
 
