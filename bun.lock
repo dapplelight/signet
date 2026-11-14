@@ -126,6 +126,27 @@
         "@tanstack/react-query",
       ],
     },
+    "packages/mcp": {
+      "name": "@dapplelight/signet-mcp",
+      "version": "0.1.0",
+      "bin": {
+        "signet-mcp": "./dist/bin.js",
+      },
+      "dependencies": {
+        "@dapplelight/signet-server": "^0.4.0",
+      },
+      "devDependencies": {
+        "@modelcontextprotocol/server": "^2.1.0",
+        "@types/bun": "^1.4.2",
+        "@types/node": "^26.6.2",
+        "typescript": "^7.0.2",
+        "zod": "^4.6.5",
+      },
+      "peerDependencies": {
+        "@modelcontextprotocol/server": "^2.1.0",
+        "zod": ">=4.2.0",
+      },
+    },
     "packages/server": {
       "name": "@dapplelight/signet-server",
       "version": "0.4.0",
@@ -263,6 +284,8 @@
     "@dapplelight/signet-db": ["@dapplelight/signet-db@workspace:packages/db"],
 
     "@dapplelight/signet-lib": ["@dapplelight/signet-lib@workspace:packages/lib"],
+
+    "@dapplelight/signet-mcp": ["@dapplelight/signet-mcp@workspace:packages/mcp"],
 
     "@dapplelight/signet-server": ["@dapplelight/signet-server@workspace:packages/server"],
 

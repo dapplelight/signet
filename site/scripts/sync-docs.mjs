@@ -24,6 +24,7 @@ const PAGES = [
   ["packages/db/README.md", "db", "Database", "Packages", 7, "Drizzle helpers: per-user scope, money, encrypted fields, audit, outbox, agent tools."],
   ["packages/db/AGENTS.md", "db-agents", "Database for agents", "Packages", 8, "How an AI agent should use signet-db and its tools."],
   ["packages/config/README.md", "config", "Config", "Packages", 9, "Biome preset, tsconfig bases and CI."],
+  ["packages/mcp/README.md", "mcp", "MCP server", "Packages", 10, "An MCP server that gives AI agents all of Signet."],
   ["API.md", "api", "API reference", "Reference", 1, "Every export path and symbol."],
   ["CHANGELOG.md", "changelog", "Changelog", "Reference", 2, "What changed, by package."],
   ["CONTRIBUTING.md", "contributing", "Contributing", "Reference", 3, "Issues, ideas and how the repo is laid out."],

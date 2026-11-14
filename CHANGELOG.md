@@ -123,6 +123,27 @@ All additive; existing `createMcpServer` / `mountMcp` calls behave as before.
 - **signet-lib.** `ERROR_CODES` and `DEFAULT_ERROR_COPY` gain `TIMEOUT`,
   `APPROVAL_REQUIRED` and `APPROVAL_DECLINED`, the codes these tools emit. A
   copy table that spreads `DEFAULT_ERROR_COPY` needs no change.
+### signet-mcp 0.1.0 (new, not published yet)
+
+- New `@dapplelight/signet-mcp`: an MCP server for agents, built on
+  `@dapplelight/signet-server/mcp`. The `signet-mcp` bin serves stdio
+  (`claude mcp add signet -- bunx @dapplelight/signet-mcp`); `signetMcpFetch()`
+  and `signetMcpOptions()` host it over HTTP.
+- Tools: `search_docs`, `read_doc`, `list_exports`, `get_export`,
+  `list_components`, `get_component`, `list_themes`, `get_theme`,
+  `list_tokens`, `check_theme`, `scaffold_app`, `scaffold_files`, `check_app`,
+  `recipe`, `migration`. Every doc is a resource at `signet://docs/<name>`.
+  Prompts: `build-signet-app`, `review-against-signet`, `add-signet-feature`.
+- Its content is an index generated from the repo (`bun run gen` in
+  `packages/mcp`) and shipped in the package; its test fails when the index is
+  stale. `check_app` runs `signet-doctor`'s checks and `check_theme` the tokens
+  contrast test, both copied verbatim into the index.
+- `private: true` until npm Trusted Publishing is set up for it.
+
+### signet-tokens
+
+- `test/contrast.ts` exports `block`, `resolve` and `PAIRS` beside `ratio`, so
+  signet-mcp's `check_theme` reuses them. No change to the package.
 
 ### signet-server: portability adapters
 

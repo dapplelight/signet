@@ -1,0 +1,61 @@
+{
+  "name": "@dapplelight/signet-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "MCP server that gives AI agents all of Signet: docs, exports, components, themes, scaffolding, convention checks, recipes and migrations.",
+  "keywords": [
+    "signet",
+    "mcp",
+    "model-context-protocol",
+    "ai-agents",
+    "claude"
+  ],
+  "homepage": "https://signet.dapplelight.in/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dapplelight/signet.git",
+    "directory": "packages/mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/dapplelight/signet/issues"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "signet-mcp": "./dist/bin.js"
+  },
+  "scripts": {
+    "gen": "bun run scripts/build-index.ts",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "bun run scripts/build-index.ts --check && bun run test/checks.ts && bun run test/e2e.ts",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/bin.js",
+    "prepublishOnly": "bun run build"
+  },
+  "dependencies": {
+    "@dapplelight/signet-server": "^0.4.0"
+  },
+  "peerDependencies": {
+    "@modelcontextprotocol/server": "^2.1.0",
+    "zod": ">=4.2.0"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/server": "^2.1.0",
+    "@types/bun": "^1.4.2",
+    "@types/node": "^26.6.2",
+    "typescript": "^7.0.2",
+    "zod": "^4.6.5"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist"
+  ]
+}
