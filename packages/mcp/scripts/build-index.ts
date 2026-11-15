@@ -969,6 +969,31 @@ const RECIPES: RecipeSpec[] = [
     verify: ["bun run test"],
   },
   {
+    id: "add-component-source",
+    title: "Own a component's code: copy signet-ui source into the app, upgrade later",
+    keywords: [
+      "copy",
+      "own the code",
+      "eject",
+      "source",
+      "signet add",
+      "signet upgrade",
+      "customise",
+      "fork component",
+    ],
+    // signet-cli is `private: true` (not on npm yet); these are what every copy imports.
+    install: ["@dapplelight/signet-tokens", "clsx", "tailwind-merge"],
+    refs: [
+      ["cli", "Add a component"],
+      ["cli", "Configuration"],
+      ["cli", "Upgrade"],
+    ],
+    verify: [
+      "signet list shows the item as added; bun run typecheck passes with the copies",
+      "after signet upgrade: no <<<<<<< markers left (grep), then bun run lint, typecheck and test",
+    ],
+  },
+  {
     id: "add-theme",
     title: "Make a theme",
     keywords: ["theme", "tokens", "css variables", "design", "colors", "dark mode"],
