@@ -87,6 +87,10 @@
       "types": "./dist/http/admin.d.ts",
       "import": "./dist/http/admin.js"
     },
+    "./http/workflows": {
+      "types": "./dist/http/workflows.d.ts",
+      "import": "./dist/http/workflows.js"
+    },
     "./env": {
       "types": "./dist/env/index.d.ts",
       "import": "./dist/env/index.js"
