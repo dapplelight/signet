@@ -96,6 +96,13 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   contact support. `CustomerTimeline` is the admin view of one customer's
   purchases, renewals, refunds, cancellations, billing issues and grace
   periods across stores and web, with ledger totals.
+- `screens/funnel-screens`: `WebFunnel` walks a web-to-app funnel from
+  signet-server's funnel routes (questions, then `RemotePaywall` with the
+  URL discount priced in, then email and code) and hands the checkout to
+  you; `ExpressCheckout` mounts Stripe's Express Checkout Element (Apple Pay,
+  Google Pay) and Payment Element with Stripe.js loaded at runtime (nothing
+  bundled); `FunnelRedemption` waits for the webhook, then offers "Open the
+  app" and the code to paste.
 - `screens/growth-screens`: `WaitlistJoin` (with the place in line),
   `InviteAccept`, `ReferralCard`, `OnboardingChecklist`, `FeedbackWidget` /
   `FeedbackForm` and `WhatsNew`, shaped like signet-db's growth results.
@@ -174,6 +181,7 @@ without an app changing. Each component's source starts with its recipe:
 | `spinner` | live-region |
 | `screens/billing-screens` | selection + roving-focus + controllable-state + live-region |
 | `screens/monetisation-screens` | selection + roving-focus + controllable-state + live-region |
+| `screens/funnel-screens` | selection + controllable-state + live-region |
 | `screens/growth-screens` | selection + roving-focus + controllable-state + popup + dismiss + live-region + field-wiring |
 | `screens/workflow-screens` | roving-focus (timeline) + live-region + field-wiring |
 | `screens/org-screens` | popup + dismiss + live-region + field-wiring + controllable-state |

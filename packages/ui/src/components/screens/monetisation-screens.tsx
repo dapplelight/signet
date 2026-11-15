@@ -168,6 +168,7 @@ export const DEFAULT_MONETISATION_LABELS = {
     expiration: "Expired",
     paused: "Paused",
     dispute: "Dispute",
+    discount: "Discount",
   } as Record<string, string>,
 }
 
