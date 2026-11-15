@@ -1,8 +1,9 @@
 # __APP_NAME__
 
-A web app and its API in one project, on Signet: phone sign-in, an account
-page with devices and API keys, an in-app inbox, privacy (DPDP consent and data
-requests), plans and billing, and an admin panel over the whole database.
+A web app and its API in one project, on Signet: phone sign-in, organisations
+with members, roles and invite links, an account page with devices and API
+keys, an in-app inbox, privacy (DPDP consent and data requests), plans and
+billing, and an admin panel over the whole database.
 
 The API runs on [Bun](https://bun.sh), whichever package manager installed it.
 
@@ -23,14 +24,35 @@ The env file at the project root was written for you with fresh
 `SESSION_SECRET` and `OTP_SECRET` values. It is gitignored. Every variable is
 declared, with its default, in `api/env.ts`.
 
-### 2. Make yourself admin (2 minutes)
+### 2. Organisations (5 minutes)
+
+Signing up made you a **Personal** org, and you own it. The switcher in the
+header lists your orgs; **New organisation** makes another and moves you into
+it. **Org** has its settings (name, custom domain, theme, brand colour) and
+**Members and invites**: create an invite link, open it in a private window,
+sign in as another number and accept. That person sees the orgs they belong
+to and nothing else.
+
+- Roles are `owner` (everything), `admin` (settings, members, invites) and
+  `member` (sees the member list), from signet-db's `DEFAULT_ORG_ROLES`. No
+  one can hand out a role with more permissions than their own, and an org
+  always keeps an owner.
+- Which org a request is for: in development, the `signet_org` cookie the
+  switcher sets, or an `x-org` header. In production, also the org's custom
+  domain, or `<slug>.<ORG_ROOT_DOMAIN>` when you set `ORG_ROOT_DOMAIN`.
+- Every org write (create, settings, roles, members, invites) is in the
+  audit log.
+
+### 3. Make yourself platform admin (2 minutes)
 
 Put your number in `ADMIN_PHONES` (E.164, comma-separated, e.g.
-`+919876543210`) and sign in again. **Admin** appears in the header: every
-table, searchable and editable, with each write in the audit log. Roles live in
-`users.role`: `admin` does everything, `staff` all but delete, `readonly` looks.
+`+919876543210`) and sign in again. **Admin** appears in the header: the
+operator's view of every table across every org, searchable and editable, with
+each write in the audit log. Platform roles live in `users.role`: `admin` does
+everything, `staff` all but delete, `readonly` looks. They are separate from
+org roles: an org owner is not a platform admin.
 
-### 3. Try billing (2 minutes)
+### 4. Try billing (2 minutes)
 
 Open **Billing**, pick Pro and continue. `BILLING=fake` switches the plan at once, no
 money moves, and the inbox gets a "Plan changed" notice. The API refuses to
@@ -44,16 +66,21 @@ await s.entitlements.can(userId, "export")
 await s.entitlements.consume(userId, "projects", 1) // { ok, remaining }
 ```
 
-### 4. Build your first feature (the rest of the day)
+### 5. Build your first feature (the rest of the day)
 
 1. **Table.** Add it to `api/db/schema.ts` (see `users` for the column
-   helpers), then `__PM_RUN__ db:generate`. The migration lands in `drizzle/`;
+   helpers). If it belongs to an org, give it
+   `orgId: text("org_id").notNull()`. Then run `__PM_RUN__ db:generate`. The migration lands in `drizzle/`;
    the API applies it on its next start. `__PM_RUN__ db:check` flags migrations
    that drop or rename data.
 2. **Route.** Add a file in `api/routes/` like `account.ts` and mount it in
    `api/app.ts`. List its path in `SIGNED_IN` if it needs a user;
-   `c.get("user")` is then the signed-in user. Validate input with `zValidator`:
-   the route is then also typed for the client and, with MCP on, a tool.
+   `c.get("user")` is then the signed-in user. For org data, guard the route
+   with `orgGuards({ orgs: s.orgs, userId }).requirePermission("projects:write")`
+   and read and write through `scoped(s.db, { orgId: currentTenant(c).id })`.
+   Another org's rows are then unreachable, and a table without `orgId`
+   throws instead of leaking. Validate input with `zValidator`: the route is
+   then also typed for the client and, with MCP on, a tool.
 3. **Page.** Add `src/routes/_app/<name>.tsx`. Call the route through `api`
    from `src/lib/api.ts`: the path, input and response are typed from the
    server, so a renamed field fails typecheck instead of production.
@@ -64,12 +91,12 @@ await s.entitlements.consume(userId, "projects", 1) // { ok, remaining }
 
 The admin panel picks up new tables by itself.
 
-### 5. Check it
+### 6. Check it
 
 ```sh
 __PM_RUN__ lint && __PM_RUN__ typecheck && __PM_RUN__ test && __PM_RUN__ build
 __PM_X__ playwright install chromium   # once
-__PM_RUN__ test:e2e                    # signs in, opens admin, upgrades, in a real browser
+__PM_RUN__ test:e2e                    # sign-in, admin, billing, then orgs: a second org, an invite, isolation
 ```
 
 CI (`.github/workflows/ci.yml`) runs the first line on every push. Commit
@@ -82,13 +109,14 @@ api/
   app.ts            routes, auth gate, admin, MCP; exports AppType for the client
   plans.ts          plans and what the billing page shows (shared with the browser)
   services.ts       notification templates, consent purposes, admin config
-  routes/           auth, account, notifications, privacy, billing
+  routes/           auth, account, notifications, privacy, billing (orgs: signet-server's orgRoutes)
   db/schema.ts      every table; drizzle/ holds the migrations
   db/kv.ts          sessions, codes, API keys, inbox and rate limits live in the kv table
   server.ts         Bun entry: the API under /api, the built app for every other path
 src/
   routes/login.tsx  sign-in
-  routes/_app/      the signed-in pages: home, account, notifications, privacy, billing, admin
+  routes/_app/      the signed-in pages: home, account, notifications, privacy, billing, admin, org/
+  routes/invite.$token.tsx  the invite link
   lib/api.ts        the typed client
 test/               API tests (in-memory database)
 e2e/                the browser smoke test
@@ -99,7 +127,8 @@ e2e/                the browser smoke test
 `__PM_RUN__ build`, then `__PM_RUN__ start` serves the API and the built app from one
 Bun process. Mount a volume for `DATABASE_PATH` (default `data/app.db`) and set
 `APP_ENV=production`, `SESSION_SECRET`, `OTP_SECRET` and `ADMIN_PHONES` on the
-host. SQLite wants one writer: run one instance.
+host, and `ORG_ROOT_DOMAIN` if orgs get subdomains. For an org's custom
+domain, point its DNS at the host and serve TLS for it there. SQLite wants one writer: run one instance.
 
 Before production:
 

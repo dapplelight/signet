@@ -19,4 +19,22 @@ export const meQuery = {
   queryFn: async () => (await api.account.me.$get()).json(),
 }
 
+/** The user's orgs with their role, for the switcher. */
+export const orgsQuery = {
+  queryKey: ["orgs"],
+  queryFn: async () => (await api.orgs.$get()).json(),
+}
+
+/** The org this session is in (the switch cookie), with the caller's role, permissions and the roles on offer. */
+export const currentOrgQuery = {
+  queryKey: ["orgs", "current"],
+  queryFn: async () => (await api.orgs.current.$get()).json(),
+}
+
+/** Switch org, then reload so no query from the old org survives. */
+export async function switchOrg(orgId: string, to = "/") {
+  await api.orgs.switch.$post({ json: { orgId } })
+  window.location.assign(to)
+}
+
 export { ApiError, AuthError } from "@dapplelight/signet-lib/api"

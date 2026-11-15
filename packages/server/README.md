@@ -403,6 +403,37 @@ app.route("/admin", adminRoutes(admin, { db, ctx: (c) => ({ actor: { type: "user
 - Guards: 401 signed out, 404 when the caller is not a member (an outsider
   learns nothing about the org), 403 for a member without the role or
   permission. `currentMembership(c)` has the role and permissions.
+- `orgRoutes`: my orgs, create, switch, current org and settings (domain,
+  theme, brand colour), members (change role, remove, leave), invites
+  (create, list, revoke, preview, accept). Every `/current` route checks
+  membership in the tenant, and signet-db refuses role escalation and
+  removing the last owner. `OrgError` becomes the envelope.
+
+### Organisations and tenants
+
+`@dapplelight/signet-server/http/orgs` puts signet-db's `createOrgs` on Hono,
+typed by shape. One app serves many orgs, each on its own domain.
+
+```ts
+import { orgGuards, orgRoutes, tenant, currentTenant } from "@dapplelight/signet-server/http/orgs"
+
+const userId = (c) => c.get("session")?.sub
+app.use("/api/*", tenant({ orgs, rootDomain: "app.example" })) // c.get("tenant")
+const { requirePermission, requireRole } = orgGuards({ orgs, userId })
+app.get("/api/projects", requirePermission("projects:read"), async (c) =>
+  c.json(await scoped(db, { orgId: currentTenant(c).id }).select(projects)))
+app.route("/api/orgs", orgRoutes({ orgs, userId, email: (c) => c.get("session")?.email }))
+// org-scoped admin: pass the tenant into the admin context
+app.use("/admin/*", requirePermission("admin:access"))
+app.route("/admin", adminRoutes(admin, { db, ctx: (c) => ({ actor: { type: "user", id: userId(c) }, role: "admin", orgId: currentTenant(c).id }) }))
+```
+
+- `tenant()` resolves, first match wins: custom domain, subdomain of
+  `rootDomain`, a route `param`, the `x-org` header, the `signet_org` cookie
+  that `POST /api/orgs/switch` sets. It names the org; it grants nothing.
+- Guards: 401 signed out, 404 when the caller is not a member (an outsider
+  learns nothing about the org), 403 for a member without the role or
+  permission. `currentMembership(c)` has the role and permissions.
 - `orgRoutes`: my orgs, create, switch, current org and settings (name, slug,
   theme, brand colour; `domain` is ignored, because the host that matches
   decides the tenant: set it with `orgs.update` from an operator or
