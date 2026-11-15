@@ -7,3 +7,7 @@
 ### signet-server: workflow routes
 
 - New `./http/workflows`: `workflowRoutes({ workflows, subject, isAdmin?, canStart? })` for signet-db's durable workflows: start, run status and step history, send event, approve/reject an approval step, cancel, an admin list of runs and the caller's approval inbox. Takes the engine structurally; no signet-db dependency.
+
+### signet-ui: workflow screens
+
+- New `./screens/workflow-screens`: `WorkflowRunTimeline` (status, what the run waits on, steps in order with retries and approval decisions, cancel) and `ApprovalInboxCard` (approve or reject with an optional reason), shaped like signet-db's workflow results. Demo: `screens-ops.html?screen=workflows` in the showcase.
