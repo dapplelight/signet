@@ -1,6 +1,7 @@
 import { type AdminContext, type Authorize, defineAdmin, roles } from "@dapplelight/signet-db/admin"
 import { createEntitlements } from "@dapplelight/signet-db/entitlements"
 import { createGrowth } from "@dapplelight/signet-db/growth"
+import { createOrgs } from "@dapplelight/signet-db/orgs"
 import { createPrivacy } from "@dapplelight/signet-db/privacy"
 import { createPayments, sqlStore } from "@dapplelight/signet-payments"
 import { razorpay } from "@dapplelight/signet-payments/razorpay"
@@ -168,6 +169,11 @@ export function createServices({ db, query, kv, sms }: Deps) {
       respondWithinMs: 30 * 86_400_000,
     }),
     growth: createGrowth(db, { tables: schema }),
+    // Orgs, roles (owner, admin, member) and invites. Add roles with
+    // `roles: defineRoles({ ...DEFAULT_ORG_ROLES, ... })`.
+    orgs: createOrgs(db, { tables: schema }),
+    /** The org switch cookie: Secure everywhere but local http. */
+    orgCookie: { secure: env.APP_ENV !== "development" },
     admin: defineAdmin(schema, {
       authorize: adminAuthorize,
       // Per table by SQL name: search, readonly, hidden columns, row actions.

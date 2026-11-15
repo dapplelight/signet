@@ -4,6 +4,7 @@ import {
   growthTables,
   id,
   idempotencyKeys,
+  orgTables,
   privacyTables,
   timestamps,
 } from "@dapplelight/signet-db/columns/sqlite"
@@ -45,5 +46,12 @@ export const idempotency = idempotencyKeys()
 export const { subjectPlans, entitlementOverrides, usageCounters } = entitlementTables()
 export const { waitlist, invites, referralCodes, referrals, marks, feedback } = growthTables()
 export const { consents, dataRequests } = privacyTables()
+/**
+ * Organisations: every user gets a personal one at sign-up and can make more,
+ * invite people and give them roles (api/services.ts, routes under /api/orgs).
+ * Give your own tables an `orgId: text("org_id").notNull()` column and read
+ * them through `scoped(s.db, { orgId })`, so each org only sees its own rows.
+ */
+export const { organizations, memberships, invitations, orgRoles } = orgTables()
 
 export type User = typeof users.$inferSelect

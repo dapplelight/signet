@@ -21,8 +21,10 @@ function Login() {
         }}
         onVerify={async ({ to, code }) => {
           await api.auth.verify.$post({ json: { phone: to, code } })
-          // A full load, so no query from before sign-in survives.
-          window.location.assign("/")
+          // A full load, so no query from before sign-in survives. `?next=`
+          // (an invite link) brings the user back; only same-site paths.
+          const next = new URLSearchParams(window.location.search).get("next")
+          window.location.assign(next?.startsWith("/") && !next.startsWith("//") ? next : "/")
         }}
       />
     </main>
