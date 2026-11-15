@@ -40,10 +40,10 @@ Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit 
 
 | Import | Exports | What |
 |---|---|---|
-| `@dapplelight/signet-db` | isCiphertext, assertCiphertext, generateKey, createCipher, CipherConfig, Cipher, … | re-exports cipher, db, describe, errors, id, idempotency, money, outbox, query, scoped, seed, sequence, user-data |
+| `@dapplelight/signet-db` | dbCache, pruneAiCache, DbCache, isCiphertext, assertCiphertext, generateKey, … | re-exports ai-cache, cipher, db, describe, errors, id, idempotency, money, outbox, query, scoped, seed, sequence, user-data |
 | `@dapplelight/signet-db/admin` | ADMIN_OPS, AdminError, defineAdmin, DEFAULT_ROLES, roles, adminTools, … | An admin API from the schema: `defineAdmin(schema, { authorize })` gives list (cursor pages, sort, typed filters, text search), get, create, update, d |
 | `@dapplelight/signet-db/agent` | jsonSchema, agentTools, AgentTool, AgentToolsOptions | Database tools for AI agents, safe by construction: `agentTools(db, { tables, userId })` returns plain tool definitions (list, get, search per table,  |
-| `@dapplelight/signet-db/columns/pg` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotencyKeys`, `entitlem |
+| `@dapplelight/signet-db/columns/pg` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotencyKeys`, `aiCache` |
 | `@dapplelight/signet-db/columns/sqlite` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotency |
 | `@dapplelight/signet-db/d1` | createDb | Cloudflare D1 driver: `createDb(env.DB, config)` |
 | `@dapplelight/signet-db/entitlements` | definePlans, defaultStatusOf, storeStateOf, defaultPeriodEndOf, defaultPlanIdOf, periodOf, … | Plans, entitlements and usage limits, on the tables from `entitlementTables()` |
@@ -62,7 +62,7 @@ Signet client primitives. API client, the wire contract, and search.
 | Import | Exports | What |
 |---|---|---|
 | `@dapplelight/signet-lib/analytics` | beaconTransport, createAnalytics, noopAnalytics, EventProps, AnalyticsEvent, Transport, … | Client-side event tracking |
-| `@dapplelight/signet-lib/api` | qs, createApiClient, createRpcClient, retryAfterSeconds, toApiError, ApiClientOptions, … | re-exports client, codes, contract, copy, errors |
+| `@dapplelight/signet-lib/api` | qs, createApiClient, timeout, createRpcClient, retryAfterSeconds, toApiError, … | re-exports client, codes, contract, copy, errors, stream |
 | `@dapplelight/signet-lib/api/query-client` | isRetryable, queryDefaults, onAuthErrorRedirect, QueryDefaultsOptions | TanStack Query defaults |
 | `@dapplelight/signet-lib/crypto` | decryptFields, DecryptFieldsOptions, DecryptFieldsResult | Fail-closed field decryption for apps that encrypt user data on the client (app-a's private mode) |
 | `@dapplelight/signet-lib/form` | errorMessages, firstError, applyServerErrors, clearServerErrors, submitWithServerErrors, FieldError, … | TanStack Form integration |
