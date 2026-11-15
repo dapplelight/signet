@@ -5,9 +5,14 @@
  *
  *   <DevOverlay themes={THEMES} theme={theme} onThemeChange={applyTheme} />
  *
- * Production builds drop it: `DevOverlay` is `() => null` when
- * `process.env.NODE_ENV === "production"`, which Vite and other bundlers
- * replace with a constant, so the panel's code is removed from the bundle.
+ * Production builds drop it. The package's `exports` map sends the
+ * `production` condition (Vite, webpack, Bun and esbuild with
+ * `--conditions=production` all resolve it in a production build) to a
+ * module whose `DevOverlay` is `() => null`, so the panel's code is not in
+ * the bundle at all. Anywhere else it renders unless `enabled` is false, which
+ * it defaults to when `process.env.NODE_ENV` is "production". The check is
+ * guarded, so the module also loads unbundled in a browser, where there is no
+ * `process`.
  *
  * Styled with the theme's own CSS variables (inline, so the app's Tailwind
  * build does not need to scan this package). Light/dark goes through
@@ -17,8 +22,11 @@ import { useTheme } from "@dapplelight/signet-ui/components/theme-provider"
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useState } from "react"
 import type { DevState } from "./demo.js"
 
-// Declared here so the build needs no Node types; bundlers replace the expression.
-declare const process: { env: { NODE_ENV?: string } }
+// Declared here so the build needs no Node types.
+declare const process: { env?: { NODE_ENV?: string } } | undefined
+
+/** True in a Node-style production environment; false (not a ReferenceError) with no `process`. */
+const PRODUCTION = typeof process !== "undefined" && process?.env?.NODE_ENV === "production"
 
 export type { DevState }
 
@@ -32,6 +40,8 @@ export type DevOverlayProps = {
   theme?: string
   /** Switch the app's theme (each Signet theme is its own stylesheet, so the app does it). */
   onThemeChange?: (theme: string) => void
+  /** Render at all. Default: not when `process.env.NODE_ENV` is "production". Tie it to your own dev flag if you like. */
+  enabled?: boolean
   /** Start open. Default false. */
   defaultOpen?: boolean
   position?: "bottom-right" | "bottom-left"
@@ -225,5 +235,7 @@ function Overlay({
 }
 
 /** The dev overlay; renders nothing in a production build. */
-export const DevOverlay: (props: DevOverlayProps) => ReactNode =
-  process.env.NODE_ENV === "production" ? () => null : Overlay
+/** The dev overlay. A production build resolves `./overlay` to a stub that renders nothing. */
+export function DevOverlay({ enabled = !PRODUCTION, ...props }: DevOverlayProps): ReactNode {
+  return enabled ? <Overlay {...props} /> : null
+}

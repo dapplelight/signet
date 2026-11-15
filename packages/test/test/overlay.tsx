@@ -7,7 +7,18 @@ import { GlobalRegistrator } from "@happy-dom/global-registrator"
 GlobalRegistrator.register()
 
 const { act, cleanup, fireEvent, render, screen } = await import("@testing-library/react")
-const { DevOverlay } = await import("../src/overlay")
+await import("react")
+await import("@dapplelight/signet-ui/components/theme-provider")
+// Load the overlay the way an unbundled browser would: no `process` global.
+const savedProcess = globalThis.process
+// biome-ignore lint/performance/noDelete: the point is that the global is absent, not undefined-valued
+delete (globalThis as { process?: unknown }).process
+let unbundledError: unknown = null
+const { DevOverlay } = await import("../src/overlay").catch((e) => {
+  unbundledError = e
+  return { DevOverlay: () => null }
+})
+globalThis.process = savedProcess
 const { createDemo } = await import("../src/demo")
 
 let pass = 0,
@@ -15,6 +26,11 @@ let pass = 0,
 const ok = (n: string, c: boolean, d: unknown = "") => {
   c ? (pass++, console.log("  PASS", n)) : (fail++, console.log("  FAIL", n, d))
 }
+ok(
+  "overlay: loads with no process global (unbundled browser)",
+  unbundledError === null,
+  unbundledError,
+)
 
 // --- demo mode -------------------------------------------------------------
 const demo = await createDemo({
@@ -143,25 +159,36 @@ ok(
 )
 cleanup()
 
-// --- tree shaking ----------------------------------------------------------
+// --- enabled + production strip ------------------------------------------
+render(<DevOverlay enabled={false} defaultOpen state={{ plan: "pro" }} />)
+ok(
+  "overlay: enabled={false} renders nothing",
+  document.querySelector("[data-signet-dev-overlay]") === null,
+)
+cleanup()
+
+// The package by name, through its exports map (dist/, built by build:all).
 const entry = `${import.meta.dir}/fixtures/uses-overlay.tsx`
-const bundle = async (env: string) => {
+const bundle = async (conditions: string[]) => {
   const out = await Bun.build({
     entrypoints: [entry],
-    define: { "process.env.NODE_ENV": JSON.stringify(env) },
+    conditions,
     minify: true,
+    target: "browser",
     external: ["react", "react/jsx-runtime", "@dapplelight/signet-ui/*"],
   })
   if (!out.success) throw new AggregateError(out.logs)
   return (await out.outputs[0]?.text()) ?? ""
 }
-const prod = await bundle("production")
-const devBundle = await bundle("development")
-ok("tree-shaking: the dev bundle has the panel", devBundle.includes("Signet dev overlay"))
+const prod = await bundle(["production"])
+const devBundle = await bundle(["development"])
+ok("production strip: a development build has the panel", devBundle.includes("Signet dev overlay"))
 ok(
-  "tree-shaking: the production bundle does not",
-  !prod.includes("Signet dev overlay") && !prod.includes("__signet/dev"),
-  prod.length,
+  "production strip: a production build has none of it",
+  !prod.includes("Signet dev overlay") &&
+    !prod.includes("__signet/dev") &&
+    !prod.includes("signet-ui"),
+  prod,
 )
 
 console.log(`\n${pass} passed, ${fail} failed`)
