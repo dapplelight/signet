@@ -11,7 +11,6 @@ await import("react")
 await import("@dapplelight/signet-ui/components/theme-provider")
 // Load the overlay the way an unbundled browser would: no `process` global.
 const savedProcess = globalThis.process
-// biome-ignore lint/performance/noDelete: the point is that the global is absent, not undefined-valued
 delete (globalThis as { process?: unknown }).process
 let unbundledError: unknown = null
 const { DevOverlay } = await import("../src/overlay").catch((e) => {
