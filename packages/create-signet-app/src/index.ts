@@ -414,28 +414,21 @@ async function main() {
     )
   }
 
-  const pkg =
-    template === "api"
-      ? {
-          scripts: {
+  // signet-mcp's index reads the scripts below from this source by their
+  // shape: the api object first, the web object as the next literal.
+  const pkg = {
+    scripts:
+      template === "api"
+        ? {
             ...API_TARGETS[target].scripts,
             lint: "biome check .",
             format: "biome check --write .",
             typecheck: "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
             test: "bun test",
-          },
-          dependencies: { ...API_DEPS, ...(mcp ? MCP_DEPS : {}) },
-          devDependencies: { ...API_DEV_DEPS, ...API_TARGETS[target].devDeps },
-          ...(API_TARGETS[target].engines ? { engines: API_TARGETS[target].engines } : {}),
-        }
-      : template === "full"
-        ? {
-            scripts: FULL_SCRIPTS,
-            dependencies: { ...FULL_DEPS, ...(mcp ? MCP_DEPS : {}) },
-            devDependencies: FULL_DEV_DEPS,
           }
-        : {
-            scripts: {
+        : template === "full"
+          ? FULL_SCRIPTS
+          : {
               dev: "vite",
               build: "tsc -b && vite build",
               preview: "vite preview",
@@ -444,9 +437,22 @@ async function main() {
               typecheck: "tsc -b --noEmit",
               test: "bun test",
             },
-            dependencies: DEPS,
-            devDependencies: DEV_DEPS,
-          }
+    dependencies:
+      template === "api"
+        ? { ...API_DEPS, ...(mcp ? MCP_DEPS : {}) }
+        : template === "full"
+          ? { ...FULL_DEPS, ...(mcp ? MCP_DEPS : {}) }
+          : DEPS,
+    devDependencies:
+      template === "api"
+        ? { ...API_DEV_DEPS, ...API_TARGETS[target].devDeps }
+        : template === "full"
+          ? FULL_DEV_DEPS
+          : DEV_DEPS,
+    ...(template === "api" && API_TARGETS[target].engines
+      ? { engines: API_TARGETS[target].engines }
+      : {}),
+  }
   await writeFile(
     join(dest, "package.json"),
     `${JSON.stringify({ name: appName, private: true, version: "0.1.0", type: "module", ...pkg }, null, 2)}\n`,
