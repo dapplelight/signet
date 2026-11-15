@@ -22,7 +22,13 @@ import { createServices, type Deps, TRUST } from "./services.ts"
 export type AppEnv = { Variables: { reqId: string; user: User } }
 
 /** Paths that need a signed-in user. Everything else under /api is public. */
-const SIGNED_IN = ["/api/account", "/api/notifications", "/api/privacy", "/api/billing", "/api/admin"]
+const SIGNED_IN = [
+  "/api/account",
+  "/api/notifications",
+  "/api/privacy",
+  "/api/billing",
+  "/api/admin",
+]
 
 /**
  * The API. server.ts serves it (and the built web app) under Bun; tests call

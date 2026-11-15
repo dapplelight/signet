@@ -29,7 +29,8 @@
   "files": [
     "src",
     "template",
-    "template-api"
+    "template-api",
+    "template-full"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",

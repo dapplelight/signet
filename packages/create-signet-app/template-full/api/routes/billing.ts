@@ -43,7 +43,7 @@ export const billingRoutes = (s: Services) =>
         // TODO(billing): create the gateway subscription here and return its
         // checkout for the browser (README, "Taking real payments"). The
         // webhook at /api/billing/webhooks/razorpay then moves the plan.
-        throw new ApiException(501, "Real checkout is not wired yet.", "NOT_IMPLEMENTED")
+        throw new ApiException(409, "Real checkout is not wired yet.", "NOT_IMPLEMENTED")
       await s.entitlements.setPlan(user.id, plan, { actor: { type: "user", id: user.id } })
       await s.notifier.notify(user.id, "billing.plan_changed", { plan: PLAN_DISPLAY[plan].name })
       return c.json({ plan })

@@ -1,10 +1,6 @@
 import { ApiException } from "@dapplelight/signet-server/http"
 import { zValidator } from "@dapplelight/signet-server/http/validate"
-import {
-  CHANNELS,
-  type Channel,
-  NotifyError,
-} from "@dapplelight/signet-server/notify/notifier"
+import { CHANNELS, type Channel, NotifyError } from "@dapplelight/signet-server/notify/notifier"
 import { Hono } from "hono"
 import { z } from "zod"
 import type { AppEnv } from "../app.ts"
@@ -32,10 +28,14 @@ export const notificationRoutes = (s: Services) =>
       const page = await s.notifier.inbox.list(id, c.req.valid("query"))
       return c.json({ ...page, unreadCount: await s.notifier.inbox.unreadCount(id) })
     })
-    .post("/read", zValidator("json", z.object({ ids: z.array(z.string()).max(100) })), async (c) => {
-      await s.notifier.inbox.markRead(c.get("user").id, c.req.valid("json").ids)
-      return c.json({ ok: true })
-    })
+    .post(
+      "/read",
+      zValidator("json", z.object({ ids: z.array(z.string()).max(100) })),
+      async (c) => {
+        await s.notifier.inbox.markRead(c.get("user").id, c.req.valid("json").ids)
+        return c.json({ ok: true })
+      },
+    )
     .post("/read-all", async (c) => {
       await s.notifier.inbox.markAllRead(c.get("user").id)
       return c.json({ ok: true })

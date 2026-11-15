@@ -1,10 +1,15 @@
+import { requireStoredSession } from "@dapplelight/signet-server/auth/hono"
 import {
   maskPhone,
   type OtpVerifyResult,
   requestPhoneOtp,
   verifyPhoneOtp,
 } from "@dapplelight/signet-server/auth/otp"
-import { clearCookie, readSessionCookie, sessionCookie } from "@dapplelight/signet-server/auth/session"
+import {
+  clearCookie,
+  readSessionCookie,
+  sessionCookie,
+} from "@dapplelight/signet-server/auth/session"
 import {
   startSession,
   type ValidSession,
@@ -12,7 +17,6 @@ import {
 } from "@dapplelight/signet-server/auth/sessions"
 import { ApiException } from "@dapplelight/signet-server/http"
 import { zValidator } from "@dapplelight/signet-server/http/validate"
-import { requireStoredSession } from "@dapplelight/signet-server/auth/hono"
 import { clientIp } from "@dapplelight/signet-server/middleware/rate-limit"
 import { eq } from "drizzle-orm"
 import { Hono, type MiddlewareHandler } from "hono"
@@ -61,21 +65,17 @@ export function requireUser(s: Services): MiddlewareHandler<AppEnv> {
  */
 export const authRoutes = (s: Services) =>
   new Hono<AppEnv>()
-    .post(
-      "/otp",
-      zValidator("json", z.object({ phone: z.string().min(6).max(20) })),
-      async (c) => {
-        const r = await requestPhoneOtp(s.otp, {
-          phone: c.req.valid("json").phone,
-          ip: clientIp(c, TRUST),
-        })
-        if (!r.ok)
-          throw r.code === "RATE_LIMITED"
-            ? new ApiException(429, "Too many codes. Try again later.", "RATE_LIMITED")
-            : new ApiException(400, VERIFY_ERRORS.INVALID_PHONE, r.code)
-        return c.json({ to: maskPhone(r.phone), expiresInSeconds: r.expiresInSeconds })
-      },
-    )
+    .post("/otp", zValidator("json", z.object({ phone: z.string().min(6).max(20) })), async (c) => {
+      const r = await requestPhoneOtp(s.otp, {
+        phone: c.req.valid("json").phone,
+        ip: clientIp(c, TRUST),
+      })
+      if (!r.ok)
+        throw r.code === "RATE_LIMITED"
+          ? new ApiException(429, "Too many codes. Try again later.", "RATE_LIMITED")
+          : new ApiException(400, VERIFY_ERRORS.INVALID_PHONE, r.code)
+      return c.json({ to: maskPhone(r.phone), expiresInSeconds: r.expiresInSeconds })
+    })
     .post(
       "/verify",
       zValidator("json", z.object({ phone: z.string().min(6).max(20), code: z.string().min(4) })),
@@ -102,7 +102,7 @@ export const authRoutes = (s: Services) =>
             .where(eq(users.id, user.id))
             .returning()
             .get()
-        if (!user) throw new ApiException(500, "Could not create the account.", "INTERNAL")
+        if (!user) throw new Error("Could not create the account.")
 
         const { token } = await startSession(s.sessions, {
           sub: user.id,

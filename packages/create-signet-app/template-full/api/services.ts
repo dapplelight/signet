@@ -35,8 +35,16 @@ export const PLAN_DISPLAY: Record<PlanId, { name: string; price: number; blurb: 
 
 /** DPDP consent purposes the privacy screen lists. Bump NOTICE_VERSION when the notice text changes. */
 export const PURPOSES = [
-  { id: "product-email", label: "Product updates by email", description: "New features, once a month" },
-  { id: "analytics", label: "Usage analytics", description: "Which screens you use, to improve them" },
+  {
+    id: "product-email",
+    label: "Product updates by email",
+    description: "New features, once a month",
+  },
+  {
+    id: "analytics",
+    label: "Usage analytics",
+    description: "Which screens you use, to improve them",
+  },
 ] as const
 export const NOTICE_VERSION = "2026-01-01"
 
@@ -75,7 +83,7 @@ export const TRUST = { forwardedHops: 1 } as const
 export type Deps = {
   db: Db
   /** Raw SQL with `?` placeholders, for signet-payments' store. */
-  query: (sql: string, params: unknown[]) => unknown[]
+  query: (sql: string, params: unknown[]) => Record<string, unknown>[]
   kv: KeyValue
   /** Sends one-time codes. Default: printed to the console, development only. */
   sms?: SmsSender
@@ -123,7 +131,9 @@ export function createServices({ db, query, kv, sms }: Deps) {
             razorpay({
               keyId: env.RAZORPAY_KEY_ID,
               keySecret: env.RAZORPAY_KEY_SECRET,
-              ...(env.RAZORPAY_WEBHOOK_SECRET ? { webhookSecret: env.RAZORPAY_WEBHOOK_SECRET } : {}),
+              ...(env.RAZORPAY_WEBHOOK_SECRET
+                ? { webhookSecret: env.RAZORPAY_WEBHOOK_SECRET }
+                : {}),
             }),
           ]
         : [],
@@ -154,14 +164,10 @@ export function createServices({ db, query, kv, sms }: Deps) {
     growth: createGrowth(db, { tables: schema }),
     admin: defineAdmin(schema, {
       authorize: roles(),
-      tables: {
-        users: { search: ["phone", "name", "email"], readonly: ["phone"] },
-        kv: false,
-        idempotency_keys: false,
-      },
+      // Per table by SQL name: search, readonly, hidden columns, row actions.
+      tables: { kv: false, idempotency_keys: false },
     }),
   }
 }
 
 export type Services = ReturnType<typeof createServices>
-

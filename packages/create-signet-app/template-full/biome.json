@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!**/routeTree.gen.ts"]
+    "includes": ["**", "!**/routeTree.gen.ts", "!drizzle"]
   },
   "formatter": {
     "enabled": true,

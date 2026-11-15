@@ -1,4 +1,3 @@
-import { ApiException } from "@dapplelight/signet-server/http"
 import { zValidator } from "@dapplelight/signet-server/http/validate"
 import { Hono } from "hono"
 import { z } from "zod"
@@ -47,7 +46,7 @@ export const privacyRoutes = (s: Services) =>
           c.req.valid("json").kind === "export"
             ? await s.privacy.requestExport(id)
             : await s.privacy.requestErasure(id)
-        if (!request) throw new ApiException(500, "Could not open the request.", "INTERNAL")
+        if (!request) throw new Error("Could not open the request.")
         return c.json({ request }, 201)
       },
     )

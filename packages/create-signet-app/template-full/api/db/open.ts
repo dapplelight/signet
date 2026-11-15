@@ -15,7 +15,7 @@ const MIGRATIONS = join(import.meta.dirname, "../../drizzle")
  */
 export function openDb(path: string): {
   db: Db
-  query: (sql: string, params: unknown[]) => unknown[]
+  query: (sql: string, params: unknown[]) => Record<string, unknown>[]
 } {
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true })
   const sqlite = new Database(path)
@@ -26,5 +26,8 @@ export function openDb(path: string): {
   // signet-payments' webhook inbox, payment records and ledger: its own
   // CREATE TABLE IF NOT EXISTS statements, versioned with the package.
   for (const statement of paymentsSchema("sqlite")) sqlite.run(statement)
-  return { db, query: (s, p) => sqlite.query(s).all(...(p as never[])) }
+  return {
+    db,
+    query: (s, p) => sqlite.query<Record<string, unknown>, never[]>(s).all(...(p as never[])),
+  }
 }

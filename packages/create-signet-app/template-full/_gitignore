@@ -1,8 +1,9 @@
 node_modules
 dist
+data
 .env
 .env.local
 *.tsbuildinfo
 .DS_Store
-.wrangler
-.vercel
+test-results
+playwright-report
