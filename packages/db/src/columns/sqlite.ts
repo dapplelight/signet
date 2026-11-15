@@ -1,7 +1,7 @@
 /**
  * Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`,
  * `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`,
- * `idempotencyKeys`, `aiCache`, `webhookTables`, `entitlementTables`, `flagOverrides`, `growthTables`,
+ * `idempotencyKeys`, `aiCache`, `aiSpendCaps`, `webhookTables`, `entitlementTables`, `flagOverrides`, `growthTables`,
  * `orgTables`, `privacyTables`, `analyticsEvents`, `sequences`, `workflowTables`, `monetisationTables` and `collabTables` tables.
  */
 
@@ -168,6 +168,26 @@ export const aiCache = (name = "ai_cache") =>
     /** The entry as JSON, or ciphertext when the db has a cipher. */
     entry: text("entry").notNull(),
     expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+  })
+
+/**
+ * AI spend caps for `createAiSpend` from `@dapplelight/signet-db/ai-spend`.
+ * Spend itself is counted in the `usageCounters` table of `entitlementTables()`.
+ */
+export const aiSpendCaps = (name = "ai_spend_caps") =>
+  sqliteTable(name, {
+    /** `${scope}:${subject}:${period}`. */
+    id: text("id").primaryKey(),
+    /** user | org | global */
+    scope: text("scope").notNull(),
+    /** A user or org id, or "*" for every one without its own cap (and for global). */
+    subject: text("subject").notNull(),
+    /** day | month (UTC) */
+    period: text("period").notNull(),
+    /** Cost units (1 = one millionth of a US dollar). Null is unlimited. */
+    units: integer("units"),
+    updatedBy: text("updated_by"),
+    updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
   })
 
 /** The idempotency key table for `createDb(..., { idempotency })`. */
