@@ -2,7 +2,8 @@
  * Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`,
  * `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotencyKeys`,
  * `aiCache`, `aiSpendCaps`, `webhookTables`, `entitlementTables`, `flagOverrides`, `growthTables`, `orgTables`, `privacyTables`,
- * `analyticsEvents`, `sequences`, `workflowTables`, `monetisationTables`, `funnelTables` and `collabTables` tables.
+ * `analyticsEvents`, `sequences`, `workflowTables`, `monetisationTables`, `collabTables`, `funnelTables`,
+ * `experimentTables` and `statusTables` tables.
  */
 
 import {
@@ -790,5 +791,92 @@ export const funnelTables = (prefix = "") => ({
     /** The discount code, upper case. */
     code: text("code").primaryKey(),
     used: integer("used").notNull().default(0),
+  }),
+})
+
+/**
+ * The tables for `createExperiments` from `@dapplelight/signet-db/experiments`:
+ * experiment definitions and one exposure row per subject. Destructure into
+ * the schema: `export const { experiments, experimentExposures } = experimentTables()`.
+ */
+export const experimentTables = (prefix = "") => ({
+  experiments: pgTable(`${prefix}experiments`, {
+    key: text("key").primaryKey(),
+    description: text("description"),
+    /** draft | running | stopped | rolled_out */
+    status: text("status").notNull(),
+    /** [{ key, weight, value? }]; the first is the control. */
+    variants: jsonb("variants").notNull(),
+    /** The analytics event name that counts as a conversion. */
+    goal: text("goal").notNull(),
+    /** A flag rule's `when`: who is in the experiment. Null is everyone. */
+    audience: jsonb("audience"),
+    salt: text("salt").notNull(),
+    winner: text("winner"),
+    startedAt: tz("started_at"),
+    stoppedAt: tz("stopped_at"),
+    createdBy: text("created_by"),
+    updatedBy: text("updated_by"),
+    createdAt: stamp("created_at"),
+    updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
+  }),
+  experimentExposures: pgTable(
+    `${prefix}experiment_exposures`,
+    {
+      /** `${experiment}|${subject}`: a subject is exposed once. */
+      id: text("id").primaryKey(),
+      experiment: text("experiment").notNull(),
+      subject: text("subject").notNull(),
+      variant: text("variant").notNull(),
+      /** Epoch ms, compared with `analyticsEvents.ts`. */
+      exposedAt: bigint("exposed_at", { mode: "number" }).notNull(),
+    },
+    (t) => [index(`${prefix}experiment_exposures_variant`).on(t.experiment, t.variant)],
+  ),
+})
+
+/**
+ * The tables for `createStatus` from `@dapplelight/signet-db/status`: status
+ * page components, incidents, and the maintenance switch (one row). Destructure:
+ * `export const { statusComponents, statusIncidents, maintenance } = statusTables()`.
+ */
+export const statusTables = (prefix = "") => ({
+  statusComponents: pgTable(`${prefix}status_components`, {
+    key: text("key").primaryKey(),
+    name: text("name").notNull(),
+    description: text("description"),
+    /** operational | maintenance | degraded | partial_outage | major_outage */
+    status: text("status").notNull(),
+    position: integer("position").notNull().default(0),
+    updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
+  }),
+  statusIncidents: pgTable(
+    `${prefix}status_incidents`,
+    {
+      id: id(),
+      title: text("title").notNull(),
+      /** investigating | identified | monitoring | resolved */
+      status: text("status").notNull(),
+      /** minor | major | critical */
+      impact: text("impact").notNull(),
+      /** Component keys. */
+      components: jsonb("components").notNull(),
+      /** [{ at, status, message }], oldest first. */
+      updates: jsonb("updates").notNull(),
+      startedAt: stamp("started_at"),
+      resolvedAt: tz("resolved_at"),
+      updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
+    },
+    (t) => [index(`${prefix}status_incidents_started`).on(t.startedAt)],
+  ),
+  maintenance: pgTable(`${prefix}maintenance`, {
+    /** Always "current". */
+    id: text("id").primaryKey(),
+    on: boolean("on").notNull(),
+    message: text("message"),
+    /** When it should end; sent as Retry-After. */
+    until: tz("until"),
+    updatedBy: text("updated_by"),
+    updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
   }),
 })

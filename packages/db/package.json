@@ -134,6 +134,16 @@
       "import": "./dist/ai-spend.js",
       "default": "./dist/ai-spend.js"
     },
+    "./experiments": {
+      "types": "./dist/experiments.d.ts",
+      "import": "./dist/experiments.js",
+      "default": "./dist/experiments.js"
+    },
+    "./status": {
+      "types": "./dist/status.d.ts",
+      "import": "./dist/status.js",
+      "default": "./dist/status.js"
+    },
     "./charts": {
       "types": "./dist/charts.d.ts",
       "import": "./dist/charts.js",

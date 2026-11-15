@@ -95,6 +95,14 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   manage link instead for App Store and Google Play, refund request and
   contact support. `CustomerTimeline` is the admin view of one customer's
   purchases, renewals, refunds, cancellations, billing issues and grace
+  periods across stores and web, with ledger totals.
+- `screens/experiment-screens`: `ExperimentList` and `ExperimentResults`,
+  the admin readout of a signet-db experiment (exposures, conversions, rate,
+  lift and p-value per variant against the control) with start, stop and
+  roll out a winner, over signet-server's `experimentAdminRoutes`.
+- `screens/status-screens`: `StatusPage`, the public status page from
+  signet-db's `status.summary()`: overall status, a maintenance notice,
+  components and recent incidents with their updates.
   periods across stores and web, with ledger totals. `RemotePaywall` shows
   the customer's best offer (free trial, intro or win-back, from
   `customers.withOffers`), passes it to `onPurchase`, and calls
@@ -199,6 +207,7 @@ without an app changing. Each component's source starts with its recipe:
 | `spinner` | live-region |
 | `screens/billing-screens` | selection + roving-focus + controllable-state + live-region |
 | `screens/monetisation-screens` | selection + roving-focus + controllable-state + live-region |
+| `screens/experiment-screens` | selection + live-region |
 | `screens/funnel-screens` | selection + controllable-state + live-region |
 | `screens/subscription-charts` | field-wiring (labelled filters) + controllable-state (filters) |
 | `screens/growth-screens` | selection + roving-focus + controllable-state + popup + dismiss + live-region + field-wiring |

@@ -47,6 +47,11 @@ export const DEFAULT_ERROR_COPY: Record<ErrorCode, ErrorCopy> = {
     detail: "Try again in a moment.",
     action: "retry",
   },
+  MAINTENANCE: {
+    title: "Down for maintenance",
+    detail: "We'll be back shortly. Try again in a few minutes.",
+    action: "wait",
+  },
   INTERNAL_ERROR: {
     title: "Something went wrong",
     detail: "It's on our side. Try again in a moment.",

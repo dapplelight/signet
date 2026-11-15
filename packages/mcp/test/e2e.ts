@@ -465,6 +465,30 @@ try {
     abuse.json?.id,
   )
 
+  const exr = await call("recipe", {
+    task: "a/b test experiment with a status page and maintenance mode",
+  })
+  ok(
+    "recipe: add-experiments is cut from the db and server READMEs and covers experiments, status and maintenance",
+    exr.json?.id === "add-experiments" &&
+      JSON.stringify(exr.json.steps.map((st: any) => st.title)) ===
+        JSON.stringify([
+          "Experiments",
+          "Status page and maintenance",
+          "Experiment routes",
+          "Status page and maintenance mode",
+        ]) &&
+      [
+        "createExperiments(db",
+        "ex.results(",
+        "createStatus(db",
+        "maintenanceMode(",
+        "experimentAdminRoutes(",
+      ].every((t) => JSON.stringify(exr.json).includes(t)) &&
+      !exr.json.install.includes("@dapplelight/signet-db"),
+    exr.json?.id,
+  )
+
   const chr = await call("recipe", { task: "subscription charts: mrr, churn, trial conversion" })
   ok(
     "recipe: add-subscription-charts covers charts, offers, promotional grants and CONSUMPTION_REQUEST",

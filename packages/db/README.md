@@ -1013,6 +1013,83 @@ person decides in the app (see signet-server's "Approvals").
 They are audited as `actor`. Give writes only to agents run by staff: on a
 per-user agent the person approving is the user who benefits.
 
+## Experiments
+
+A/B/n tests on top of feature flags. Tables: `experimentTables()` from
+`/columns/sqlite` or `/columns/pg` (`experiments`, `experimentExposures`);
+conversions are read from `analyticsEvents()`.
+
+```ts
+import { analyticsEvents, experimentTables } from "@dapplelight/signet-db/columns/sqlite"
+import { createExperiments } from "@dapplelight/signet-db/experiments"
+
+export const { experiments, experimentExposures } = experimentTables()
+const ex = createExperiments(db, { tables: { experiments, experimentExposures }, events: analyticsEvents() })
+
+await ex.create("onboarding-copy", {
+  variants: [{ key: "control", weight: 50 }, { key: "short", weight: 50, value: { steps: 3 } }],
+  goal: "signup_completed",                       // an analytics event name
+  audience: { plan: ["free"] },                   // optional: a flag rule's `when`
+}, { actor })
+await ex.start("onboarding-copy", { actor })
+await ex.expose("onboarding-copy", { id: userId }) // { variant: "short", value: { steps: 3 }, reason: "assigned", first: true }
+await ex.results("onboarding-copy")
+// { control: "control", variants: [{ key, exposed, converted, rate, lift, pValue, significant }] }
+await ex.rollout("onboarding-copy", "short", { actor }) // everyone gets "short" from now on
+```
+
+- Assignment is sticky with no storage: the flags' `bucket` (FNV-1a of
+  `salt:subjectId`) laid over the cumulative weights. Variants, weights and
+  salt can change only while a draft, so a subject never switches variant.
+- `assign` reads the variant; `expose` also records the first exposure
+  (once per subject, only while running). Call `expose` where the person
+  actually sees the variant, so the readout counts only them.
+- A conversion is the subject's goal event (`userId` or `anonymousId` equal
+  to the subject id) at or after their exposure. `results(key, { goal })`
+  reads another event; `alpha` defaults to 0.05.
+- Each variant is compared with the control (the first variant) by a
+  two-sided two-proportion z-test. With many variants, lower `alpha`.
+- Lifecycle: `draft` → `start` → `running` ⇄ `stop` → `rollout` →
+  `rolled_out`. Draft and stopped give the control (`not_running`); outside
+  the audience is the control (`not_eligible`); rolled out gives the winner.
+  A wrong move is `CONFLICT`, as one conditional UPDATE.
+- A variant's `value` is JSON the app reads. Pricing experiments put an
+  offering key there (`{ offering: "annual-first" }`) for a placement to serve.
+- signet-server's `experimentRoutes` / `experimentAdminRoutes` serve it;
+  signet-ui's `ExperimentResults` is the admin readout.
+
+## Status page and maintenance
+
+Tables: `statusTables()` (`statusComponents`, `statusIncidents`, `maintenance`).
+
+```ts
+import { statusTables } from "@dapplelight/signet-db/columns/sqlite"
+import { createStatus } from "@dapplelight/signet-db/status"
+
+export const { statusComponents, statusIncidents, maintenance } = statusTables()
+const status = createStatus(db, { tables: { statusComponents, statusIncidents, maintenance } })
+
+await status.setComponent("api", { name: "API", position: 1 }, { actor })
+const inc = await status.openIncident(
+  { title: "Slow sign-in", impact: "minor", components: ["api"], message: "Looking into it" },
+  { actor },
+)
+await status.updateIncident(inc.id, { status: "resolved", message: "Fixed" }, { actor })
+await status.setMaintenance({ on: true, message: "Upgrading the database", until }, { actor })
+await status.summary() // { status, components, incidents, maintenance }
+```
+
+- Component statuses (`operational`, `maintenance`, `degraded`,
+  `partial_outage`, `major_outage`) are set by hand. The overall status is
+  the worst of them and of open incidents' impact (`minor` degraded, `major`
+  partial outage, `critical` major outage); maintenance mode shows unless
+  something is worse.
+- Incident updates are appended, never edited; `resolved` closes the
+  incident, after which it cannot change. `summary` lists open incidents and
+  those resolved in the last 7 days (`days` changes it).
+- Every write is audited. `maintenance()` is what signet-server's
+  `maintenanceMode` middleware reads.
+
 ## Organisations and tenant scope
 
 ```ts

@@ -17,6 +17,8 @@ export const ERROR_CODES = [
   // rateLimit
   "RATE_LIMITED",
   "RATE_LIMIT_UNAVAILABLE",
+  // maintenanceMode
+  "MAINTENANCE",
   // errorHandler: an unhandled error
   "INTERNAL_ERROR",
   // errorHandler: an HTTPException thrown without a code, by status

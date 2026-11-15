@@ -1166,6 +1166,38 @@ const RECIPES: RecipeSpec[] = [
     ],
   },
   {
+    id: "add-experiments",
+    title: "Add A/B experiments, a status page and maintenance mode",
+    keywords: [
+      "experiment",
+      "experiments",
+      "a/b test",
+      "ab test",
+      "split test",
+      "variant",
+      "conversion",
+      "significance",
+      "status page",
+      "incident",
+      "uptime",
+      "maintenance",
+      "maintenance mode",
+    ],
+    // signet-db is `private: true`, so it is not in the install line.
+    install: ["@dapplelight/signet-server", "hono", "drizzle-orm"],
+    refs: [
+      ["db", "Experiments"],
+      ["db", "Status page and maintenance"],
+      ["server", "Experiment routes"],
+      ["server", "Status page and maintenance mode"],
+    ],
+    verify: [
+      "bun run test; the same subject gets the same variant on every call, and expose records it once",
+      "results show per-variant exposures and conversions; rollout gives every subject the winner",
+      "with maintenance on, an API route answers 503 with Retry-After and code MAINTENANCE while /health and admins pass",
+    ],
+  },
+  {
     id: "add-subscription-charts",
     title:
       "Add subscription charts, offers (free trial, intro, win-back), promotional entitlements and Apple refund requests",
