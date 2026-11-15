@@ -61,6 +61,9 @@ export const ERROR_CODES = [
   "INVALID_CODE",
   "CODE_EXPIRED",
   "TOO_MANY_ATTEMPTS",
+  // funnels: redemption links
+  "BAD_TOKEN",
+  "REDEEM_REFUSED",
   // oauth-rs (RFC 6750)
   "invalid_token",
   "insufficient_scope",
