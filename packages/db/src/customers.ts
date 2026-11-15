@@ -56,6 +56,8 @@ export type TimelineKind =
   | "refund_request"
   /** A promotional plan granted from admin (`grantPromotional`); it lapses on its own. */
   | "promotional"
+  /** A funnel discount code, recorded by signet-db funnels when the purchase is paid. */
+  | "discount"
 
 /** The part of a signet-payments `Event` the timeline reads. */
 export type CustomerEventLike = {
