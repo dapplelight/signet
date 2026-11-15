@@ -5,7 +5,8 @@
  *
  * Send with `notifier().notify(userId, "account.welcome", { name })`.
  * Fill in `recipients` from your users table, and point Resend's webhook at
- * /api/notify/resend.
+ * /notify/resend. Notify is mounted outside /api so the template's CSRF
+ * check does not block one-click unsubscribe POSTs from mail clients.
  */
 
 import { memoryKv } from "@dapplelight/signet-server/adapters"
@@ -43,7 +44,7 @@ const make = () =>
     // { email, phone, locale, timezone } for the user, or null to skip them.
     recipients: async (_userId) => null,
     secret: env.NOTIFY_SECRET,
-    unsubscribeUrl: `${env.API_URL}/api/notify/unsubscribe`,
+    unsubscribeUrl: `${env.API_URL}/notify/unsubscribe`,
   })
 let made: ReturnType<typeof make> | undefined
 

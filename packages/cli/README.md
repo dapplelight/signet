@@ -55,7 +55,7 @@ Five modules wire Signet's server packages into an app made with
 | `db` | `src/server/db.ts`, `schema.ts` | signet-db on D1 (binding `DB`): `dbFor`, a table, the audit log |
 | `admin` | `src/server/admin.ts` | `/api/admin` over the schema, deny by default; adds `auth` and `db` |
 | `payments` | `src/server/payments.ts` | Razorpay and Stripe, the webhook inbox at `/webhooks/:gateway`; their keys |
-| `notify` | `src/server/notify.ts` | a notifier with one template, unsubscribe and Resend webhook at `/api/notify`; `API_URL`, `EMAIL_FROM`, `NOTIFY_SECRET`, Resend keys |
+| `notify` | `src/server/notify.ts` | a notifier with one template, unsubscribe and Resend webhook at `/notify` (outside `/api`, so CSRF does not block one-click unsubscribe); `API_URL`, `EMAIL_FROM`, `NOTIFY_SECRET`, Resend keys |
 
 Each adds an import and a `.route(...)` line to `src/app.ts` (before
 `.onError(`), its keys to `envSchema` in `src/env.ts`, and entries to

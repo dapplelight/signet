@@ -75,7 +75,7 @@ export const MODULES: Record<string, ModuleSpec> = {
     npm: ["@dapplelight/signet-server", "hono", "zod"],
     wire: {
       imports: ['import { notifyRoutes } from "./server/notify.ts"'],
-      routes: ['.route("/api/notify", notifyRoutes())'],
+      routes: ['.route("/notify", notifyRoutes())'],
       env: [
         "API_URL: z.string().url(),",
         "EMAIL_FROM: z.string().min(1),",

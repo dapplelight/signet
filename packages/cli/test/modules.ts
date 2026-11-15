@@ -128,7 +128,7 @@ try {
         '.route("/api/sessions", authRoutes())',
         '.route("/api/admin", adminRoutes())',
         '.route("/webhooks", paymentsRoutes())',
-        '.route("/api/notify", notifyRoutes())',
+        '.route("/notify", notifyRoutes())',
         'import { authRoutes } from "./server/auth.ts"',
       ].every((l) => count(app, l) === 1) &&
         app.indexOf('.route("/api/sessions"') < app.indexOf(".onError(") &&
