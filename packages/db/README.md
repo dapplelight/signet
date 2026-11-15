@@ -408,9 +408,19 @@ await drainOutbox(db, { send: (m) => (m.topic === WEBHOOK_TOPIC ? webhooks.send(
   endpoint is switched off and its queued deliveries are `skipped`.
   `update(owner, id, { enabled: true })` turns it back on.
 - **Safety:** urls must be `https:` on a public host (no localhost, private
-  ranges, IP literals or credentials) unless `allowPrivateUrls`; the request
-  does not follow redirects and times out after `timeoutMs` (10 s). With a db
-  cipher, secrets are stored encrypted. `rotateSecret` replaces one.
+  ranges, IP literals or credentials) unless `allowPrivateUrls`. Before every
+  attempt the host is resolved (`node:dns/promises` `lookup` with `all: true`
+  on Bun and Node) and the delivery is refused if any address is private,
+  loopback, link-local, CGNAT, unique-local IPv6 or IPv4-mapped; that logs as
+  a failed attempt (`Refused: <host> resolves to a private address`) and
+  counts toward `disableAfter` like any other failure. Redirects are never
+  followed: a 3xx is a failed attempt. Each attempt times out after
+  `timeoutMs` (10 s). With a db cipher, secrets are stored encrypted;
+  `rotateSecret` replaces one.
+- **Runtimes without DNS:** on Cloudflare Workers without `nodejs_compat`
+  there is nothing to resolve with, so the check is skipped and the
+  platform's outbound protections apply. Pass `resolveHost: (host) =>
+  Promise<string[]>` (DNS over HTTPS, say) to enforce it there too.
 
 Admin routes: `webhookRoutes` in `@dapplelight/signet-server/http/webhooks`.
 Screen: `WebhookDeliveryLog` in `@dapplelight/signet-ui/screens/api-screens`.

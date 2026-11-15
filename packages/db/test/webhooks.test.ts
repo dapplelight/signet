@@ -6,18 +6,31 @@ import * as pgc from "../src/columns/pg"
 import * as sqc from "../src/columns/sqlite"
 import { isSignetDbError } from "../src/errors"
 import { drainOutbox } from "../src/outbox"
-import { assertWebhookUrl, createWebhooks, WEBHOOK_TOPIC } from "../src/webhooks"
+import {
+  assertWebhookUrl,
+  createWebhooks,
+  defaultResolveHost,
+  isPrivateAddress,
+  WEBHOOK_TOPIC,
+} from "../src/webhooks"
 import { backends, ddl, type Instance } from "./harness"
 
-type Hit = { url: string; headers: Record<string, string>; body: string }
+type Hit = { url: string; headers: Record<string, string>; body: string; redirect?: string }
 
 /** A receiver: answers from `script` in turn (last one repeats), records what it got. */
-function receiver(script: (number | "throw")[] = [200]) {
+function receiver(script: (number | "throw" | { redirect: string })[] = [200]) {
   const hits: Hit[] = []
   const fetch = async (url: string, init: RequestInit) => {
-    hits.push({ url, headers: init.headers as Record<string, string>, body: String(init.body) })
+    hits.push({
+      url,
+      headers: init.headers as Record<string, string>,
+      body: String(init.body),
+      ...(init.redirect ? { redirect: init.redirect } : {}),
+    })
     const next = script[Math.min(hits.length - 1, script.length - 1)]
     if (next === "throw") throw new Error("connect ECONNREFUSED")
+    if (typeof next === "object")
+      return new Response(null, { status: 302, headers: { location: next.redirect } })
     return new Response(next === 200 ? "ok" : "nope", { status: next })
   }
   return { hits, fetch }
@@ -41,6 +54,8 @@ for (const backend of backends) {
       const webhooks = createWebhooks(i.db, {
         endpoints: T.webhookEndpoints,
         deliveries: T.webhookDeliveries,
+        // A public address: tests never touch real DNS unless they ask to.
+        resolveHost: async () => ["93.184.216.34"],
         ...opts,
       })
       return { webhooks, T }
@@ -216,6 +231,68 @@ for (const backend of backends) {
       expect(await webhooks.emit({ owner: "o", type: "e", data: 5 })).toBe(1)
     })
 
+    test("SSRF: a host resolving to a private address is refused before connecting", async () => {
+      for (const [addrs, shown] of [
+        [["127.0.0.1"], "127.0.0.1"],
+        [["93.184.216.34", "10.1.2.3"], "10.1.2.3"],
+        [["::1"], "::1"],
+        [["::ffff:127.0.0.1"], "::ffff:127.0.0.1"],
+        [["100.64.0.9"], "100.64.0.9"],
+        [["fd00::1"], "fd00::1"],
+      ] as const) {
+        if (shown !== "127.0.0.1") await i.close() // afterEach closes the last one
+        const r = receiver([200])
+        const { webhooks } = await setup({ fetch: r.fetch, resolveHost: async () => [...addrs] })
+        const { endpoint } = await webhooks.register({
+          owner: "o",
+          url: "https://rebind.example.com/in",
+          events: ["*"],
+        })
+        await webhooks.emit({ owner: "o", type: "t", data: 1 })
+        expect(await drain(i, webhooks)).toEqual({ sent: 0, failed: 1, dead: 0 })
+        expect(r.hits.length).toBe(0)
+        const [log] = await webhooks.deliveries("o")
+        expect(log?.status).toBe("retrying")
+        expect(log?.error).toBe(
+          `Refused: rebind.example.com resolves to a private address (${shown})`,
+        )
+        const ep = await webhooks.get("o", endpoint.id)
+        expect([ep?.failures, ep?.disabledAt]).toEqual([1, null])
+      }
+    })
+
+    test("SSRF: an unresolvable host is a failed attempt", async () => {
+      const r = receiver([200])
+      const { webhooks } = await setup({
+        fetch: r.fetch,
+        resolveHost: async () => {
+          throw new Error("ENOTFOUND")
+        },
+      })
+      await webhooks.register({ owner: "o", url: "https://gone.example.com", events: ["*"] })
+      await webhooks.emit({ owner: "o", type: "t", data: 1 })
+      await drain(i, webhooks)
+      expect(r.hits.length).toBe(0)
+      expect((await webhooks.deliveries("o"))[0]?.error).toBe(
+        "Could not resolve gone.example.com: ENOTFOUND",
+      )
+    })
+
+    test("redirects are never followed, and count as a failure", async () => {
+      const r = receiver([{ redirect: "http://169.254.169.254/latest/meta-data" }])
+      const { webhooks } = await setup({ fetch: r.fetch })
+      await webhooks.register({ owner: "o", url: "https://h.example.com", events: ["*"] })
+      await webhooks.emit({ owner: "o", type: "t", data: 1 })
+      expect(await drain(i, webhooks)).toEqual({ sent: 0, failed: 1, dead: 0 })
+      expect(r.hits.length).toBe(1)
+      expect(r.hits[0]?.redirect).toBe("manual")
+      expect((await webhooks.deliveries("o"))[0]).toMatchObject({
+        status: "retrying",
+        responseStatus: 302,
+        error: "HTTP 302: redirect to http://169.254.169.254/latest/meta-data not followed",
+      })
+    })
+
     test("secret is ciphertext at rest when the db has a cipher, and still signs", async () => {
       const r = receiver([200])
       const { webhooks, T } = await setup({ fetch: r.fetch }, true)
@@ -266,4 +343,50 @@ test("assertWebhookUrl refuses private hosts and credentials", () => {
   }
   assertWebhookUrl("https://hooks.example.com/in")
   assertWebhookUrl("http://localhost:3000/in", true)
+})
+
+test("isPrivateAddress", () => {
+  for (const ip of [
+    "0.0.0.0",
+    "127.0.0.1",
+    "10.0.0.1",
+    "172.31.255.255",
+    "192.168.0.1",
+    "169.254.169.254",
+    "100.64.0.1",
+    "100.127.255.255",
+    "224.0.0.1",
+    "255.255.255.255",
+    "::",
+    "::1",
+    "[::1]",
+    "0:0:0:0:0:0:0:1",
+    "::ffff:127.0.0.1",
+    "::ffff:7f00:1",
+    "::ffff:8.8.8.8",
+    "fc00::1",
+    "fd12:3456::1",
+    "fe80::1%en0",
+    "ff02::1",
+    "999.1.1.1",
+    "not-an-ip",
+  ])
+    expect([ip, isPrivateAddress(ip)]).toEqual([ip, true])
+  for (const ip of [
+    "93.184.216.34",
+    "8.8.8.8",
+    "100.63.255.255",
+    "172.32.0.1",
+    "2606:4700::6810:85e5",
+    "2001:db8::1",
+  ])
+    expect([ip, isPrivateAddress(ip)]).toEqual([ip, false])
+})
+
+test("the default resolver uses the runtime's DNS: localhost is loopback", async () => {
+  const resolve = await defaultResolveHost()
+  expect(resolve).not.toBeNull()
+  const addrs = await (resolve as (h: string) => Promise<string[]>)("localhost")
+  expect(addrs.length).toBeGreaterThan(0)
+  expect(addrs.every(isPrivateAddress)).toBe(true)
 })

@@ -87,6 +87,16 @@ export type WebhooksOptions = {
    * Default false: endpoints must be `https:` on a public host name.
    */
   allowPrivateUrls?: boolean
+  /**
+   * Resolve a host name to its addresses before each delivery. Delivery is
+   * refused when any address is private, loopback, link-local, CGNAT,
+   * unique-local IPv6 or IPv4-mapped (DNS rebinding, SSRF). Default:
+   * `node:dns/promises` `lookup(host, { all: true })` on Bun and Node. On a
+   * runtime without DNS (Cloudflare Workers without nodejs_compat) the check
+   * is skipped and the platform's outbound protections apply; pass a resolver
+   * (DNS over HTTPS, say) to enforce it there.
+   */
+  resolveHost?: (hostname: string) => Promise<string[]>
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: structural call into a Drizzle db of any dialect
@@ -99,9 +109,9 @@ const PRIVATE_HOST =
 
 /**
  * Throws BAD_VALUE unless `url` is an absolute https URL on a public host.
- * Literal IPs in private ranges and IPv6 literals are refused; a public name
- * that resolves to a private address is not caught here (the runtime's
- * egress rules are the place for that).
+ * Literal IPs in private ranges and IPv6 literals are refused here; a public
+ * name that resolves to a private address is refused at delivery time (see
+ * `resolveHost`).
  */
 export function assertWebhookUrl(url: string, allowPrivate = false): void {
   let u: URL
@@ -120,6 +130,69 @@ export function assertWebhookUrl(url: string, allowPrivate = false): void {
     throw new SignetDbError("BAD_VALUE", "Webhook url must be a public host without credentials.")
 }
 
+/**
+ * Whether an IP address must never receive a webhook: unspecified, loopback,
+ * private (RFC 1918), CGNAT (100.64/10), link-local, multicast or reserved
+ * IPv4; and for IPv6 unspecified, loopback, unique-local (fc00::/7),
+ * link-local (fe80::/10), multicast, and any IPv4-mapped or -compatible form.
+ * Anything that does not parse counts as private.
+ */
+export function isPrivateAddress(ip: string): boolean {
+  const addr = ip.replace(/^\[|\]$/g, "").replace(/%.*$/, "")
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(addr)
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])]
+    if (v4.slice(1).some((x) => Number(x) > 255)) return true
+    return (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 192 && b === 0) ||
+      (a === 198 && (b === 18 || b === 19)) ||
+      a >= 224
+    )
+  }
+  if (!addr.includes(":")) return true
+  const lower = addr.toLowerCase()
+  if (lower.includes(".")) return true // ::ffff:1.2.3.4 and other embedded IPv4 forms
+  const [head = "", tail = ""] = lower.split("::")
+  const left = head ? head.split(":") : []
+  const right = tail ? tail.split(":") : []
+  if (!lower.includes("::") && left.length !== 8) return true
+  const groups = [...left, ...Array(8 - left.length - right.length).fill("0"), ...right].map((g) =>
+    Number.parseInt(g || "0", 16),
+  )
+  if (groups.length !== 8 || groups.some((g) => Number.isNaN(g) || g > 0xffff)) return true
+  const first = groups[0] as number
+  const zeroPrefix = groups.slice(0, 5).every((g) => g === 0)
+  return (
+    groups.every((g) => g === 0) || // ::
+    (zeroPrefix && groups[5] === 0 && groups[6] === 0 && groups[7] === 1) || // ::1
+    (zeroPrefix && (groups[5] === 0xffff || groups[5] === 0)) || // IPv4-mapped / -compatible
+    (first & 0xfe00) === 0xfc00 || // unique local
+    (first & 0xffc0) === 0xfe80 || // link-local
+    (first & 0xff00) === 0xff00 // multicast
+  )
+}
+
+type Resolver = (hostname: string) => Promise<string[]>
+
+/** `node:dns/promises` lookup where the runtime has it; null where it does not. */
+export async function defaultResolveHost(): Promise<Resolver | null> {
+  try {
+    const dns = (await import("node:dns/promises")) as {
+      lookup(h: string, o: { all: true }): Promise<{ address: string }[]>
+    }
+    return async (h) => (await dns.lookup(h, { all: true })).map((r) => r.address)
+  } catch {
+    return null
+  }
+}
+
 const truncate = (s: string, n: number) => (s.length > n ? s.slice(0, n) : s)
 
 export function createWebhooks(db: SignetDb<unknown>, options: WebhooksOptions) {
@@ -131,6 +204,24 @@ export function createWebhooks(db: SignetDb<unknown>, options: WebhooksOptions) 
   const maxAttempts = options.maxAttempts ?? 10
   const disableAfter = options.disableAfter ?? 20
   const doFetch = options.fetch ?? ((url, init) => fetch(url, init))
+  let resolver: Promise<Resolver | null> | undefined
+  /** Null when the host may be contacted, else why not. */
+  async function refuseHost(url: string): Promise<string | null> {
+    if (options.allowPrivateUrls) return null
+    resolver ??= options.resolveHost ? Promise.resolve(options.resolveHost) : defaultResolveHost()
+    const resolve = await resolver
+    if (!resolve) return null // no DNS here: the platform's outbound protections apply
+    const host = new URL(url).hostname.replace(/^\[|\]$/g, "")
+    let addresses: string[]
+    try {
+      addresses = await resolve(host)
+    } catch (err) {
+      return `Could not resolve ${host}: ${err instanceof Error ? err.message : String(err)}`
+    }
+    if (addresses.length === 0) return `Could not resolve ${host}`
+    const bad = addresses.find(isPrivateAddress)
+    return bad ? `Refused: ${host} resolves to a private address (${bad})` : null
+  }
 
   const seal = async (secret: string) => (db.cipher ? db.cipher.encrypt(secret) : secret)
   const unseal = async (stored: string) =>
@@ -322,6 +413,8 @@ export function createWebhooks(db: SignetDb<unknown>, options: WebhooksOptions) 
       let text: string | null = null
       let error: string | null = null
       try {
+        const refused = await refuseHost(ep.url)
+        if (refused) throw new Error(refused)
         const res = await doFetch(ep.url, {
           method: "POST",
           headers: {
@@ -335,7 +428,10 @@ export function createWebhooks(db: SignetDb<unknown>, options: WebhooksOptions) 
         })
         status = res.status
         text = truncate(await res.text().catch(() => ""), 2048)
-        if (!res.ok) error = `HTTP ${res.status}`
+        // Redirects are never followed: the target could be a private host.
+        if (res.status >= 300 && res.status < 400)
+          error = `HTTP ${res.status}: redirect${res.headers.get("location") ? ` to ${res.headers.get("location")}` : ""} not followed`
+        else if (!res.ok) error = `HTTP ${res.status}`
       } catch (err) {
         error = truncate(String(err instanceof Error ? err.message : err), 1000)
       }

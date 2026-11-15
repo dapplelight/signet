@@ -6,7 +6,7 @@
 
 ### signet-db: outbound webhooks
 
-- New `./webhooks`: `createWebhooks(db, { endpoints, deliveries })` with `webhookTables()` in `./columns/sqlite` and `./columns/pg`. Endpoints per user or org with their own secret (encrypted at rest with a db cipher), Standard Webhooks signatures, one outbox row per delivery so `drainOutbox` retries with backoff, a delivery log (status, attempts, response), `redeliver` with the same event id, and endpoints switched off after `disableAfter` failed attempts in a row. Endpoint urls must be https on a public host unless `allowPrivateUrls`.
+- New `./webhooks`: `createWebhooks(db, { endpoints, deliveries })` with `webhookTables()` in `./columns/sqlite` and `./columns/pg`. Endpoints per user or org with their own secret (encrypted at rest with a db cipher), Standard Webhooks signatures, one outbox row per delivery so `drainOutbox` retries with backoff, a delivery log (status, attempts, response), `redeliver` with the same event id, and endpoints switched off after `disableAfter` failed attempts in a row. Endpoint urls must be https on a public host unless `allowPrivateUrls`; before each attempt the host is resolved (`node:dns/promises`, or a `resolveHost` override) and private, loopback, link-local, CGNAT, unique-local and IPv4-mapped addresses are refused. Redirects are never followed. `isPrivateAddress` is exported.
 
 ### signet-lib: webhook signatures
 
