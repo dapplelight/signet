@@ -2,7 +2,7 @@
  * Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`,
  * `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotencyKeys`,
  * `aiCache`, `webhookTables`, `entitlementTables`, `flagOverrides`, `growthTables`, `orgTables`, `privacyTables`,
- * `analyticsEvents`, `sequences` and `workflowTables` tables.
+ * `analyticsEvents`, `sequences`, `workflowTables` and `monetisationTables` tables.
  */
 
 import {
@@ -568,5 +568,90 @@ export const workflowTables = (prefix = "") => ({
       createdAt: tz("created_at").notNull(),
     },
     (t) => [index(`${prefix}workflow_events_name`).on(t.name, t.id)],
+  ),
+})
+
+/**
+ * The tables for `createOfferings` (`@dapplelight/signet-db/offerings`) and
+ * `createCustomers` (`@dapplelight/signet-db/customers`): offering versions,
+ * placements, anonymous identities, the customer timeline and Customer Center
+ * requests. Destructure into the schema:
+ * `export const { offerings, placements, customerIdentities, customerEvents, customerRequests } = monetisationTables()`.
+ */
+export const monetisationTables = (prefix = "") => ({
+  offerings: pgTable(`${prefix}offerings`, {
+    /** `${key}@${version}`: a published version never changes. */
+    id: text("id").primaryKey(),
+    key: text("key").notNull(),
+    version: integer("version").notNull(),
+    /** [{ id, store, plan, interval?, price? }]: store and web products mapped to plans. */
+    products: jsonb("products").notNull(),
+    /** The remote paywall: copy, plans shown, highlighted plan, trial text. */
+    paywall: jsonb("paywall"),
+    note: text("note"),
+    createdBy: text("created_by"),
+    createdAt: stamp("created_at"),
+  }),
+  placements: pgTable(`${prefix}placements`, {
+    /** Where the app shows an offering: "onboarding", "settings-upgrade". */
+    placement: text("placement").primaryKey(),
+    /** The current offering's key. */
+    offering: text("offering").notNull(),
+    /** A pinned version; null serves the latest. */
+    version: integer("version"),
+    /** [{ when: { country?, platform?, attributes? }, offering, version? }], first match wins. */
+    overrides: jsonb("overrides").notNull(),
+    updatedBy: text("updated_by"),
+    updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
+  }),
+  customerIdentities: pgTable(`${prefix}customer_identities`, {
+    /** An anonymous app-user id from `customers.anonymousId()`. */
+    id: text("id").primaryKey(),
+    orgId: text("org_id"),
+    /** The account it was merged into; null until then. */
+    subject: text("subject"),
+    createdAt: stamp("created_at"),
+    mergedAt: tz("merged_at"),
+  }),
+  customerEvents: pgTable(
+    `${prefix}customer_events`,
+    {
+      /** `${gateway}|${eventId}`: a notification is on the timeline once. */
+      id: text("id").primaryKey(),
+      subject: text("subject").notNull(),
+      /** purchase | renewal | refund | cancellation | uncancellation | billing_issue | grace_period | expiration | paused | dispute */
+      kind: text("kind").notNull(),
+      gateway: text("gateway").notNull(),
+      eventType: text("event_type").notNull(),
+      subscriptionId: text("subscription_id"),
+      paymentId: text("payment_id"),
+      productId: text("product_id"),
+      amount: bigint("amount", { mode: "number" }),
+      currency: text("currency"),
+      /** App Store prices: indicative, not settled revenue. */
+      approximate: boolean("approximate").notNull().default(false),
+      occurredAt: tz("occurred_at").notNull(),
+    },
+    (t) => [index(`${prefix}customer_events_subject`).on(t.subject, t.occurredAt)],
+  ),
+  customerRequests: pgTable(
+    `${prefix}customer_requests`,
+    {
+      /** `refund|${gateway}|${paymentId}` and `retention|${subject}` are once-only; others are new ids. */
+      id: text("id").primaryKey(),
+      subject: text("subject").notNull(),
+      /** refund | cancel | retention | support */
+      kind: text("kind").notNull(),
+      /** open | done | declined */
+      status: text("status").notNull(),
+      gateway: text("gateway"),
+      /** The payment or subscription the request is about. */
+      reference: text("reference"),
+      message: text("message"),
+      data: jsonb("data"),
+      createdAt: stamp("created_at"),
+      updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
+    },
+    (t) => [index(`${prefix}customer_requests_subject`).on(t.subject, t.kind)],
   ),
 })

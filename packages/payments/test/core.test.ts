@@ -156,6 +156,29 @@ for (const [name, make] of [
   ["sqlite", sqliteStore],
 ] as const) {
   describe(`inbox + ledger flow (${name})`, () => {
+    test("reassignUser moves only that user's payments, and again is a no-op", async () => {
+      const db = make()
+      const at = new Date("2026-11-01T00:00:00Z")
+      const rec = (gatewayId: string, userId: string) => ({
+        gateway: "appstore",
+        gatewayId,
+        status: "captured" as const,
+        amount: 499,
+        currency: "USD",
+        amountRefunded: 0,
+        userId,
+        createdAt: at,
+        updatedAt: at,
+      })
+      await db.savePayment(rec("t1", "anon_1"))
+      await db.savePayment(rec("t2", "anon_1"))
+      await db.savePayment(rec("t3", "u2"))
+      expect(await db.reassignUser?.("anon_1", "u1")).toBe(2)
+      expect(await db.reassignUser?.("anon_1", "u1")).toBe(0)
+      expect((await db.listPayments({ userId: "u1", limit: 10 })).length).toBe(2)
+      expect((await db.getPayment("appstore", "t3"))?.userId).toBe("u2")
+    })
+
     test("checkout, webhook dedupe, ordering, refund, replay, timeline", async () => {
       const f = fakeFetch(rzpRoutes)
       const db = make()
