@@ -481,5 +481,49 @@ const spend: AiSpendStore = {
   )
 }
 
+{
+  // signet-ai's AiError, by shape: a refusal from inside a handler is never a 500.
+  const aiError = (code: string, retryAfter?: number) =>
+    Object.assign(new Error("AI budget window exhausted"), {
+      name: "ApiError",
+      code,
+      status: 429,
+      retryAfter,
+    })
+  const app = new Hono()
+  let reported = 0
+  app.onError(errorHandler({ isProduction: () => true, onError: () => void reported++ }))
+  app.get("/over", () => {
+    throw aiError("AI_BUDGET_EXCEEDED")
+  })
+  app.get("/over-retry", () => {
+    throw aiError("AI_BUDGET_EXCEEDED", 42)
+  })
+  app.get("/store", () => {
+    throw aiError("AI_BUDGET_STORE_FAILED")
+  })
+  const over = await app.request("/over")
+  const ob = (await over.json()) as { success: boolean; code: string }
+  ok(
+    "errorHandler: AI_BUDGET_EXCEEDED is 429 AI_SPEND_CAP_EXCEEDED, not a 500",
+    over.status === 429 &&
+      ob.success === false &&
+      ob.code === "AI_SPEND_CAP_EXCEEDED" &&
+      !over.headers.get("retry-after"),
+    ob,
+  )
+  ok(
+    "errorHandler: Retry-After when the error knows it",
+    (await app.request("/over-retry")).headers.get("retry-after") === "42",
+  )
+  const store = await app.request("/store")
+  ok(
+    "errorHandler: AI_BUDGET_STORE_FAILED is 503 AI_SPEND_UNAVAILABLE",
+    store.status === 503 &&
+      ((await store.json()) as { code: string }).code === "AI_SPEND_UNAVAILABLE",
+  )
+  ok("errorHandler: budget refusals are not reported as crashes", reported === 0)
+}
+
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail) process.exit(1)

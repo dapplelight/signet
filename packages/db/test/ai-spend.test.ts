@@ -220,6 +220,64 @@ describe.each(backends)("$name", (backend) => {
     expect((await spend.usage("user", "a")).day.used).toBe(2000)
   })
 
+  test("concurrent requests that all pass requireAiSpend: the ledger's refusal is a 429 envelope", async () => {
+    // One call ($0.01 = 10,000 units) fits the cap; four requests arrive at once.
+    const spend = await make({ user: { day: 10_000 } })
+    let paid = 0
+    const extractor = createExtractor({
+      providers: [
+        {
+          name: "p",
+          model: "m",
+          pricing: { perCallUsd: 0.01 },
+          async generate<T>() {
+            paid++
+            return { value: { ok: true } as T }
+          },
+        },
+      ],
+      ledger: spend.ledger,
+      now: () => clock.getTime(),
+    })
+    const admin = aiSpendAdminRoutes({ spend, authorize: () => true })
+    const app = new (admin.constructor as new () => typeof admin)()
+    app.onError(errorHandler({ isProduction: () => true }))
+    app.use("/ai/*", requireAiSpend({ spend, subject: () => ({ userId: "a" }) }))
+    // Every request is past the middleware before any model call runs; the calls
+    // then run one after another, as provider latency would order them.
+    let passed = 0
+    let release: () => void = () => {}
+    const allIn = new Promise<void>((r) => {
+      release = r
+    })
+    let queue: Promise<unknown> = Promise.resolve()
+    app.post("/ai/ask", async (c: any) => {
+      if (++passed === 4) release()
+      await allIn
+      const run = queue.then(() =>
+        extractor.extract({
+          schema: z.object({ ok: z.boolean() }),
+          input: "x",
+          instructions: "y",
+          cache: false,
+          budget: { key: "a" },
+        }),
+      )
+      queue = run.catch(() => {})
+      await run
+      return c.json({ ok: true })
+    })
+    const res = await Promise.all(
+      Array.from({ length: 4 }, () => app.request("/ai/ask", { method: "POST" })),
+    )
+    const statuses = res.map((r) => r.status).sort()
+    expect(statuses).toEqual([200, 429, 429, 429])
+    for (const r of res.filter((r) => r.status === 429))
+      expect(await r.json()).toMatchObject({ success: false, code: "AI_SPEND_CAP_EXCEEDED" })
+    expect(paid).toBe(1)
+    expect((await spend.usage("user", "a")).day.used).toBe(10_000)
+  })
+
   test("signet-server: requireAiSpend and the admin routes over the real store", async () => {
     const spend = await make({ user: { day: 100 } })
     const admin = aiSpendAdminRoutes({

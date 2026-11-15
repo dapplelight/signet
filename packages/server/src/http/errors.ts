@@ -88,6 +88,36 @@ export function errorHandler(opts: ErrorHandlerOptions): ErrorHandler {
       return c.json({ success: false as const, error: err.message, code, ...requestId }, err.status)
     }
 
+    // signet-ai's budget refusals (matched by code, so this package does not
+    // depend on signet-ai): a cap reached inside the handler, e.g. concurrent
+    // calls that all passed requireAiSpend, is a 429 the client can act on.
+    const aiCode = (err as { code?: unknown }).code
+    if (aiCode === "AI_BUDGET_EXCEEDED" || aiCode === "AI_BUDGET_STORE_FAILED") {
+      const over = aiCode === "AI_BUDGET_EXCEEDED"
+      const retryAfter = (err as { retryAfter?: unknown }).retryAfter
+      if (over && typeof retryAfter === "number" && retryAfter > 0)
+        c.header("Retry-After", String(Math.ceil(retryAfter)))
+      return over
+        ? c.json(
+            {
+              success: false as const,
+              error: "The AI usage limit is used up.",
+              code: "AI_SPEND_CAP_EXCEEDED",
+              ...requestId,
+            },
+            429,
+          )
+        : c.json(
+            {
+              success: false as const,
+              error: "AI usage could not be checked. Try again.",
+              code: "AI_SPEND_UNAVAILABLE",
+              ...requestId,
+            },
+            503,
+          )
+    }
+
     const report = opts.onError?.(err, {
       path: c.req.path,
       method: c.req.method,
