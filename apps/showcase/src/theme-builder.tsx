@@ -60,10 +60,17 @@ function Builder() {
         ? buildTheme({
             brand,
             base,
-            ...(buttonDensity !== "comfortable" ? { density: { button: buttonDensity } } : {}),
+            ...(density !== "comfortable" || buttonDensity !== "comfortable"
+              ? {
+                  density: {
+                    ...(density !== "comfortable" ? { all: density } : {}),
+                    ...(buttonDensity !== "comfortable" ? { button: buttonDensity } : {}),
+                  },
+                }
+              : {}),
           })
         : null,
-    [brand, base, buttonDensity, valid],
+    [brand, base, density, buttonDensity, valid],
   )
 
   useEffect(() => {
