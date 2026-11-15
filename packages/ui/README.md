@@ -73,6 +73,13 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   through `createRpcClient`. Strings come from `DEFAULT_*_LABELS` and the
   `labels` prop; parts take `className`, composites `classNames`. Demo:
   `screens-user.html` in the showcase (linked from its header).
+- `screens/admin-screens`: `AdminScreen`, an admin panel generated from
+  signet-db's `defineAdmin` metadata over signet-server's `adminRoutes`
+  (`createAdminApi({ baseUrl: "/admin" })`): table list, server sort,
+  filters, search and cursor pages, deleted rows, a record form built from the
+  column types, create, bulk delete, row actions and the audit trail. Every
+  part is exported (`AdminPanel`, `AdminTable`, `AdminRecordSheet`…) with
+  `useAdmin()` for your own.
 
 ## Behaviours and recipes
 
@@ -97,6 +104,7 @@ without an app changing. Each component's source starts with its recipe:
 | `spinner` | live-region |
 | `domain/amount` | money-format + tone (colour from the `--money-*` slots) |
 | `domain/kanban` | controllable-state + live-region + drag + keyboard-move |
+| `screens/admin-screens` | selection + controllable-state + popup + focus-trap + dismiss + roving-focus (tabs) + field-wiring |
 
 `@dapplelight/signet-ui/behaviors` exports the behaviours a new component
 needs directly, with Signet's own types: `useShortcut(keys, handler)` and
