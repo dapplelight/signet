@@ -504,7 +504,7 @@ const components: ComponentInfo[] = []
   for (const [sub, target] of Object.entries(ui.exports ?? {}).sort(([a], [b]) =>
     a.localeCompare(b),
   )) {
-    if (!sub.startsWith("./components/") && !sub.startsWith("./domain/")) continue
+    if (!/^\.\/(components|domain|screens)\//.test(sub)) continue
     const abs = sourceOf("ui", target)
     if (!abs) continue
     const src = readFileSync(abs, "utf8")
