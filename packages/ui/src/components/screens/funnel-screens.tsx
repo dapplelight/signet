@@ -76,6 +76,7 @@ export const DEFAULT_FUNNEL_LABELS = {
   waiting: "Confirming your payment…",
   paid: "You're in. Open the app to unlock your plan.",
   openApp: "Open the app",
+  emailed: "We emailed you the link to open the app.",
   codeHint: "Or paste this code in the app",
   copy: "Copy code",
   copied: "Copied",
@@ -477,7 +478,12 @@ export type FunnelRedemptionProps = Omit<React.ComponentProps<"section">, "child
   labels?: Partial<FunnelLabels>
 }
 
-/** After the web purchase: waits for the webhook, then offers the app link and the code to paste. */
+/**
+ * After the web purchase: waits for the webhook, then offers the app link and the code to paste.
+ * The server only returns `redemption` to the browser that started the checkout (HttpOnly
+ * `signet_funnel` cookie), so fetch the session from the same site with `credentials: "include"`.
+ * Any other caller gets `paid` without `redemption` and sees "we emailed you the link".
+ */
 export function FunnelRedemption({
   data,
   labels: labelsProp,
@@ -524,6 +530,12 @@ export function FunnelRedemption({
             {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
             {copied ? labels.copied : labels.copy}
           </Button>
+        </>
+      ) : status === "paid" ? (
+        // Paid, but this fetch was not the checkout's browser (no cookie): the link was emailed.
+        <>
+          <p className="font-medium text-text-primary">{labels.paid}</p>
+          <p className="text-sm text-text-muted">{labels.emailed}</p>
         </>
       ) : status === "redeemed" ? (
         <p className="text-text-primary">{labels.redeemed}</p>

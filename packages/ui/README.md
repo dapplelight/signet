@@ -106,7 +106,9 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   you; `ExpressCheckout` mounts Stripe's Express Checkout Element (Apple Pay,
   Google Pay) and Payment Element with Stripe.js loaded at runtime (nothing
   bundled); `FunnelRedemption` waits for the webhook, then offers "Open the
-  app" and the code to paste.
+  app" and the code to paste. Fetch `GET /sessions/:id` from the same site with
+  `credentials: "include"`: only the checkout's browser (HttpOnly cookie) gets the
+  link; anyone else sees "paid, we emailed you the link".
 - `screens/subscription-charts`: `SubscriptionCharts` on signet-db
   `createCharts`: MRR per currency (and a converted total), active
   subscribers and trials, new versus renewal revenue and refunds, churn and

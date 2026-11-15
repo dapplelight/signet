@@ -252,6 +252,12 @@ await t("FunnelRedemption: waiting, paid with link and code, redeemed, failed", 
       "example://redeem?token=abc.def",
   )
   ok("code shown", !!screen.getByText("abc.def"))
+  rerender(<FunnelRedemption data={{ session: { id: "fs_1", status: "paid" } }} />)
+  ok(
+    "paid without link: emailed hint, no spinner",
+    !!screen.getByText("We emailed you the link to open the app.") &&
+      !screen.queryByText("Confirming your payment…"),
+  )
   rerender(<FunnelRedemption data={{ session: { id: "fs_1", status: "redeemed" } }} />)
   ok("redeemed", !!screen.getByText("This purchase is already unlocked in the app."))
   rerender(<FunnelRedemption data={{ session: { id: "fs_1", status: "failed" } }} />)
