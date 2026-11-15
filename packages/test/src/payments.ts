@@ -802,6 +802,7 @@ export function fakeGateway(
         // Stored before it settles, so a concurrent repeat waits for this one.
         const pending = route()
         replays.set(slot, { body: body ?? "", reply: pending })
+        pending.catch(() => replays.delete(slot))
         reply = await pending
         if (reply.status >= 500) replays.delete(slot)
       }
