@@ -4,7 +4,7 @@
 // `initialDimension` so the first render before measuring has a size. Bars keep
 // recharts 2's whole-pixel widths (see `withWholePixelBars`).
 //
-// Carried over from app-a. recharts is an optional peer (>=3 <4), so this
+// Carried over from app-a. recharts is an optional peer (>=3.8 <4), so this
 // file is reachable only as `@dapplelight/signet-ui/components/chart`, never from
 // the barrel: an app that does not chart should not have to install it.
 import * as React from "react"
