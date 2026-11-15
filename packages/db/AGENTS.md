@@ -56,6 +56,14 @@ Tools come from `agentTools(db, { tables, userId, allowWrites, maxRows })`.
   `other_subject` means another account owns it: tell the user, never move it.
 - Read `currentPeriodEnd`, `source` and `entitlements` from `ent.get`, not
   from a gateway, to show "renews on" or "paid via".
+- Offerings (`createOfferings`): change what the app sells with `publish`
+  (a new version) and `setPlacement`; never edit an offering row in place.
+  Map every product's plan in `billing.plans` with `plansFromProducts`.
+- Customers (`createCustomers`): pass every event subject through
+  `customers.resolve(id)` so purchases tagged with an anonymous id land on
+  the merged account, and call `customers.record(event)` after
+  `applyBillingEvent`. `merge` refusals (`already_merged`, `other_org`,
+  `not_anonymous`) are final: tell the user, never retry under another id.
 - Tools from `entitlementTools(...)`: `get_plan`, `check_entitlement`,
   `usage`, `list_flags` read. `grant_feature`, `set_plan` and `set_flag`
   exist only with `allowWrites`, always ask a person to approve, and return

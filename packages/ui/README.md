@@ -85,6 +85,17 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   monthly / yearly), current plan with `currentPeriodEnd` and source, restore
   purchases, usage meters, GST invoice links and a wallet balance.
   `plansFromEntitlements(definePlans(...), display)` builds the plan list.
+- `screens/monetisation-screens`: `RemotePaywall` renders the server's
+  offering (signet-db `createOfferings`: copy, plans shown, highlighted plan
+  and badge, trial text, button text, prices per store) on the `Paywall`
+  parts and hands the matching product to your checkout;
+  `plansFromOffering(offering, source, display)` is the plan list it uses.
+  `CustomerCenter` is the self-serve page on signet-db `createCustomers`:
+  plan and renewal date, cancel with the retention offer first, a store
+  manage link instead for App Store and Google Play, refund request and
+  contact support. `CustomerTimeline` is the admin view of one customer's
+  purchases, renewals, refunds, cancellations, billing issues and grace
+  periods across stores and web, with ledger totals.
 - `screens/growth-screens`: `WaitlistJoin` (with the place in line),
   `InviteAccept`, `ReferralCard`, `OnboardingChecklist`, `FeedbackWidget` /
   `FeedbackForm` and `WhatsNew`, shaped like signet-db's growth results.
@@ -122,6 +133,7 @@ without an app changing. Each component's source starts with its recipe:
 | `breadcrumb` | landmark |
 | `spinner` | live-region |
 | `screens/billing-screens` | selection + roving-focus + controllable-state + live-region |
+| `screens/monetisation-screens` | selection + roving-focus + controllable-state + live-region |
 | `screens/growth-screens` | selection + roving-focus + controllable-state + popup + dismiss + live-region + field-wiring |
 | `screens/workflow-screens` | roving-focus (timeline) + live-region + field-wiring |
 | `screens/org-screens` | popup + dismiss + live-region + field-wiring + controllable-state |

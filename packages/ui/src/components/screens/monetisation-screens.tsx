@@ -8,7 +8,7 @@
 // Play and web. Data comes in as props shaped like signet-db's results (or
 // their JSON); actions go out as callbacks, so any client fits. They reuse the
 // billing screens' parts (Paywall, CurrentPlanCard) and their labels.
-// Recipe: controllable-state + live-region
+// Recipe: selection + roving-focus + controllable-state + live-region
 import {
   ArrowUpRight,
   CalendarClock,
