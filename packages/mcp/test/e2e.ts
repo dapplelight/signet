@@ -390,6 +390,25 @@ try {
       !tr.json.install.includes("@dapplelight/signet-test"),
     tr.json?.id,
   )
+  const pub = await call("recipe", { task: "openapi docs and outbound webhooks" })
+  ok(
+    "recipe: publish-an-api is cut from the server, db and lib READMEs and covers spec, webhooks and caching",
+    pub.json?.id === "publish-an-api" &&
+      JSON.stringify(pub.json.steps.map((st: any) => st.title)) ===
+        JSON.stringify([
+          "OpenAPI from the validators",
+          "Outbound webhooks",
+          "Outbound webhooks",
+          "Webhooks: Standard Webhooks signatures",
+          "HTTP caching",
+        ]) &&
+      pub.json.steps[0].markdown.includes("serveOpenApi(app") &&
+      pub.json.steps[2].markdown.includes("createWebhooks(db") &&
+      pub.json.steps[3].markdown.includes("verifyWebhook(") &&
+      pub.json.steps[4].markdown.includes("httpCache(") &&
+      !pub.json.install.includes("@dapplelight/signet-db"),
+    pub.json?.id,
+  )
   const dbr = await call("recipe", { task: "add a database" })
   ok(
     "recipe: add-db is cut from the db README headings and does not install the private signet-db",

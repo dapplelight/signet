@@ -33,6 +33,9 @@ package ships all three rather than forcing them together.
 | `@dapplelight/signet-server/auth/api-keys` | none | API-key manager: scoped, expiring, stored as hashes. |
 | `@dapplelight/signet-server/auth/mcp` | `@modelcontextprotocol/server`, `zod` (optional peers) | `authTools`: per-user session and API-key tools for agents. |
 | `@dapplelight/signet-server/auth/hono` | `hono` (optional peer) | `requireAuth`, `requireSession`, `requireStoredSession`, `sessionRoutes`, `requireApiKey`. |
+| `@dapplelight/signet-server/http/openapi` | `hono`, `zod` >=4.2 (optional peers) | `openApiSpec`, `serveOpenApi`, `apiDoc`, `apiDocsHtml`: OpenAPI 3.1 and HTML docs from `zValidator` routes. See [Public API](#public-api-openapi-docs-webhooks-caching). |
+| `@dapplelight/signet-server/http/cache` | `hono` (optional peer) | `httpCache` (Cache-Control, ETag, 304, Vary), `cachedResponse` (stale-while-revalidate on a `KeyValue`). |
+| `@dapplelight/signet-server/http/webhooks` | `hono`, `zod` (optional peers) | `webhookRoutes`: admin routes for signet-db's outbound webhooks. |
 | `@dapplelight/signet-server/http/orgs` | `hono` (optional peer) | `tenant`, `orgGuards` (`requireMember`, `requireRole`, `requirePermission`), `orgRoutes`: multi-tenant orgs on signet-db's `createOrgs`. See [Organisations](#organisations-and-tenants). |
 | `@dapplelight/signet-server/mcp` | `@modelcontextprotocol/server` ^2.1, `zod` >=4.2 (optional peers; not `hono`) | `defineTool`, `createMcpServer`; stdio via the SDK's `serveStdio`. See [MCP servers](#mcp-servers). |
 | `@dapplelight/signet-server/jobs` | `zod` (optional peer) | `defineJob`, `createJobs`, retries, schedules, Cloudflare/QStash/Node runtimes. See [Jobs](#jobs). |
@@ -410,6 +413,103 @@ app.route("/admin", adminRoutes(admin, { db, ctx: (c) => ({ actor: { type: "user
   (create, list, revoke, preview, accept). Every `/current` route checks
   membership in the tenant, and signet-db refuses role escalation and
   removing the last owner. `OrgError` becomes the envelope.
+
+## Public API: OpenAPI, docs, webhooks, caching
+
+Three modules for an API other developers call: the spec and docs come from
+the routes you already wrote, outbound webhooks run on signet-db's outbox,
+and GET routes get correct cache headers.
+
+### OpenAPI from the validators
+
+`@dapplelight/signet-server/http/openapi` reads `app.routes` and the
+`zValidator` schemas on them, and converts each with zod's own
+`z.toJSONSchema` (zod 4.2+, already a peer). No second schema to keep in step.
+
+```ts
+import { apiDoc, serveOpenApi } from "@dapplelight/signet-server/http/openapi"
+import { zValidator } from "@dapplelight/signet-server/http/validate"
+
+app.get("/notes/:id", apiDoc({ summary: "Get a note", tags: ["Notes"], response: Note }), zValidator("param", Id), get)
+app.post("/notes", apiDoc({ responses: { 201: { description: "Created", schema: Note } } }), zValidator("json", NoteInput), create)
+app.get("/health", apiDoc({ security: false }), health) // public
+app.post("/internal/sync", apiDoc(false), sync)          // not in the spec
+
+serveOpenApi(app, {
+  info: { title: "Notes API", version: "1.0.0" },
+  security: { session: { cookieName: "sid" }, apiKey: { prefix: "app" } },
+})
+// GET /openapi.json  OpenAPI 3.1      GET /docs  an HTML reference: no script, no dependency
+```
+
+| From | Becomes |
+|---|---|
+| `param`, `query`, `header`, `cookie` validators | parameters (a path parameter without one is a required string) |
+| `json` / `form` validator | the request body (`application/json` / `multipart/form-data`), input side: defaults are optional |
+| `apiDoc({ response })` | the 200 body, output side |
+| any validator | a 400; auth on the route a 401; every route a `default`. All three are `#/components/responses/Error`, the envelope `errorHandler` writes |
+| `security` | `sessionCookie` (apiKey in cookie) and `apiKey` (HTTP bearer, `./auth/api-keys`), either accepted on every route |
+| `.describe()` on a schema or field | `summary` / `description` |
+
+`openApiSpec(app, options)` returns the document without serving it, for a
+build step or a client generator. The spec is built on the first request, so
+routes added after `serveOpenApi` are in it. `apiDocsHtml(spec, { stylesheet })`
+links the app's theme CSS so the page picks up Signet tokens. In React,
+`ApiReference` from `@dapplelight/signet-ui/screens/api-screens` renders the
+same document on Signet tokens.
+
+### Outbound webhooks
+
+Endpoints, secrets, the delivery log and retries live in signet-db
+(`@dapplelight/signet-db/webhooks`, see its README). This package has the
+admin routes, typed by shape so it does not depend on signet-db:
+
+```ts
+import { webhookRoutes } from "@dapplelight/signet-server/http/webhooks"
+
+app.use("/api/webhooks/*", requireStoredSession(sessionOpts))
+app.route("/api/webhooks", webhookRoutes({ webhooks, owner: (c) => c.get("session").payload.sub }))
+```
+
+`GET|POST /endpoints` (the POST answers 201 with the secret, once),
+`PATCH|DELETE /endpoints/:id` (`{ enabled: true }` re-enables),
+`POST /endpoints/:id/rotate-secret`, `GET /deliveries?endpointId&status&limit&before`
+and `POST /deliveries/:id/redeliver`. Another owner's ids are 404; a private or
+non-https url is 400 `VALIDATION_FAILED` on `url`; redelivering to a disabled
+endpoint is 409. The routes carry `apiDoc` tags, so they document themselves.
+`WebhookDeliveryLog` in `@dapplelight/signet-ui/screens/api-screens` is the screen.
+
+Receivers verify with `verifyWebhook(secret, req.headers, rawBody)` from
+`@dapplelight/signet-lib/webhooks` and dedupe on `webhook-id`.
+
+### HTTP caching
+
+`@dapplelight/signet-server/http/cache`:
+
+```ts
+import { cachedResponse, httpCache } from "@dapplelight/signet-server/http/cache"
+
+app.get("/plans", httpCache({ maxAge: 300, staleWhileRevalidate: 60 }), listPlans)
+app.get("/me/orders", requireStoredSession(sessionOpts), httpCache({ private: true }), myOrders)
+app.get("/stats", (c) =>
+  cachedResponse(c, { kv, freshSeconds: 60, staleSeconds: 600, varyBy: orgId(c) }, async () => c.json(await buildStats())),
+)
+```
+
+- `httpCache` on GET and HEAD 2xx: `Cache-Control` (default `public, no-cache`:
+  always revalidate, which the ETag makes cheap), an `ETag` from a SHA-256 of
+  the body, and a 304 for a matching `If-None-Match` (weak comparison) that
+  keeps `Cache-Control`, `Vary` and `ETag`. A handler's own `Cache-Control` or
+  `ETag` wins.
+- Per-user responses: `private: true` sends `Cache-Control: private` (no CDN
+  stores it) and `Vary: Cookie, Authorization`; `mergeVary` adds more names
+  without duplicates.
+- `cachedResponse` is stale-while-revalidate on any `KeyValue` (`memoryKv`,
+  `cloudflareKv`, `upstashKv`): fresh hits skip the handler, stale hits answer
+  at once while one background render refreshes the entry (`waitUntil` on
+  Workers), and `varyBy` (the user or org) is part of the key. Only 200s
+  without `Set-Cookie` are stored. `X-Cache` says `HIT`, `STALE` or `MISS`.
+
 
 ## Env — Workers-safe configuration
 

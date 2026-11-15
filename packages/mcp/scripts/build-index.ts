@@ -974,6 +974,39 @@ const RECIPES: RecipeSpec[] = [
     ],
   },
   {
+    id: "publish-an-api",
+    title: "Publish an API: OpenAPI, docs, outbound webhooks and caching",
+    keywords: [
+      "openapi",
+      "swagger",
+      "api docs",
+      "public api",
+      "publish an api",
+      "webhooks",
+      "outbound webhooks",
+      "delivery log",
+      "standard webhooks",
+      "etag",
+      "cache-control",
+      "stale-while-revalidate",
+      "vary",
+    ],
+    // signet-db is `private: true` (not on npm yet), so it is not in the install line.
+    install: ["@dapplelight/signet-server", "@dapplelight/signet-lib", "hono", "zod"],
+    refs: [
+      ["server", "OpenAPI from the validators"],
+      ["server", "Outbound webhooks"],
+      ["db", "Outbound webhooks"],
+      ["lib", "Webhooks: Standard Webhooks signatures"],
+      ["server", "HTTP caching"],
+    ],
+    verify: [
+      "GET /openapi.json is OpenAPI 3.1 with every route and the Error envelope; GET /docs renders it",
+      "a delivery verifies with verifyWebhook on the receiver; a 500 is retried by drainOutbox with the same webhook-id",
+      "a GET with the ETag in If-None-Match answers 304; per-user routes send Cache-Control: private and Vary: Cookie, Authorization",
+    ],
+  },
+  {
     id: "add-plans",
     title: "Add plans, entitlements, usage limits and feature flags (signet-db)",
     keywords: [

@@ -20,6 +20,7 @@ The core never imports a driver. Thin entry points connect it to one:
 | `@dapplelight/signet-db/entitlements` | `definePlans`, `createEntitlements`, billing events, usage limits, `entitlementTools` |
 | `@dapplelight/signet-db/flags` | `defineFlags`, `evaluateFlag`, `createFlags` |
 | `@dapplelight/signet-db/admin` | `defineAdmin(schema, { authorize })`, an admin API and admin MCP tools (needs zod) |
+| `@dapplelight/signet-db/webhooks` | `createWebhooks`: outbound webhooks per user or org, signed, retried through the outbox, with a delivery log |
 | `@dapplelight/signet-db/privacy` | `createPrivacy`: DPDP consent records, withdrawal, export and erasure requests; `privacyTools` |
 | `@dapplelight/signet-db/analytics` | `createAnalyticsStore`: events in your database, counts, uniques, series, breakdowns, funnels, retention, trends; `analyticsTools` |
 | `@dapplelight/signet-db/orgs` | `createOrgs`: organisations, memberships, roles and permissions, custom roles, invites, per-org domain and theme |
@@ -361,6 +362,70 @@ backoff (`2^attempt` s, capped at 1 h, or your `backoff`) until `maxAttempts`
 (10), then the row is `dead`. A crash between send and mark resends: at least
 once, so dedupe on `id`. In an interactive transaction:
 `await enqueue(db, topic, payload)(tx)`. `pruneOutbox(db)` deletes old sent rows.
+
+## Outbound webhooks
+
+`@dapplelight/signet-db/webhooks`: endpoints registered per user or org, each
+with its own `whsec_` secret; Standard Webhooks signatures; retries with
+backoff through the outbox; a delivery log; manual redelivery; endpoints
+switched off after repeated failures.
+
+```ts
+import { webhookTables } from "@dapplelight/signet-db/columns/sqlite" // or /columns/pg
+import { createWebhooks, WEBHOOK_TOPIC } from "@dapplelight/signet-db/webhooks"
+import { drainOutbox } from "@dapplelight/signet-db"
+
+export const { webhookEndpoints, webhookDeliveries } = webhookTables()
+
+const webhooks = createWebhooks(db, { endpoints: webhookEndpoints, deliveries: webhookDeliveries })
+const { endpoint, secret } = await webhooks.register({ owner: orgId, url, events: ["order.created"] }) // secret shown once
+
+// Queued in the same atomic write as the change that caused it:
+await db.batch([
+  (tx) => tx.insert(orders).values(order),
+  ...(await webhooks.statements({ owner: orgId, type: "order.created", data: order })),
+])
+
+// From a cron: webhook rows go to webhooks.send, the rest to the app's queue.
+await drainOutbox(db, { send: (m) => (m.topic === WEBHOOK_TOPIC ? webhooks.send(m) : queue.send(m)) })
+```
+
+- **Signature:** `webhook-id` (the event id), `webhook-timestamp` and
+  `webhook-signature: v1,<base64 HMAC-SHA256 of id.timestamp.body>`, made by
+  `signWebhook` from `@dapplelight/signet-lib/webhooks`. Receivers call
+  `verifyWebhook(secret, headers, rawBody)` and dedupe on `webhook-id`, which
+  is the same on every retry and redelivery. The body is
+  `{ type, timestamp, data }`.
+- **Retries:** each delivery is one outbox row, so `drainOutbox`'s backoff and
+  `maxAttempts` apply. Pass the same `maxAttempts` to `createWebhooks` so the
+  last attempt logs as `failed`. A delivered row is never posted again, even
+  when the at-least-once outbox hands it over twice.
+- **Delivery log:** `deliveries(owner, { endpointId, status, limit, before })`,
+  newest first: status (`pending`, `retrying`, `delivered`, `failed`,
+  `skipped`), attempts, the response status, the first 2 KB of the response,
+  the error and the duration.
+- **Redeliver:** `redeliver(owner, deliveryId)` queues a new delivery with the
+  same event id and body.
+- **Disable:** after `disableAfter` (default 20) failed attempts in a row the
+  endpoint is switched off and its queued deliveries are `skipped`.
+  `update(owner, id, { enabled: true })` turns it back on.
+- **Safety:** urls must be `https:` on a public host (no localhost, private
+  ranges, IP literals or credentials) unless `allowPrivateUrls`. Before every
+  attempt the host is resolved (`node:dns/promises` `lookup` with `all: true`
+  on Bun and Node) and the delivery is refused if any address is private,
+  loopback, link-local, CGNAT, unique-local IPv6 or IPv4-mapped; that logs as
+  a failed attempt (`Refused: <host> resolves to a private address`) and
+  counts toward `disableAfter` like any other failure. Redirects are never
+  followed: a 3xx is a failed attempt. Each attempt times out after
+  `timeoutMs` (10 s). With a db cipher, secrets are stored encrypted;
+  `rotateSecret` replaces one.
+- **Runtimes without DNS:** on Cloudflare Workers without `nodejs_compat`
+  there is nothing to resolve with, so the check is skipped and the
+  platform's outbound protections apply. Pass `resolveHost: (host) =>
+  Promise<string[]>` (DNS over HTTPS, say) to enforce it there too.
+
+Admin routes: `webhookRoutes` in `@dapplelight/signet-server/http/webhooks`.
+Screen: `WebhookDeliveryLog` in `@dapplelight/signet-ui/screens/api-screens`.
 
 ## Idempotency keys
 

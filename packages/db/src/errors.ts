@@ -25,6 +25,8 @@ export type SignetDbErrorCode =
   | "NO_OUTBOX_TABLE"
   | "NO_IDEMPOTENCY_TABLE"
   | "IDEMPOTENCY_IN_FLIGHT"
+  | "WEBHOOK_FAILED"
+  | "CONFLICT"
   | "BAD_INPUT"
   | "NOT_FOUND"
   | "FORBIDDEN"
