@@ -5,6 +5,46 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-tokens: green, amber and primary text reach 4.5:1 on cards
+
+- Light `--accent-green` is a shade darker: editorial (and finance) `#12833c` → `#117e3a`, cinematic `#0c847a` → `#0b7e75`. Green text on cards (`stat-strip` deltas, `trend-chip`, `amount`'s credit tone through `--money-credit`) measured 4.19–4.25:1 on `--bg-surface`; it is now 4.53:1. Dark themes are unchanged.
+- The contrast test now checks `--accent-green` on `--bg-surface` and `--card`, so it fails if green text drops below 4.5:1 again.
+- Light `--accent-amber` is a shade darker too: editorial `#986908` → `#926508`, cinematic `#b16105` → `#aa5d05` (4.21–4.23 → 4.51:1). Editorial `--primary` and `--ring` go from `#12833c` to `#117e3a`, so `text-primary` on cards passes (4.53:1); buttons and the focus ring shift by the same shade, and white on primary is 5.16:1. The contrast test checks amber and primary on `--bg-surface` and `--card` as well.
+
+### signet-ui: amount, kanban and four hooks
+
+- New `./domain/amount`: `Amount` and `formatAmount`. Money in the locale's grouping (lakh/crore in Indian locales), the currency's own decimals, `minorUnits` (bigint-exact), `notation` "standard" | "whole" | "compact" (₹12.5L, ₹1.2Cr, $1.3M), Intl `signDisplay`, and `tone` "credit" | "debit" | "transfer" | "auto" from the theme's `--money-*` slots with status-accent fallbacks. A span with `data-part` and a `classNames` entry per part; `data-tone`, `data-sign`; `render` swaps the `<data>` element.
+- New `./domain/kanban`: `Kanban`, `KanbanColumn`, `KanbanColumnHeader`, `KanbanColumnTitle`, `KanbanList`, `KanbanItem`, plus `moveItem` and `findItem`. Cards move between columns by native drag and drop or by keyboard (Space or Enter picks up, arrows move, Space or Enter drops, Escape cancels), each step announced in a live region with overridable `messages`. Controlled (`value` + `onValueChange`) or uncontrolled (`defaultValue`, children as a function of the board); `onItemMove` reports the single move. `data-over`, `data-lifted`, `data-dragging` for styling.
+- New hooks, one subpath each: `./hooks/use-debounce`, `./hooks/use-local-storage` (JSON, SSR-safe via useSyncExternalStore, synced across tabs and components), `./hooks/use-copy`, `./hooks/use-intersection`.
+
+### signet-tokens: theme builder and per-component density
+
+- New `./theme` export: `buildTheme({ brand, base?, mode?, density? })` derives every colour token (primary, surfaces, text, borders, status accents, charts, focus, and money on `finance`) for light and dark from one brand colour, in OKLCH. Text tokens are guaranteed WCAG 4.5:1 on the surfaces they sit on (focus and charts 3:1); any token moved to get there is listed in `adjustments`.
+- `toCss(theme)` writes a theme file that imports its base and overrides its colours; `toDesignTokens` / `fromDesignTokens` write and read W3C Design Tokens (DTCG 2025.10) JSON; `toFigmaVariables` gives the Figma Variables API body.
+- Density: `data-density="compact" | "comfortable" | "spacious"` on any element, and `--density-<slot>` tokens (button, input, textarea, select-trigger, badge, card, tabs-list, dialog-content, sidebar) for one component everywhere. The themes' `--spacing` now carries two multipliers that default to 1, so every shipped theme looks exactly as before.
+
+### signet-mcp: build_theme
+
+- New `build_theme` tool: a theme from a brand colour as CSS, Design Tokens or Figma Variables, with its adjustments and a contrast re-check.
+
+### signet-cli: signet theme
+
+- `signet theme <hex> [--base] [--mode] [--density] [--format css|tokens|figma] [--out]`, and `--import tokens.json` to turn a token file back into CSS.
+
+### signet-cli: backend modules and codemods
+
+- `signet add auth | db | payments | notify | admin` copies a backend module into `src/server/` of an app made with `create-signet-app --template api`, adds its import and `.route(...)` to `src/app.ts`, its keys to `envSchema` in `src/env.ts` and to `.env.example` (once; lines without an anchor are printed), and installs its npm packages with the app's package manager (from the lockfile; `--no-install` prints the command). Module files upgrade and diff like any item.
+- `signet upgrade` runs versioned codemods once per app: signet-ai 0.4 rewrites `generateObject` to `generateText` with `Output.object` and bumps `ai` to 7; signet-db `setPlan` and signet-server `registerIngest` call sites are listed with what changed. `--dry-run` prints the diffs. Needs `typescript` in the app.
+- signet-mcp: new `add-backend-module` recipe.
+
+### signet-lib, signet-server, signet-db, signet-ui: analytics sessions, identify, stored events, queries and answers
+
+- signet-lib `./analytics`: events carry a random `anonymousId` and a `sessionId` (new after 30 minutes idle, `sessionTimeoutMs`). New `identify(userId, traits)` (sends only `traitKeys`, default none), `reset()`, `context`, `headers()`, `requireConsent` (nothing tracked before `optIn()`), `continueSession`, `ANALYTICS_HEADERS`. `optOut()` also forgets the ids; `optIn()` now stores "0".
+- signet-server `./analytics`: `TrackedEvent` gains `anonymousId`, `sessionId`, `userId`. `registerIngest` keeps the visit ids, drops a client-sent `userId` unless given a `userId` resolver (or `trustClientUserId`). New `./analytics/session`: `analyticsContext(headers)`, `serverTracker(sink, ctx)` with `track` and `identify`. The Analytics Engine writer puts the ids first as `aid`/`sid`/`uid` blob pairs.
+- signet-db: new `./analytics` with `createAnalyticsStore` (an `AnalyticsSink` on any dialect) and `analyticsEvents()` tables in `./columns/sqlite` and `./columns/pg`. Links anonymous events on `$identify`, keeps userIds only with DPDP consent when given `privacy`, `retentionDays` (default 395) with `prune()`. Typed, injection-safe queries: `count`, `uniques`, `series`, `breakdown`, `funnel`, `retention`, `trend`, `events`. Read-only `analyticsTools` (`list_events`, `query_analytics`).
+- signet-ui: new `./components/metric-headline`: `MetricHeadline` turns `{ current, previous }` into one sentence, number and trend ("Signups up 18% this week"), with `copy`, `classNames`, `data-direction`/`data-tone`, exported parts, `goodWhen`/`flatWithin`/`format`, `metricTrend` and `metricSentence`, and privacy-mask support.
+- signet-mcp: the `add-analytics` recipe covers sessions, stored events, queries and the headline.
+
 ### signet-server: MCP on by default — routes as tools, per-user tools, pending approvals
 
 - `appTools(app)` (`./mcp`): every route validated with `zValidator` becomes an

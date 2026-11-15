@@ -2,7 +2,7 @@
  * Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`,
  * `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`,
  * `idempotencyKeys`, `aiCache`, `entitlementTables`, `flagOverrides`, `growthTables`,
- * `privacyTables` and `sequences` tables.
+ * `privacyTables`, `analyticsEvents` and `sequences` tables.
  */
 
 import { sql } from "drizzle-orm"
@@ -332,6 +332,30 @@ export const privacyTables = (prefix = "") => ({
     (t) => [index(`${prefix}data_requests_subject`).on(t.subject)],
   ),
 })
+
+/**
+ * Stored analytics events for `createAnalyticsStore` from
+ * `@dapplelight/signet-db/analytics`. `ts` is epoch ms; `props` is JSON.
+ * Has `userId`, so it can go in `deleteUser` / privacy `userTables`.
+ */
+export const analyticsEvents = (name = "analytics_events") =>
+  sqliteTable(
+    name,
+    {
+      id: id(),
+      name: text("name").notNull(),
+      ts: integer("ts").notNull(),
+      anonymousId: text("anonymous_id"),
+      sessionId: text("session_id"),
+      userId: text("user_id"),
+      props: text("props", { mode: "json" }),
+    },
+    (t) => [
+      index(`${name}_name_ts`).on(t.name, t.ts),
+      index(`${name}_anonymous_id`).on(t.anonymousId),
+      index(`${name}_user_id`).on(t.userId),
+    ],
+  )
 
 /** Named counters for `nextSequence`, e.g. invoice numbers per financial year. */
 export const sequences = (name = "sequences") =>

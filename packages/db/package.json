@@ -90,6 +90,11 @@
       "import": "./dist/growth.js",
       "default": "./dist/growth.js"
     },
+    "./analytics": {
+      "types": "./dist/analytics.d.ts",
+      "import": "./dist/analytics.js",
+      "default": "./dist/analytics.js"
+    },
     "./privacy": {
       "types": "./dist/privacy.d.ts",
       "import": "./dist/privacy.js",

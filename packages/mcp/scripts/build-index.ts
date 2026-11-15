@@ -7,6 +7,7 @@
  *                    themes, contract tokens, recipes, create-signet-app templates
  *   doctor-check.ts  packages/server/src/doctor/check.ts, verbatim
  *   contrast.ts      packages/tokens/test/contrast.ts, verbatim
+ *   theme.ts         packages/tokens/src/theme.ts (the theme builder), verbatim
  *
  * The two copies are how check_app and check_theme reuse the repo's own logic
  * without the server or tokens package exporting it.
@@ -826,15 +827,35 @@ const RECIPES: RecipeSpec[] = [
   },
   {
     id: "add-analytics",
-    title: "Add analytics (Cloudflare Web Analytics or Analytics Engine)",
-    keywords: ["analytics", "events", "tracking", "pageview", "analytics engine", "beacon"],
+    title:
+      "Add analytics (Cloudflare, or events in your database with sessions, queries and answers)",
+    keywords: [
+      "analytics",
+      "events",
+      "tracking",
+      "pageview",
+      "analytics engine",
+      "beacon",
+      "sessions",
+      "identify",
+      "funnel",
+      "retention",
+      "headline",
+    ],
     install: ["@dapplelight/signet-lib", "@dapplelight/signet-server"],
     refs: [
       ["analytics", "Tier 1 — invite, gift and marketing sites"],
       ["analytics", "Tier 2 — products wanting custom events"],
+      ["analytics", "Sessions and identify"],
+      ["analytics", "Store events in your database"],
+      ["analytics", "Ask questions"],
+      ["analytics", "Answers, not dashboards"],
       ["analytics", "Things that bite"],
     ],
-    verify: ["check_app: the ingest route is rate limited"],
+    verify: [
+      "check_app: the ingest route is rate limited",
+      "a client-sent userId is dropped unless registerIngest has a userId resolver",
+    ],
   },
   {
     id: "add-portability-adapters",
@@ -1037,6 +1058,31 @@ const RECIPES: RecipeSpec[] = [
     ],
   },
   {
+    id: "add-backend-module",
+    title: "Wire auth, a database, payments, notifications or an admin API into an api app",
+    keywords: [
+      "signet add auth",
+      "backend module",
+      "wire",
+      "payments",
+      "notifications",
+      "admin api",
+      "database",
+      "codemod",
+      "migrate",
+    ],
+    // signet-cli and signet-db are `private: true`; the module's other packages are installed by signet add.
+    install: ["@dapplelight/signet-server", "hono", "zod"],
+    refs: [
+      ["cli", "Add a backend module"],
+      ["cli", "Codemods"],
+    ],
+    verify: [
+      "src/app.ts has the module's .route(...) once and src/env.ts its keys; bun run typecheck passes",
+      "signet upgrade --dry-run shows codemod diffs before they are applied",
+    ],
+  },
+  {
     id: "add-theme",
     title: "Make a theme",
     keywords: ["theme", "tokens", "css variables", "design", "colors", "dark mode"],
@@ -1169,6 +1215,7 @@ const outputs: [string, string][] = [
   ],
   ["doctor-check.ts", `${banner}${read("packages/server/src/doctor/check.ts")}`],
   ["contrast.ts", `${banner}${read("packages/tokens/test/contrast.ts")}`],
+  ["theme.ts", `${banner}${read("packages/tokens/src/theme.ts")}`],
 ]
 
 mkdirSync(OUT, { recursive: true })

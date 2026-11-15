@@ -21,6 +21,10 @@
   },
   "type": "module",
   "exports": {
+    "./theme": {
+      "types": "./dist/theme.d.ts",
+      "import": "./dist/theme.js"
+    },
     "./base.css": "./dist/base.css",
     "./editorial.css": "./dist/themes/editorial.css",
     "./cinematic.css": "./dist/themes/cinematic.css",
@@ -30,9 +34,9 @@
     "dist"
   ],
   "scripts": {
-    "test": "bun run test/themes.ts && bun run test/contrast.ts",
+    "test": "bun run test/themes.ts && bun run test/contrast.ts && bun run test/builder.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "build": "rm -rf dist && mkdir -p dist && cp -R src/* dist/",
+    "build": "rm -rf dist && mkdir -p dist && cp -R src/themes src/base.css dist/ && tsc -p tsconfig.build.json",
     "prepublishOnly": "bun run build"
   },
   "devDependencies": {

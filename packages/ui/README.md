@@ -53,6 +53,18 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   `domain/upload` is a drag-and-drop uploader with per-file progress (XHR to
   a presigned URL), retry, and size/type hints; `getTarget` and `onUploaded`
   talk to your server.
+  `domain/amount` formats money: the locale's grouping (₹12,50,000 in
+  en-IN), the currency's own decimals, minor units and bigints exactly,
+  compact lakh/crore ("₹12.5L", "₹1.2Cr"), a sign, and `tone` colours from
+  the theme's `--money-*` slots (falling back to the status accents), with a
+  class per part (`currency`, `integer`, `fraction`…). `domain/kanban` is a
+  board whose cards move between columns by pointer drag or keyboard (Space
+  picks up, arrows move, Space drops, Escape cancels), announced in a live
+  region; the board is a plain `{ column: ids[] }` object.
+- Hooks, one subpath each: `hooks/use-media-query`, `hooks/use-debounce`,
+  `hooks/use-local-storage` (JSON, SSR-safe, synced across tabs),
+  `hooks/use-copy` (clipboard with a `copied` flag) and
+  `hooks/use-intersection` (on screen or not, for lazy loading).
 - `screens/` ready screens, out of the barrel: `auth-screens` (sign in / up
   by email or phone code, OAuth, verify, session expired), `account-screens`
   (profile, devices, API keys), `notification-screens` (inbox, preferences)
@@ -83,6 +95,8 @@ without an app changing. Each component's source starts with its recipe:
 | `sidebar` | disclosure + controllable-state + shortcut; on phones the Drawer's popup + focus-trap + dismiss + swipe |
 | `breadcrumb` | landmark |
 | `spinner` | live-region |
+| `domain/amount` | money-format + tone (colour from the `--money-*` slots) |
+| `domain/kanban` | controllable-state + live-region + drag + keyboard-move |
 
 `@dapplelight/signet-ui/behaviors` exports the behaviours a new component
 needs directly, with Signet's own types: `useShortcut(keys, handler)` and
