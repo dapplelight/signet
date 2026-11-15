@@ -73,6 +73,11 @@ export const PAIRS: [fg: string, bg: string, min: number][] = [
   // Green text sits on cards (stat-strip, trend-chip, amount's credit tone).
   ["--accent-green", "--bg-surface", TEXT],
   ["--accent-green", "--card", TEXT],
+  ["--accent-amber", "--bg-surface", TEXT],
+  ["--accent-amber", "--card", TEXT],
+  // `text-primary` links and labels sit on cards too.
+  ["--primary", "--bg-surface", TEXT],
+  ["--primary", "--card", TEXT],
   ["--accent-amber", "--bg-base", TEXT],
   ["--accent-red", "--bg-base", TEXT],
   ["--accent-blue", "--bg-base", TEXT],
