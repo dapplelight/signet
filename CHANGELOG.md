@@ -5,6 +5,75 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-lib, signet-server, signet-db, signet-ui: analytics sessions, identify, stored events, queries and answers
+
+- signet-lib `./analytics`: events carry a random `anonymousId` and a `sessionId` (new after 30 minutes idle, `sessionTimeoutMs`). New `identify(userId, traits)` (sends only `traitKeys`, default none), `reset()`, `context`, `headers()`, `requireConsent` (nothing tracked before `optIn()`), `continueSession`, `ANALYTICS_HEADERS`. `optOut()` also forgets the ids; `optIn()` now stores "0".
+- signet-server `./analytics`: `TrackedEvent` gains `anonymousId`, `sessionId`, `userId`. `registerIngest` keeps the visit ids, drops a client-sent `userId` unless given a `userId` resolver (or `trustClientUserId`). New `./analytics/session`: `analyticsContext(headers)`, `serverTracker(sink, ctx)` with `track` and `identify`. The Analytics Engine writer puts the ids first as `aid`/`sid`/`uid` blob pairs.
+- signet-db: new `./analytics` with `createAnalyticsStore` (an `AnalyticsSink` on any dialect) and `analyticsEvents()` tables in `./columns/sqlite` and `./columns/pg`. Links anonymous events on `$identify`, keeps userIds only with DPDP consent when given `privacy`, `retentionDays` (default 395) with `prune()`. Typed, injection-safe queries: `count`, `uniques`, `series`, `breakdown`, `funnel`, `retention`, `trend`, `events`. Read-only `analyticsTools` (`list_events`, `query_analytics`).
+- signet-ui: new `./components/metric-headline`: `MetricHeadline` turns `{ current, previous }` into one sentence, number and trend ("Signups up 18% this week"), with `copy`, `classNames`, `data-direction`/`data-tone`, exported parts, `goodWhen`/`flatWithin`/`format`, `metricTrend` and `metricSentence`, and privacy-mask support.
+- signet-mcp: the `add-analytics` recipe covers sessions, stored events, queries and the headline.
+
+### signet-server: MCP on by default — routes as tools, per-user tools, pending approvals
+
+- `appTools(app)` (`./mcp`): every route validated with `zValidator` becomes an
+  MCP tool — name from the method and path, description from `asTool` or the
+  schema's `.describe()`, input from the json/query/param validators. GET is
+  read-only; any other method asks first through `requireApproval`.
+  `asTool({ ... })` names, describes or opts a route in; `asTool(false)` leaves
+  it out; `appTools(app, { optIn: true })` takes only marked routes. A GET
+  or DELETE with a json validator is skipped (its arguments go in the query).
+- `routesAsTools` routes take `approval`, `query` and `visible`, and forward
+  `cf-connecting-ip` / `x-forwarded-for` so route tools share the caller's
+  rate-limit bucket.
+- Tools take `visible(caller)`: a tool for some roles or plans is neither
+  listed nor callable for anyone else. `createMcpServer` throws on one (it has
+  no caller); serve through `resolveMcpServer` / `mcpHandler`.
+- Pending approvals: `kvApprovals(kv, { ttlSeconds, onEvent })` on
+  `createMcpServer({ approvals })`. A client that cannot ask gets
+  `APPROVAL_PENDING` with the record's id; the person approves or denies it
+  through `approvalRoutes` (`./http/routes`); the same call (tool, principal,
+  arguments) then runs once. Records expire; requests, decisions and uses are
+  events for an audit log, elicited answers included. A call with no
+  principal opens no record (no one could decide it) and gets
+  `APPROVAL_REQUIRED`. Without a store, behaviour is unchanged.
+- `approvalGate`: `requireApproval` in the `approve` shape signet-db's and
+  signet-payments' tool factories take, so their writes use the same step.
+
+### signet-lib: `APPROVAL_PENDING` error code
+
+- New code in `ERROR_CODES`, with default copy.
+
+### create-signet-app: MCP for agents, chosen at scaffold time
+
+- The api template asks "Add MCP for agents?" (default yes); `--mcp` /
+  `--no-mcp` decide without a terminal (default `--mcp`). With MCP, `/mcp`
+  serves every `zValidator` route as a tool (`appTools`), writes ask first,
+  `MCP=off` turns it off, and `@modelcontextprotocol/server` is added. With
+  `--no-mcp` there is no dependency, file or mention of it. Needs the
+  signet-server release with `appTools`.
+
+### signet-lib: typed client timeouts and streaming
+
+- `createRpcClient` takes `timeoutMs`: each attempt's wait for response headers is bounded, and the request is aborted through its `AbortSignal` (raced too, so a custom `fetch` that ignores the signal still times out). `timeout(ms, init?)` passed as hc's `init` replaces it for one call; `timeout(0)` turns it off.
+- New `TimeoutError` (and `isTimeoutError`): an `ApiError` with status 408 and code `TIMEOUT`, carrying `timeoutMs` and the request id. A timed-out GET or HEAD counts toward `retries`; other methods are never retried. A caller's own abort stays an abort.
+- `ApiError.name` is now typed `string` rather than the literal `"ApiError"`, so subclasses can name themselves.
+- New streaming readers in `./api`: `readText`, `readNdjson<T>`, `readSse` and `readSseJson<T>`, async iterators over any `Response`. `readSseJson` stops at `[DONE]` and reads signet-ai's `streamChat` response directly. Breaking out of a loop cancels the body.
+
+### signet-ai: persistent caches and cost saved
+
+- The cache key now covers the model: `createExtractor` adds its provider chain (`name/model` of each provider, in order) to the schema, instructions and input. `cacheKey` takes an optional fourth `model` argument; without it the key is unchanged. Existing cached entries miss once after upgrading.
+- `kvCache` also takes a Cloudflare Workers KV namespace directly (`kvCache(env.AI_CACHE)`), writing with `expirationTtl` floored at KV's 60-second minimum; expiry is still checked on read.
+- A cache hit is reported to `onUsage` with `cacheHit: true`, `costUsd: 0` and `savedUsd`, the original call's cost. `UsageReport` gains both optional fields, and `analyticsUsage` writes them as props.
+- A cache that throws no longer fails the call: a failed read is a miss and a failed write is dropped, each emitting `ai.cache_error` to `onEvent`. Before, a failed write after a paid answer could fail over and pay again.
+
+### signet-db: AI answer cache
+
+- New `aiCache()` table in `./columns/sqlite` and `./columns/pg`, and `dbCache(db, table)` plus `pruneAiCache(db, table)` in the core: a persistent `Cache` for signet-ai's `createExtractor` on SQLite, D1 or Postgres. Expired or unreadable rows are misses; with a cipher on the db the entry is stored encrypted.
+
+### signet-mcp: recipes
+
+- The `add-api-client` recipe is found by "timeout", "streaming", "sse" and "ndjson"; `add-ai-extraction` includes signet-ai's "Persistent caches" section and `add-db` the "AI answer cache" section.
+
 ### signet-ui: user-facing screens (auth, account, notifications, privacy)
 
 Ready screens under `@dapplelight/signet-ui/screens/*`, kept out of the main

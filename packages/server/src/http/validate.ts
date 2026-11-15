@@ -88,9 +88,15 @@ export function zValidator<T extends keyof ValidationTargets, S extends z.ZodTyp
   string,
   { in: { [K in T]: ClientInput<K, S> }; out: { [K in T]: z.output<S> } }
 > {
-  return validator(target, async (value) => {
+  const mw = validator(target, async (value) => {
     const result = await schema.safeParseAsync(value)
     if (!result.success) fail(result)
     return result.data
-  }) as never
+  })
+  // Read by signet-server/mcp `appTools`, which turns validated routes into tools.
+  Object.defineProperty(mw, VALIDATES, { value: { target, schema } })
+  return mw as never
 }
+
+/** Marks a `zValidator` middleware with what it checks: `{ target, schema }`. */
+export const VALIDATES = Symbol.for("signet.http.validates")

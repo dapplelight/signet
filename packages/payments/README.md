@@ -499,7 +499,8 @@ your turnover requires, digital signatures, and PDF output (print the HTML).
 `refund_payment`, and `refresh_entitlement` when you pass signet-db's
 `entitlements`) that
 signet-server's `createMcpServer({ tools })` takes. Refunds always go through
-`approve`; pass signet-server's `requireApproval`. Without it, the tool
+`approve`; pass signet-server's `approvalGate` (the same approval step as
+every other write tool, pending approvals included). Without it, the tool
 returns `APPROVAL_REQUIRED` and refunds nothing. See `AGENTS.md`.
 
 ## Errors

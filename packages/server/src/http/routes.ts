@@ -11,6 +11,7 @@
  */
 
 import { type Context, Hono } from "hono"
+import { ApiException } from "./errors.js"
 
 /**
  *   GET /        the plan, features, limits and overrides in effect now
@@ -39,3 +40,41 @@ export function flagRoutes<S, R>(opts: {
 export type EntitlementRoutes<R, U> = ReturnType<typeof entitlementRoutes<R, U>>
 /** For `hc<FlagRoutes<FlagSubject, Values>>`, imported with `import type`. */
 export type FlagRoutes<S, R> = ReturnType<typeof flagRoutes<S, R>>
+
+/**
+ * The person's side of MCP approvals (`kvApprovals` from `../mcp`): see what
+ * an agent is waiting on, approve or deny it. Behind the app's auth;
+ * `subject` is the signed-in user, who can only decide their own.
+ *
+ *   GET  /              pending approvals for the caller
+ *   POST /:id/approve   approve one; the agent's next identical call runs it
+ *   POST /:id/deny      deny one; the agent's next identical call is declined
+ *
+ * Takes the store structurally, so this module does not load the MCP SDK.
+ */
+export function approvalRoutes<R extends { principal: string | null }>(opts: {
+  approvals: {
+    get(id: string): Promise<R | null>
+    listPending(principal: string | null): Promise<R[]>
+    approve(id: string, by: string): Promise<R | null>
+    deny(id: string, by: string): Promise<R | null>
+  }
+  subject: (c: Context) => string | Promise<string>
+}) {
+  const { approvals } = opts
+  const decide = (to: "approve" | "deny") => async (c: Context) => {
+    const sub = await opts.subject(c)
+    const id = c.req.param("id") ?? ""
+    const r = await approvals.get(id)
+    // Someone else's approval reads as missing, not forbidden: no probing ids.
+    if (!r || r.principal !== sub) throw new ApiException(404, "No such approval", "NOT_FOUND")
+    const done = await approvals[to](id, sub)
+    if (!done)
+      throw new ApiException(409, "This approval was already decided or has expired", "CONFLICT")
+    return c.json(done)
+  }
+  return new Hono()
+    .get("/", async (c) => c.json(await approvals.listPending(await opts.subject(c))))
+    .post("/:id/approve", decide("approve"))
+    .post("/:id/deny", decide("deny"))
+}

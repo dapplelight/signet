@@ -345,6 +345,14 @@ try {
       own.json.steps.some((st: any) => st.markdown.includes("signet upgrade")),
     own.json?.id,
   )
+  const mcpr = await call("recipe", { task: "routes as tools with approval" })
+  ok(
+    "recipe: mcp-by-default is cut from the server README and covers appTools and approvals",
+    mcpr.json?.id === "mcp-by-default" &&
+      JSON.stringify(mcpr.json).includes("appTools") &&
+      JSON.stringify(mcpr.json).includes("kvApprovals"),
+    mcpr.json?.id,
+  )
   const dbr = await call("recipe", { task: "add a database" })
   ok(
     "recipe: add-db is cut from the db README headings and does not install the private signet-db",
@@ -358,6 +366,7 @@ try {
           "Per-user scope and soft delete",
           "Transactional outbox",
           "Idempotency keys",
+          "AI answer cache",
           "Tools for AI agents",
           "Errors",
         ]) &&
