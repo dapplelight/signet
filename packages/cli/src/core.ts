@@ -21,6 +21,8 @@ export type Config = {
   items: Record<string, { version: string; hash: string }>
   /** Every copied file (registry path) -> hash of the upstream file it was copied from. */
   files: Record<string, string>
+  /** Codemods `signet upgrade` has applied (src/codemods.ts ids). */
+  codemods?: string[]
 }
 
 export const CONFIG = "signet.json"
@@ -43,6 +45,7 @@ export function loadConfig(root: string): Config {
     alias: c.alias ?? DEFAULTS.alias,
     items: c.items ?? {},
     files: c.files ?? {},
+    ...(c.codemods && { codemods: c.codemods }),
   }
 }
 export const saveConfig = (root: string, c: Config) =>
@@ -81,15 +84,16 @@ export function resolve(reg: Registry, names: string[]): string[] {
 }
 
 type Paths = { app: (p: string) => string; base: (p: string) => string }
-const paths = (root: string, c: Config): Paths => ({
-  app: (p) => join(root, c.dir, p),
+/** Backend module files (`root: "app"`) live under the app's src/, the rest under `dir`. */
+const paths = (root: string, c: Config, reg: Registry): Paths => ({
+  app: (p) => join(root, reg.files[p]?.root === "app" ? "src" : c.dir, p),
   base: (p) => join(root, BASE_DIR, p),
 })
 
 /** Write the app copy and its base, and record both. */
 function commit(root: string, c: Config, reg: Registry, path: string, app: string | null) {
   const next = transform(reg, path, c.alias)
-  const p = paths(root, c)
+  const p = paths(root, c, reg)
   if (app !== null) write(p.app(path), app)
   write(p.base(path), next)
   c.files[path] = reg.files[path]?.hash as string
@@ -128,7 +132,7 @@ export function add(
   opts: { force?: boolean; config?: Partial<Pick<Config, "dir" | "alias">> } = {},
 ): AddResult {
   const c = { ...loadConfig(root), ...opts.config }
-  const p = paths(root, c)
+  const p = paths(root, c, reg)
   const items = resolve(reg, names)
   const res: AddResult = { items, written: [], unchanged: [], refused: [], missingPeers: {} }
   const plan: string[] = []
@@ -216,7 +220,7 @@ export function upgrade(
   opts: { dryRun?: boolean } = {},
 ): UpgradeResult {
   const c = loadConfig(root)
-  const p = paths(root, c)
+  const p = paths(root, c, reg)
   const wanted = names.length ? names : Object.keys(c.items)
   for (const n of wanted)
     if (!c.items[n]) throw new SignetCliError(`"${n}" is not added. Run signet add ${n}.`)
@@ -291,7 +295,7 @@ export function unifiedDiff(a: string, b: string, label: string): string {
 export function diff(root: string, reg: Registry, name: string): string {
   const c = loadConfig(root)
   if (!c.items[name]) throw new SignetCliError(`"${name}" is not added. Run signet add ${name}.`)
-  const p = paths(root, c)
+  const p = paths(root, c, reg)
   return resolve(reg, [name])
     .slice(-1)
     .flatMap((n) => reg.items[n]?.files ?? [])
@@ -311,7 +315,7 @@ export type ListEntry = {
 
 export function list(root: string, reg: Registry): ListEntry[] {
   const c = loadConfig(root)
-  const p = paths(root, c)
+  const p = paths(root, c, reg)
   return Object.entries(reg.items).map(([name, item]) => {
     const rec = c.items[name]
     if (!rec) return { name, deps: item.deps }

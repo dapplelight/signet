@@ -364,6 +364,14 @@ try {
       own.json.steps.some((st: any) => st.markdown.includes("signet upgrade")),
     own.json?.id,
   )
+  const mod = await call("recipe", { task: "wire a backend module and a codemod" })
+  ok(
+    "recipe: add-backend-module is cut from the cli README and covers wiring and codemods",
+    mod.json?.id === "add-backend-module" &&
+      mod.json.steps.some((st: any) => st.markdown.includes("signet add auth payments")) &&
+      mod.json.steps.some((st: any) => st.markdown.includes("generateText")),
+    mod.json?.id,
+  )
   const mcpr = await call("recipe", { task: "routes as tools with approval" })
   ok(
     "recipe: mcp-by-default is cut from the server README and covers appTools and approvals",

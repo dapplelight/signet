@@ -1058,6 +1058,31 @@ const RECIPES: RecipeSpec[] = [
     ],
   },
   {
+    id: "add-backend-module",
+    title: "Wire auth, a database, payments, notifications or an admin API into an api app",
+    keywords: [
+      "signet add auth",
+      "backend module",
+      "wire",
+      "payments",
+      "notifications",
+      "admin api",
+      "database",
+      "codemod",
+      "migrate",
+    ],
+    // signet-cli and signet-db are `private: true`; the module's other packages are installed by signet add.
+    install: ["@dapplelight/signet-server", "hono", "zod"],
+    refs: [
+      ["cli", "Add a backend module"],
+      ["cli", "Codemods"],
+    ],
+    verify: [
+      "src/app.ts has the module's .route(...) once and src/env.ts its keys; bun run typecheck passes",
+      "signet upgrade --dry-run shows codemod diffs before they are applied",
+    ],
+  },
+  {
     id: "add-theme",
     title: "Make a theme",
     keywords: ["theme", "tokens", "css variables", "design", "colors", "dark mode"],
