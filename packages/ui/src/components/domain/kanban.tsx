@@ -6,7 +6,7 @@
 // columns), Space or Enter drops, Escape puts it back. Every pick-up, move and
 // drop is announced in a live region. The board is a plain
 // `{ [column]: itemId[] }` object, controlled or uncontrolled.
-// Recipe: controllable-state + live-region + drag (pointer and keyboard)
+// Recipe: controllable-state + live-region + drag + keyboard-move
 import type * as React from "react"
 import {
   cloneElement,

@@ -5,7 +5,7 @@
 // Intl does not do the same way in every engine. Self-contained: the formatting
 // mirrors signet-lib/format's currency formatters, so a copied-in file needs
 // nothing else.
-// Recipe: display only (no behaviour); colour from --money-* with fallbacks
+// Recipe: money-format + tone
 import type * as React from "react"
 import { cloneElement } from "react"
 import { cn } from "../../lib/utils.js"
