@@ -114,6 +114,16 @@
       "types": "./dist/workflows.d.ts",
       "import": "./dist/workflows.js",
       "default": "./dist/workflows.js"
+    },
+    "./offerings": {
+      "types": "./dist/offerings.d.ts",
+      "import": "./dist/offerings.js",
+      "default": "./dist/offerings.js"
+    },
+    "./customers": {
+      "types": "./dist/customers.d.ts",
+      "import": "./dist/customers.js",
+      "default": "./dist/customers.js"
     }
   },
   "bin": {

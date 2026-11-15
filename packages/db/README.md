@@ -26,6 +26,8 @@ The core never imports a driver. Thin entry points connect it to one:
 | `@dapplelight/signet-db/orgs` | `createOrgs`: organisations, memberships, roles and permissions, custom roles, invites, per-org domain and theme |
 | `@dapplelight/signet-db/growth` | `createGrowth`: waitlist, invites, referrals, onboarding, changelog, feedback; `growthTools` |
 | `@dapplelight/signet-db/workflows` | `defineWorkflow`, `createWorkflows`: durable multi-step runs with sleeps, events, human approvals, retries, cancel |
+| `@dapplelight/signet-db/offerings` | `createOfferings`: versioned offerings (store and web products mapped to plans) with a remote paywall, served per placement and audience; `plansFromProducts` |
+| `@dapplelight/signet-db/customers` | `createCustomers`: the customer timeline across stores and web, anonymous-to-account identity merge, and the Customer Center (cancel, refund request, retention offer, support) |
 
 Peers: `drizzle-orm` ^0.45, `@dapplelight/signet-lib` ^0.3, `postgres` only
 for `./postgres` and `zod` only for `./zod`. Types flow from your table definitions: rows, inserts
@@ -614,6 +616,142 @@ store's own state, not the event type:
 signet-payments `Subscription`), so a restore also fixes a missed webhook. A
 `cancelled` web subscription ends access now, except Lemon Squeezy's, which keeps
 access until its `currentPeriodEnd` (`ends_at`).
+
+## Offerings, customers and the Customer Center
+
+RevenueCat-style monetisation on top of plans and entitlements, in your own
+database. Tables: `monetisationTables()` from `/columns/sqlite` or `/columns/pg`
+(`offerings`, `placements`, `customerIdentities`, `customerEvents`,
+`customerRequests`).
+
+### Offerings and remote paywalls
+
+```ts
+import { monetisationTables } from "@dapplelight/signet-db/columns/sqlite"
+import { createOfferings, plansFromProducts } from "@dapplelight/signet-db/offerings"
+
+export const { offerings, placements, customerIdentities, customerEvents, customerRequests } =
+  monetisationTables()
+
+const products = [
+  { id: "pro.monthly", store: "appstore", plan: "pro", interval: "month" },
+  { id: "pro_monthly", store: "googleplay", plan: "pro", interval: "month" },
+  { id: "price_pro_m", store: "web", plan: "pro", interval: "month", price: { amount: 49900, currency: "INR" } },
+] as const
+const off = createOfferings(db, { tables: { offerings, placements }, plans })
+const ent = createEntitlements(db, { plans, default: "free", tables, billing: { plans: plansFromProducts(products) } })
+
+await off.publish("default", {
+  products,
+  paywall: { title: "Go pro", plans: ["pro"], highlight: "pro", badge: "Best value", trial: "7 days free", cta: "Start trial" },
+}, { actor })                                                     // version 1; the next publish is 2
+await off.setPlacement("onboarding", {
+  offering: "default",                                             // latest version; `version: 1` pins (rollback)
+  overrides: [{ when: { country: ["IN"], platform: ["web"] }, offering: "india" }],
+}, { actor })
+await off.current("onboarding", { country: "IN", platform: "web", attributes: { cohort: "beta" } })
+// { key, version, products, paywall, placement, override: 0 }
+```
+
+- A product maps a store product id (App Store, Google Play) or a web
+  gateway's plan or price id to a plan. `plansFromProducts` turns them into
+  entitlements' `billing.plans` keys (`"appstore:<id>"`, `"googleplay:<id>"`,
+  bare ids for web), so what the paywall sells is what billing grants.
+- `publish` validates (every plan declared, no product twice, integer
+  prices, a highlight the offering sells) and writes an immutable version;
+  the row id is `key@version`, so concurrent publishes never share a number.
+- A placement serves its offering's latest version unless pinned. Overrides
+  match `country`, `platform` and `attributes` (a list matches any value),
+  first match wins, with the same matcher as feature flags. Changing either
+  needs no app release: the app asks for the placement each time.
+- Admin-editable: `publish`, `setPlacement`, `versions`, `list` and
+  `placements`, or signet-server's `monetisationAdminRoutes`. In
+  `defineAdmin`, list `offerings` as read-only so versions stay immutable.
+- The paywall config is copy, not logic: the purchase still goes through your
+  checkout (`payments.checkout` on the web; StoreKit or Play Billing, then
+  `verifyPurchase`, in the app). signet-ui's `RemotePaywall` renders it.
+
+### Customer timeline
+
+```ts
+import { createCustomers } from "@dapplelight/signet-db/customers"
+
+const customers = createCustomers(db, {
+  tables: { ...entitlementTables, customerIdentities, customerEvents, customerRequests },
+  entitlements: ent,
+  payments: store,                          // signet-payments store: payments, ledger, merge
+})
+createPayments({
+  ...,
+  onEvent: async (e) => {
+    const subject = await customers.resolve(ownerOf(e)) // the app's user id or anonymous id
+    await ent.applyBillingEvent(e, { subject })
+    await customers.record(e, { subject })
+  },
+})
+await customers.timeline(userId) // { entries: [{ kind, gateway, amount, ... }], totals: [{ currency, paid, refunded, approximate }] }
+```
+
+`record` puts each event on its customer's timeline once (keyed by gateway
+and event id), as `purchase`, `renewal`, `refund`, `cancellation`,
+`uncancellation`, `billing_issue`, `grace_period` (App Store status 4, Play
+`IN_GRACE_PERIOD`), `expiration`, `paused` or `dispute`. Without a subject it
+uses the owner of the event's subscription or payment. `timeline` adds the
+events of the customer's payments from the payments store and totals per
+currency from the ledger (App Store prices are marked `approximate`).
+
+### Identity merge
+
+```ts
+const anon = await customers.anonymousId({ orgId })   // "anon_<uuid>", before sign-in
+// Buy as anon: App Store appAccountToken = anon.slice(5); verifyPurchase({ userId: anon })
+const r = await customers.merge({ anonymousId: anon, userId, orgId })
+// { merged: true, already: false, moved: { subscriptions, overrides, events, requests, payments } }
+```
+
+Moves the anonymous id's subscriptions (not a `manual` plan), grants,
+timeline, requests and, with `payments`, its payments (`reassignUser`) to the
+account. Rows move, never copy, so nothing is granted twice. The claim is one
+conditional UPDATE: of concurrent merges into different accounts exactly one
+wins (`already_merged` for the rest); repeating a merge into the same account
+returns `already: true` and finishes anything a crash left half done.
+Refused: an id `anonymousId` did not issue (`not_anonymous`, so two real
+accounts never merge), the same id, a target that is itself anonymous, another
+org (`other_org`), or, with `isMember`, a user outside the org. Anonymous ids
+carry 122 random bits: whoever holds one can claim its purchases, so keep it
+on the device. After a merge, `resolve(anon)` is the account, so pass events
+tagged with the old id through it.
+
+### Customer Center
+
+```ts
+const customers = createCustomers(db, {
+  ...,
+  notify: (n) => notifier.notify(teamId, "customer.request", { kind: n.kind, text: n.text }),
+  cancel: (s) => payments.gateway(s.gateway).cancelSubscription(s.subscriptionId, { atPeriodEnd: true }),
+  retention: { offer: { kind: "discount", percent: 50, months: 3 }, apply: ({ source }) => applyCoupon(source) },
+  googlePlayPackage: "com.example.app",
+})
+await customers.overview(userId)        // plan, status, currentPeriodEnd, renews, source, manageUrl, canCancel, retention
+await customers.cancel(userId)          // web: cancelled at the gateway; store: { cancelled: false, reason: "store", manageUrl }
+await customers.acceptRetention(userId) // once per customer; applied through `retention.apply`
+await customers.requestRefund(userId, { gateway, paymentId, reason }) // once per payment; the team is notified
+await customers.contactSupport(userId, { message, email, topic })
+await customers.requests({ status: "open" }); await customers.setRequestStatus(id, "done", { actor })
+```
+
+- Stores cannot be cancelled by a server: `manageUrl` is the App Store's
+  subscriptions page, or Google Play's for the product and package. App Store
+  refund requests also return `storeUrl` (Apple decides those).
+- A refund request is only for the customer's own payment (payments store,
+  else their timeline); anything else is `NOT_FOUND`. It is recorded before
+  `notify` runs, and a request whose notice failed is sent again on retry.
+- The retention offer is shown to a live web subscription that never took
+  one; pass `eligible` to change that (store offers belong to the store).
+- A web cancel is recorded, so `renews` and `canCancel` turn false while the
+  gateway still reports the subscription active until its period end.
+- signet-ui's `CustomerCenter` renders it; signet-server's
+  `monetisationRoutes` serves it.
 
 ## Feature flags
 
