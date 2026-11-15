@@ -116,7 +116,16 @@ app.post("/webhooks/:gateway", (c) => payments.handleWebhook(c.req.param("gatewa
   capture; refunds are `refund.processed`. App Store amounts are marked
   `approximate` (see the gap notes).
 - App Store extras: `decodeTransaction(jws)` verifies a StoreKit
-  `jwsRepresentation`; `transactionHistory`, `refundHistory`. Google Play
+  `jwsRepresentation`; `transactionHistory`, `refundHistory`;
+  `sendConsumptionInfo(transactionId, body)` answers a `CONSUMPTION_REQUEST`
+  notification (a customer asked Apple for a refund; the event arrives with
+  `gatewayType: "CONSUMPTION_REQUEST"` and Apple's `consumptionRequestReason`
+  in `raw.payload.data`). It PUTs Send Consumption Information v2
+  (`customerConsented`, `deliveryStatus`, `sampleContentProvided`, optional
+  `consumptionPercentage` and `refundPreference`) and refuses a body Apple
+  would reject, including any without `customerConsented: true`: for a
+  customer who did not consent, send nothing. signet-db's
+  `customers.consumptionInfo(event)` builds the body. Google Play
   extras: `getProductPurchase(token)`, `acknowledgeProduct`,
   `acknowledgeSubscription` (unacknowledged purchases are refunded after three
   days), `consumeProduct`, `listVoided`.

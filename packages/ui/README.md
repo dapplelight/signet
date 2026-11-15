@@ -95,7 +95,11 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   manage link instead for App Store and Google Play, refund request and
   contact support. `CustomerTimeline` is the admin view of one customer's
   purchases, renewals, refunds, cancellations, billing issues and grace
-  periods across stores and web, with ledger totals.
+  periods across stores and web, with ledger totals. `RemotePaywall` shows
+  the customer's best offer (free trial, intro or win-back, from
+  `customers.withOffers`), passes it to `onPurchase`, and calls
+  `onImpression` once per offering version for paywall conversion;
+  `PromotionalGrantForm` grants a plan for some days from admin.
 - `screens/funnel-screens`: `WebFunnel` walks a web-to-app funnel from
   signet-server's funnel routes (questions, then `RemotePaywall` with the
   URL discount priced in, then email and code) and hands the checkout to
@@ -103,6 +107,12 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   Google Pay) and Payment Element with Stripe.js loaded at runtime (nothing
   bundled); `FunnelRedemption` waits for the webhook, then offers "Open the
   app" and the code to paste.
+- `screens/subscription-charts`: `SubscriptionCharts` on signet-db
+  `createCharts`: MRR per currency (and a converted total), active
+  subscribers and trials, new versus renewal revenue and refunds, churn and
+  trial conversions, paywall views against conversions, with filters by
+  store, plan, country and offering, saved audiences and a CSV link. Needs
+  recharts (optional peer), so it is its own export path.
 - `screens/growth-screens`: `WaitlistJoin` (with the place in line),
   `InviteAccept`, `ReferralCard`, `OnboardingChecklist`, `FeedbackWidget` /
   `FeedbackForm` and `WhatsNew`, shaped like signet-db's growth results.
@@ -188,6 +198,7 @@ without an app changing. Each component's source starts with its recipe:
 | `screens/billing-screens` | selection + roving-focus + controllable-state + live-region |
 | `screens/monetisation-screens` | selection + roving-focus + controllable-state + live-region |
 | `screens/funnel-screens` | selection + controllable-state + live-region |
+| `screens/subscription-charts` | field-wiring (labelled filters) + controllable-state (filters) |
 | `screens/growth-screens` | selection + roving-focus + controllable-state + popup + dismiss + live-region + field-wiring |
 | `screens/workflow-screens` | roving-focus (timeline) + live-region + field-wiring |
 | `screens/org-screens` | popup + dismiss + live-region + field-wiring + controllable-state |

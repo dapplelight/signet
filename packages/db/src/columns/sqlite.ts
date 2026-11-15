@@ -641,7 +641,7 @@ export const collabTables = (prefix = "") => ({
  * `createCustomers` (`@dapplelight/signet-db/customers`): offering versions,
  * placements, anonymous identities, the customer timeline and Customer Center
  * requests. Destructure into the schema:
- * `export const { offerings, placements, customerIdentities, customerEvents, customerRequests } = monetisationTables()`.
+ * `export const { offerings, placements, customerIdentities, customerEvents, customerRequests, chartAudiences } = monetisationTables()`.
  */
 export const monetisationTables = (prefix = "") => ({
   offerings: sqliteTable(`${prefix}offerings`, {
@@ -649,7 +649,7 @@ export const monetisationTables = (prefix = "") => ({
     id: text("id").primaryKey(),
     key: text("key").notNull(),
     version: integer("version").notNull(),
-    /** [{ id, store, plan, interval?, price? }]: store and web products mapped to plans. */
+    /** [{ id, store, plan, interval?, price?, offers? }]: store and web products mapped to plans. */
     products: text("products", { mode: "json" }).notNull(),
     /** The remote paywall: copy, plans shown, highlighted plan, trial text. */
     paywall: text("paywall", { mode: "json" }),
@@ -684,7 +684,7 @@ export const monetisationTables = (prefix = "") => ({
       /** `${gateway}|${eventId}`: a notification is on the timeline once. */
       id: text("id").primaryKey(),
       subject: text("subject").notNull(),
-      /** purchase | renewal | refund | cancellation | uncancellation | billing_issue | grace_period | expiration | paused | dispute | discount */
+      /** purchase | trial | renewal | refund | refund_request | cancellation | uncancellation | billing_issue | grace_period | expiration | paused | dispute | discount | promotional | impression */
       kind: text("kind").notNull(),
       gateway: text("gateway").notNull(),
       eventType: text("event_type").notNull(),
@@ -696,8 +696,15 @@ export const monetisationTables = (prefix = "") => ({
       /** App Store prices: indicative, not settled revenue. */
       approximate: integer("approximate", { mode: "boolean" }).notNull().default(false),
       occurredAt: ms("occurred_at").notNull(),
+      /** ISO 3166-1 alpha-2, when known: `record(e, { country })`, or the paywall impression's. */
+      country: text("country"),
+      /** The offering key, on paywall impressions. */
+      offering: text("offering"),
     },
-    (t) => [index(`${prefix}customer_events_subject`).on(t.subject, t.occurredAt)],
+    (t) => [
+      index(`${prefix}customer_events_subject`).on(t.subject, t.occurredAt),
+      index(`${prefix}customer_events_occurred`).on(t.occurredAt),
+    ],
   ),
   customerRequests: sqliteTable(
     `${prefix}customer_requests`,
@@ -719,6 +726,15 @@ export const monetisationTables = (prefix = "") => ({
     },
     (t) => [index(`${prefix}customer_requests_subject`).on(t.subject, t.kind)],
   ),
+  /** Saved chart filters ("audiences") for `createCharts`. */
+  chartAudiences: sqliteTable(`${prefix}chart_audiences`, {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    /** { store?, plan?, country?, offering? } */
+    filter: text("filter", { mode: "json" }).notNull(),
+    createdBy: text("created_by"),
+    createdAt: stamp("created_at"),
+  }),
 })
 
 /**

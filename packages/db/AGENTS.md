@@ -64,6 +64,15 @@ Tools come from `agentTools(db, { tables, userId, allowWrites, maxRows })`.
   the merged account, and call `customers.record(event)` after
   `applyBillingEvent`. `merge` refusals (`already_merged`, `other_org`,
   `not_anonymous`) are final: tell the user, never retry under another id.
+- Offers: put trials, intro and win-back offers on offering products; show
+  `customers.withOffers(subject, offering)`, and call `redeemOffer` before
+  applying a web offer. `not_eligible` and `already_used` are final.
+- Promotional plans: `customers.grantPromotional` with `days` or `expiresAt`;
+  they lapse on their own, so never schedule a job to remove them.
+- Apple CONSUMPTION_REQUEST: send `customers.consumptionInfo(event).body` only
+  when `respond` is true; `no_consent` means send nothing, never a default.
+- Charts: `createCharts(...).metrics(...)`; money is per currency in minor
+  units, and `approximate` results include App Store list prices, not revenue.
 - Funnels (`createFunnels`): never compute a price or apply a discount in the
   client; `start` prices it. Grant web purchases only from `applyEvent` fed by
   verified webhooks. A `redeem` refusal (`already_redeemed`, `refunded`) is

@@ -27,6 +27,7 @@
 import { and, desc, eq, gt, isNull, lte, or, sql, type Table } from "drizzle-orm"
 import type { SignetDb } from "./db.js"
 import { SignetDbError } from "./errors.js"
+import { newId } from "./id.js"
 import { withIdempotency } from "./idempotency.js"
 import { type Actor, audited } from "./scoped.js"
 
@@ -56,6 +57,9 @@ export type PlanKey<P extends Plans> = keyof P & string
  * Declare plans in code, lowest first: when several are active at once, the
  * last declared wins. The literal keys type `can`, `limit` and `consume`.
  */
+/** The gateway of `grantPromotional` sources. */
+export const PROMOTIONAL = "promotional"
+
 export const definePlans = <const P extends Plans>(plans: P): P => plans
 
 /** Usage windows: calendar month or day (UTC), or never resets. */
@@ -447,6 +451,8 @@ export function createEntitlements<P extends Plans>(
   const isLive = (r: Cols, at: number): boolean => {
     if (!plans[r.plan]) return false
     const end = r.currentPeriodEnd ? r.currentPeriodEnd.getTime() : undefined
+    // A promotional grant lapses exactly at its expiry: no grace, no event needed.
+    if (r.gateway === PROMOTIONAL) return r.status === "active" && end !== undefined && end > at
     switch (r.status) {
       case "active":
       case "trialing":
@@ -615,6 +621,51 @@ export function createEntitlements<P extends Plans>(
       }
     }
     return "stale"
+  }
+
+  /**
+   * Grant `plan` until `expiresAt` as its own `promotional` source (id
+   * `promotional|<id>`): it rolls up like a subscription, a paid plan declared
+   * later still wins, and it lapses at `expiresAt` with nothing to run.
+   * Ending it early is `endPromotional`.
+   */
+  async function grantPromotional(
+    subject: string,
+    plan: PlanKey<P>,
+    { actor, expiresAt, id }: WriteOptions & { expiresAt: Date; id?: string },
+  ): Promise<{ id: string; plan: PlanKey<P>; expiresAt: Date }> {
+    subjectId(subject)
+    checkPlan(plan)
+    const at = now()
+    if (!(expiresAt instanceof Date) || !(expiresAt.getTime() > at.getTime()))
+      throw new SignetDbError("BAD_VALUE", "expiresAt is a date in the future.")
+    const grant = id ?? newId(at.getTime())
+    const r = await upsertSource(
+      subject,
+      PROMOTIONAL,
+      grant,
+      { plan, status: "active", currentPeriodEnd: expiresAt, graceUntil: null },
+      at,
+      actor,
+    )
+    if (r !== "applied") throw new SignetDbError("CONFLICT", `Promotional grant ${grant} exists.`)
+    return { id: grant, plan, expiresAt }
+  }
+
+  /** End a promotional grant now. Returns whether it was live. */
+  async function endPromotional(subject: string, id: string, { actor }: WriteOptions) {
+    const cur = await source(PROMOTIONAL, id)
+    if (!cur || cur.subject !== subject || !isLive(cur, now().getTime())) return false
+    return (
+      (await upsertSource(
+        subject,
+        PROMOTIONAL,
+        id,
+        { status: "expired", currentPeriodEnd: now() },
+        now(),
+        actor,
+      )) === "applied"
+    )
   }
 
   /** Set the `manual` source. A live subscription on a later-declared plan still wins. */
@@ -834,6 +885,8 @@ export function createEntitlements<P extends Plans>(
     usage,
     /** Set a plan by hand (admin, comp, migration). A later billing event replaces it. */
     setPlan,
+    grantPromotional,
+    endPromotional,
     grant(subject: string, feature: FeatureOf<P>, o: WriteOptions & { expiresAt?: Date }) {
       checkKey(allFeatures, "feature", feature)
       return addOverride(subject, "feature", feature, 1, o)

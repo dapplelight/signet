@@ -134,6 +134,11 @@
       "import": "./dist/ai-spend.js",
       "default": "./dist/ai-spend.js"
     },
+    "./charts": {
+      "types": "./dist/charts.d.ts",
+      "import": "./dist/charts.js",
+      "default": "./dist/charts.js"
+    },
     "./funnels": {
       "types": "./dist/funnels.d.ts",
       "import": "./dist/funnels.js",

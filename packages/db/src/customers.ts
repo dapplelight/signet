@@ -29,12 +29,20 @@
 
 import { and, desc, eq, isNull, ne, type Table } from "drizzle-orm"
 import type { SignetDb } from "./db.js"
+import { PROMOTIONAL } from "./entitlements.js"
 import { SignetDbError } from "./errors.js"
 import { newId } from "./id.js"
+import {
+  type OfferHistory,
+  type OfferingProduct,
+  offerEligible,
+  type ProductOffer,
+} from "./offerings.js"
 import { type Actor, audited } from "./scoped.js"
 
 export type TimelineKind =
   | "purchase"
+  | "trial"
   | "renewal"
   | "refund"
   | "cancellation"
@@ -44,6 +52,10 @@ export type TimelineKind =
   | "expiration"
   | "paused"
   | "dispute"
+  /** The customer asked Apple for a refund (CONSUMPTION_REQUEST); answer with `consumptionInfo`. */
+  | "refund_request"
+  /** A promotional plan granted from admin (`grantPromotional`); it lapses on its own. */
+  | "promotional"
   /** A funnel discount code, recorded by signet-db funnels when the purchase is paid. */
   | "discount"
 
@@ -113,7 +125,44 @@ export type ResolvedLike = {
   currentPeriodEnd: Date | null
   graceUntil: Date | null
   source: { gateway: string; subscriptionId: string } | null
+  /** Every source per plan; offers read which subscriptions are live and when they ended. */
+  entitlements?: readonly {
+    sources: readonly {
+      gateway: string
+      subscriptionId: string
+      active: boolean
+      currentPeriodEnd: Date | null
+    }[]
+  }[]
 }
+
+/** What `consumptionInfo` passes to the app's hooks. */
+export type ConsumptionContext = {
+  subject: string
+  transactionId: string
+  /** Apple's `consumptionRequestReason`: UNINTENDED_PURCHASE, FULFILLMENT_ISSUE, UNSATISFIED_WITH_PURCHASE, LEGAL or OTHER. */
+  reason: string | null
+  /** The customer's timeline, newest first. */
+  entries: TimelineEntry[]
+  event: CustomerEventLike
+}
+
+/** Apple's ConsumptionRequest (signet-payments `ConsumptionRequest`). */
+export type ConsumptionInfo = {
+  customerConsented: true
+  deliveryStatus:
+    | "DELIVERED"
+    | "UNDELIVERED_QUALITY_ISSUE"
+    | "UNDELIVERED_WRONG_ITEM"
+    | "UNDELIVERED_SERVER_OUTAGE"
+    | "UNDELIVERED_OTHER"
+  sampleContentProvided: boolean
+  consumptionPercentage?: number
+  refundPreference?: "DECLINE" | "GRANT_FULL" | "GRANT_PRORATED"
+}
+
+/** A product offer as `withOffers` returns it: eligible for this customer. */
+type WithOffers<O> = O & { products: (OfferingProduct & { offers?: ProductOffer[] })[] }
 
 export type SubscriptionSource = { gateway: string; subscriptionId: string; productId?: string }
 
@@ -121,7 +170,7 @@ export type RetentionOffer =
   | { kind: "discount"; percent: number; months: number }
   | { kind: "free_period"; days: number }
 
-export type RequestKind = "refund" | "cancel" | "retention" | "support"
+export type RequestKind = "refund" | "cancel" | "retention" | "support" | "offer"
 export type RequestStatus = "open" | "done" | "declined"
 
 export type CustomerRequest = {
@@ -199,7 +248,16 @@ export type CustomerTables = {
 export type CustomersOptions = {
   tables: CustomerTables
   /** signet-db's `createEntitlements(...)` (only `get` is read). */
-  entitlements: { get(subject: string): Promise<ResolvedLike> }
+  entitlements: {
+    get(subject: string): Promise<ResolvedLike>
+    /** signet-db entitlements' own; needed by `grantPromotional`. */
+    grantPromotional?(
+      subject: string,
+      plan: never,
+      opts: { actor: Actor; expiresAt: Date },
+    ): Promise<{ id: string; expiresAt: Date }>
+    endPromotional?(subject: string, id: string, opts: { actor: Actor }): Promise<boolean>
+  }
   /** signet-payments' store: payments and ledger on the timeline, payment ownership, and moving payments in a merge. */
   payments?: PaymentsStoreLike
   /** Tell the team about a refund request or support message. Recorded first, so a failed send is retried on the next identical request. */
@@ -224,6 +282,20 @@ export type CustomersOptions = {
   }
   /** For merges within an org: is `userId` a member of `orgId`? signet-db orgs: `async (u, o) => !!(await orgs.membership(o, u))`. */
   isMember?: (userId: string, orgId: string) => unknown
+  /**
+   * Answering Apple's CONSUMPTION_REQUEST (`consumptionInfo`). `consented` is
+   * required: a customer who did not agree to share their data with Apple gets
+   * no answer at all (Apple's rule). The rest default from the customer's
+   * data: DELIVERED when the purchase is on their timeline, the share of the
+   * paid period used, and `sampleContentProvided` when they had a free trial.
+   */
+  consumption?: {
+    consented: (subject: string) => unknown
+    deliveryStatus?: (ctx: ConsumptionContext) => ConsumptionInfo["deliveryStatus"] | undefined
+    consumptionPercentage?: (ctx: ConsumptionContext) => number | undefined
+    refundPreference?: (ctx: ConsumptionContext) => ConsumptionInfo["refundPreference"] | undefined
+    sampleContentProvided?: (ctx: ConsumptionContext) => boolean | undefined
+  }
   now?: () => Date
 }
 
@@ -234,6 +306,17 @@ type Cols = Record<string, any>
 
 const PAID = new Set(["active", "trialing"])
 const STORES = new Set(["appstore", "googleplay"])
+/** Sources that are not a paid subscription: `setPlan` and `grantPromotional`. */
+const UNPAID = new Set(["manual", PROMOTIONAL])
+const SUBSCRIBED = new Set(["trial", "purchase", "renewal"])
+const COUNTRY = /^[A-Z]{2}$/
+const DAY = 86_400_000
+
+/** A purchase that is a free trial: amount 0, or the App Store's FREE_TRIAL offer. */
+export function isTrial(e: CustomerEventLike): boolean {
+  const t = (e.raw as Cols | undefined)?.transaction
+  return e.amount === 0 || t?.offerDiscountType === "FREE_TRIAL"
+}
 
 /**
  * The timeline kind of a signet-payments event, or undefined for one that is
@@ -245,7 +328,7 @@ export function timelineKind(e: CustomerEventLike): TimelineKind | undefined {
     case "subscription.created":
     case "subscription.activated":
     case "payment.captured":
-      return "purchase"
+      return isTrial(e) ? "trial" : "purchase"
     case "subscription.charged":
       return "renewal"
     case "refund.processed":
@@ -268,6 +351,7 @@ export function timelineKind(e: CustomerEventLike): TimelineKind | undefined {
       return grace ? "grace_period" : "billing_issue"
     }
     default:
+      if (e.gatewayType === "CONSUMPTION_REQUEST") return "refund_request"
       return e.type.startsWith("dispute.") ? "dispute" : undefined
   }
 }
@@ -392,6 +476,13 @@ export function createCustomers(db: SignetDb<unknown>, options: CustomersOptions
     return link ? (await pay.findLinked(e.gateway, { orderId: link }))?.userId : undefined
   }
 
+  const country = (c: string | undefined) => {
+    if (c === undefined) return null
+    const up = typeof c === "string" ? c.toUpperCase() : ""
+    if (!COUNTRY.test(up)) throw bad("country is an ISO 3166-1 alpha-2 code, e.g. IN.")
+    return up
+  }
+
   const entryOf = (e: CustomerEventLike, kind: TimelineKind) => ({
     id: `${e.gateway}|${e.id}`,
     kind,
@@ -414,7 +505,7 @@ export function createCustomers(db: SignetDb<unknown>, options: CustomersOptions
    */
   async function record(
     event: CustomerEventLike,
-    opts: { subject?: string } = {},
+    opts: { subject?: string; country?: string } = {},
   ): Promise<{ recorded: boolean; kind?: TimelineKind; subject?: string; reason?: string }> {
     const kind = timelineKind(event)
     if (!kind) return { recorded: false, reason: "not_on_timeline" }
@@ -423,7 +514,7 @@ export function createCustomers(db: SignetDb<unknown>, options: CustomersOptions
     const subject = await resolve(found)
     const done = await o
       .insert(T.customerEvents)
-      .values({ ...entryOf(event, kind), subject })
+      .values({ ...entryOf(event, kind), subject, country: country(opts.country) })
       .onConflictDoNothing()
       .returning()
     return done.length
@@ -459,10 +550,33 @@ export function createCustomers(db: SignetDb<unknown>, options: CustomersOptions
     for (const r of await o
       .select()
       .from(T.customerEvents)
-      .where(eq(ec.subject, subject))
+      .where(and(eq(ec.subject, subject), ne(ec.kind, "impression")))
       .orderBy(desc(ec.occurredAt))
       .limit(limit))
       byId.set(r.id, viewEntry(r))
+    // A promotional grant lapses at its expiry with nothing recorded: show it once that has passed.
+    const at = now()
+    for (const p of await o
+      .select()
+      .from(T.subjectPlans)
+      .where(and(eq(pc.subject, subject), eq(pc.gateway, PROMOTIONAL)))) {
+      const end = p.currentPeriodEnd as Date | null
+      const id = `${PROMOTIONAL}|${p.subscriptionId}|end`
+      if (end && end <= at && !byId.has(id))
+        byId.set(id, {
+          id,
+          kind: "expiration",
+          gateway: PROMOTIONAL,
+          eventType: "promotional.expired",
+          subscriptionId: p.subscriptionId,
+          paymentId: null,
+          productId: p.plan,
+          amount: null,
+          currency: null,
+          approximate: false,
+          occurredAt: end,
+        })
+    }
     const totals = new Map<string, TimelineTotal>()
     if (pay) {
       for (const p of await pay.listPayments({ userId: subject, limit })) {
@@ -520,7 +634,7 @@ export function createCustomers(db: SignetDb<unknown>, options: CustomersOptions
   async function base(subject: string): Promise<Omit<Overview, "retention">> {
     if (!subject) throw bad("A subject id is required.")
     const r = await options.entitlements.get(subject)
-    const paid = r.source && r.source.gateway !== "manual" ? r.source : null
+    const paid = r.source && !UNPAID.has(r.source.gateway) ? r.source : null
     const productId = paid ? await productOf(paid) : undefined
     const source = paid ? { ...paid, ...(productId ? { productId } : {}) } : null
     const store = !!source && STORES.has(source.gateway)
@@ -776,6 +890,301 @@ export function createCustomers(db: SignetDb<unknown>, options: CustomersOptions
     return request(id)
   }
 
+  // ------------------------------------------------------ paywall impressions
+
+  /**
+   * Log that `subject` saw an offering's paywall, for paywall conversion in
+   * `createCharts`. At most one row per subject, offering and UTC day, so
+   * re-renders and repeats cost nothing.
+   */
+  async function logImpression(
+    subject: string,
+    input: { offering: string; version?: number; placement?: string; country?: string },
+  ): Promise<{ logged: boolean }> {
+    if (!subject) throw bad("A subject id is required.")
+    const offering = text(input.offering, "offering", 64)
+    const at = now()
+    const day = at.toISOString().slice(0, 10)
+    const who = await resolve(subject)
+    const done = await o
+      .insert(T.customerEvents)
+      .values({
+        id: `impression|${who}|${offering}|${day}`,
+        subject: who,
+        kind: "impression",
+        gateway: "paywall",
+        eventType: input.placement ? `impression:${input.placement}` : "impression",
+        subscriptionId: null,
+        paymentId: null,
+        productId: input.version === undefined ? null : `${offering}@${input.version}`,
+        amount: null,
+        currency: null,
+        approximate: false,
+        occurredAt: at,
+        country: country(input.country),
+        offering,
+      })
+      .onConflictDoNothing()
+      .returning()
+    return { logged: done.length > 0 }
+  }
+
+  // ------------------------------------------------- promotional entitlements
+
+  /**
+   * Grant `plan` until `expiresAt` (or for `days`), from admin. It shows on the
+   * customer's timeline as `promotional`, and as `expiration` once it lapses,
+   * which it does on its own at that time.
+   */
+  async function grantPromotional(
+    subject: string,
+    input: { plan: string; expiresAt?: Date; days?: number; note?: string },
+    { actor }: { actor: Actor },
+  ): Promise<{ id: string; plan: string; expiresAt: Date }> {
+    const grant = options.entitlements.grantPromotional
+    if (!grant)
+      throw new SignetDbError(
+        "FORBIDDEN",
+        "Pass createEntitlements(...) to grant promotional plans.",
+      )
+    if (!subject) throw bad("A subject id is required.")
+    const expiresAt =
+      input.expiresAt ??
+      (Number.isSafeInteger(input.days) &&
+      (input.days as number) > 0 &&
+      (input.days as number) <= 3660
+        ? new Date(now().getTime() + (input.days as number) * DAY)
+        : undefined)
+    if (!expiresAt) throw bad("Give expiresAt, or days from 1 to 3660.")
+    const note = input.note === undefined ? null : text(input.note, "note", 500)
+    const r = await grant.call(options.entitlements, subject, input.plan as never, {
+      actor,
+      expiresAt,
+    })
+    await o
+      .insert(T.customerEvents)
+      .values({
+        id: `${PROMOTIONAL}|${r.id}`,
+        subject,
+        kind: "promotional",
+        gateway: PROMOTIONAL,
+        eventType: note ? `promotional.granted: ${note}` : "promotional.granted",
+        subscriptionId: r.id,
+        paymentId: null,
+        productId: input.plan,
+        amount: null,
+        currency: null,
+        approximate: false,
+        occurredAt: now(),
+      })
+      .onConflictDoNothing()
+    return { id: r.id, plan: input.plan, expiresAt: r.expiresAt }
+  }
+
+  /** End a promotional grant early. Returns whether it was live. */
+  async function endPromotional(
+    subject: string,
+    id: string,
+    { actor }: { actor: Actor },
+  ): Promise<boolean> {
+    const end = options.entitlements.endPromotional
+    if (!end) throw new SignetDbError("FORBIDDEN", "Pass createEntitlements(...) to end grants.")
+    if (!(await end.call(options.entitlements, subject, id, { actor }))) return false
+    await o
+      .insert(T.customerEvents)
+      .values({
+        id: `${PROMOTIONAL}|${id}|end`,
+        subject,
+        kind: "expiration",
+        gateway: PROMOTIONAL,
+        eventType: "promotional.ended",
+        subscriptionId: id,
+        paymentId: null,
+        productId: null,
+        amount: null,
+        currency: null,
+        approximate: false,
+        occurredAt: now(),
+      })
+      .onConflictDoNothing()
+    return true
+  }
+
+  // ------------------------------------------------------------------ offers
+
+  /** What offer eligibility reads: subscriptions, trials, when the last one ended, offers redeemed. */
+  async function offerHistory(subject: string): Promise<OfferHistory> {
+    const r = await options.entitlements.get(subject)
+    const subs = (r.entitlements ?? [])
+      .flatMap((e) => e.sources)
+      .filter((x) => !UNPAID.has(x.gateway))
+    const events = await o
+      .select()
+      .from(T.customerEvents)
+      .where(eq(ec.subject, subject))
+      .orderBy(desc(ec.occurredAt))
+    const ends = subs.flatMap((x) => (x.currentPeriodEnd ? [x.currentPeriodEnd.getTime()] : []))
+    const lastEnd = events.find(
+      (e: Cols) => e.kind === "expiration" && e.gateway !== PROMOTIONAL,
+    )?.occurredAt
+    const lapsed = ends.length ? Math.max(...ends) : lastEnd ? lastEnd.getTime() : null
+    const redeemed = await o
+      .select()
+      .from(T.customerRequests)
+      .where(and(eq(rc.subject, subject), eq(rc.kind, "offer")))
+    return {
+      subscribed: subs.length > 0 || events.some((e: Cols) => SUBSCRIBED.has(e.kind)),
+      active: subs.some((x) => x.active),
+      lapsedAt: lapsed === null ? null : new Date(lapsed),
+      trialed: events.some((e: Cols) => e.kind === "trial"),
+      redeemed: new Set(redeemed.map((x: Cols) => (x.data as Cols | null)?.offer as string)),
+    }
+  }
+
+  const NEW_CUSTOMER: OfferHistory = {
+    subscribed: false,
+    active: false,
+    lapsedAt: null,
+    trialed: false,
+    redeemed: new Set(),
+  }
+
+  /**
+   * The offering with each product's offers cut to the ones this customer may
+   * see now (`offerEligible`). No subject is a new visitor: trials and intro
+   * offers show, win-backs do not. Stores still decide their own eligibility at
+   * purchase; this is what the paywall shows.
+   */
+  async function withOffers<O extends { products: readonly OfferingProduct[] }>(
+    subject: string | null | undefined,
+    offering: O,
+  ): Promise<WithOffers<O>> {
+    const h = subject ? await offerHistory(await resolve(subject)) : NEW_CUSTOMER
+    const at = now()
+    return {
+      ...offering,
+      products: offering.products.map((p) => {
+        if (!p.offers) return { ...p }
+        const offers = p.offers.filter((x) => offerEligible(x, h, at))
+        const { offers: _all, ...rest } = p
+        return offers.length ? { ...rest, offers } : rest
+      }),
+    }
+  }
+
+  /**
+   * Claim an offer before applying it (a web coupon, a trial at checkout):
+   * once per customer and offer, and only while eligible. A repeat or a
+   * concurrent second claim is `already_used`.
+   */
+  async function redeemOffer(
+    subject: string,
+    offering: { key: string; products: readonly OfferingProduct[] },
+    offerId: string,
+  ): Promise<
+    | { redeemed: true; offer: ProductOffer; product: OfferingProduct }
+    | { redeemed: false; reason: "no_such_offer" | "not_eligible" | "already_used" }
+  > {
+    const who = await resolve(subject)
+    const product = offering.products.find((p) => p.offers?.some((x) => x.id === offerId))
+    const offer = product?.offers?.find((x) => x.id === offerId)
+    if (!product || !offer) return { redeemed: false, reason: "no_such_offer" }
+    const h = await offerHistory(who)
+    if (h.redeemed.has(offerId) && (offer.eligibility?.once ?? true))
+      return { redeemed: false, reason: "already_used" }
+    if (!offerEligible(offer, h, now())) return { redeemed: false, reason: "not_eligible" }
+    const once = offer.eligibility?.once ?? true
+    const mine = await o
+      .insert(T.customerRequests)
+      .values({
+        id: once ? `offer|${who}|${offerId}` : newId(now().getTime()),
+        subject: who,
+        kind: "offer",
+        status: "done",
+        gateway: product.store,
+        reference: product.id,
+        message: null,
+        data: { offer: offerId, type: offer.type, offering: offering.key },
+      })
+      .onConflictDoNothing()
+      .returning()
+    if (!mine.length) return { redeemed: false, reason: "already_used" }
+    return { redeemed: true, offer, product }
+  }
+
+  // --------------------------------------------------- Apple refund requests
+
+  /**
+   * The answer to an App Store CONSUMPTION_REQUEST notification, built from
+   * the customer's data, or why there is none. Send it with signet-payments'
+   * `appstore(...).sendConsumptionInfo(transactionId, body)` within 12 hours.
+   * No consent (`consumption.consented`) means no answer, as Apple requires.
+   */
+  async function consumptionInfo(
+    event: CustomerEventLike,
+    opts: { subject?: string } = {},
+  ): Promise<
+    | { respond: true; subject: string; transactionId: string; body: ConsumptionInfo }
+    | {
+        respond: false
+        reason: "not_consumption_request" | "no_subject" | "no_consent" | "not_configured"
+      }
+  > {
+    if (
+      event.gateway !== "appstore" ||
+      event.gatewayType !== "CONSUMPTION_REQUEST" ||
+      !event.paymentId
+    )
+      return { respond: false, reason: "not_consumption_request" }
+    const cfg = options.consumption
+    if (!cfg) return { respond: false, reason: "not_configured" }
+    const found = opts.subject ?? (await subjectOf(event))
+    if (!found) return { respond: false, reason: "no_subject" }
+    const subject = await resolve(found)
+    if ((await cfg.consented(subject)) !== true) return { respond: false, reason: "no_consent" }
+    const transactionId = event.paymentId
+    const { entries } = await timeline(subject, { limit: 1000 })
+    const reason = (event.raw as Cols | undefined)?.payload?.data?.consumptionRequestReason ?? null
+    const ctx: ConsumptionContext = { subject, transactionId, reason, entries, event }
+    const bought = entries.find(
+      (e) =>
+        e.gateway === "appstore" &&
+        (e.paymentId === transactionId ||
+          (!!event.subscriptionId && e.subscriptionId === event.subscriptionId)) &&
+        (SUBSCRIBED.has(e.kind) || e.kind === "purchase"),
+    )
+    const deliveryStatus = cfg.deliveryStatus?.(ctx) ?? (bought ? "DELIVERED" : "UNDELIVERED_OTHER")
+    const refundPreference = cfg.refundPreference?.(ctx)
+    let pct = cfg.consumptionPercentage?.(ctx)
+    if (pct === undefined && deliveryStatus === "DELIVERED" && event.subscriptionId) {
+      // The share of the paid period used: from the charge to the period end entitlements hold.
+      const r = await options.entitlements.get(subject)
+      const end = (r.entitlements ?? [])
+        .flatMap((e) => e.sources)
+        .find(
+          (x) => x.gateway === "appstore" && x.subscriptionId === event.subscriptionId,
+        )?.currentPeriodEnd
+      const start = entries.find(
+        (e) => e.subscriptionId === event.subscriptionId && SUBSCRIBED.has(e.kind),
+      )?.occurredAt
+      if (start && end && end > start) {
+        const used = (now().getTime() - start.getTime()) / (end.getTime() - start.getTime())
+        pct = Math.round(Math.min(Math.max(used, 0), 1) * 100000)
+      }
+    }
+    if (deliveryStatus !== "DELIVERED") pct = 0
+    if (refundPreference === "GRANT_PRORATED") pct = undefined
+    const body: ConsumptionInfo = {
+      customerConsented: true,
+      deliveryStatus,
+      sampleContentProvided:
+        cfg.sampleContentProvided?.(ctx) ?? entries.some((e) => e.kind === "trial"),
+      ...(pct !== undefined ? { consumptionPercentage: pct } : {}),
+      ...(refundPreference ? { refundPreference } : {}),
+    }
+    return { respond: true, subject, transactionId, body }
+  }
+
   return {
     anonymousId,
     resolve,
@@ -789,6 +1198,12 @@ export function createCustomers(db: SignetDb<unknown>, options: CustomersOptions
     contactSupport,
     requests,
     setRequestStatus,
+    logImpression,
+    grantPromotional,
+    endPromotional,
+    withOffers,
+    redeemOffer,
+    consumptionInfo,
   }
 }
 

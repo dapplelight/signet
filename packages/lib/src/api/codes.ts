@@ -68,6 +68,8 @@ export const ERROR_CODES = [
   "DISPOSABLE_EMAIL",
   "AI_SPEND_CAP_EXCEEDED",
   "AI_SPEND_UNAVAILABLE",
+  // monetisation: an offer claim refused (the reason is in details)
+  "OFFER_REFUSED",
   // funnels: redemption links
   "BAD_TOKEN",
   "REDEEM_REFUSED",
