@@ -32,12 +32,12 @@ table, searchable and editable, with each write in the audit log. Roles live in
 
 ### 3. Try billing (2 minutes)
 
-Open **Billing** and upgrade. `BILLING=fake` switches the plan at once, no
+Open **Billing**, pick Pro and continue. `BILLING=fake` switches the plan at once, no
 money moves, and the inbox gets a "Plan changed" notice. The API refuses to
 start with `BILLING=fake` in staging or production.
 
-Plans are in `api/services.ts`: `definePlans` says what each plan allows,
-`PLAN_DISPLAY` what the page shows. Check a plan anywhere in the API:
+Plans are in `api/plans.ts`: `definePlans` says what each plan allows,
+`PLAN_DISPLAY` the name, description and price the page shows. Check a plan anywhere in the API:
 
 ```ts
 await s.entitlements.can(userId, "export")
@@ -80,7 +80,8 @@ your lockfile.
 ```
 api/
   app.ts            routes, auth gate, admin, MCP; exports AppType for the client
-  services.ts       plans, notification templates, consent purposes, admin config
+  plans.ts          plans and what the billing page shows (shared with the browser)
+  services.ts       notification templates, consent purposes, admin config
   routes/           auth, account, notifications, privacy, billing
   db/schema.ts      every table; drizzle/ holds the migrations
   db/kv.ts          sessions, codes, API keys, inbox and rate limits live in the kv table

@@ -1,5 +1,5 @@
 import { type AdminContext, type Authorize, defineAdmin, roles } from "@dapplelight/signet-db/admin"
-import { createEntitlements, definePlans } from "@dapplelight/signet-db/entitlements"
+import { createEntitlements } from "@dapplelight/signet-db/entitlements"
 import { createGrowth } from "@dapplelight/signet-db/growth"
 import { createPrivacy } from "@dapplelight/signet-db/privacy"
 import { createPayments, sqlStore } from "@dapplelight/signet-payments"
@@ -19,19 +19,9 @@ import { z } from "zod"
 import type { Db } from "./db/index.ts"
 import * as schema from "./db/schema.ts"
 import { env } from "./env.ts"
+import { plans } from "./plans.ts"
 
-/** The plans. Declare lowest first; `free` is what everyone starts on. */
-export const plans = definePlans({
-  free: { features: [], limits: { projects: 3 } },
-  pro: { features: ["export", "priority-support"], limits: { projects: 100 } },
-})
-export type PlanId = keyof typeof plans
-
-/** What the paywall shows for each plan. Prices in minor units (paise). */
-export const PLAN_DISPLAY: Record<PlanId, { name: string; price: number; blurb: string }> = {
-  free: { name: "Free", price: 0, blurb: "Three projects, to try it out" },
-  pro: { name: "Pro", price: 49900, blurb: "A hundred projects, export, priority support" },
-}
+export { PLAN_DISPLAY, type PlanId, plans } from "./plans.ts"
 
 /** DPDP consent purposes the privacy screen lists. Bump NOTICE_VERSION when the notice text changes. */
 export const PURPOSES = [

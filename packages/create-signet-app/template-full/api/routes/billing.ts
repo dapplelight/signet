@@ -11,28 +11,16 @@ const PLAN_IDS = Object.keys(plans) as [PlanId, ...PlanId[]]
 /**
  * Plans and the signed-in user's entitlement (signet-db entitlements).
  *
- *   GET  /            { plans, current: { plan, status, currentPeriodEnd, features, limits }, usage }
+ *   GET  /            { subscription, usage }  (the plans themselves are in api/plans.ts)
  *   POST /checkout    { plan }   BILLING=fake: switches now. BILLING=razorpay: see README.
  */
 export const billingRoutes = (s: Services) =>
   new Hono<AppEnv>()
     .get("/", async (c) => {
       const id = c.get("user").id
-      const current = await s.entitlements.get(id)
+      const { plan, status, currentPeriodEnd, graceUntil, source } = await s.entitlements.get(id)
       return c.json({
-        plans: PLAN_IDS.map((plan) => ({
-          id: plan,
-          ...PLAN_DISPLAY[plan],
-          features: [...(plans[plan].features ?? [])],
-          limits: plans[plan].limits,
-        })),
-        current: {
-          plan: current.plan,
-          status: current.status,
-          currentPeriodEnd: current.currentPeriodEnd,
-          features: current.features,
-          limits: current.limits,
-        },
+        subscription: { plan, status, currentPeriodEnd, graceUntil, source },
         usage: await s.entitlements.usage(id),
       })
     })
