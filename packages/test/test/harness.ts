@@ -16,7 +16,7 @@ import { getTableConfig, SQLiteSyncDialect } from "drizzle-orm/sqlite-core"
 import { fakeClock } from "../src/clock"
 
 /** CREATE TABLE for a drizzle SQLite table (as signet-db's own test harness does). */
-function ddl(table: Table): string {
+export function ddl(table: Table): string {
   const dialect = new SQLiteSyncDialect()
   const def = (c: Column) =>
     c.default === undefined

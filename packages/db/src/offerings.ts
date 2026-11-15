@@ -395,7 +395,9 @@ export type Offerings = ReturnType<typeof createOfferings>
  * `"<store>:<id>"` keys, with `web` products keyed by their bare id (web
  * gateways' plan and price ids). Spread it into your own map.
  */
-export function plansFromProducts(products: readonly OfferingProduct[]): Record<string, string> {
+export function plansFromProducts<K extends string>(
+  products: readonly (OfferingProduct & { plan: K })[],
+): Record<string, K> {
   return Object.fromEntries(
     products.map((p) => [p.store === "web" ? p.id : `${p.store}:${p.id}`, p.plan]),
   )

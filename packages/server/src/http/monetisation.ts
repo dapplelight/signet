@@ -35,7 +35,7 @@ export type OfferingStore = {
   current(placement: string, audience?: Audience): Promise<unknown>
   publish(
     key: string,
-    input: { products: never[]; paywall?: unknown; note?: string },
+    input: { products: never[]; paywall?: never; note?: string },
     opts: { actor: Actor },
   ): Promise<unknown>
   get(key: string, version?: number | null): Promise<unknown>
@@ -289,7 +289,7 @@ export function monetisationAdminRoutes(opts: MonetisationAdminOptions) {
         c.req.param("key"),
         {
           products: b.products as never[],
-          ...(b.paywall !== undefined ? { paywall: b.paywall } : {}),
+          ...(b.paywall !== undefined ? { paywall: b.paywall as never } : {}),
           ...(typeof b.note === "string" ? { note: b.note } : {}),
         },
         { actor: await opts.actor(c) },

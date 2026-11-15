@@ -522,17 +522,22 @@ export function createCustomers(db: SignetDb<unknown>, options: CustomersOptions
     const productId = paid ? await productOf(paid) : undefined
     const source = paid ? { ...paid, ...(productId ? { productId } : {}) } : null
     const store = !!source && STORES.has(source.gateway)
+    // A web gateway cancelled at period end still reports active: the cancel we recorded says otherwise.
+    // ponytail: a renewal turned back on at the gateway after that is not seen; delete the request row then.
+    const cancelled =
+      !!source && !store && !!(await request(`cancel|${source.gateway}|${source.subscriptionId}`))
+    const renews = !!source && PAID.has(r.status ?? "") && !cancelled
     return {
       subject,
       plan: r.plan,
       status: r.status,
       currentPeriodEnd: r.currentPeriodEnd,
       graceUntil: r.graceUntil,
-      renews: !!source && PAID.has(r.status ?? ""),
+      renews,
       source,
       store,
       manageUrl: source && store ? manageUrl(source) : null,
-      canCancel: !!source && !store && !!options.cancel && PAID.has(r.status ?? ""),
+      canCancel: renews && !store && !!options.cancel,
     }
   }
 

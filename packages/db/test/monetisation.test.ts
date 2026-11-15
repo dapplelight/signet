@@ -13,19 +13,19 @@ const plans = definePlans({
 })
 const actor = { type: "user" as const, id: "admin-1" }
 const products = [
-  { id: "pro.monthly", store: "appstore", plan: "pro", interval: "month" as const },
-  { id: "pro_monthly", store: "googleplay", plan: "pro", interval: "month" as const },
+  { id: "pro.monthly", store: "appstore", plan: "pro" as const, interval: "month" as const },
+  { id: "pro_monthly", store: "googleplay", plan: "pro" as const, interval: "month" as const },
   {
     id: "price_pro_m",
     store: "web",
-    plan: "pro",
+    plan: "pro" as const,
     interval: "month" as const,
     price: { amount: 49900, currency: "INR" },
   },
   {
     id: "price_team_y",
     store: "web",
-    plan: "team",
+    plan: "team" as const,
     interval: "year" as const,
     price: { amount: 999900, currency: "INR" },
   },
