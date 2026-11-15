@@ -7,3 +7,4 @@ apps/*
 !apps/showcase/
 BACKLOG.md
 docs/audits/
+packages/mcp/src/generated/
