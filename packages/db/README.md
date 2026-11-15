@@ -807,7 +807,11 @@ plan (`plans`) and the currency (`amountOff`), have uses left, and leave
 something to charge. It is charged as a price override, so it works on every
 gateway. `maxRedemptions` is held by one conditional UPDATE, so concurrent
 checkouts never pass it; a checkout the gateway refused gives its use back.
-An abandoned checkout keeps its use.
+An abandoned checkout holds its use for `discountHoldMs` (default 1 hour):
+when a code looks used up, open sessions older than that are marked
+`expired` and their uses freed. A payment captured after that still grants
+the plan and takes a use again, so a limited code can go over by those late
+payers only.
 
 ### Redemption
 

@@ -326,6 +326,45 @@ describe.each(backends)("$name", (backend) => {
     expect(await down.funnels.quote("ONE", pro)).toMatchObject({ valid: true })
   })
 
+  test("abandoned checkouts do not use up a limited code; a late capture still grants", async () => {
+    const { funnels, tick, captured, entitlements } = await make({
+      discounts: [{ code: "ONE", percentOff: 10, maxRedemptions: 1 }],
+    })
+    const start = () => funnels.start("spring", { productId: "price_pro_m", code: "ONE" })
+    const first = (await start()).session
+    // Unpaid, but still inside the hold: the one use is taken.
+    expect(await code(start())).toBe("BAD_VALUE")
+    const pro = (await funnels.page("spring")).offering.products[0] as never
+    expect(await funnels.quote("ONE", pro)).toMatchObject({ valid: false, reason: "used_up" })
+
+    // Past the hold, the quote sees it free, and so does the next buyer.
+    tick(3_600_001)
+    expect(await funnels.quote("ONE", pro)).toMatchObject({ valid: true })
+    const second = (await start()).session
+    expect((await funnels.get(first.id))?.status).toBe("expired")
+    expect((await funnels.get(second.id))?.status).toBe("open")
+    // The code is held again by the new checkout, not given out twice.
+    expect(await code(start())).toBe("BAD_VALUE")
+
+    // The first buyer did pay after all: granted, and the use is counted again.
+    const late = await funnels.applyEvent(captured("pi_1", 900))
+    expect(late).toMatchObject({ applied: true, session: { id: first.id, status: "paid" } })
+    expect((await entitlements.get(first.subject)).plan).toBe("pro")
+    tick(3_600_001)
+    expect(await funnels.quote("ONE", pro)).toMatchObject({ valid: false, reason: "used_up" })
+  })
+
+  test("a paid checkout keeps its use for good", async () => {
+    const { funnels, tick, captured } = await make({
+      discounts: [{ code: "ONE", percentOff: 10, maxRedemptions: 1 }],
+    })
+    await funnels.start("spring", { productId: "price_pro_m", code: "ONE" })
+    await funnels.applyEvent(captured("pi_1", 900))
+    tick(10 * 3_600_000)
+    const pro = (await funnels.page("spring")).offering.products[0] as never
+    expect(await funnels.quote("ONE", pro)).toMatchObject({ valid: false, reason: "used_up" })
+  })
+
   test("only a verified capture for the priced amount grants, once, and the discount lands on the timeline", async () => {
     const { funnels, entitlements, customers, captured, events, paidMail } = await make({
       discounts: [{ code: "TEN", percentOff: 10 }],

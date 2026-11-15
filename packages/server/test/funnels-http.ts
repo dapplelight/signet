@@ -309,11 +309,42 @@ const req = (path: string, init: RequestInit & { user?: string } = {}) =>
 
   const open = (await (await req("/f/sessions/fs_open")).json()) as Record<string, unknown>
   ok("session: open has no redemption", !("redemption" in open))
-  const paid = (await (await req("/f/sessions/fs_paid")).json()) as {
+  const setCookie = co.headers.get("set-cookie") ?? ""
+  const buyer = setCookie.split(";")[0] ?? ""
+  ok(
+    "checkout: sets an HttpOnly, SameSite=Lax, Secure cookie scoped to the mount",
+    buyer.startsWith("signet_funnel=fs_new.") &&
+      /HttpOnly/i.test(setCookie) &&
+      /SameSite=Lax/i.test(setCookie) &&
+      /Secure/i.test(setCookie) &&
+      /Path=\/f(;|$)/.test(setCookie),
+    setCookie,
+  )
+  sessions.fs_new = { status: "open" }
+  const openMine = (await (
+    await req("/f/sessions/fs_new", { headers: { cookie: buyer } })
+  ).json()) as Record<string, unknown>
+  ok("session: open has no redemption for the buyer either", !("redemption" in openMine))
+  sessions.fs_new = { status: "paid" }
+  const stranger = (await (await req("/f/sessions/fs_new")).json()) as Record<string, unknown>
+  ok(
+    "session: paid, but no cookie (id from a shared URL) gets the status and no link",
+    (stranger.session as { status: string }).status === "paid" && !("redemption" in stranger),
+  )
+  const forged = await req("/f/sessions/fs_new", {
+    headers: { cookie: `${buyer.slice(0, -2)}xx` },
+  })
+  ok("session: a forged cookie gets no link", !("redemption" in ((await forged.json()) as object)))
+  const elsewhere = await req("/f/sessions/fs_paid", { headers: { cookie: buyer } })
+  ok(
+    "session: the cookie of one session opens no other",
+    !("redemption" in ((await elsewhere.json()) as object)),
+  )
+  const paid = (await (await req("/f/sessions/fs_new", { headers: { cookie: buyer } })).json()) as {
     redemption: { link: string; token: string }
   }
   ok(
-    "session: paid has a link with a token",
+    "session: paid has a link with a token for the buyer's browser",
     paid.redemption.link.startsWith("https://app.example.test/redeem?token="),
   )
   ok("session: unknown is 404", (await req("/f/sessions/fs_none")).status === 404)
@@ -331,7 +362,7 @@ const req = (path: string, init: RequestInit & { user?: string } = {}) =>
     "redeem: 200 for the signed-in user, with the org",
     first.status === 200 &&
       JSON.stringify(seen.redeem) ===
-        JSON.stringify({ id: "fs_paid", userId: "u1", o: { orgId: "org_a" } }),
+        JSON.stringify({ id: "fs_new", userId: "u1", o: { orgId: "org_a" } }),
     seen.redeem,
   )
   ok(

@@ -114,20 +114,26 @@ async function world() {
     userId: (c) => c.req.header("x-user"),
     page: { stripePublishableKey: "pk_test_example" },
   })
+  // The buyer's browser keeps the cookie checkout sets; `other: true` is a different browser.
+  let jar = ""
   const call = async (
     path: string,
-    init: { method?: string; body?: unknown; user?: string } = {},
+    init: { method?: string; body?: unknown; user?: string; other?: boolean } = {},
   ): Promise<Response> => {
     try {
-      return await app.request(`https://pay.example.test${path.replace(/^\/f/, "")}`, {
+      const res = await app.request(`https://pay.example.test${path.replace(/^\/f/, "")}`, {
         method: init.method ?? (init.body ? "POST" : "GET"),
         headers: {
           "content-type": "application/json",
           "x-signet-anonymous-id": "v_e2e",
           ...(init.user ? { "x-user": init.user } : {}),
+          ...(jar && !init.other ? { cookie: jar } : {}),
         },
         ...(init.body ? { body: JSON.stringify(init.body) } : {}),
       })
+      const set = res.headers.get("set-cookie")
+      if (set && !init.other) jar = set.split(";")[0] ?? ""
+      return res
     } catch (e) {
       const x = e as { status: number; message: string; code?: string }
       return Response.json({ error: x.message, code: x.code }, { status: x.status })
@@ -188,6 +194,13 @@ describe("web-to-app funnel, end to end", () => {
     const anon = await w.entitlements.get(session.subject)
     expect(anon.plan).toBe("pro")
     expect(anon.entitlements[0]?.sources.length).toBe(1)
+
+    // Someone holding only the session id (from the return URL) gets no link.
+    const stranger = (await (
+      await w.call(`/f/sessions/${session.id}`, { other: true })
+    ).json()) as Any
+    expect(stranger.session.status).toBe("paid")
+    expect(stranger.redemption).toBeUndefined()
 
     const status = (await (await w.call(`/f/sessions/${session.id}`)).json()) as Any
     expect(status.session.status).toBe("paid")

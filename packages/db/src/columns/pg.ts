@@ -761,7 +761,7 @@ export const funnelTables = (prefix = "") => ({
       checkoutId: text("checkout_id"),
       /** The captured payment's id, from the verified webhook. */
       paymentId: text("payment_id"),
-      /** open | paid | redeemed | failed | refunded */
+      /** open | paid | redeemed | failed | refunded | expired (abandoned, discount use given back) */
       status: text("status").notNull(),
       redeemedBy: text("redeemed_by"),
       createdAt: stamp("created_at"),

@@ -21,6 +21,7 @@
  */
 
 import { type Context, Hono } from "hono"
+import { getCookie, setCookie } from "hono/cookie"
 import { hmacSha256, timingSafeEqual } from "../auth/session.js"
 import { type ApiErrorStatus, ApiException } from "./errors.js"
 
@@ -74,6 +75,8 @@ export type RedemptionOptions = {
 
 const PURPOSE = "signet-funnel-redeem"
 const DEFAULT_TTL = 7 * 24 * 60 * 60
+const BUYER_COOKIE = "signet_funnel"
+const buyerProof = (secret: string, id: string) => hmacSha256(secret, `signet-funnel-buyer.${id}`)
 
 const b64url = (s: string) =>
   btoa(String.fromCharCode(...new TextEncoder().encode(s)))
@@ -203,7 +206,10 @@ const str = (v: unknown, max = 200) =>
  *   GET  /:key/config?code=   funnel, priced web products, the code priced per product
  *   POST /:key/events         { step }: a step view, for drop-off
  *   POST /:key/checkout       { productId, answers?, code?, email? }: { session, checkout }
- *   GET  /sessions/:id        status; once paid, { redemption: { link, token, expiresAt } }
+ *   GET  /sessions/:id        status; once paid, and only to the browser that started the
+ *                             checkout (HttpOnly cookie set by /:key/checkout),
+ *                             { redemption: { link, token, expiresAt } }. Anyone else
+ *                             gets the status only: the id is in the return URL.
  *   POST /redeem              { token } as the signed-in user: the purchase moves to them
  *                             (400 BAD_TOKEN, 409 REDEEM_REFUSED with the reason)
  *
@@ -215,6 +221,14 @@ export function funnelRoutes(opts: FunnelRoutesOptions) {
   const { funnels } = opts
   const app = new Hono()
   app.onError(onError)
+  const isBuyer = async (c: Context, id: string) => {
+    const [sid, proof, extra] = (getCookie(c, BUYER_COOKIE) ?? "").split(".")
+    if (sid !== id || !proof || extra !== undefined) return false
+    let ok = false
+    for (const key of [opts.secret, ...(opts.previousSecrets ?? [])])
+      if (timingSafeEqual(proof, await buyerProof(key, id))) ok = true
+    return ok
+  }
   const country = async (c: Context) => {
     const v = (await (opts.country ?? ((x: Context) => x.req.header("cf-ipcountry")))(c)) ?? ""
     return /^[A-Za-z]{2}$/.test(v) ? { country: v.toUpperCase() } : {}
@@ -236,7 +250,10 @@ export function funnelRoutes(opts: FunnelRoutesOptions) {
         status: session.status,
         discountCode: session.discountCode,
       }
-      if (session.status !== "paid") return c.json({ session: view })
+      // The id travels in the return URL, so it is not a secret: only the browser
+      // that started this checkout (it holds the cookie) gets a redemption link.
+      if (session.status !== "paid" || !(await isBuyer(c, session.id)))
+        return c.json({ session: view })
       return c.json({ session: view, redemption: await redemptionLink(opts, session.id) })
     })
     .post("/redeem", async (c) => {
@@ -303,6 +320,13 @@ export function funnelRoutes(opts: FunnelRoutesOptions) {
         ...(orgId ? { orgId } : {}),
         returnUrl: (id) => `${page.toString()}?session=${encodeURIComponent(id)}`,
         audience: await country(c),
+      })
+      setCookie(c, BUYER_COOKIE, `${r.session.id}.${await buyerProof(opts.secret, r.session.id)}`, {
+        httpOnly: true,
+        sameSite: "Lax",
+        secure: page.protocol === "https:",
+        path: page.pathname.slice(0, page.pathname.lastIndexOf("/")) || "/",
+        maxAge: opts.ttlSeconds ?? DEFAULT_TTL,
       })
       return c.json(r, 201)
     })
@@ -468,7 +492,8 @@ async function done(sid) {
     let r
     try { r = await api(root + "/sessions/" + encodeURIComponent(sid)) } catch (e) { return fail(e.message) }
     const s = r.session.status
-    if (s === "paid" && r.redemption) {
+    if (s === "paid" && !r.redemption) return clear(L.paid) // another browser: the link is emailed
+    if (s === "paid") {
       clear(L.paid)
       const copy = el("button", { type: "button", textContent: L.copy, onclick: () => navigator.clipboard && navigator.clipboard.writeText(r.redemption.token) })
       app.append(el("a", { className: "btn primary", href: r.redemption.link, textContent: L.openApp }), el("p", { className: "muted", textContent: L.codeHint }), el("code", { textContent: r.redemption.token }), copy)

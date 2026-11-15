@@ -517,7 +517,7 @@ app.post("/webhooks/:gateway", (c) => payments.handleWebhook(c.req.param("gatewa
 | `GET /:key/config?code=` | Funnel, priced web products, the code priced per product. |
 | `POST /:key/events` | `{ step }`: a step view (only that funnel's steps). |
 | `POST /:key/checkout` | `{ productId, answers?, code?, email? }`: `{ session, checkout }`; a refused code is 400. |
-| `GET /sessions/:id` | Status; once paid, `{ redemption: { link, token, expiresAt } }`. |
+| `GET /sessions/:id` | Status; once paid, and only to the browser that started the checkout, `{ redemption: { link, token, expiresAt } }`. |
 | `POST /redeem` | `{ token }` as the signed-in user. 400 `BAD_TOKEN` (forged, expired), 409 `REDEEM_REFUSED` with the reason. |
 
 The page finishes the checkout the way the gateway answers: Stripe's
@@ -532,6 +532,13 @@ waits for the webhook, then shows "Open the app" and the code to paste.
 secret never passes as one. `previousSecrets` rotates keys. A token works
 once because redeeming claims its session for one account; `GET
 /sessions/:id` stops issuing them after that.
+
+The session id sits in the gateway's return URL, so it is not a secret.
+`POST /:key/checkout` sets an HttpOnly, SameSite=Lax cookie (`signet_funnel`,
+an HMAC of the session id under `secret`, scoped to the mount path), and
+`GET /sessions/:id` issues a redemption link only to the browser that holds
+it. Anyone else gets the status; a buyer who finishes on another device gets
+the link from the `onPaid` email.
 
 **Apple Pay domain verification.** Stripe needs no file: register the page's
 domain once with `stripe.raw("POST", "/payment_method_domains", { domain_name })`.

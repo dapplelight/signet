@@ -58,7 +58,7 @@ export type DiscountDefinition = {
   /** Minor units, in the product's currency only. */
   amountOff?: { amount: number; currency: string }
   expiresAt?: Date | string
-  /** Uses across every buyer. A checkout takes one when it starts. */
+  /** Uses across every buyer. A checkout holds one when it starts and gives it back if abandoned (`discountHoldMs`). */
   maxRedemptions?: number
   /** Plan keys it applies to. Default: every plan. */
   plans?: readonly string[]
@@ -95,7 +95,7 @@ export type FunnelSession = {
   gateway: string | null
   checkoutId: string | null
   paymentId: string | null
-  status: "open" | "paid" | "redeemed" | "failed" | "refunded"
+  status: "open" | "paid" | "redeemed" | "failed" | "refunded" | "expired"
   redeemedBy: string | null
   createdAt: Date
   paidAt: Date | null
@@ -218,6 +218,12 @@ export type FunnelsOptions = {
   onPaid?: (session: FunnelSession & { email: string | null }) => unknown
   /** Analytics: step views, plan picked, checkout started, purchased, redeemed. */
   track?: (event: FunnelTrackedEvent) => unknown
+  /**
+   * How long an unpaid checkout holds one use of a limited discount code.
+   * Default 1 hour. After it, the next checkout or quote that finds the code
+   * used up frees the use; a payment captured later still grants the plan.
+   */
+  discountHoldMs?: number
   now?: () => Date
 }
 
@@ -320,6 +326,7 @@ export function createFunnels(db: SignetDb<unknown>, options: FunnelsOptions) {
   const uc = U as unknown as Cols
   const o = db.orm as AnyOrm
   const now = options.now ?? (() => new Date())
+  const holdMs = options.discountHoldMs ?? 3_600_000
   const defs = new Map<string, FunnelDefinition>()
   for (const f of options.funnels) {
     if (defs.has(checkFunnel(f).key)) throw bad(`Funnel "${f.key}" is defined twice.`)
@@ -385,6 +392,40 @@ export function createFunnels(db: SignetDb<unknown>, options: FunnelsOptions) {
   }
 
   /**
+   * Give back the uses held by checkouts still open after `discountHoldMs`.
+   * Each is claimed by a conditional UPDATE to `expired`, so its use is
+   * released exactly once; a late capture can still revive it (`applyEvent`).
+   */
+  async function sweep(code: string): Promise<void> {
+    const stale = await o
+      .update(S)
+      .set({ status: "expired" })
+      .where(
+        and(
+          eq(sc.discountCode, code),
+          eq(sc.status, "open"),
+          lt(sc.createdAt, new Date(now().getTime() - holdMs)),
+        ),
+      )
+      .returning()
+    if (stale.length)
+      await o
+        .update(U)
+        .set({
+          used: sql`case when ${uc.used} > ${stale.length} then ${uc.used} - ${stale.length} else 0 end`,
+        })
+        .where(eq(uc.code, code))
+  }
+
+  /** Uses taken, after freeing abandoned checkouts when the code looks used up. */
+  async function usesTaken(code: string, max: number): Promise<number> {
+    const n = await used(code)
+    if (n < max) return n
+    await sweep(code)
+    return used(code)
+  }
+
+  /**
    * Price a discount code against one product, server side: it must exist,
    * be unexpired, cover the product's plan and currency, have uses left and
    * leave something to charge.
@@ -402,7 +443,10 @@ export function createFunnels(db: SignetDb<unknown>, options: FunnelsOptions) {
     const price = product.price as { amount: number; currency: string }
     if (d.amountOff && d.amountOff.currency !== price.currency)
       return { valid: false, code, reason: "currency" }
-    if (d.maxRedemptions !== undefined && (await used(code)) >= d.maxRedemptions)
+    if (
+      d.maxRedemptions !== undefined &&
+      (await usesTaken(code, d.maxRedemptions)) >= d.maxRedemptions
+    )
       return { valid: false, code, reason: "used_up" }
     const off = d.amountOff
       ? d.amountOff.amount
@@ -415,7 +459,7 @@ export function createFunnels(db: SignetDb<unknown>, options: FunnelsOptions) {
    * Take one use of a code, atomically: the increment's WHERE holds the
    * limit, so concurrent checkouts never pass `maxRedemptions`.
    */
-  async function reserve(code: string): Promise<boolean> {
+  async function reserve(code: string, retry = true): Promise<boolean> {
     const max = discounts.get(code)?.maxRedemptions
     await o.insert(U).values({ code, used: 0 }).onConflictDoNothing()
     const done = await o
@@ -423,7 +467,10 @@ export function createFunnels(db: SignetDb<unknown>, options: FunnelsOptions) {
       .set({ used: sql`${uc.used} + 1` })
       .where(max === undefined ? eq(uc.code, code) : and(eq(uc.code, code), lt(uc.used, max)))
       .returning()
-    return done.length > 0
+    if (done.length > 0) return true
+    if (!retry) return false
+    await sweep(code)
+    return reserve(code, false)
   }
   const release = (code: string) =>
     o
@@ -537,7 +584,7 @@ export function createFunnels(db: SignetDb<unknown>, options: FunnelsOptions) {
     if (input.code?.trim()) {
       const q = await quote(input.code, product)
       if (!q.valid) throw bad(`Discount ${q.code} cannot be used: ${q.reason.replace("_", " ")}.`)
-      // ponytail: an abandoned checkout keeps its use; release stale open sessions from a job if codes are scarce.
+      // An abandoned checkout holds its use for `discountHoldMs`; reserve() frees stale ones.
       if (!(await reserve(q.code))) throw bad(`Discount ${q.code} cannot be used: used up.`)
       discount = { code: q.code, off: q.off }
       amount = q.amount
@@ -565,6 +612,7 @@ export function createFunnels(db: SignetDb<unknown>, options: FunnelsOptions) {
       answers,
       email: input.email ?? null,
       status: "open",
+      createdAt: now(),
     })
     let checkout: CheckoutLike
     try {
@@ -649,7 +697,10 @@ export function createFunnels(db: SignetDb<unknown>, options: FunnelsOptions) {
       await o.update(S).set({ status: "refunded" }).where(eq(sc.id, s.id))
       return { applied: true, session: (await get(s.id)) as FunnelSession }
     }
-    if (s.status !== "open") return { applied: false, reason: "duplicate", session: s }
+    // An expired session lost its discount use to the sweep, but a payment that
+    // really was captured still wins: the buyer paid the price we quoted.
+    if (s.status !== "open" && s.status !== "expired")
+      return { applied: false, reason: "duplicate", session: s }
     if (
       (e.amount !== undefined && e.amount !== s.amount) ||
       (e.currency !== undefined && e.currency.toUpperCase() !== s.currency)
@@ -694,10 +745,17 @@ export function createFunnels(db: SignetDb<unknown>, options: FunnelsOptions) {
     const claimed = await o
       .update(S)
       .set({ status: "paid", paymentId, paidAt: e.occurredAt })
-      .where(and(eq(sc.id, s.id), eq(sc.status, "open")))
+      .where(and(eq(sc.id, s.id), or(eq(sc.status, "open"), eq(sc.status, "expired"))))
       .returning()
     const session = (await get(s.id)) as FunnelSession
     if (!claimed.length) return { applied: false, reason: "duplicate", session }
+    if (s.status === "expired" && s.discountCode) {
+      await o.insert(U).values({ code: s.discountCode, used: 0 }).onConflictDoNothing()
+      await o
+        .update(U)
+        .set({ used: sql`${uc.used} + 1` })
+        .where(eq(uc.code, s.discountCode))
+    }
     await track(
       s.funnel,
       "purchased",
