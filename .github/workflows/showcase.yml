@@ -1,0 +1,44 @@
+# Deploys the component showcase (apps/showcase) to Cloudflare Pages: main
+# goes live, and each PR from this repo gets its own preview URL, posted as a
+# PR comment. Needs the CLOUDFLARE_API_TOKEN (Pages: Edit) and
+# CLOUDFLARE_ACCOUNT_ID secrets and a Direct Upload Pages project named
+# signet-showcase. Skipped on fork PRs, which get no secrets.
+name: showcase
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  deployments: write
+
+concurrency:
+  group: showcase-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      # prebuild runs build:all, so the workspace packages are fresh.
+      - run: bun run build
+        working-directory: apps/showcase
+      - id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy apps/showcase/dist --project-name=signet-showcase --branch=${{ github.head_ref || github.ref_name }}
+      - if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: gh pr comment ${{ github.event.pull_request.number }} -R ${{ github.repository }} --edit-last --create-if-none --body "Showcase preview: $URL"
