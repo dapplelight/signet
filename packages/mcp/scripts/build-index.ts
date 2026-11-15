@@ -7,6 +7,7 @@
  *                    themes, contract tokens, recipes, create-signet-app templates
  *   doctor-check.ts  packages/server/src/doctor/check.ts, verbatim
  *   contrast.ts      packages/tokens/test/contrast.ts, verbatim
+ *   theme.ts         packages/tokens/src/theme.ts (the theme builder), verbatim
  *
  * The two copies are how check_app and check_theme reuse the repo's own logic
  * without the server or tokens package exporting it.
@@ -1214,6 +1215,7 @@ const outputs: [string, string][] = [
   ],
   ["doctor-check.ts", `${banner}${read("packages/server/src/doctor/check.ts")}`],
   ["contrast.ts", `${banner}${read("packages/tokens/test/contrast.ts")}`],
+  ["theme.ts", `${banner}${read("packages/tokens/src/theme.ts")}`],
 ]
 
 mkdirSync(OUT, { recursive: true })

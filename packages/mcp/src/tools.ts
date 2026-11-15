@@ -22,7 +22,15 @@ import {
   section,
   VERSION,
 } from "./content.js"
+import { PAIRS, ratio, resolve } from "./generated/contrast.js"
 import { INDEX } from "./generated/index.js"
+import {
+  buildTheme,
+  DENSITY_SLOTS,
+  toCss,
+  toDesignTokens,
+  toFigmaVariables,
+} from "./generated/theme.js"
 
 /** A deliberate failure: its code and message reach the client (see `mapError`). */
 export class SignetMcpError extends Error {
@@ -354,6 +362,56 @@ export function signetTools(options: ToolOptions = {}): McpTool[] {
     }),
 
     defineTool({
+      name: "build_theme",
+      description:
+        "Build a whole theme from one brand colour: primary, surfaces, text, borders, status accents, charts, focus (and money on finance), light and dark, derived in OKLCH on top of a shipped base theme. Text tokens are guaranteed WCAG 4.5:1 on their backgrounds; tokens moved to get there are listed in adjustments. format css gives a theme file to import in place of the base; tokens gives W3C Design Tokens JSON; figma gives the Figma Variables API body. Optional per-component density (compact, comfortable, spacious).",
+      annotations: { title: "Build a theme", ...READ },
+      input: z.object({
+        brand: z
+          .string()
+          .regex(/^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "a hex colour like #e11d48")
+          .describe("Brand colour, #rgb or #rrggbb"),
+        base: z.enum(["editorial", "cinematic", "finance"]).default("editorial"),
+        mode: z.enum(["light", "dark", "both"]).default("both"),
+        density: z
+          .record(z.enum(["all", ...DENSITY_SLOTS]), z.enum(["compact", "comfortable", "spacious"]))
+          .optional()
+          .describe('e.g. { "all": "compact" } or { "button": "spacious" }'),
+        format: z.enum(["css", "tokens", "figma"]).default("css"),
+      }),
+      handler: ({ brand, base, mode, density, format }) => {
+        const theme = buildTheme({ brand, base, mode, ...(density ? { density } : {}) })
+        // Re-checked with the tokens package's own contrast pairs, not the builder's.
+        const failed: string[] = []
+        let checked = 0
+        for (const m of ["light", "dark"] as const) {
+          const vars = theme[m]
+          if (!vars) continue
+          for (const [fg, bg, min] of PAIRS) {
+            const r = ratio(resolve(vars, vars[fg] ?? ""), resolve(vars, vars[bg] ?? ""))
+            if (r === null) continue
+            checked++
+            if (r < min) failed.push(`${m}: ${fg} on ${bg} ${r.toFixed(2)}:1`)
+          }
+        }
+        return {
+          brand: theme.brand,
+          base: theme.base,
+          adjustments: theme.adjustments,
+          contrast: { checked, failed },
+          ...(format === "css"
+            ? {
+                css: toCss(theme),
+                usage: `Save as src/brand.css and import it in place of @dapplelight/signet-tokens/${base}.css, before base.css.`,
+              }
+            : format === "tokens"
+              ? { tokens: toDesignTokens(theme) }
+              : { figma: toFigmaVariables(theme) }),
+        }
+      },
+    }),
+
+    defineTool({
       name: "scaffold_app",
       description:
         "Get the exact create-signet-app command for a new web app or Worker API, the files it will create, and the next steps. Use scaffold_files instead if you cannot run a shell.",
@@ -552,4 +610,4 @@ export function signetPrompts(): McpPrompt[] {
 
 export const INSTRUCTIONS = `Signet is a TypeScript kit for web apps and their APIs: token-driven React components, CSS-variable themes, a Hono/Workers server kit, a client lib and structured AI calls. These tools answer from the Signet repo itself, indexed when this server was built.
 
-Start with search_docs when unsure. Before writing an import, confirm it with get_export. New app: scaffold_app (or scaffold_files without a shell). A feature: recipe. UI: list_components, get_component, compose_component for a need described in words. Themes: list_themes, get_theme, check_theme. Before finishing: check_app. Upgrading: migration. Docs are resources at signet://docs/<name> and through read_doc.`
+Start with search_docs when unsure. Before writing an import, confirm it with get_export. New app: scaffold_app (or scaffold_files without a shell). A feature: recipe. UI: list_components, get_component, compose_component for a need described in words. Themes: list_themes, get_theme, check_theme, build_theme (from a brand colour). Before finishing: check_app. Upgrading: migration. Docs are resources at signet://docs/<name> and through read_doc.`

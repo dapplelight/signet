@@ -48,9 +48,9 @@
     --border-strong: var(--color-warm-400);
 
     /* ── Accent ──────────────────────────────────────── */
-    --accent-green: #12833c;
+    --accent-green: #117e3a; /* 4.5:1 on --bg-surface, which cards use */
     --accent-blue: #2563eb;
-    --accent-amber: #986908;
+    --accent-amber: #926508; /* 4.5:1 on --bg-surface */
     --accent-red: #b91c1c;
     --accent-green-subtle: rgba(22, 163, 74, 0.1);
     --accent-red-subtle: rgba(185, 28, 28, 0.1);
@@ -72,7 +72,7 @@
     --card-fg: var(--color-warm-900);
     --popover: var(--color-warm-50);
     --popover-fg: var(--color-warm-900);
-    --primary: #12833c;
+    --primary: #117e3a; /* 4.5:1 as text on --bg-surface */
     --primary-fg: #ffffff;
     --secondary: var(--color-warm-200);
     --secondary-fg: var(--color-warm-900);
@@ -83,7 +83,7 @@
     --destructive: #b91c1c;
     --border: var(--color-warm-300);
     --input: var(--color-warm-300);
-    --ring: #12833c;
+    --ring: #117e3a;
 
     /* ── Optional slots (CONTRACT.md) — defaults a brand layer overrides ──
        Repeated in the dark block so they re-resolve wherever .dark is set. */
@@ -326,10 +326,11 @@
   --tracking-wider: 0.05em;
   --tracking-widest: 0.1em;
 
-  /* Base spacing unit — h-8 is calc(var(--spacing) * 8) at runtime, so this
-     scales every density literal in the components. Stated explicitly rather
-     than inherited from Tailwind's default. */
-  --spacing: 0.25rem;
+  /* Base spacing unit, inlined into every h-*, px-*, gap-*, size-* in the
+     components. The two density multipliers default to 1, so the look is
+     exactly 0.25rem; base.css sets them from data-density and the
+     --density-<slot> tokens (CONTRACT.md, "Density"). */
+  --spacing: calc(0.25rem * var(--density, 1) * var(--density-component, 1));
 
   /* ── Spacing ─────────────────────────────────────────
      4px base grid. Custom tokens for semantic layout.    */
