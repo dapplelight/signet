@@ -321,3 +321,26 @@ const { data, undecrypted } = await decryptFields(
   ciphertext. A throwing `isCiphertext` also counts as ciphertext.
 - Never throws, never mutates the input. A shared object decrypts under every
   reference.
+
+## Webhooks: Standard Webhooks signatures
+
+`@dapplelight/signet-lib/webhooks` signs and verifies
+[Standard Webhooks](https://www.standardwebhooks.com) with Web Crypto only, so
+it runs on Workers, Node, Bun and Deno.
+
+```ts
+import { verifyWebhook } from "@dapplelight/signet-lib/webhooks"
+
+app.post("/hooks/signet", async (c) => {
+  const body = await c.req.text() // the raw text: re-serialised JSON does not verify
+  if (!(await verifyWebhook(env.WEBHOOK_SECRET, c.req.raw.headers, body))) return c.text("bad signature", 401)
+  const id = c.req.header("webhook-id") // the same on every retry: dedupe on it
+  // ...
+})
+```
+
+`signWebhook({ secret, id, body })` returns the three headers; a list of
+secrets signs with each, for rotation. `generateWebhookSecret()` makes a
+`whsec_` secret. Timestamps further than 5 minutes from now fail
+(`toleranceSeconds`). `headerPrefix: "svix"` verifies Svix and Resend.
+signet-db's `createWebhooks` sends with it.
