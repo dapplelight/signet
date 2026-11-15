@@ -1,7 +1,7 @@
 /**
  * Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`,
  * `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotencyKeys`,
- * `aiCache`, `entitlementTables`, `flagOverrides`, `growthTables`, `privacyTables`,
+ * `aiCache`, `webhookTables`, `entitlementTables`, `flagOverrides`, `growthTables`, `privacyTables`,
  * `analyticsEvents` and `sequences` tables.
  */
 
@@ -106,6 +106,62 @@ export const outbox = (name = "outbox") =>
     createdAt: stamp("created_at"),
     sentAt: timestamp("sent_at", { withTimezone: true, mode: "date" }),
   })
+
+/**
+ * The tables for `createWebhooks` from `@dapplelight/signet-db/webhooks`:
+ * registered endpoints (per user or org) and the delivery log. Destructure
+ * into the schema: `export const { webhookEndpoints, webhookDeliveries } = webhookTables()`.
+ */
+export const webhookTables = (prefix = "") => ({
+  webhookEndpoints: pgTable(
+    `${prefix}webhook_endpoints`,
+    {
+      id: id(),
+      /** The user or org id the endpoint belongs to. */
+      owner: text("owner").notNull(),
+      url: text("url").notNull(),
+      /** Event types it receives; `["*"]` is all. */
+      events: jsonb("events").$type<string[]>().notNull(),
+      description: text("description"),
+      /** The `whsec_` signing secret; ciphertext when the db has a cipher. */
+      secret: text("secret").notNull(),
+      /** Failed attempts since the last success. */
+      failures: integer("failures").notNull().default(0),
+      disabledAt: tz("disabled_at"),
+      disabledReason: text("disabled_reason"),
+      ...timestamps(),
+    },
+    (t) => [index(`${prefix}webhook_endpoints_owner`).on(t.owner)],
+  ),
+  webhookDeliveries: pgTable(
+    `${prefix}webhook_deliveries`,
+    {
+      id: id(),
+      endpointId: text("endpoint_id").notNull(),
+      owner: text("owner").notNull(),
+      /** `webhook-id`: the same on every retry and redelivery of one event. */
+      eventId: text("event_id").notNull(),
+      type: text("type").notNull(),
+      /** The exact JSON body that is signed and sent. */
+      body: text("body").notNull(),
+      /** pending | retrying | delivered | failed | skipped */
+      status: text("status").notNull().default("pending"),
+      attempts: integer("attempts").notNull().default(0),
+      responseStatus: integer("response_status"),
+      /** The first 2 KB of the last response. */
+      responseBody: text("response_body"),
+      error: text("error"),
+      durationMs: integer("duration_ms"),
+      createdAt: stamp("created_at"),
+      lastAttemptAt: tz("last_attempt_at"),
+      deliveredAt: tz("delivered_at"),
+    },
+    (t) => [
+      index(`${prefix}webhook_deliveries_owner`).on(t.owner, t.id),
+      index(`${prefix}webhook_deliveries_endpoint`).on(t.endpointId, t.id),
+    ],
+  ),
+})
 
 /** The cache table for `dbCache(db, table)`, behind signet-ai's `createExtractor`. */
 export const aiCache = (name = "ai_cache") =>

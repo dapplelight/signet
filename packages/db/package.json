@@ -95,6 +95,11 @@
       "import": "./dist/analytics.js",
       "default": "./dist/analytics.js"
     },
+    "./webhooks": {
+      "types": "./dist/webhooks.d.ts",
+      "import": "./dist/webhooks.js",
+      "default": "./dist/webhooks.js"
+    },
     "./privacy": {
       "types": "./dist/privacy.d.ts",
       "import": "./dist/privacy.js",
