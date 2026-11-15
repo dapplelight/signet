@@ -8,7 +8,7 @@ The core never imports a driver. Thin entry points connect it to one:
 
 | Import | What |
 |---|---|
-| `@dapplelight/signet-db` | Core: `scoped`, `audited`, `createCipher`, money, `newId`, `seed`, `exportUser`, `deleteUser`, `nextSequence`, `describeSchema`, `defineQuery`, `fromDrizzle` |
+| `@dapplelight/signet-db` | Core: `scoped`, `audited`, `createCipher`, money, `newId`, `seed`, `exportUser`, `deleteUser`, `nextSequence`, `describeSchema`, `defineQuery`, `fromDrizzle`, `dbCache` |
 | `@dapplelight/signet-db/columns/sqlite` | Column helpers for SQLite and D1 tables |
 | `@dapplelight/signet-db/columns/pg` | The same helpers for Postgres tables |
 | `@dapplelight/signet-db/d1` | `createDb(env.DB)`, Cloudflare D1 |
@@ -378,6 +378,29 @@ With a cipher on the db the stored result is encrypted, so `encrypted()` fields
 the function returns are not left as plaintext in the table.
 `pruneIdempotency(db)` deletes expired keys.
 
+## AI answer cache
+
+A persistent cache for signet-ai's `createExtractor`, on a table in either
+dialect, so paid answers survive restarts and are shared by every process.
+
+```ts
+// schema.ts
+import { aiCache } from "@dapplelight/signet-db/columns/sqlite" // or /columns/pg
+export const aiAnswers = aiCache() // table "ai_cache"
+
+// where the extractor is made
+import { dbCache } from "@dapplelight/signet-db"
+const ai = createExtractor({ providers, cache: dbCache(db, schema.aiAnswers) })
+```
+
+Rows are keyed by signet-ai's hash of model, schema, instructions and input,
+hold the entry as JSON and expire after the extractor's `cacheTtlSeconds`. An
+expired or unreadable row is a miss (an expired one is deleted on read). With a
+cipher on the db the entry is encrypted, since answers often repeat the
+personal data they were given. `pruneAiCache(db, table)` deletes expired rows;
+run it from a cron. Held in a variable before it reaches `createExtractor`,
+type it: `dbCache<CacheEntry>(db, table)`.
+
 ## Named queries
 
 ```ts
@@ -560,7 +583,7 @@ looked up. Overrides can expire and are audited. Every result says why.
 
 ```ts
 import { entitlementTools } from "@dapplelight/signet-db/entitlements"
-import { requireApproval } from "@dapplelight/signet-server/mcp"
+import { approvalGate } from "@dapplelight/signet-server/mcp"
 
 const tools = entitlementTools({
   entitlements: ent,
@@ -568,13 +591,16 @@ const tools = entitlementTools({
   subject: orgId,       // or allSubjects: true for an operator agent; tools then take `subject`
   allowWrites: true,    // default false: read tools only
   actor: { type: "agent", id: "support-agent" },
-  approve: (ctx, r) => requireApproval(ctx as never, r),
+  approve: approvalGate,
 })
 ```
 
 Read: `get_plan`, `check_entitlement`, `usage`, `list_flags`. Write (with
 `allowWrites`): `grant_feature`, `set_plan`, `set_flag`. Writes always call
 `approve`; without one they change nothing and return `APPROVAL_REQUIRED`.
+`approvalGate` is signet-server's one approval step: it asks in the client,
+or, with `createMcpServer({ approvals })`, opens a pending approval the
+person decides in the app (see signet-server's "Approvals").
 They are audited as `actor`. Give writes only to agents run by staff: on a
 per-user agent the person approving is the user who benefits.
 

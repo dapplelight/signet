@@ -14,7 +14,7 @@
  *                     re-apply it to their plan (signet-db `applySubscription`)
  *
  * `refund_payment` calls `approve(ctx, { summary, details, args })` and refunds
- * only when it returns undefined. Pass signet-server's `requireApproval`; with
+ * only when it returns undefined. Pass signet-server's `approvalGate`; with
  * no `approve`, the tool never refunds and returns APPROVAL_REQUIRED with the
  * summary for a person to act on. The refund is recorded with `actor`.
  */
@@ -36,7 +36,7 @@ export type PaymentToolsOptions = {
   maxRows?: number
   /** Recorded on refunds. Default `{ type: "agent", id: "agent" }`. */
   actor?: Actor
-  /** Undefined = approved. Anything else is returned as the tool result. e.g. `(ctx, o) => requireApproval(ctx, o)`. */
+  /** Undefined = approved. Anything else is returned as the tool result. Pass signet-server's `approvalGate`. */
   approve?: (ctx: unknown, request: ApprovalRequest) => Promise<unknown> | unknown
   /** signet-db `createEntitlements(...)`, structurally. Adds refresh_entitlement. */
   entitlements?: {

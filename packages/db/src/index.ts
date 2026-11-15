@@ -1,3 +1,4 @@
+export * from "./ai-cache.js"
 export * from "./cipher.js"
 export * from "./db.js"
 export * from "./describe.js"

@@ -65,7 +65,7 @@ All read-only.
 | `scaffold_app({ name, template, theme })` | The exact `create-signet-app` command, the files it will create, and the next steps |
 | `scaffold_files({ name, template, theme })` | Every file `create-signet-app` would write, with contents, for an agent without a shell |
 | `check_app({ files } or { path })` | Findings with fixes: env read at module scope in a server module, rate limiting and its `trust`, `signet-doctor`'s Durable Object checks, CSRF, the error handler, the env schema against wrangler vars, Tailwind `@source` for the components, domain vocabulary in base packages |
-| `recipe(task)` | Install line, the doc sections that do the job (with their code), and how to verify. Tasks: add-auth, add-rate-limit, add-csrf, add-error-envelope, add-env, add-api-client, add-web-push, add-ai-extraction, add-analytics, add-portability-adapters, add-db, add-mcp-tools, add-oauth, add-logging, add-theme |
+| `recipe(task)` | Install line, the doc sections that do the job (with their code), and how to verify. Tasks: add-auth, add-rate-limit, add-csrf, add-error-envelope, add-env, add-api-client, add-web-push, add-ai-extraction, add-analytics, add-portability-adapters, add-db, add-mcp-tools, mcp-by-default, add-oauth, add-logging, add-theme |
 | `migration(from, to?, package?)` | CHANGELOG entries in the range with the breaking bullets pulled out, the README's "Migrating from" notes, and current versions |
 
 `check_app({ path })` reads a directory from disk, so it is offered only by the

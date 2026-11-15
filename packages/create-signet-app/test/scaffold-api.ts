@@ -1,7 +1,7 @@
 /**
  * Scaffolds the api template OUTSIDE the monorepo, once per --target.
  *
- * cloudflare (the default): installs from npm,
+ * cloudflare (the default): installs from npm (signet-server from a local pack),
  * typechecks, lints, bundles with wrangler, and runs it under `wrangler dev` on
  * local workerd with the Durable Object from wrangler.jsonc.
  *
@@ -27,6 +27,16 @@ let pass = 0,
   fail = 0
 const ok = (n: string, c: boolean, d = "") => {
   c ? (pass++, console.log("  PASS", n)) : (fail++, console.log("  FAIL", n, d))
+}
+
+/**
+ * Install, then swap in the LOCAL signet-server as a tarball (as scaffold.ts
+ * does for the web template): the template may use what is not on npm yet.
+ */
+async function installLocal(dir: string) {
+  await $`bun install`.cwd(dir).quiet()
+  await $`npm pack ${ROOT}/packages/server`.cwd(dir).quiet()
+  await $`sh -c 'bun add ./dapplelight-signet-server-*.tgz'`.cwd(dir).quiet()
 }
 
 rmSync(DIR, { recursive: true, force: true })
@@ -86,7 +96,17 @@ try {
     indexTs.includes("env.APP_ENV") && !indexTs.includes("getRuntimeEnv"),
   )
 
-  await $`bun install`.cwd(DIR).quiet()
+  ok(
+    "MCP by default (no flag, no terminal): the dependency, the mount, the off switch, its tests",
+    !!pkg.dependencies["@modelcontextprotocol/server"] &&
+      indexTs.includes('mountMcp(app, "/mcp"') &&
+      envTs.includes("MCP:") &&
+      existsSync(join(DIR, "test/mcp.test.ts")) &&
+      !indexTs.includes("mcp:begin") &&
+      !existsSync(join(DIR, "_mcp")),
+  )
+
+  await installLocal(DIR)
   ok("typechecks", (await $`bun run typecheck`.cwd(DIR).nothrow().quiet()).exitCode === 0)
   ok("lints clean", (await $`bun run lint`.cwd(DIR).nothrow().quiet()).exitCode === 0)
   const test = await $`bun run test`.cwd(DIR).nothrow().quiet()
@@ -251,7 +271,9 @@ for (const target of ["bun", "node", "vercel"]) {
   const dir = join("/tmp", `__scaffold_api_${target}__`)
   rmSync(dir, { recursive: true, force: true })
   try {
-    await $`bun run ${ROOT}/packages/create-signet-app/src/index.ts ${dir} --template api --target ${target}`
+    // bun is the --no-mcp app: it must still typecheck, lint, test and serve.
+    const mcp = target === "bun" ? "--no-mcp" : "--mcp"
+    await $`bun run ${ROOT}/packages/create-signet-app/src/index.ts ${dir} --template api --target ${target} ${mcp}`
       .cwd("/tmp")
       .quiet()
     const own = OWN_FILES[target] ?? []
@@ -262,6 +284,22 @@ for (const target of ["bun", "node", "vercel"]) {
         !existsSync(join(dir, "_targets")),
     )
     const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"))
+    const appTs = readFileSync(join(dir, "src/app.ts"), "utf8")
+    const envTs = readFileSync(join(dir, "src/env.ts"), "utf8")
+    if (mcp === "--no-mcp")
+      ok(
+        `${target} --no-mcp: no MCP dependency, file, import or mention`,
+        !pkg.dependencies["@modelcontextprotocol/server"] &&
+          !existsSync(join(dir, "test/mcp.test.ts")) &&
+          !existsSync(join(dir, "test/mcp-off.test.ts")) &&
+          !/mcp/i.test(appTs) &&
+          !/mcp/i.test(envTs),
+      )
+    else
+      ok(
+        `${target} --mcp: the dependency and the mount`,
+        !!pkg.dependencies["@modelcontextprotocol/server"] && appTs.includes("appTools(app)"),
+      )
     const ci = readFileSync(join(dir, CI), "utf8")
     const ciScripts = [...ci.matchAll(/bun run ([\w:-]+)/g)].map((m) => m[1])
     ok(
@@ -279,7 +317,7 @@ for (const target of ["bun", "node", "vercel"]) {
         ),
       )
 
-    await $`bun install`.cwd(dir).quiet()
+    await installLocal(dir)
     const tc = await $`bun run typecheck`.cwd(dir).nothrow().quiet()
     ok(`${target}: typechecks`, tc.exitCode === 0, tc.stdout.toString().slice(-600))
     ok(`${target}: lints clean`, (await $`bun run lint`.cwd(dir).nothrow().quiet()).exitCode === 0)

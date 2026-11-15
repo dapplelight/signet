@@ -1,7 +1,7 @@
 /**
  * Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`,
  * `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`,
- * `idempotencyKeys`, `entitlementTables`, `flagOverrides`, `growthTables`,
+ * `idempotencyKeys`, `aiCache`, `entitlementTables`, `flagOverrides`, `growthTables`,
  * `privacyTables` and `sequences` tables.
  */
 
@@ -102,6 +102,16 @@ export const outbox = (name = "outbox") =>
     lastError: text("last_error"),
     createdAt: stamp("created_at"),
     sentAt: integer("sent_at", { mode: "timestamp_ms" }),
+  })
+
+/** The cache table for `dbCache(db, table)`, behind signet-ai's `createExtractor`. */
+export const aiCache = (name = "ai_cache") =>
+  sqliteTable(name, {
+    /** SHA-256 of model, schema, instructions and input. */
+    key: text("key").primaryKey(),
+    /** The entry as JSON, or ciphertext when the db has a cipher. */
+    entry: text("entry").notNull(),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
   })
 
 /** The idempotency key table for `createDb(..., { idempotency })`. */

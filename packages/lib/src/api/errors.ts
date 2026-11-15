@@ -9,7 +9,8 @@ import type { ErrorEnvelope } from "./contract.js"
  * `{ warning: "overlap", overlapPct, proceed }`).
  */
 export class ApiError extends Error {
-  readonly name = "ApiError"
+  // string, not the literal, so TimeoutError can name itself.
+  override readonly name: string = "ApiError"
   constructor(
     message: string,
     readonly status: number,
@@ -32,6 +33,27 @@ export class ApiError extends Error {
   ) {
     super(message)
   }
+}
+
+/**
+ * The client gave up waiting: `createRpcClient`'s `timeoutMs` (or a per-call
+ * `timeout(ms)`) passed before the response headers arrived. An ApiError with
+ * status 408 and code `TIMEOUT`, so error copy, `isRetryable` and toasts treat
+ * it like the server's own timeout.
+ */
+export class TimeoutError extends ApiError {
+  override readonly name = "TimeoutError"
+  constructor(
+    /** The limit that ran out. */
+    readonly timeoutMs: number,
+    requestId?: string,
+  ) {
+    super(`Request timed out after ${timeoutMs} ms`, 408, "TIMEOUT", undefined, requestId)
+  }
+}
+
+export function isTimeoutError(e: unknown): e is TimeoutError {
+  return e instanceof TimeoutError
 }
 
 /**

@@ -110,6 +110,11 @@ export const DEFAULT_ERROR_COPY: Record<ErrorCode, ErrorCopy> = {
     detail: "Nothing was changed.",
     action: "go_back",
   },
+  APPROVAL_PENDING: {
+    title: "Waiting for your approval",
+    detail: "Nothing was changed yet. Approve or deny it in your approvals.",
+    action: "retry",
+  },
   BAD_INPUT: {
     title: "Check what you entered",
     detail: "Some of the details weren't valid, so nothing was started.",

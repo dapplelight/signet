@@ -15,6 +15,7 @@ import {
 } from "../src/errors"
 import { createExtractor } from "../src/extract"
 import { fakeProvider } from "../src/fake"
+import type { UsageReport } from "../src/usage"
 
 let pass = 0,
   fail = 0
@@ -381,6 +382,99 @@ ok(
     (await cacheKey(fingerprintSchema(other), "i", "x")),
 )
 
+ok(
+  "cache key differs by model",
+  (await cacheKey("s", "i", "x", "a/m1")) !== (await cacheKey("s", "i", "x", "a/m2")),
+)
+ok(
+  "cache key without a model is unchanged",
+  (await cacheKey("s", "i", "x")) === (await cacheKey("s", "i", "x", "")),
+)
+{
+  // Same prompt and schema, a different provider chain: a new question.
+  let paidB = 0
+  const shared = memoryCache()
+  const pA = { ...counted, name: "c", model: "m1" }
+  const pB = {
+    ...counted,
+    model: "m2",
+    async generate() {
+      paidB++
+      return { value: good }
+    },
+  }
+  await createExtractor({ providers: [pA as never], cache: shared }).extract(base)
+  await createExtractor({ providers: [pB as never], cache: shared }).extract(base)
+  ok("a different model misses the cache", paidB === 1, `paidB=${paidB}`)
+}
+
+// cost saved: a hit is reported through onUsage with what it saved
+{
+  const reports: UsageReport[] = []
+  const priced = {
+    name: "p",
+    model: "pm",
+    pricing: { perCallUsd: 0.02 },
+    async generate() {
+      return { value: good, usage: { inputTokens: 10, outputTokens: 5 } }
+    },
+  }
+  const px = createExtractor({
+    providers: [priced as never],
+    cache: memoryCache(),
+    onUsage: (u) => reports.push(u),
+  })
+  await px.extract(base)
+  await px.extract({ ...base, budget: { key: "user-1" } })
+  const [paidCall, hit] = reports
+  ok("first call reported as spend", paidCall?.costUsd === 0.02 && !paidCall?.cacheHit)
+  ok(
+    "hit reported: cacheHit, costUsd 0, savedUsd = original cost",
+    hit?.cacheHit === true && hit.costUsd === 0 && hit.savedUsd === 0.02,
+    JSON.stringify(hit),
+  )
+  ok(
+    "hit report names the original provider and the budget key",
+    hit?.provider === "p" && hit.model === "pm" && hit.key === "user-1" && hit.usage === undefined,
+    JSON.stringify(hit),
+  )
+}
+
+// a broken persistent cache never fails or double-pays a call
+{
+  let paid = 0
+  const events: string[] = []
+  const broken = {
+    get() {
+      throw new Error("db down")
+    },
+    async set() {
+      throw new Error("db down")
+    },
+  }
+  const bx = createExtractor({
+    providers: [
+      {
+        ...counted,
+        async generate() {
+          paid++
+          return { value: good }
+        },
+      } as never,
+    ],
+    cache: broken,
+    onEvent: (e) => events.push(e),
+  })
+  const res = await bx.extract(base)
+  ok("cache read/write failure: answer still returned", res.value.budget === 8000)
+  ok("cache write failure: paid once, no failover", paid === 1, `paid=${paid}`)
+  ok(
+    "cache failures surface as ai.cache_error",
+    events.filter((e) => e === "ai.cache_error").length === 2,
+    events.join(),
+  )
+}
+
 // --- errors flow through the kit's envelope ---
 ok("AiError IS an ApiError", new AiError("x", "CODE") instanceof ApiError)
 ok("AiError carries its code", new AiError("x", SCHEMA_INVALID).code === SCHEMA_INVALID)
@@ -418,6 +512,25 @@ ok(
   )
   store.set("signet-ai-cache:bad", "{not json")
   ok("kvCache unreadable entry is a miss", (await kc.get("bad")) === undefined)
+}
+
+// kvCache over a Workers KV namespace (put + expirationTtl, minimum 60s)
+{
+  const store = new Map<string, { v: string; ttl?: number }>()
+  const ns = {
+    get: async (k: string) => store.get(k)?.v ?? null,
+    put: async (k: string, v: string, o?: { expirationTtl?: number }) =>
+      void store.set(k, { v, ttl: o?.expirationTtl }),
+  }
+  const kc = kvCache(ns, "p")
+  const entry = { value: { a: 1 }, meta: { cacheHit: false } as never }
+  await kc.set("k", entry, 3600)
+  ok("KV namespace round trip", JSON.stringify(await kc.get("k")) === JSON.stringify(entry))
+  ok("KV namespace gets expirationTtl", store.get("p:k")?.ttl === 3600)
+  await kc.set("short", entry, 0.01)
+  ok("KV namespace TTL floored at 60s", store.get("p:short")?.ttl === 60)
+  await Bun.sleep(20)
+  ok("KV namespace short entry still expires on read", (await kc.get("short")) === undefined)
 }
 
 const src = await Bun.file(new URL("../src/index.ts", import.meta.url)).text()
