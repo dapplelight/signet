@@ -123,6 +123,12 @@ export type PaymentsStore = {
     to?: Date
   }): Promise<LedgerEntry[]>
   balance(account: string, currency: string): Promise<number>
+  /**
+   * Move every payment of user `from` to user `to` (an anonymous app user
+   * signing in). Returns how many moved. Optional, so a custom store without
+   * it still type-checks; signet-db's `customers.merge` calls it when present.
+   */
+  reassignUser?(from: string, to: string): Promise<number>
 }
 
 // ---------------------------------------------------------------- memory
@@ -227,6 +233,15 @@ export function memoryStore(): PaymentsStore {
       return ledger
         .filter((e) => e.account === account && e.currency === currency)
         .reduce((s, e) => s + e.amount, 0)
+    },
+    async reassignUser(from, to) {
+      let n = 0
+      for (const p of payments.values())
+        if (p.userId === from) {
+          p.userId = to
+          n++
+        }
+      return n
     },
   }
 }
@@ -501,6 +516,14 @@ export function sqlStore(client: SqlClient, options: { dialect: Dialect }): Paym
       if (!Number.isSafeInteger(n))
         throw new Error(`Balance of ${account} is past 2^53 minor units.`)
       return n
+    },
+    async reassignUser(from, to) {
+      return (
+        await q("UPDATE pay_payments SET user_id = ? WHERE user_id = ? RETURNING gateway_id", [
+          to,
+          from,
+        ])
+      ).length
     },
   }
 }
