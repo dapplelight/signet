@@ -68,7 +68,7 @@ const paid = await demo.handle(
     body: JSON.stringify({ gateway: "razorpay", checkoutId: c.gatewayId }),
   }),
 )
-const pid = [...demo.gateways.razorpay.payments.keys()][0] as string
+const pid = [...demo.gateways.razorpay.state.payments.keys()][0] as string
 ok(
   "demo: /__signet/pay completes a checkout through the signed webhook",
   paid?.status === 200 && demo.payments.gateways.length === 3 && pid.startsWith("pay_"),

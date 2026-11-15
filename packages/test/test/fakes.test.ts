@@ -1,26 +1,12 @@
-// The fakes against the real Signet modules that consume them: createPayments
-// with the real adapters' webhook verification, appstore()/googleplay() with
-// test-generated keys, createNotifier with fake senders, the AI SDK with the mock.
+// The small fakes against the real modules that consume them: createNotifier
+// with fake senders, the AI SDK with the mock model. Gateways and stores have
+// their own files.
 import { describe, expect, test } from "bun:test"
-import { createPayments, isPaymentsError, memoryStore } from "@dapplelight/signet-payments"
-import { appstore } from "@dapplelight/signet-payments/appstore"
-import { googleplay } from "@dapplelight/signet-payments/googleplay"
 import { generateText, streamText } from "ai"
 import { fakeModel } from "../src/ai"
 import { DAY, fakeClock } from "../src/clock"
 import { fakeFetch } from "../src/fetch"
 import { createOutbox, fakeSenders } from "../src/notify"
-import { fakeGateway, type GatewayShape } from "../src/payments"
-import { fakeAppStore, fakeGooglePlay } from "../src/stores"
-
-const code = async (p: Promise<unknown>) => {
-  try {
-    await p
-    return "OK"
-  } catch (e) {
-    return isPaymentsError(e) ? e.code : String(e)
-  }
-}
 
 describe("fakeClock", () => {
   test("set, advance, and a bound now", () => {
@@ -42,124 +28,6 @@ describe("fakeFetch", () => {
     expect(await r.json()).toEqual({ echo: 1 })
     expect((await f.fetch("https://api.example.test/nope")).status).toBe(404)
     expect(f.calls.map((c) => `${c.method} ${c.path}`)).toEqual(["POST /v1/x", "GET /nope"])
-  })
-})
-
-const CHECKOUT = {
-  razorpay: { amount: 49900, currency: "INR" },
-  stripe: { amount: 1999, currency: "USD" },
-  payu: {
-    amount: 49900,
-    currency: "INR",
-    reference: "order-1",
-    returnUrl: "https://app.example.test/done",
-    customer: { name: "Test Buyer", email: "buyer@example.test" },
-  },
-} as const
-
-describe("fakeGateway", () => {
-  for (const shape of ["razorpay", "stripe", "payu"] as GatewayShape[]) {
-    test(`${shape}: checkout, complete, real webhook verification, ledger, refund`, async () => {
-      const gw = fakeGateway(shape)
-      const db = memoryStore()
-      const payments = createPayments({ gateways: [gw], db })
-      const c = await payments.checkout({ ...CHECKOUT[shape], idempotencyKey: "k1", userId: "u1" })
-      expect(c.gateway).toBe(shape)
-      if (shape === "stripe") expect(c.clientSecret).toContain("_secret_")
-      if (shape === "payu") expect(c.form?.fields.hash).toHaveLength(128)
-
-      const res = await payments.handleWebhook(shape, await gw.complete(c.gatewayId))
-      expect(res.status).toBe(200)
-      const paymentId = shape === "razorpay" ? [...gw.payments.keys()][0] : c.gatewayId
-      const rec = await db.getPayment(shape, paymentId as string)
-      expect(rec).toMatchObject({
-        status: "captured",
-        amount: CHECKOUT[shape].amount,
-        userId: "u1",
-      })
-
-      // Replayed webhook: a duplicate, not a second capture.
-      const again = await payments.handleWebhook(shape, await gw.complete(c.gatewayId))
-      expect(again.status).toBe(200)
-
-      const r = await gw.refund(paymentId as string, { amount: 100, idempotencyKey: "r1" })
-      expect(r.amount).toBe(100)
-      expect((await gw.getPayment(paymentId as string)).status).toBe("partially_refunded")
-      expect(gw.calls.map((x) => x.method)).toContain("verifyWebhook")
-    })
-  }
-
-  test("a tampered body fails the real signature check", async () => {
-    const gw = fakeGateway("razorpay")
-    const c = await gw.createCheckout({ amount: 100, currency: "INR", idempotencyKey: "k" })
-    const req = await gw.complete(c.gatewayId)
-    const forged = new Request(req.url, {
-      method: "POST",
-      headers: req.headers,
-      body: (await req.text()).replace('"amount":100', '"amount":1'),
-    })
-    expect(await code(gw.verifyWebhook(forged))).toBe("BAD_SIGNATURE")
-  })
-
-  test("failed payments and honest capabilities", async () => {
-    const gw = fakeGateway("payu")
-    expect(await code(gw.createCustomer({ email: "a@example.test" }))).toBe("UNSUPPORTED")
-    const s = fakeGateway("stripe")
-    const c = await s.createCheckout({ amount: 500, currency: "USD", idempotencyKey: "k" })
-    const e = await s.verifyWebhook(await s.complete(c.gatewayId, { status: "failed" }))
-    expect(e.type).toBe("payment.failed")
-    const a = await s.createCheckout({ amount: 500, currency: "USD", idempotencyKey: "k2" })
-    await s.complete(a.gatewayId, { status: "authorized" })
-    expect((await s.capture(a.gatewayId, { idempotencyKey: "c" })).status).toBe("captured")
-  })
-})
-
-describe("fakeAppStore", () => {
-  test("a signed notification verifies through the real appstore() adapter", async () => {
-    const clock = fakeClock("2026-11-01T10:00:00Z")
-    const apple = fakeAppStore({ now: clock.now })
-    const gw = appstore({ ...apple.config, now: clock.now })
-    const t = apple.transaction({ productId: "pro.yearly", price: 49990 })
-    const e = await gw.verifyWebhook(apple.notification("SUBSCRIBED", "INITIAL_BUY", t))
-    expect(e).toMatchObject({
-      gateway: "appstore",
-      paymentId: t.transactionId,
-      productId: "pro.yearly",
-      amount: 4999,
-      currency: "USD",
-      environment: "sandbox",
-    })
-    apple.serve(t)
-    expect((await gw.getPayment(t.transactionId)).productId).toBe("pro.yearly")
-    expect(apple.calls[0]?.path).toBe(`/inApps/v1/transactions/${t.transactionId}`)
-  })
-
-  test("another fake's chain is not trusted", async () => {
-    const a = fakeAppStore()
-    const b = fakeAppStore()
-    const gw = appstore(a.config)
-    expect(
-      await code(gw.verifyWebhook(b.notification("SUBSCRIBED", undefined, b.transaction()))),
-    ).toBe("BAD_SIGNATURE")
-  })
-})
-
-describe("fakeGooglePlay", () => {
-  test("a signed Pub/Sub push verifies and reads the fake Play API", async () => {
-    const play = fakeGooglePlay()
-    const gw = googleplay(play.config)
-    const orderId = play.subscribe("tok-1", { productId: "pro.monthly" })
-    const e = await gw.verifyWebhook(play.notification(4, "tok-1"))
-    expect(e).toMatchObject({
-      gateway: "googleplay",
-      type: "subscription.created",
-      subscriptionId: "tok-1",
-      paymentId: orderId,
-      amount: 499,
-      currency: "USD",
-    })
-    expect((await gw.getSubscription("tok-1")).status).toBe("active")
-    expect(play.calls.some((c) => c.path === "/oauth2/v3/certs")).toBe(true)
   })
 })
 

@@ -70,10 +70,22 @@ const pem = (k: KeyObject) => k.export({ type: "pkcs8", format: "pem" }).toStrin
 
 // ---------------------------------------------------------------- App Store
 
+const DAY_MS = 864e5
+
 export type AppStoreTransaction = Record<string, unknown> & {
   transactionId: string
   originalTransactionId: string
   productId: string
+}
+
+/** App Store subscription status codes (Get All Subscription Statuses). */
+export type AppStoreStatus = 1 | 2 | 3 | 4 | 5
+
+type AppleSub = {
+  transactions: AppStoreTransaction[]
+  status: AppStoreStatus
+  renewal: Record<string, unknown>
+  periodMs: number
 }
 
 export type FakeAppStore = {
@@ -96,8 +108,36 @@ export type FakeAppStore = {
   sign(payload: unknown): string
   /** Serve a transaction from Get Transaction Info, for `getPayment`. */
   serve(transaction: AppStoreTransaction): void
-  /** A signed notification POST, as Apple sends to your endpoint. */
-  notification(type: string, subtype: string | undefined, transaction: AppStoreTransaction): Request
+  /** A signed notification POST, as Apple sends it. `status` and `renewalInfo` go in `data`. */
+  notification(
+    type: string,
+    subtype: string | undefined,
+    transaction: AppStoreTransaction,
+    extra?: { status?: AppStoreStatus; renewalInfo?: Record<string, unknown> },
+  ): Request
+  /**
+   * Lifecycle: each call moves the subscription the way Apple would, keeps
+   * Get All Subscription Statuses (`getSubscription`) and Get Transaction
+   * Info in step, and returns the signed notification Apple sends.
+   */
+  subscribe(options?: {
+    productId?: string
+    price?: number
+    periodDays?: number
+    appAccountToken?: string
+  }): { originalTransactionId: string; notification: Request }
+  /** DID_RENEW: a new transaction for the next period. */
+  renew(originalTransactionId: string): Request
+  /** DID_FAIL_TO_RENEW: with `graceDays`, Billing Grace Period (status 4, access kept); without, billing retry (status 3). */
+  failRenewal(originalTransactionId: string, options?: { graceDays?: number }): Request
+  /** DID_CHANGE_RENEWAL_STATUS / AUTO_RENEW_DISABLED: access lasts to the period end. */
+  cancelRenewal(originalTransactionId: string): Request
+  /** EXPIRED (VOLUNTARY or BILLING_RETRY). */
+  expire(originalTransactionId: string): Request
+  /** REFUND of the latest transaction: revoked, status 5. */
+  refund(originalTransactionId: string): Request
+  /** REVOKE: Family Sharing access withdrawn, status 5. */
+  revoke(originalTransactionId: string): Request
 }
 
 export function fakeAppStore(
@@ -134,6 +174,7 @@ export function fakeAppStore(
   })
   const x5c = [leafDer, midDer, rootDer].map((c) => c.toString("base64"))
   const f = fakeFetch()
+  const subs = new Map<string, AppleSub>()
   let n = 0
 
   const signJws = (payload: unknown) => {
@@ -143,6 +184,83 @@ export function fakeAppStore(
       dsaEncoding: "ieee-p1363",
     })
     return `${input}.${b64u(sig)}`
+  }
+  const transaction = (o: Partial<AppStoreTransaction> = {}): AppStoreTransaction => {
+    const t = now()
+    const id = String(2000000000 + ++n)
+    return {
+      transactionId: id,
+      originalTransactionId: id,
+      bundleId,
+      productId: "pro.monthly",
+      type: "Auto-Renewable Subscription",
+      purchaseDate: t,
+      originalPurchaseDate: t,
+      expiresDate: t + 30 * DAY_MS,
+      price: 4990,
+      currency: "USD",
+      environment: "Sandbox",
+      signedDate: t,
+      ...o,
+    }
+  }
+  const serve = (t: AppStoreTransaction) => {
+    f.routes[`GET /inApps/v1/transactions/${t.transactionId}`] = {
+      signedTransactionInfo: signJws(t),
+    }
+  }
+  const notification: FakeAppStore["notification"] = (type, subtype, t, extra = {}) =>
+    new Request(options.url ?? "https://app.example.test/webhooks/appstore", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        signedPayload: signJws({
+          notificationType: type,
+          ...(subtype ? { subtype } : {}),
+          notificationUUID: crypto.randomUUID(),
+          version: "2.0",
+          signedDate: now(),
+          data: {
+            bundleId,
+            environment: "Sandbox",
+            signedTransactionInfo: signJws(t),
+            ...(extra.renewalInfo ? { signedRenewalInfo: signJws(extra.renewalInfo) } : {}),
+            ...(extra.status ? { status: extra.status } : {}),
+          },
+        }),
+      }),
+    })
+
+  const get = (otid: string) => {
+    const s = subs.get(otid)
+    if (!s) throw new Error(`signet-test: no App Store subscription ${otid}`)
+    return s
+  }
+  const latest = (s: AppleSub) => s.transactions[s.transactions.length - 1] as AppStoreTransaction
+  /** Update the status route and send one notification about the latest transaction. */
+  const emit = (otid: string, type: string, subtype?: string) => {
+    const s = get(otid)
+    const t = latest(s)
+    s.renewal = { ...s.renewal, signedDate: now() }
+    serve(t)
+    f.routes[`GET /inApps/v1/subscriptions/${otid}`] = {
+      bundleId,
+      environment: "Sandbox",
+      data: [
+        {
+          subscriptionGroupIdentifier: "group-1",
+          lastTransactions: [
+            {
+              originalTransactionId: otid,
+              status: s.status,
+              signedTransactionInfo: signJws(t),
+              signedRenewalInfo: signJws(s.renewal),
+            },
+          ],
+        },
+      ],
+    }
+    return notification(type, subtype, t, { status: s.status, renewalInfo: s.renewal })
   }
 
   return {
@@ -157,51 +275,115 @@ export function fakeAppStore(
       retryDelayMs: 0,
     },
     calls: f.calls,
-    transaction(o = {}) {
-      const t = now()
-      const id = String(2000000000 + ++n)
-      return {
-        transactionId: id,
-        originalTransactionId: id,
-        bundleId,
-        productId: "pro.monthly",
-        type: "Auto-Renewable Subscription",
-        purchaseDate: t,
-        originalPurchaseDate: t,
-        expiresDate: t + 30 * 864e5,
-        price: 4990,
-        currency: "USD",
-        environment: "Sandbox",
-        signedDate: t,
-        ...o,
-      }
-    },
+    transaction,
     sign: signJws,
-    serve(t) {
-      f.routes[`GET /inApps/v1/transactions/${t.transactionId}`] = {
-        signedTransactionInfo: signJws(t),
-      }
-    },
-    notification(type, subtype, t) {
-      return new Request(options.url ?? "https://app.example.test/webhooks/appstore", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          signedPayload: signJws({
-            notificationType: type,
-            ...(subtype ? { subtype } : {}),
-            notificationUUID: crypto.randomUUID(),
-            version: "2.0",
-            signedDate: now(),
-            data: { bundleId, environment: "Sandbox", signedTransactionInfo: signJws(t) },
-          }),
-        }),
+    serve,
+    notification,
+    subscribe(o = {}) {
+      const periodMs = (o.periodDays ?? 30) * DAY_MS
+      const t = transaction({
+        productId: o.productId ?? "pro.monthly",
+        price: o.price ?? 4990,
+        expiresDate: now() + periodMs,
+        ...(o.appAccountToken ? { appAccountToken: o.appAccountToken } : {}),
       })
+      const otid = t.originalTransactionId
+      subs.set(otid, {
+        transactions: [t],
+        status: 1,
+        periodMs,
+        renewal: {
+          originalTransactionId: otid,
+          autoRenewProductId: t.productId,
+          productId: t.productId,
+          autoRenewStatus: 1,
+          environment: "Sandbox",
+          renewalDate: t.expiresDate,
+        },
+      })
+      return { originalTransactionId: otid, notification: emit(otid, "SUBSCRIBED", "INITIAL_BUY") }
+    },
+    renew(otid) {
+      const s = get(otid)
+      const prev = latest(s)
+      const start = Math.max(Number(prev.expiresDate), now())
+      s.transactions.push(
+        transaction({
+          ...prev,
+          transactionId: String(2000000000 + ++n),
+          purchaseDate: start,
+          expiresDate: start + s.periodMs,
+          signedDate: now(),
+          revocationDate: undefined,
+          revocationReason: undefined,
+        }),
+      )
+      s.status = 1
+      s.renewal = {
+        ...s.renewal,
+        renewalDate: start + s.periodMs,
+        gracePeriodExpiresDate: undefined,
+        isInBillingRetryPeriod: false,
+      }
+      return emit(otid, "DID_RENEW")
+    },
+    failRenewal(otid, o = {}) {
+      const s = get(otid)
+      s.status = o.graceDays ? 4 : 3
+      s.renewal = {
+        ...s.renewal,
+        isInBillingRetryPeriod: true,
+        ...(o.graceDays
+          ? { gracePeriodExpiresDate: Number(latest(s).expiresDate) + o.graceDays * DAY_MS }
+          : {}),
+      }
+      return emit(otid, "DID_FAIL_TO_RENEW", o.graceDays ? "GRACE_PERIOD" : undefined)
+    },
+    cancelRenewal(otid) {
+      const s = get(otid)
+      s.renewal = { ...s.renewal, autoRenewStatus: 0 }
+      return emit(otid, "DID_CHANGE_RENEWAL_STATUS", "AUTO_RENEW_DISABLED")
+    },
+    expire(otid) {
+      const s = get(otid)
+      const voluntary = s.renewal.autoRenewStatus === 0
+      s.status = 2
+      return emit(otid, "EXPIRED", voluntary ? "VOLUNTARY" : "BILLING_RETRY")
+    },
+    refund(otid) {
+      const s = get(otid)
+      const t = latest(s)
+      Object.assign(t, {
+        revocationDate: now(),
+        revocationReason: 0,
+        revocationType: "REFUND_FULL",
+      })
+      s.status = 5
+      return emit(otid, "REFUND")
+    },
+    revoke(otid) {
+      const s = get(otid)
+      const t = latest(s)
+      Object.assign(t, {
+        revocationDate: now(),
+        revocationReason: 0,
+        revocationType: "FAMILY_REVOKE",
+      })
+      s.status = 5
+      return emit(otid, "REVOKE")
     },
   }
 }
 
 // ---------------------------------------------------------------- Google Play
+
+export type PlayState =
+  | "SUBSCRIPTION_STATE_ACTIVE"
+  | "SUBSCRIPTION_STATE_CANCELED"
+  | "SUBSCRIPTION_STATE_IN_GRACE_PERIOD"
+  | "SUBSCRIPTION_STATE_ON_HOLD"
+  | "SUBSCRIPTION_STATE_PAUSED"
+  | "SUBSCRIPTION_STATE_EXPIRED"
 
 export type FakeGooglePlay = {
   /** Spread into `googleplay(...)`. */
@@ -215,19 +397,35 @@ export type FakeGooglePlay = {
   /** Calls the adapter made to the (fake) Play Developer API, token endpoint and JWKS. */
   calls: FakeFetch["calls"]
   /**
-   * Record an active subscription (subscriptionsv2) and its latest order for
-   * `token`. Returns the order id.
+   * Record an active subscription (subscriptionsv2) and its first order for
+   * `token`. Returns the order id. `notification(4, token)` announces it.
    */
   subscribe(
     token: string,
     options?: {
       productId?: string
-      state?: string
+      state?: PlayState
+      periodDays?: number
       price?: { units: string; nanos?: number; currencyCode?: string }
+      accountId?: string
     },
   ): string
   /** A signed Pub/Sub push for a SubscriptionNotification (4 = PURCHASED, 2 = RENEWED, 3 = CANCELED...). */
   notification(notificationType: number, token: string): Request
+  /** RENEWED: a new order and the next period. */
+  renew(token: string): Request
+  /** IN_GRACE_PERIOD (access kept, expiry extended `graceDays`), or ON_HOLD without `graceDays`. */
+  failRenewal(token: string, options?: { graceDays?: number }): Request
+  /** CANCELED: renewal off, access to the period end. */
+  cancel(token: string): Request
+  /** EXPIRED. */
+  expire(token: string): Request
+  /**
+   * A refund: the order is refunded (orderHistory.refundEvent) and Play sends a
+   * voided-purchase notification; with `revoke` (default true) access ends
+   * and a REVOKED notification follows. Returns the notifications in order.
+   */
+  refund(token: string, options?: { revoke?: boolean }): Request[]
 }
 
 export function fakeGooglePlay(
@@ -253,6 +451,7 @@ export function fakeGooglePlay(
       ],
     },
   })
+  const subs = new Map<string, { sub: any; periodMs: number; price: any; orders: string[] }>()
   let n = 0
   let messages = 0
 
@@ -270,6 +469,57 @@ export function fakeGooglePlay(
     )}`
     return `${input}.${b64u(sign("sha256", Buffer.from(input), google.privateKey))}`
   }
+  const push = (data: Record<string, unknown>) =>
+    new Request(audience, {
+      method: "POST",
+      headers: { authorization: `Bearer ${oidc()}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        message: {
+          data: b64u(
+            JSON.stringify({
+              version: "1.0",
+              packageName,
+              eventTimeMillis: String(now()),
+              ...data,
+            }),
+          ),
+          messageId: String(9000 + ++messages),
+        },
+        subscription: "projects/signet-test/subscriptions/play",
+      }),
+    })
+  const notification = (notificationType: number, token: string) =>
+    push({ subscriptionNotification: { version: "1.0", notificationType, purchaseToken: token } })
+
+  const get = (token: string) => {
+    const s = subs.get(token)
+    if (!s) throw new Error(`signet-test: no Play subscription ${token}`)
+    return s
+  }
+  const sync = (token: string) => {
+    f.routes[`GET ${api}/purchases/subscriptionsv2/tokens/${token}`] = structuredClone(
+      get(token).sub,
+    )
+  }
+  const addOrder = (token: string) => {
+    const s = get(token)
+    const orderId = `GPA.0000-0000-0000-${String(++n).padStart(5, "0")}${s.orders.length ? `..${s.orders.length - 1}` : ""}`
+    s.orders.push(orderId)
+    f.routes[`GET ${api}/orders/${orderId}`] = {
+      orderId,
+      purchaseToken: token,
+      state: "PROCESSED",
+      total: s.price,
+      lineItems: [{ productId: s.sub.lineItems[0].productId }],
+      createTime: new Date(now()).toISOString(),
+    }
+    s.sub.lineItems[0].latestSuccessfulOrderId = orderId
+    return orderId
+  }
+  const item = (token: string) => get(token).sub.lineItems[0]
+  const setState = (token: string, state: PlayState) => {
+    get(token).sub.subscriptionState = state
+  }
 
   return {
     config: {
@@ -284,47 +534,91 @@ export function fakeGooglePlay(
     },
     calls: f.calls,
     subscribe(token, o = {}) {
-      const orderId = `GPA.0000-0000-0000-${String(++n).padStart(5, "0")}`
-      const productId = o.productId ?? "pro.monthly"
-      const start = new Date(now())
-      f.routes[`GET ${api}/purchases/subscriptionsv2/tokens/${token}`] = {
-        subscriptionState: o.state ?? "SUBSCRIPTION_STATE_ACTIVE",
-        startTime: start.toISOString(),
-        testPurchase: {},
-        lineItems: [
-          {
-            productId,
-            expiryTime: new Date(now() + 30 * 864e5).toISOString(),
-            latestSuccessfulOrderId: orderId,
-            autoRenewingPlan: { autoRenewEnabled: true },
-          },
-        ],
-      }
-      f.routes[`GET ${api}/orders/${orderId}`] = {
-        orderId,
-        purchaseToken: token,
-        state: "PROCESSED",
-        total: { currencyCode: "USD", units: "4", nanos: 990000000, ...o.price },
-        lineItems: [{ productId }],
-        createTime: start.toISOString(),
-      }
+      const periodMs = (o.periodDays ?? 30) * DAY_MS
+      subs.set(token, {
+        periodMs,
+        price: { currencyCode: "USD", units: "4", nanos: 990000000, ...o.price },
+        orders: [],
+        sub: {
+          kind: "androidpublisher#subscriptionPurchaseV2",
+          subscriptionState: o.state ?? "SUBSCRIPTION_STATE_ACTIVE",
+          startTime: new Date(now()).toISOString(),
+          testPurchase: {},
+          ...(o.accountId
+            ? { externalAccountIdentifiers: { obfuscatedExternalAccountId: o.accountId } }
+            : {}),
+          lineItems: [
+            {
+              productId: o.productId ?? "pro.monthly",
+              expiryTime: new Date(now() + periodMs).toISOString(),
+              autoRenewingPlan: { autoRenewEnabled: true },
+            },
+          ],
+        },
+      })
+      const orderId = addOrder(token)
+      sync(token)
       return orderId
     },
-    notification(notificationType, token) {
-      const data = {
-        version: "1.0",
-        packageName,
-        eventTimeMillis: String(now()),
-        subscriptionNotification: { version: "1.0", notificationType, purchaseToken: token },
+    notification,
+    renew(token) {
+      const s = get(token)
+      const from = Math.max(Date.parse(item(token).expiryTime), now())
+      item(token).expiryTime = new Date(from + s.periodMs).toISOString()
+      setState(token, "SUBSCRIPTION_STATE_ACTIVE")
+      addOrder(token)
+      sync(token)
+      return notification(2, token)
+    },
+    failRenewal(token, o = {}) {
+      if (o.graceDays) {
+        setState(token, "SUBSCRIPTION_STATE_IN_GRACE_PERIOD")
+        item(token).expiryTime = new Date(
+          Date.parse(item(token).expiryTime) + o.graceDays * DAY_MS,
+        ).toISOString()
+      } else setState(token, "SUBSCRIPTION_STATE_ON_HOLD")
+      sync(token)
+      return notification(o.graceDays ? 6 : 5, token)
+    },
+    cancel(token) {
+      setState(token, "SUBSCRIPTION_STATE_CANCELED")
+      item(token).autoRenewingPlan = { autoRenewEnabled: false }
+      sync(token)
+      return notification(3, token)
+    },
+    expire(token) {
+      setState(token, "SUBSCRIPTION_STATE_EXPIRED")
+      sync(token)
+      return notification(13, token)
+    },
+    refund(token, o = {}) {
+      const s = get(token)
+      const orderId = s.orders[s.orders.length - 1] as string
+      const order = f.routes[`GET ${api}/orders/${orderId}`] as any
+      order.state = "REFUNDED"
+      order.orderHistory = {
+        refundEvent: {
+          eventTime: new Date(now()).toISOString(),
+          refundDetails: { total: s.price },
+        },
       }
-      return new Request(audience, {
-        method: "POST",
-        headers: { authorization: `Bearer ${oidc()}`, "content-type": "application/json" },
-        body: JSON.stringify({
-          message: { data: b64u(JSON.stringify(data)), messageId: String(9000 + ++messages) },
-          subscription: "projects/signet-test/subscriptions/play",
+      const out = [
+        push({
+          voidedPurchaseNotification: {
+            purchaseToken: token,
+            orderId,
+            productType: 1,
+            refundType: 1,
+          },
         }),
-      })
+      ]
+      if (o.revoke !== false) {
+        setState(token, "SUBSCRIPTION_STATE_EXPIRED")
+        item(token).expiryTime = new Date(now()).toISOString()
+        sync(token)
+        out.push(notification(12, token))
+      }
+      return out
     },
   }
 }
