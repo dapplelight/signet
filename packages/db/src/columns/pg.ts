@@ -2,7 +2,7 @@
  * Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`,
  * `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotencyKeys`,
  * `aiCache`, `webhookTables`, `entitlementTables`, `flagOverrides`, `growthTables`, `orgTables`, `privacyTables`,
- * `analyticsEvents`, `sequences` and `workflowTables` tables.
+ * `analyticsEvents`, `sequences`, `workflowTables` and `collabTables` tables.
  */
 
 import {
@@ -568,5 +568,54 @@ export const workflowTables = (prefix = "") => ({
       createdAt: tz("created_at").notNull(),
     },
     (t) => [index(`${prefix}workflow_events_name`).on(t.name, t.id)],
+  ),
+})
+
+/**
+ * Comments on any record and its version history, for `createCollab` from
+ * `@dapplelight/signet-db/collab`. Destructure into the schema:
+ * `export const { comments, recordVersions } = collabTables()`, and pass
+ * `versions: { table: recordVersions, track: [tasks] }` to `createDb`.
+ */
+export const collabTables = (prefix = "") => ({
+  comments: pgTable(
+    `${prefix}comments`,
+    {
+      id: id(),
+      orgId: text("org_id").notNull(),
+      /** The commented record: its SQL table name and primary key. */
+      tableName: text("table_name").notNull(),
+      rowId: text("row_id").notNull(),
+      /** The thread's first comment; null for a thread's first comment itself. */
+      parentId: text("parent_id"),
+      authorId: text("author_id").notNull(),
+      /** Text with mentions as `@[Name](user:<id>)`. Blanked on delete. */
+      body: text("body").notNull(),
+      /** Everyone ever notified for this comment, so an edit never notifies twice. */
+      notified: jsonb("notified"),
+      createdAt: tz("created_at").notNull(),
+      editedAt: tz("edited_at"),
+      deletedAt: tz("deleted_at"),
+    },
+    (t) => [index(`${prefix}comments_record`).on(t.orgId, t.tableName, t.rowId, t.createdAt)],
+  ),
+  recordVersions: pgTable(
+    `${prefix}record_versions`,
+    {
+      id: id(),
+      orgId: text("org_id"),
+      tableName: text("table_name").notNull(),
+      rowId: text("row_id").notNull(),
+      /** 1, 2, 3… per record. */
+      version: integer("version").notNull(),
+      /** insert | update | delete | restore | undo */
+      action: text("action").notNull(),
+      /** The whole row after the write, as stored (encrypted fields stay ciphertext). */
+      data: jsonb("data").notNull(),
+      actorType: text("actor_type").notNull(),
+      actorId: text("actor_id").notNull(),
+      at: tz("at").notNull(),
+    },
+    (t) => [uniqueIndex(`${prefix}record_versions_row`).on(t.tableName, t.rowId, t.version)],
   ),
 })
