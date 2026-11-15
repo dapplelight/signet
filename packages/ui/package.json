@@ -281,11 +281,27 @@
     "./components/theme-toggle": {
       "types": "./dist/components/ui/theme-toggle.d.ts",
       "import": "./dist/components/ui/theme-toggle.js"
+    },
+    "./screens/account-screens": {
+      "types": "./dist/components/screens/account-screens.d.ts",
+      "import": "./dist/components/screens/account-screens.js"
+    },
+    "./screens/auth-screens": {
+      "types": "./dist/components/screens/auth-screens.d.ts",
+      "import": "./dist/components/screens/auth-screens.js"
+    },
+    "./screens/notification-screens": {
+      "types": "./dist/components/screens/notification-screens.d.ts",
+      "import": "./dist/components/screens/notification-screens.js"
+    },
+    "./screens/privacy-screens": {
+      "types": "./dist/components/screens/privacy-screens.d.ts",
+      "import": "./dist/components/screens/privacy-screens.js"
     }
   },
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "bun run test/ui.tsx && bun run test/dom.tsx && bun run test/data-table.tsx && bun run test/shortcuts.tsx && bun run test/markdown.tsx && bun run test/dom2.tsx && bun run test/domain.tsx && bun run test/basics.tsx && bun run test/behaviors.tsx && bun run test/ui-domain.tsx",
+    "test": "bun run test/ui.tsx && bun run test/dom.tsx && bun run test/data-table.tsx && bun run test/shortcuts.tsx && bun run test/markdown.tsx && bun run test/dom2.tsx && bun run test/domain.tsx && bun run test/basics.tsx && bun run test/behaviors.tsx && bun run test/screens-user.tsx && bun run test/ui-domain.tsx",
     "build": "tsc -p tsconfig.build.json",
     "prepublishOnly": "bun run build"
   },

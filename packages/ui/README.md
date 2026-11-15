@@ -65,6 +65,14 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   `hooks/use-local-storage` (JSON, SSR-safe, synced across tabs),
   `hooks/use-copy` (clipboard with a `copied` flag) and
   `hooks/use-intersection` (on screen or not, for lazy loading).
+- `screens/` ready screens, out of the barrel: `auth-screens` (sign in / up
+  by email or phone code, OAuth, verify, session expired), `account-screens`
+  (profile, devices, API keys), `notification-screens` (inbox, preferences)
+  and `privacy-screens` (DPDP consents, export and erasure requests). Plain
+  data in, callbacks out, shaped like signet-server and signet-db; wire them
+  through `createRpcClient`. Strings come from `DEFAULT_*_LABELS` and the
+  `labels` prop; parts take `className`, composites `classNames`. Demo:
+  `screens-user.html` in the showcase (linked from its header).
 
 ## Behaviours and recipes
 
