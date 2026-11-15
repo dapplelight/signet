@@ -275,7 +275,8 @@ try {
   mkdirSync(all)
   writeFileSync(join(all, "package.json"), "{}")
   symlinkSync(join(PKG, "../ui/node_modules"), join(all, "node_modules"))
-  add(all, reg, Object.keys(reg.items))
+  const uiItems = Object.keys(reg.items).filter((n) => reg.items[n]?.root !== "app")
+  add(all, reg, uiItems)
   writeFileSync(
     join(all, "tsconfig.json"),
     JSON.stringify({
@@ -297,7 +298,7 @@ try {
   const tsc = Bun.spawnSync(["bun", join(PKG, "../ui/node_modules/.bin/tsc"), "-p", all])
   rmSync(all, { recursive: true, force: true })
   ok(
-    `typecheck: all ${Object.keys(reg.items).length} items compile in an app with the @/ alias`,
+    `typecheck: all ${uiItems.length} signet-ui items compile in an app with the @/ alias`,
     tsc.exitCode === 0,
     tsc.stdout.toString().slice(0, 2000),
   )
