@@ -21,6 +21,7 @@ The core never imports a driver. Thin entry points connect it to one:
 | `@dapplelight/signet-db/flags` | `defineFlags`, `evaluateFlag`, `createFlags` |
 | `@dapplelight/signet-db/admin` | `defineAdmin(schema, { authorize })`, an admin API and admin MCP tools (needs zod) |
 | `@dapplelight/signet-db/privacy` | `createPrivacy`: DPDP consent records, withdrawal, export and erasure requests; `privacyTools` |
+| `@dapplelight/signet-db/analytics` | `createAnalyticsStore`: events in your database, counts, uniques, series, breakdowns, funnels, retention, trends; `analyticsTools` |
 | `@dapplelight/signet-db/growth` | `createGrowth`: waitlist, invites, referrals, onboarding, changelog, feedback; `growthTools` |
 
 Peers: `drizzle-orm` ^0.45, `@dapplelight/signet-lib` ^0.3, `postgres` only
@@ -716,6 +717,16 @@ For an agent acting for one person. Read: `list_consents`,
 `list_data_requests`. Write: `withdraw_consent`, `request_data_export`,
 `request_erasure`, always gated on `approve`. Agents only open requests;
 `fulfil` is a staff action in code.
+
+## Analytics events
+
+`createAnalyticsStore(db, { table: analyticsEvents(), retentionDays?, privacy? })`
+stores events (it is a signet-server `AnalyticsSink`), links anonymous events
+on `$identify`, keeps userIds only with consent when given `privacy`, and
+answers typed questions: `count`, `uniques`, `series`, `breakdown`, `funnel`,
+`retention`, `trend`, `events`. `prune()` applies the retention. Read-only
+agent tools: `analyticsTools({ store })`. The full guide is in
+[signet-lib's ANALYTICS.md](../lib/ANALYTICS.md#store-events-in-your-database).
 
 ## Sequences
 

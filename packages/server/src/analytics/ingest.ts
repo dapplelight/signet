@@ -15,17 +15,33 @@ export type IngestOptions = {
   engine: AnalyticsSink
   /** Max events accepted per request. Default 50. */
   maxEvents?: number
+  /** Max props per event, server enrichment included. Default 20. */
+  maxProps?: number
   /** Max event-name length. Default 64. */
   maxNameLength?: number
+  /**
+   * The signed-in user for this request, from your session, e.g.
+   * `(c) => c.get("user")?.id`. Events then carry it, overriding anything the
+   * client sent. Without it a client-sent `userId` is dropped, since anyone
+   * can post to this route claiming to be anyone.
+   */
+  userId?: (c: never) => string | undefined | Promise<string | undefined>
+  /** Keep a client-sent `userId` when there is no `userId` resolver. Default false. */
+  trustClientUserId?: boolean
   /** Enrich server-side — country, user agent. Never trust the client for these. */
   enrich?: (c: never) => Record<string, string | number | undefined>
 }
 
 type Body = { events?: unknown }
 
+/** An id from the client: a short string of id characters, else dropped. */
+export const cleanId = (v: unknown): string | undefined =>
+  typeof v === "string" && /^[A-Za-z0-9_.:-]{1,64}$/.test(v) ? v : undefined
+
 export function registerIngest(app: Hono<never>, path: string, opts: IngestOptions): void {
   const maxEvents = opts.maxEvents ?? 50
   const maxNameLength = opts.maxNameLength ?? 64
+  const maxProps = opts.maxProps ?? 20
 
   app.post(path, async (c) => {
     const body = (await c.req.json().catch(() => null)) as Body | null
@@ -37,17 +53,26 @@ export function registerIngest(app: Hono<never>, path: string, opts: IngestOptio
     }
 
     const enriched = opts.enrich?.(c as never) ?? {}
+    // Client props get what room the server's values leave, so a long client
+    // list can never push out (or let a sink's own cap drop) a trusted value.
+    const room = Math.max(0, maxProps - Object.keys(enriched).length)
+    const serverUser = opts.userId ? cleanId(await opts.userId(c as never)) : undefined
     const events: TrackedEvent[] = []
 
     for (const raw of body.events.slice(0, maxEvents)) {
       if (typeof raw !== "object" || raw === null) continue
-      const e = raw as { name?: unknown; props?: unknown; ts?: unknown }
+      const e = raw as Record<string, unknown>
       if (typeof e.name !== "string" || !e.name) continue
       events.push({
         name: e.name.slice(0, maxNameLength),
         ts: typeof e.ts === "number" ? e.ts : Date.now(),
+        anonymousId: cleanId(e.anonymousId),
+        sessionId: cleanId(e.sessionId),
+        userId: opts.userId ? serverUser : opts.trustClientUserId ? cleanId(e.userId) : undefined,
         props: {
-          ...(typeof e.props === "object" && e.props ? (e.props as TrackedEvent["props"]) : {}),
+          ...(typeof e.props === "object" && e.props && !Array.isArray(e.props)
+            ? (Object.fromEntries(Object.entries(e.props).slice(0, room)) as TrackedEvent["props"])
+            : {}),
           // Server values last so a client cannot spoof them.
           ...enriched,
         },
