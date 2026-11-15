@@ -7,10 +7,10 @@ export const Route = createFileRoute("/_app/org/")({
   component: OrgPage,
 })
 
-// The current org's settings: name, custom domain, theme, brand colour. The
-// API (/api/orgs/current) checks membership and org:update; without it the
-// form is read-only. Point a custom domain's DNS at this app and the API
-// resolves the org from the host (api/app.ts, tenant()).
+// The current org's settings: name, theme, brand colour. The API
+// (/api/orgs/current) checks membership and org:update; without it the form is
+// read-only. A custom domain is not editable here: an operator sets it with
+// orgs.update, and tenant() (api/app.ts) then resolves the org from the host.
 function OrgPage() {
   const qc = useQueryClient()
   const current = useQuery(currentOrgQuery).data

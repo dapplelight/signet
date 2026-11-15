@@ -56,7 +56,7 @@ same-origin. In dev, Vite proxies `/api` to it. What a fresh app has:
   `TODO(admin-screen)` until signet-ui's billing and admin screens are
   published.
 - **Organisations.** Sign-up creates a personal org; an org switcher in the
-  header; `/org` (settings: name, custom domain, theme, brand colour) and
+  header; `/org` (settings: name, theme, brand colour) and
   `/org/members` (roles, remove, invite links) on signet-ui's org screens;
   `/invite/$token` to accept. signet-server's `tenant()` resolves the org from
   the switch cookie or `x-org` header, and in production from a custom domain
