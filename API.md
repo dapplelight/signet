@@ -55,6 +55,7 @@ Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit 
 | `@dapplelight/signet-db/postgres` | createDb | Postgres driver on postgres-js (Supabase, Neon, RDS, a local server): `createDb(databaseUrl, config)`, or pass a `postgres()` client |
 | `@dapplelight/signet-db/privacy` | createPrivacy, PrivacyTables, PrivacyOptions, Consent, DataRequestKind, DataRequestStatus, … | DPDP building blocks (India's Digital Personal Data Protection Act, 2023) on the tables from `privacyTables()`: consent records per purpose and notice |
 | `@dapplelight/signet-db/sqlite` | createDb | SQLite driver on bun:sqlite (Bun runtime, e.g |
+| `@dapplelight/signet-db/webhooks` | WEBHOOK_TOPIC, assertWebhookUrl, isPrivateAddress, defaultResolveHost, createWebhooks, WebhookEndpoint, … | Outbound webhooks: endpoints registered per user or org, each with its own signing secret; deliveries signed Standard-Webhooks style; retries with bac |
 | `@dapplelight/signet-db/workflows` | defineWorkflow, createWorkflows, WorkflowTables, RunStatus, StepKind, StepStatus, … | Durable workflows on your own database: multi-step jobs that sleep, wait for events and for a person's approval, retry failed steps with backoff, and  |
 | `@dapplelight/signet-db/zod` | MANAGED_KEYS, toZod, ZodMode, ZodOutput | Zod schemas generated from a table's columns: `toZod(table, { mode })` for validating request bodies (e.g |
 
@@ -71,6 +72,7 @@ Signet client primitives. API client, the wire contract, and search.
 | `@dapplelight/signet-lib/form` | errorMessages, firstError, applyServerErrors, clearServerErrors, submitWithServerErrors, FieldError, … | TanStack Form integration |
 | `@dapplelight/signet-lib/format` | createCurrencyFormatter, createCompactCurrencyFormatter, formatPercent, createDateFormatter, createDateShortFormatter, createDateTimeFormatter, … | Currency, number and date formatting, plus date arithmetic (./date.ts) |
 | `@dapplelight/signet-lib/search` | source, createSearch, Query, Source, Hit, Section, … | re-exports engine, readers, text, usage |
+| `@dapplelight/signet-lib/webhooks` | generateWebhookSecret, signWebhook, verifyWebhook, VerifyWebhookOptions | Standard Webhooks signatures (https://www.standardwebhooks.com), Web Crypto only, so the same code signs on a Worker and verifies in any receiver |
 
 ## @dapplelight/signet-mcp
 
@@ -137,10 +139,13 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/env/schema` | createEnv, CreateEnvOptions | Validate environment once, lazily, against a Zod schema |
 | `@dapplelight/signet-server/http` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus, … | re-exports errors, validate |
 | `@dapplelight/signet-server/http/admin` | adminRoutes, AdminHttpRequest, AdminHandler, AdminRoutesOptions | Mount an admin API (signet-db's `defineAdmin`) as Hono routes |
+| `@dapplelight/signet-server/http/cache` | cacheControlValue, mergeVary, etagMatches, httpCache, cachedResponse, CacheControlOptions, … | HTTP caching for GET routes |
 | `@dapplelight/signet-server/http/errors` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus | Server half of the error envelope |
+| `@dapplelight/signet-server/http/openapi` | apiDoc, ERROR_ENVELOPE_SCHEMA, openApiSpec, serveOpenApi, apiDocsHtml, SecuritySchemeName, … | OpenAPI 3.1 from the app's own routes |
 | `@dapplelight/signet-server/http/orgs` | currentTenant, currentMembership, grants, tenant, orgGuards, orgCookie, … | Multi-tenant Hono pieces on signet-db's `createOrgs` (typed structurally, so this package does not depend on signet-db): resolve the tenant from the r |
 | `@dapplelight/signet-server/http/routes` | entitlementRoutes, flagRoutes, approvalRoutes, EntitlementRoutes, FlagRoutes | Read routes for signet-db's entitlements and flags, typed for `hc` |
 | `@dapplelight/signet-server/http/validate` | parseBody, parseQuery, parseParams, zValidator, VALIDATES | Zod request validation |
+| `@dapplelight/signet-server/http/webhooks` | WebhookEndpointInput, WebhookEndpointPatch, WebhookDeliveryQuery, webhookRoutes, WebhookDeliveryStatus, WebhookStore, … | Admin routes for outbound webhooks (signet-db's `createWebhooks`) |
 | `@dapplelight/signet-server/http/workflows` | workflowRoutes, WorkflowEngineLike, WorkflowRoutesOptions, WorkflowRoutes | HTTP routes for signet-db's durable workflows (`createWorkflows`): start a run, read its status and step history, send an event, approve or reject an  |
 | `@dapplelight/signet-server/jobs` | parseCron, cronMatches, defineSchedule, runDueSchedules, cloudflareScheduled, startScheduler, … | re-exports cron, jobs, runtimes, tools |
 | `@dapplelight/signet-server/mcp` | toolResult, toMcpTool, defineTool, createMcpServer, resolveMcpServer, ToolAnnotations, … | re-exports server |
@@ -222,6 +227,7 @@ Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"
 | `@dapplelight/signet-ui/hooks/use-media-query` | DESKTOP_QUERY, useMediaQuery |  |
 | `@dapplelight/signet-ui/screens/account-screens` | DEFAULT_ACCOUNT_LABELS, When, SessionRow, ApiKeyRow, Profile, AccountLabels |  |
 | `@dapplelight/signet-ui/screens/admin-screens` | AdminApiError, createAdminApi, DEFAULT_ADMIN_LABELS, useAdmin, AdminPanel, AdminNav, … |  |
+| `@dapplelight/signet-ui/screens/api-screens` | DEFAULT_API_LABELS, ApiReference, WebhookDeliveryLog, ApiParameter, ApiOperation, ApiSpec, … |  |
 | `@dapplelight/signet-ui/screens/auth-screens` | DEFAULT_AUTH_LABELS, AuthMode, AuthChannel, OAuthProvider, AuthLabels, CodeRequest |  |
 | `@dapplelight/signet-ui/screens/billing-screens` | plansFromEntitlements, DEFAULT_BILLING_LABELS, formatMoney, PlanPicker, RestorePurchasesButton, CurrentPlanCard, … |  |
 | `@dapplelight/signet-ui/screens/growth-screens` | DEFAULT_GROWTH_LABELS, WaitlistJoin, InviteAccept, ReferralCard, OnboardingChecklist, FeedbackForm, … |  |
