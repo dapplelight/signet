@@ -28,6 +28,12 @@ export type TrackedEvent = {
   name: string
   props?: Record<string, string | number | boolean | null | undefined>
   ts?: number
+  /** Random per-browser id (signet-lib's `createAnalytics`). */
+  anonymousId?: string
+  /** Random per-visit id. */
+  sessionId?: string
+  /** The signed-in user, when the server vouches for it (see `registerIngest`'s `userId`). */
+  userId?: string
 }
 
 export type EngineConfig = {
@@ -60,8 +66,10 @@ export function truncateBytes(value: string, maxBytes: number): string {
 export function toDataPoint(event: TrackedEvent, indexBy?: EngineConfig["indexBy"]) {
   const blobs: string[] = [event.name]
   const doubles: number[] = [event.ts ?? Date.now()]
+  // Ids first, as key/value pairs like props, so a long prop list cannot push them out.
+  const ids = { aid: event.anonymousId, sid: event.sessionId, uid: event.userId }
 
-  for (const [key, value] of Object.entries(event.props ?? {})) {
+  for (const [key, value] of [...Object.entries(ids), ...Object.entries(event.props ?? {})]) {
     if (value === null || value === undefined) continue
     if (typeof value === "number") {
       if (doubles.length < LIMITS.maxDoubles) doubles.push(value)
