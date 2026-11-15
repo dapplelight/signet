@@ -1087,9 +1087,9 @@ const RECIPES: RecipeSpec[] = [
     verify: [
       "bun run test with the fakes; npx playwright test --update-snapshots once, then npx playwright test",
       "a production build (vite build) contains no 'Signet dev overlay' string",
-      ],
-    },
-    {
+    ],
+  },
+  {
     id: "add-backend-module",
     title: "Wire auth, a database, payments, notifications or an admin API into an api app",
     keywords: [
