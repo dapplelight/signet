@@ -12,6 +12,11 @@ so an app wires them through `createRpcClient`:
   signet-server's `sessionRoutes`, sign out one device or every other, with a
   confirm), `ApiKeysManager` (create shows the key once, then drops it;
   revoke confirms).
+- `screens/notification-screens`: `NotificationInbox` (all / unread, mark
+  read on open, mark all read, archive, load more, an all-caught-up state;
+  `renderItem` turns rows into links) and `NotificationPreferences` (a switch
+  per category and channel, required categories locked on, a failed save
+  rolls back). Shapes match the notifier's `InboxItem` and `Prefs`.
 
 Every string is a prop (`labels`, spread from `DEFAULT_*_LABELS`), every part
 takes `className` (composites also `classNames`) with state as `data-*`,

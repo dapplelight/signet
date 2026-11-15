@@ -265,6 +265,10 @@
     "./screens/auth-screens": {
       "types": "./dist/components/screens/auth-screens.d.ts",
       "import": "./dist/components/screens/auth-screens.js"
+    },
+    "./screens/notification-screens": {
+      "types": "./dist/components/screens/notification-screens.d.ts",
+      "import": "./dist/components/screens/notification-screens.js"
     }
   },
   "scripts": {
