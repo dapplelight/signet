@@ -60,9 +60,9 @@ test("sign in, see the plan, upgrade, get notified", async () => {
 
   expect((await post("/api/billing/checkout", { plan: "pro" }, cookie)).status).toBe(200)
   const billing = (await (await app.request("/api/billing", { headers: { cookie } })).json()) as {
-    current: { plan: string }
+    subscription: { plan: string }
   }
-  expect(billing.current.plan).toBe("pro")
+  expect(billing.subscription.plan).toBe("pro")
 
   // Sends are deferred; the welcome and plan notices land in the inbox shortly.
   await Bun.sleep(100)

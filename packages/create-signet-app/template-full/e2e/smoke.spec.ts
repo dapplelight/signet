@@ -60,13 +60,16 @@ test("sign in, then admin, then billing", async ({ page }) => {
   await expect(page.getByText(/You are on the/)).toBeVisible()
 
   await page.getByRole("link", { name: "Admin" }).click()
-  await expect(page.getByRole("heading", { name: "Admin" })).toBeVisible()
+  // The admin panel loads the users table from /api/admin.
+  await expect(page.getByRole("heading", { name: "Users" })).toBeVisible()
   await expect(page.getByRole("cell", { name: PHONE })).toBeVisible()
 
   await page.getByRole("link", { name: "Billing" }).click()
-  await page.getByRole("button", { name: /upgrade to pro/i }).click()
-  await expect(page.getByText("Current")).toBeVisible()
-  await expect(page.locator("[data-current]")).toContainText("Pro")
+  // The plan picker marks the current plan, then checkout moves it.
+  const current = page.locator('[data-slot="plan-card"][data-current]')
+  await expect(current).toHaveAttribute("data-plan", "free")
+  await page.getByRole("button", { name: "Continue with Pro" }).click()
+  await expect(current).toHaveAttribute("data-plan", "pro")
 
   await page.getByRole("link", { name: /inbox/i }).click()
   await expect(page.getByText("Plan changed")).toBeVisible()
