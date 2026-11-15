@@ -9,17 +9,21 @@
  *
  *   bun run changes           fold and delete (the post-merge workflow)
  *   bun run changes --check   only validate the fragments (CI on PRs)
+ *
+ * release.yml also runs it (without committing) before building, so the
+ * signet-mcp index it publishes carries the folded changelog even when the
+ * release commit lands before the post-merge fold. Tested by changes.test.ts.
  */
 
-import { readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
-const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "")
+const ROOT = process.env.CHANGES_ROOT ?? new URL("..", import.meta.url).pathname.replace(/\/$/, "")
 const DIR = join(ROOT, ".changes")
 const LOG = join(ROOT, "CHANGELOG.md")
 const HEAD = "## Unreleased\n\n"
 
-const files = readdirSync(DIR)
+const files = (existsSync(DIR) ? readdirSync(DIR) : [])
   .filter((f) => f.endsWith(".md") && f !== "README.md")
   .sort()
 if (!files.length) process.exit(0)
