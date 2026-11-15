@@ -731,6 +731,13 @@ agent tools: `analyticsTools({ store })`. The full guide is in
 
 ## Workflows: durable runs with approval steps
 
+**Jobs or workflows?** Use signet-server `jobs` for quick fire-and-forget
+background tasks; use signet-db workflows for long-running, multi-step,
+crash-safe work or work that needs a person's approval.
+
+- Job: `await sendReceipt.enqueue({ orderId })`
+- Workflow: `await wf.start(refund, { orderId })`, where `refund` calls `step.approval({ approvers: [managerId] })`
+
 ```ts
 import { workflowTables } from "@dapplelight/signet-db/columns/sqlite"   // or columns/pg
 import { createWorkflows, defineWorkflow } from "@dapplelight/signet-db/workflows"

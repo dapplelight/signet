@@ -559,6 +559,13 @@ backoff, a timeout that aborts `ctx.signal`, a dead-letter list, pause/resume,
 idempotent keys and cron schedules. No dependency: the store is any
 `KeyValue`, and zod is the peer you already have.
 
+**Jobs or workflows?** Use signet-server `jobs` for quick fire-and-forget
+background tasks; use signet-db workflows for long-running, multi-step,
+crash-safe work or work that needs a person's approval.
+
+- Job: `await sendReceipt.enqueue({ orderId })`
+- Workflow: `await wf.start(refund, { orderId })`, where `refund` calls `step.approval({ approvers: [managerId] })`
+
 ```ts
 const sendReceipt = defineJob({
   name: "send-receipt",
