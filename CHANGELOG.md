@@ -5,6 +5,24 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-db: durable workflows
+
+- New `./workflows`: `defineWorkflow(name, async (step, input) => ...)` and `createWorkflows(db, { tables, workflows })`. Steps: `step.run` (memoised, retries with backoff), `step.sleep` / `step.sleepUntil`, `step.waitForEvent(name, { timeout })`, `step.approval({ approvers, timeout })`. Engine: `start`, `tick` (lease-claimed, safe across concurrent runners), `poll`, `get`, `list`, `sendEvent`, `approve` / `reject`, `pendingApprovals`, `cancel`, `prune`. Runs resume from the database after a restart.
+- New `workflowTables()` in `./columns/sqlite` and `./columns/pg`.
+- New error codes `STEP_FAILED` and `NONDETERMINISTIC`.
+
+### signet-server: workflow routes
+
+- New `./http/workflows`: `workflowRoutes({ workflows, subject, isAdmin?, canStart? })` for signet-db's durable workflows: start, run status and step history, send event, approve/reject an approval step, cancel, an admin list of runs and the caller's approval inbox. Takes the engine structurally; no signet-db dependency.
+
+### signet-ui: workflow screens
+
+- New `./screens/workflow-screens`: `WorkflowRunTimeline` (status, what the run waits on, steps in order with retries and approval decisions, cancel) and `ApprovalInboxCard` (approve or reject with an optional reason), shaped like signet-db's workflow results. Demo: `screens-ops.html?screen=workflows` in the showcase.
+
+### signet-mcp: workflows recipe
+
+- New `add-workflows` recipe, cut from signet-db's "Workflows" and signet-server's "Workflow routes" sections.
+
 ### create-signet-app: full template uses the real admin and billing screens
 
 The full-stack template's Admin page is now signet-ui's `AdminPanel` (nav, toolbar with search and filters, server-driven table, pager, record sheet) over the template's `/api/admin`, and its Billing page is `BillingScreen` with `plansFromEntitlements(plans, PLAN_DISPLAY)`. Plans move to `api/plans.ts`, shared by the API and the page; `GET /api/billing` now returns `{ subscription, usage }`. The Playwright smoke test checks that the admin table loads and that the plan picker marks the current plan before and after checkout.
