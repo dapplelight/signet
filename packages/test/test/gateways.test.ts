@@ -400,17 +400,18 @@ describe("concurrency and idempotency keys", () => {
       expect(gw.state.refunds.size).toBe(1)
     })
 
-    test(`${shape}: one key on two endpoints is two requests`, async () => {
+    test(`${shape}: one key on two endpoints: ${shape === "stripe" ? "rejected (keys are account-wide)" : "two requests"}`, async () => {
       const { gw, paymentId } = await paid(shape)
       await gw.refund(paymentId, { amount: 100, idempotencyKey: "same-key-1" })
-      await gw.createPayout({
+      const payout = gw.createPayout({
         amount: 100,
         currency: CUR[shape],
         destination: shape === "razorpay" ? "fa_FAKE" : "ba_FAKE",
         idempotencyKey: "same-key-1",
       })
+      expect(await code(payout)).toBe(shape === "stripe" ? "GATEWAY_ERROR" : "OK")
       expect(gw.state.refunds.size).toBe(1)
-      expect(gw.state.payouts.size).toBe(1)
+      expect(gw.state.payouts.size).toBe(shape === "stripe" ? 0 : 1)
     })
   }
 

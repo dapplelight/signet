@@ -150,7 +150,7 @@ export function fakeGateway(
   const calls: GatewayCall[] = []
   const requests: FetchCall[] = []
   const faults: { fault: Fault; on?: string | RegExp; left: number }[] = []
-  /** Idempotency keys: "METHOD path key" -> the request body and its (possibly in-flight) reply. */
+  /** Idempotency keys -> the request (method, path, body) and its (possibly in-flight) reply. */
   const replays = new Map<string, { body: string; reply: Promise<Reply> }>()
   /** PayU checkouts waiting for the buyer: txnid -> form fields. */
   const pending = new Map<string, Record<string, string>>()
@@ -782,11 +782,13 @@ export function fakeGateway(
     }
     let reply: Reply
     if (key && method === "POST") {
-      // Scoped to the endpoint like the gateways; the same key with another
-      // body is the caller's bug, which the real gateways reject.
-      const slot = `${method} ${u.pathname} ${key}`
+      // Stripe keys are account-wide; Razorpay's refund and payout keys are
+      // per API. A key reused on another endpoint or with another body is the
+      // caller's bug, which the real gateways reject.
+      const request = `${method} ${u.pathname} ${body ?? ""}`
+      const slot = shape === "stripe" ? key : `${method} ${u.pathname} ${key}`
       const seen = replays.get(slot)
-      if (seen && seen.body !== (body ?? "")) {
+      if (seen && seen.body !== request) {
         reply = {
           status: 400,
           body: {
@@ -801,7 +803,7 @@ export function fakeGateway(
       } else {
         // Stored before it settles, so a concurrent repeat waits for this one.
         const pending = route()
-        replays.set(slot, { body: body ?? "", reply: pending })
+        replays.set(slot, { body: request, reply: pending })
         pending.catch(() => replays.delete(slot))
         reply = await pending
         if (reply.status >= 500) replays.delete(slot)

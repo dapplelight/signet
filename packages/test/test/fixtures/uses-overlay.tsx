@@ -3,3 +3,4 @@
 import { DevOverlay } from "@dapplelight/signet-test/overlay"
 
 export const App = () => <DevOverlay />
+export { DevOverlay }

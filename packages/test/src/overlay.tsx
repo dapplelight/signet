@@ -23,10 +23,16 @@ import { type CSSProperties, type ReactNode, useCallback, useEffect, useState } 
 import type { DevState } from "./demo.js"
 
 // Declared here so the build needs no Node types.
-declare const process: { env?: { NODE_ENV?: string } } | undefined
+declare const process: { env: { NODE_ENV?: string } }
 
-/** True in a Node-style production environment; false (not a ReferenceError) with no `process`. */
-const PRODUCTION = typeof process !== "undefined" && process?.env?.NODE_ENV === "production"
+/**
+ * Plain `process.env.NODE_ENV`, so bundler define/replace plugins substitute
+ * it and drop the panel; a browser with no `process` lands in the catch.
+ */
+let PRODUCTION = false
+try {
+  PRODUCTION = process.env.NODE_ENV === "production"
+} catch {}
 
 export type { DevState }
 

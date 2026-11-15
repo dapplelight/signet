@@ -194,10 +194,11 @@ cleanup()
 
 // The package by name, through its exports map (dist/, built by build:all).
 const entry = `${import.meta.dir}/fixtures/uses-overlay.tsx`
-const bundle = async (conditions: string[]) => {
+const bundle = async (conditions: string[], define?: Record<string, string>) => {
   const out = await Bun.build({
     entrypoints: [entry],
     conditions,
+    define,
     minify: true,
     target: "browser",
     external: ["react", "react/jsx-runtime", "@dapplelight/signet-ui/*"],
@@ -214,6 +215,27 @@ ok(
     !prod.includes("__signet/dev") &&
     !prod.includes("signet-ui"),
   prod,
+)
+// A bundler without the export condition but with a NODE_ENV define (the
+// old webpack/rollup replace setup): in a browser with no `process`, the
+// overlay still renders nothing.
+const defined = await bundle(["development"], { "process.env.NODE_ENV": '"production"' })
+const definedFile = `${import.meta.dir}/fixtures/.defined-${Date.now()}.js`
+await Bun.write(definedFile, defined)
+const keepProcess = globalThis.process
+delete (globalThis as { process?: unknown }).process
+let definedResult: unknown = "not run"
+try {
+  const m = await import(definedFile)
+  definedResult = (m as { DevOverlay: (p: object) => unknown }).DevOverlay({})
+} finally {
+  globalThis.process = keepProcess
+  await Bun.file(definedFile).delete()
+}
+ok(
+  "production strip: a NODE_ENV define alone renders nothing in a browser",
+  definedResult === null,
+  definedResult,
 )
 
 console.log(`\n${pass} passed, ${fail} failed`)
