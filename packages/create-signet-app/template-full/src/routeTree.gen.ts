@@ -17,6 +17,10 @@ import { Route as AppAdminRouteImport } from "./routes/_app/admin"
 import { Route as AppBillingRouteImport } from "./routes/_app/billing"
 import { Route as AppNotificationsRouteImport } from "./routes/_app/notifications"
 import { Route as AppPrivacyRouteImport } from "./routes/_app/privacy"
+import { Route as InviteTokenRouteImport } from "./routes/invite.$token"
+import { Route as AppOrgIndexRouteImport } from "./routes/_app/org/index"
+import { Route as AppOrgMembersRouteImport } from "./routes/_app/org/members"
+import { Route as AppOrgNewRouteImport } from "./routes/_app/org/new"
 
 const AppRoute = AppRouteImport.update({
   id: "/_app",
@@ -57,6 +61,26 @@ const AppPrivacyRoute = AppPrivacyRouteImport.update({
   path: "/privacy",
   getParentRoute: () => AppRoute,
 } as any)
+const InviteTokenRoute = InviteTokenRouteImport.update({
+  id: "/invite/$token",
+  path: "/invite/$token",
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppOrgIndexRoute = AppOrgIndexRouteImport.update({
+  id: "/org/",
+  path: "/org/",
+  getParentRoute: () => AppRoute,
+} as any)
+const AppOrgMembersRoute = AppOrgMembersRouteImport.update({
+  id: "/org/members",
+  path: "/org/members",
+  getParentRoute: () => AppRoute,
+} as any)
+const AppOrgNewRoute = AppOrgNewRouteImport.update({
+  id: "/org/new",
+  path: "/org/new",
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   "/": typeof AppIndexRoute
@@ -66,6 +90,10 @@ export interface FileRoutesByFullPath {
   "/billing": typeof AppBillingRoute
   "/notifications": typeof AppNotificationsRoute
   "/privacy": typeof AppPrivacyRoute
+  "/invite/$token": typeof InviteTokenRoute
+  "/org/members": typeof AppOrgMembersRoute
+  "/org/new": typeof AppOrgNewRoute
+  "/org/": typeof AppOrgIndexRoute
 }
 export interface FileRoutesByTo {
   "/login": typeof LoginRoute
@@ -74,7 +102,11 @@ export interface FileRoutesByTo {
   "/billing": typeof AppBillingRoute
   "/notifications": typeof AppNotificationsRoute
   "/privacy": typeof AppPrivacyRoute
+  "/invite/$token": typeof InviteTokenRoute
   "/": typeof AppIndexRoute
+  "/org/members": typeof AppOrgMembersRoute
+  "/org/new": typeof AppOrgNewRoute
+  "/org": typeof AppOrgIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -85,7 +117,11 @@ export interface FileRoutesById {
   "/_app/billing": typeof AppBillingRoute
   "/_app/notifications": typeof AppNotificationsRoute
   "/_app/privacy": typeof AppPrivacyRoute
+  "/invite/$token": typeof InviteTokenRoute
   "/_app/": typeof AppIndexRoute
+  "/_app/org/members": typeof AppOrgMembersRoute
+  "/_app/org/new": typeof AppOrgNewRoute
+  "/_app/org/": typeof AppOrgIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -97,6 +133,10 @@ export interface FileRouteTypes {
     | "/billing"
     | "/notifications"
     | "/privacy"
+    | "/invite/$token"
+    | "/org/members"
+    | "/org/new"
+    | "/org/"
   fileRoutesByTo: FileRoutesByTo
   to:
     | "/login"
@@ -105,7 +145,11 @@ export interface FileRouteTypes {
     | "/billing"
     | "/notifications"
     | "/privacy"
+    | "/invite/$token"
     | "/"
+    | "/org/members"
+    | "/org/new"
+    | "/org"
   id:
     | "__root__"
     | "/_app"
@@ -115,12 +159,17 @@ export interface FileRouteTypes {
     | "/_app/billing"
     | "/_app/notifications"
     | "/_app/privacy"
+    | "/invite/$token"
     | "/_app/"
+    | "/_app/org/members"
+    | "/_app/org/new"
+    | "/_app/org/"
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   LoginRoute: typeof LoginRoute
+  InviteTokenRoute: typeof InviteTokenRoute
 }
 
 declare module "@tanstack/react-router" {
@@ -181,6 +230,34 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof AppPrivacyRouteImport
       parentRoute: typeof AppRoute
     }
+    "/invite/$token": {
+      id: "/invite/$token"
+      path: "/invite/$token"
+      fullPath: "/invite/$token"
+      preLoaderRoute: typeof InviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    "/_app/org/": {
+      id: "/_app/org/"
+      path: "/org"
+      fullPath: "/org/"
+      preLoaderRoute: typeof AppOrgIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    "/_app/org/members": {
+      id: "/_app/org/members"
+      path: "/org/members"
+      fullPath: "/org/members"
+      preLoaderRoute: typeof AppOrgMembersRouteImport
+      parentRoute: typeof AppRoute
+    }
+    "/_app/org/new": {
+      id: "/_app/org/new"
+      path: "/org/new"
+      fullPath: "/org/new"
+      preLoaderRoute: typeof AppOrgNewRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
@@ -191,6 +268,9 @@ interface AppRouteChildren {
   AppNotificationsRoute: typeof AppNotificationsRoute
   AppPrivacyRoute: typeof AppPrivacyRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppOrgMembersRoute: typeof AppOrgMembersRoute
+  AppOrgNewRoute: typeof AppOrgNewRoute
+  AppOrgIndexRoute: typeof AppOrgIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -200,6 +280,9 @@ const AppRouteChildren: AppRouteChildren = {
   AppNotificationsRoute: AppNotificationsRoute,
   AppPrivacyRoute: AppPrivacyRoute,
   AppIndexRoute: AppIndexRoute,
+  AppOrgMembersRoute: AppOrgMembersRoute,
+  AppOrgNewRoute: AppOrgNewRoute,
+  AppOrgIndexRoute: AppOrgIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
@@ -207,6 +290,7 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   LoginRoute: LoginRoute,
+  InviteTokenRoute: InviteTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

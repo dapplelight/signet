@@ -2,7 +2,7 @@
  * Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`,
  * `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`,
  * `idempotencyKeys`, `aiCache`, `entitlementTables`, `flagOverrides`, `growthTables`,
- * `privacyTables`, `analyticsEvents` and `sequences` tables.
+ * `orgTables`, `privacyTables`, `analyticsEvents`, `sequences` and `workflowTables` tables.
  */
 
 import { sql } from "drizzle-orm"
@@ -363,3 +363,150 @@ export const sequences = (name = "sequences") =>
     key: text("key").primaryKey(),
     value: integer("value").notNull(),
   })
+
+/**
+ * Organisations, memberships, invitations and per-org custom roles for
+ * `createOrgs` from `@dapplelight/signet-db/orgs`. Destructure into the schema:
+ * `export const { organizations, memberships, invitations, orgRoles } = orgTables()`.
+ * Give an app's own tenant tables an `orgId: text("org_id").notNull()` column
+ * and `scoped(db, { orgId })` keeps each org to its own rows.
+ */
+export const orgTables = (prefix = "") => ({
+  organizations: sqliteTable(
+    `${prefix}organizations`,
+    {
+      id: id(),
+      name: text("name").notNull(),
+      /** Lower-case letters, digits and dashes; the subdomain or path segment. */
+      slug: text("slug").notNull(),
+      /** A custom domain, lower-cased, e.g. "app.example.com". */
+      domain: text("domain"),
+      /** A shipped theme name, e.g. "editorial". */
+      theme: text("theme"),
+      /** A brand colour as #rrggbb, for signet-tokens' `buildTheme`. */
+      brandColor: text("brand_color"),
+      /** True for the org made at sign-up for one person. */
+      personal: integer("personal", { mode: "boolean" }).notNull().default(false),
+      ...timestamps(),
+    },
+    (t) => [
+      uniqueIndex(`${prefix}organizations_slug`).on(t.slug),
+      uniqueIndex(`${prefix}organizations_domain`).on(t.domain),
+    ],
+  ),
+  memberships: sqliteTable(
+    `${prefix}memberships`,
+    {
+      orgId: text("org_id").notNull(),
+      userId: text("user_id").notNull(),
+      role: text("role").notNull(),
+      createdAt: stamp("created_at"),
+    },
+    (t) => [
+      primaryKey({ columns: [t.orgId, t.userId] }),
+      index(`${prefix}memberships_user`).on(t.userId),
+    ],
+  ),
+  invitations: sqliteTable(
+    `${prefix}invitations`,
+    {
+      id: id(),
+      orgId: text("org_id").notNull(),
+      /** SHA-256 of the token, hex. The token itself is never stored. */
+      tokenHash: text("token_hash").notNull(),
+      /** Only this address may accept, when set. */
+      email: text("email"),
+      role: text("role").notNull(),
+      invitedBy: text("invited_by").notNull(),
+      createdAt: stamp("created_at"),
+      expiresAt: ms("expires_at").notNull(),
+      acceptedAt: ms("accepted_at"),
+      acceptedBy: text("accepted_by"),
+      revokedAt: ms("revoked_at"),
+    },
+    (t) => [
+      uniqueIndex(`${prefix}invitations_token`).on(t.tokenHash),
+      index(`${prefix}invitations_org`).on(t.orgId),
+    ],
+  ),
+  orgRoles: sqliteTable(
+    `${prefix}org_roles`,
+    {
+      orgId: text("org_id").notNull(),
+      name: text("name").notNull(),
+      /** The permission strings this custom role grants. */
+      permissions: text("permissions", { mode: "json" }).notNull(),
+      updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
+    },
+    (t) => [primaryKey({ columns: [t.orgId, t.name] })],
+  ),
+})
+
+/**
+ * Runs, steps and events for `createWorkflows` from
+ * `@dapplelight/signet-db/workflows`. Destructure into the schema:
+ * `export const { workflowRuns, workflowSteps, workflowEvents } = workflowTables()`.
+ */
+export const workflowTables = (prefix = "") => ({
+  workflowRuns: sqliteTable(
+    `${prefix}workflow_runs`,
+    {
+      id: id(),
+      workflow: text("workflow").notNull(),
+      input: text("input", { mode: "json" }),
+      /** queued | running | sleeping | waiting | completed | failed | cancelled */
+      status: text("status").notNull(),
+      output: text("output", { mode: "json" }),
+      error: text("error"),
+      createdBy: text("created_by"),
+      /** When a runner should next pick the run up; null once it has finished. */
+      wakeAt: ms("wake_at"),
+      leaseOwner: text("lease_owner"),
+      leaseUntil: ms("lease_until"),
+      /** What a sleeping or waiting run is blocked on, for screens. */
+      waitingOn: text("waiting_on", { mode: "json" }),
+      createdAt: ms("created_at").notNull(),
+      updatedAt: ms("updated_at").notNull(),
+      finishedAt: ms("finished_at"),
+    },
+    (t) => [index(`${prefix}workflow_runs_due`).on(t.status, t.wakeAt)],
+  ),
+  workflowSteps: sqliteTable(
+    `${prefix}workflow_steps`,
+    {
+      runId: text("run_id").notNull(),
+      stepId: text("step_id").notNull(),
+      /** The order the run first reached the step. */
+      seq: integer("seq").notNull(),
+      /** run | sleep | event | approval */
+      kind: text("kind").notNull(),
+      /** running | retrying | sleeping | waiting | completed | failed */
+      status: text("status").notNull(),
+      output: text("output", { mode: "json" }),
+      error: text("error"),
+      attempts: integer("attempts").notNull().default(0),
+      /** Retry, sleep end, or wait timeout. */
+      wakeAt: ms("wake_at"),
+      event: text("event"),
+      eventId: text("event_id"),
+      approvers: text("approvers", { mode: "json" }),
+      summary: text("summary"),
+      decidedBy: text("decided_by"),
+      startedAt: ms("started_at").notNull(),
+      finishedAt: ms("finished_at"),
+    },
+    (t) => [primaryKey({ columns: [t.runId, t.stepId] })],
+  ),
+  workflowEvents: sqliteTable(
+    `${prefix}workflow_events`,
+    {
+      id: id(),
+      name: text("name").notNull(),
+      /** Null: every run waiting on `name`. */
+      runId: text("run_id"),
+      payload: text("payload", { mode: "json" }),
+      createdAt: ms("created_at").notNull(),
+    },
+    (t) => [index(`${prefix}workflow_events_name`).on(t.name, t.id)],
+  ),
+})

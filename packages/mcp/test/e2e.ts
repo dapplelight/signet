@@ -412,6 +412,17 @@ try {
     dbr.json,
   )
 
+  const wfr = await call("recipe", { task: "durable workflow with an approval step" })
+  ok(
+    "recipe: add-workflows is cut from the db and server READMEs and covers steps, runners and routes",
+    wfr.json?.id === "add-workflows" &&
+      ["defineWorkflow", "step.approval", "tick()", "workflowRoutes", "cron trigger"].every((t) =>
+        JSON.stringify(wfr.json).includes(t),
+      ) &&
+      !wfr.json.install.includes("@dapplelight/signet-db"),
+    wfr.json?.id,
+  )
+
   const mg = await call("migration", { from: "0.3.0", to: "0.4.0", package: "server" })
   ok(
     "migration: server 0.3 -> 0.4 has breaking bullets",

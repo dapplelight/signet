@@ -16,6 +16,7 @@ import {
   validateSession,
 } from "@dapplelight/signet-server/auth/sessions"
 import { ApiException } from "@dapplelight/signet-server/http"
+import { orgCookie } from "@dapplelight/signet-server/http/orgs"
 import { zValidator } from "@dapplelight/signet-server/http/validate"
 import { clientIp } from "@dapplelight/signet-server/middleware/rate-limit"
 import { eq } from "drizzle-orm"
@@ -56,8 +57,9 @@ export function requireUser(s: Services): MiddlewareHandler<AppEnv> {
 }
 
 /**
- * Phone one-time-code sign-in. A first sign-in creates the user; numbers in
- * ADMIN_PHONES get the admin role.
+ * Phone one-time-code sign-in. A first sign-in creates the user and their
+ * personal org (they own it); numbers in ADMIN_PHONES get the platform admin
+ * role, which opens /admin across every org.
  *
  *   POST /otp        { phone }          sends a code (printed to the console in development)
  *   POST /verify     { phone, code }    sets the session cookie, returns the user
@@ -110,6 +112,13 @@ export const authRoutes = (s: Services) =>
           previousToken: readSessionCookie(c.req.header("cookie"), s.sessions),
         })
         c.header("Set-Cookie", sessionCookie(token, s.sessions))
+        // Everyone has an org: a personal one on first sign-in (or for an
+        // account from before orgs). Sign-in lands in the first one.
+        const mine = await s.orgs.listForUser(user.id)
+        const org =
+          mine[0]?.org ??
+          (await s.orgs.create({ name: "Personal", ownerId: user.id, personal: true }))
+        c.header("Set-Cookie", orgCookie(org.id, s.orgCookie), { append: true })
         if (isNew) await s.notifier.notify(user.id, "account.welcome", { name: maskPhone(r.phone) })
         return c.json({ user: publicUser(user) })
       },

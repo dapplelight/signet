@@ -22,7 +22,9 @@ The core never imports a driver. Thin entry points connect it to one:
 | `@dapplelight/signet-db/admin` | `defineAdmin(schema, { authorize })`, an admin API and admin MCP tools (needs zod) |
 | `@dapplelight/signet-db/privacy` | `createPrivacy`: DPDP consent records, withdrawal, export and erasure requests; `privacyTools` |
 | `@dapplelight/signet-db/analytics` | `createAnalyticsStore`: events in your database, counts, uniques, series, breakdowns, funnels, retention, trends; `analyticsTools` |
+| `@dapplelight/signet-db/orgs` | `createOrgs`: organisations, memberships, roles and permissions, custom roles, invites, per-org domain and theme |
 | `@dapplelight/signet-db/growth` | `createGrowth`: waitlist, invites, referrals, onboarding, changelog, feedback; `growthTools` |
+| `@dapplelight/signet-db/workflows` | `defineWorkflow`, `createWorkflows`: durable multi-step runs with sleeps, events, human approvals, retries, cancel |
 
 Peers: `drizzle-orm` ^0.45, `@dapplelight/signet-lib` ^0.3, `postgres` only
 for `./postgres` and `zod` only for `./zod`. Types flow from your table definitions: rows, inserts
@@ -605,6 +607,49 @@ person decides in the app (see signet-server's "Approvals").
 They are audited as `actor`. Give writes only to agents run by staff: on a
 per-user agent the person approving is the user who benefits.
 
+## Organisations and tenant scope
+
+```ts
+import { orgTables } from "@dapplelight/signet-db/columns/sqlite" // or /columns/pg
+export const { organizations, memberships, invitations, orgRoles } = orgTables()
+export const projects = sqliteTable("projects", { id: id(), orgId: text("org_id").notNull(), name: text("name").notNull() })
+
+import { createOrgs } from "@dapplelight/signet-db/orgs"
+const orgs = createOrgs(db, { tables: { organizations, memberships, invitations, orgRoles } })
+const org = await orgs.create({ name: "Acme", ownerId: userId })      // creator is the owner
+await orgs.update(org.id, { domain: "app.acme.example", brandColor: "#12833c" }, { by: userId })
+const { token } = await orgs.invite({ orgId: org.id, role: "member", invitedBy: userId, email })
+await orgs.acceptInvite(token, { userId: other, email })               // { ok, membership, org } | { ok: false, reason }
+await orgs.can(org.id, other, "members:invite")                        // false
+await orgs.saveRole(org.id, "billing", ["billing:read"], { by: userId }) // a custom role in this org
+
+const data = scoped(db, { orgId: org.id })            // org_id on every where and insert
+const mine = scoped(db, { userId, orgId: org.id })    // both
+```
+
+- Roles map to permission sets (`DEFAULT_ORG_ROLES`: owner `*`, admin,
+  member; `defineRoles` for your own). `members:*` matches every `members:`
+  permission. Custom roles live per org in `orgRoles`.
+- With `{ by }`, a change is checked against the actor: they need the
+  permission (`ORG_PERMISSIONS`) and cannot hand out a role with
+  permissions they lack. An org always keeps one owner.
+- Invite tokens are 256 random bits shown once; only the SHA-256 is stored.
+  They expire (`inviteTtlMs`, default 7 days), work once and can be revoked.
+- `byDomain(host)` and `bySlug(slug)` resolve a tenant; signet-server's
+  `tenant()` middleware uses them.
+- An org scope is deny-by-default: a table without `orgId` (and without a
+  `userId` the scope also fixes) throws `NOT_TENANT_TABLE`; writes that name
+  another org throw `CROSS_ORG_WRITE`.
+- `defineAdmin` with `ctx.orgId` shows only tables with `orgId`, limits every
+  op to that org and puts creates in it; `tenant: true` requires an org.
+- With an audit table, every write is logged: `org.create`, `org.update`,
+  `member.add`, `member.role`, `member.remove`, `member.leave`,
+  `role.create`, `role.update`, `role.delete`, `invite.create`,
+  `invite.accept`, `invite.revoke`. Each entry has the actor (`by`, else the
+  system), and before/after snapshots carrying `orgId`. Invite tokens and
+  hashes are never logged. Without an audit table nothing is written.
+- Failures are `OrgError` (a `SignetDbError` with an HTTP `status`).
+
 ## Growth: waitlist, invites, referrals, onboarding, changelog, feedback
 
 ```ts
@@ -727,6 +772,81 @@ answers typed questions: `count`, `uniques`, `series`, `breakdown`, `funnel`,
 `retention`, `trend`, `events`. `prune()` applies the retention. Read-only
 agent tools: `analyticsTools({ store })`. The full guide is in
 [signet-lib's ANALYTICS.md](../lib/ANALYTICS.md#store-events-in-your-database).
+
+## Workflows: durable runs with approval steps
+
+**Jobs or workflows?** Use signet-server `jobs` for quick fire-and-forget
+background tasks; use signet-db workflows for long-running, multi-step,
+crash-safe work or work that needs a person's approval.
+
+- Job: `await sendReceipt.enqueue({ orderId })`
+- Workflow: `await wf.start(refund, { orderId })`, where `refund` calls `step.approval({ approvers: [managerId] })`
+
+```ts
+import { workflowTables } from "@dapplelight/signet-db/columns/sqlite"   // or columns/pg
+import { createWorkflows, defineWorkflow } from "@dapplelight/signet-db/workflows"
+
+export const { workflowRuns, workflowSteps, workflowEvents } = workflowTables()
+
+const payout = defineWorkflow("payout", async (step, input: { requestId: string }) => {
+  const req = await step.run("load", () => loadRequest(input.requestId))
+  const ok = await step.approval({ approvers: req.approverIds, summary: `Pay ${req.amount}?`, timeout: 2 * DAY })
+  if (!ok.approved) return { paid: false, by: ok.by, timedOut: ok.timedOut }
+  await step.run("pay", () => psp.pay(req), { attempts: 5, backoff: (n) => n * 30_000 })
+  await step.sleep("settle", HOUR)                                     // or step.sleepUntil("x", date)
+  const receipt = await step.waitForEvent(`settled:${req.id}`, { timeout: DAY })
+  return { paid: true, receipt }
+})
+
+const wf = createWorkflows(db, {
+  tables: { workflowRuns, workflowSteps, workflowEvents },
+  workflows: [payout],
+  approvals,                                              // optional: signet-server's kvApprovals
+  notify: (to, r) => notifier.notify(to, "workflow.approval", r), // optional
+})
+const run = await wf.start(payout, { requestId }, { createdBy: userId })
+await wf.sendEvent(`settled:${id}`, receipt)              // wakes the waiting run
+await wf.approve(run.id, "approval", userId)              // or reject(...); null once decided
+await wf.cancel(run.id)
+await wf.get(run.id)                                      // { run, steps } for a timeline
+await wf.list({ status: "waiting" })                      // admin view
+await wf.pendingApprovals(userId)                         // an approval inbox
+```
+
+Every tick calls the workflow function from the top. A finished step returns
+its stored JSON result and never runs again; the first unfinished one runs, or
+suspends the run until its sleep, event, approval or timeout. So step ids must
+be unique and stable, and anything non-deterministic goes inside `step.run`.
+A step whose process died half way runs again once the lease passes (it counts
+as an attempt), so make side effects idempotent. A changed step kind under the
+same id fails the run with `NONDETERMINISTIC`; a step out of attempts throws
+`STEP_FAILED` into the workflow, which can catch it and compensate.
+
+Events go to every run waiting on that name, or one run with
+`{ runId }`. An event sent after the run started but before it reached the
+wait is still delivered; a second wait on the same name takes the next event.
+
+Approval steps: only a listed approver can decide (`FORBIDDEN` otherwise).
+With `approvals`, each approver also gets a pending record in signet-server's
+approval inbox (`approvalRoutes`), and a decision made there is picked up
+within `approvalPollMs` (default 60 s). `notify` is called once per approver
+when the step opens. signet-server's `workflowRoutes` mounts start, status,
+events, approve/reject, cancel and the admin list over HTTP.
+
+**Runners.** Nothing runs until something calls `tick()`. Each call claims up
+to `limit` due runs with a lease (a conditional UPDATE, so concurrent runners
+never hold the same run; `leaseMs`, default 5 min, must outlast your longest
+step) and returns `nextWakeAt`.
+
+| Where | How |
+|---|---|
+| Bun / Node | `wf.poll({ intervalMs: 1000, signal })` in the server process, or `setInterval(() => wf.tick(), 1000)` |
+| Cloudflare Workers (the default path) | a cron trigger: `scheduled(_, env, ctx) { ctx.waitUntil(makeWf(env).tick({ limit: 25 })) }`. Cron fires once a minute, so sleeps and timeouts resolve to the minute; after `start` or `sendEvent` call `ctx.waitUntil(wf.tick())` to run right away |
+| Durable Object alarm (optional) | call `tick()` in `alarm()` and `setAlarm(nextWakeAt)` from its result. No extra dependency; worth it only for sub-minute timing on Workers |
+| Queue consumer (optional) | a message per start or event whose handler calls `tick()`. Same engine, no extra dependency |
+
+Run as many runners as you like; they share the database and the lease.
+`prune(olderThanMs)` deletes finished runs and old events (default 30 days).
 
 ## Sequences
 

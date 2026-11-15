@@ -1,12 +1,13 @@
 /**
  * Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`,
  * `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotencyKeys`,
- * `aiCache`, `entitlementTables`, `flagOverrides`, `growthTables`, `privacyTables`,
- * `analyticsEvents` and `sequences` tables.
+ * `aiCache`, `entitlementTables`, `flagOverrides`, `growthTables`, `orgTables`, `privacyTables`,
+ * `analyticsEvents`, `sequences` and `workflowTables` tables.
  */
 
 import {
   bigint,
+  boolean,
   customType,
   index,
   integer,
@@ -366,3 +367,150 @@ export const sequences = (name = "sequences") =>
     key: text("key").primaryKey(),
     value: bigint("value", { mode: "number" }).notNull(),
   })
+
+/**
+ * Organisations, memberships, invitations and per-org custom roles for
+ * `createOrgs` from `@dapplelight/signet-db/orgs`. Destructure into the schema:
+ * `export const { organizations, memberships, invitations, orgRoles } = orgTables()`.
+ * Give an app's own tenant tables an `orgId: text("org_id").notNull()` column
+ * and `scoped(db, { orgId })` keeps each org to its own rows.
+ */
+export const orgTables = (prefix = "") => ({
+  organizations: pgTable(
+    `${prefix}organizations`,
+    {
+      id: id(),
+      name: text("name").notNull(),
+      /** Lower-case letters, digits and dashes; the subdomain or path segment. */
+      slug: text("slug").notNull(),
+      /** A custom domain, lower-cased, e.g. "app.example.com". */
+      domain: text("domain"),
+      /** A shipped theme name, e.g. "editorial". */
+      theme: text("theme"),
+      /** A brand colour as #rrggbb, for signet-tokens' `buildTheme`. */
+      brandColor: text("brand_color"),
+      /** True for the org made at sign-up for one person. */
+      personal: boolean("personal").notNull().default(false),
+      ...timestamps(),
+    },
+    (t) => [
+      uniqueIndex(`${prefix}organizations_slug`).on(t.slug),
+      uniqueIndex(`${prefix}organizations_domain`).on(t.domain),
+    ],
+  ),
+  memberships: pgTable(
+    `${prefix}memberships`,
+    {
+      orgId: text("org_id").notNull(),
+      userId: text("user_id").notNull(),
+      role: text("role").notNull(),
+      createdAt: stamp("created_at"),
+    },
+    (t) => [
+      primaryKey({ columns: [t.orgId, t.userId] }),
+      index(`${prefix}memberships_user`).on(t.userId),
+    ],
+  ),
+  invitations: pgTable(
+    `${prefix}invitations`,
+    {
+      id: id(),
+      orgId: text("org_id").notNull(),
+      /** SHA-256 of the token, hex. The token itself is never stored. */
+      tokenHash: text("token_hash").notNull(),
+      /** Only this address may accept, when set. */
+      email: text("email"),
+      role: text("role").notNull(),
+      invitedBy: text("invited_by").notNull(),
+      createdAt: stamp("created_at"),
+      expiresAt: tz("expires_at").notNull(),
+      acceptedAt: tz("accepted_at"),
+      acceptedBy: text("accepted_by"),
+      revokedAt: tz("revoked_at"),
+    },
+    (t) => [
+      uniqueIndex(`${prefix}invitations_token`).on(t.tokenHash),
+      index(`${prefix}invitations_org`).on(t.orgId),
+    ],
+  ),
+  orgRoles: pgTable(
+    `${prefix}org_roles`,
+    {
+      orgId: text("org_id").notNull(),
+      name: text("name").notNull(),
+      /** The permission strings this custom role grants. */
+      permissions: jsonb("permissions").notNull(),
+      updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
+    },
+    (t) => [primaryKey({ columns: [t.orgId, t.name] })],
+  ),
+})
+
+/**
+ * Runs, steps and events for `createWorkflows` from
+ * `@dapplelight/signet-db/workflows`. Destructure into the schema:
+ * `export const { workflowRuns, workflowSteps, workflowEvents } = workflowTables()`.
+ */
+export const workflowTables = (prefix = "") => ({
+  workflowRuns: pgTable(
+    `${prefix}workflow_runs`,
+    {
+      id: id(),
+      workflow: text("workflow").notNull(),
+      input: jsonb("input"),
+      /** queued | running | sleeping | waiting | completed | failed | cancelled */
+      status: text("status").notNull(),
+      output: jsonb("output"),
+      error: text("error"),
+      createdBy: text("created_by"),
+      /** When a runner should next pick the run up; null once it has finished. */
+      wakeAt: tz("wake_at"),
+      leaseOwner: text("lease_owner"),
+      leaseUntil: tz("lease_until"),
+      /** What a sleeping or waiting run is blocked on, for screens. */
+      waitingOn: jsonb("waiting_on"),
+      createdAt: tz("created_at").notNull(),
+      updatedAt: tz("updated_at").notNull(),
+      finishedAt: tz("finished_at"),
+    },
+    (t) => [index(`${prefix}workflow_runs_due`).on(t.status, t.wakeAt)],
+  ),
+  workflowSteps: pgTable(
+    `${prefix}workflow_steps`,
+    {
+      runId: text("run_id").notNull(),
+      stepId: text("step_id").notNull(),
+      /** The order the run first reached the step. */
+      seq: integer("seq").notNull(),
+      /** run | sleep | event | approval */
+      kind: text("kind").notNull(),
+      /** running | retrying | sleeping | waiting | completed | failed */
+      status: text("status").notNull(),
+      output: jsonb("output"),
+      error: text("error"),
+      attempts: integer("attempts").notNull().default(0),
+      /** Retry, sleep end, or wait timeout. */
+      wakeAt: tz("wake_at"),
+      event: text("event"),
+      eventId: text("event_id"),
+      approvers: jsonb("approvers"),
+      summary: text("summary"),
+      decidedBy: text("decided_by"),
+      startedAt: tz("started_at").notNull(),
+      finishedAt: tz("finished_at"),
+    },
+    (t) => [primaryKey({ columns: [t.runId, t.stepId] })],
+  ),
+  workflowEvents: pgTable(
+    `${prefix}workflow_events`,
+    {
+      id: id(),
+      name: text("name").notNull(),
+      /** Null: every run waiting on `name`. */
+      runId: text("run_id"),
+      payload: jsonb("payload"),
+      createdAt: tz("created_at").notNull(),
+    },
+    (t) => [index(`${prefix}workflow_events_name`).on(t.name, t.id)],
+  ),
+})
