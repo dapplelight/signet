@@ -54,9 +54,8 @@ test("sign in, then admin, then billing", async ({ page }) => {
   await page.getByRole("button", { name: /send code/i }).click()
   await expect.poll(() => /Your code is (\d+)/.exec(log)?.[1]).toBeTruthy()
   const code = /Your code is (\d+)/.exec(log)?.[1] ?? ""
-  await page.getByRole("textbox").first().fill(code)
-  const verify = page.getByRole("button", { name: /^verify$/i })
-  if (await verify.isVisible()) await verify.click()
+  // A full code submits itself.
+  await page.getByRole("textbox", { name: "One-time code" }).fill(code)
   await expect(page).toHaveURL(`${BASE}/`)
   await expect(page.getByText(/You are on the/)).toBeVisible()
 
