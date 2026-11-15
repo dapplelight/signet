@@ -1037,6 +1037,38 @@ const RECIPES: RecipeSpec[] = [
     ],
   },
   {
+    id: "add-tests",
+    title: "Test an app: fake providers, Playwright across themes, dev overlay, demo mode",
+    keywords: [
+      "test",
+      "testing",
+      "fake",
+      "mock",
+      "playwright",
+      "e2e",
+      "visual regression",
+      "screenshot",
+      "demo mode",
+      "offline",
+      "dev overlay",
+      "outbox",
+    ],
+    // signet-test is `private: true` (not on npm yet), so it is not in the install line.
+    install: ["@playwright/test"],
+    refs: [
+      ["test", "Fake providers", true],
+      ["test", "Payments"],
+      ["test", "Notifications"],
+      ["test", "Playwright"],
+      ["test", "Dev overlay"],
+      ["test", "Demo mode"],
+    ],
+    verify: [
+      "bun run test with the fakes; npx playwright test --update-snapshots once, then npx playwright test",
+      "a production build (vite build) contains no 'Signet dev overlay' string",
+    ],
+  },
+  {
     id: "add-theme",
     title: "Make a theme",
     keywords: ["theme", "tokens", "css variables", "design", "colors", "dark mode"],

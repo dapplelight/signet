@@ -353,6 +353,16 @@ try {
       JSON.stringify(mcpr.json).includes("kvApprovals"),
     mcpr.json?.id,
   )
+  const tr = await call("recipe", { task: "playwright visual regression with fake payments" })
+  ok(
+    "recipe: add-tests is cut from the signet-test README and covers fakes, themes and demo mode",
+    tr.json?.id === "add-tests" &&
+      ["fakeGateway", "expectAcrossThemes", "createDemo", "DevOverlay"].every((t) =>
+        JSON.stringify(tr.json).includes(t),
+      ) &&
+      !tr.json.install.includes("@dapplelight/signet-test"),
+    tr.json?.id,
+  )
   const dbr = await call("recipe", { task: "add a database" })
   ok(
     "recipe: add-db is cut from the db README headings and does not install the private signet-db",
