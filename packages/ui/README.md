@@ -134,8 +134,8 @@ When signet-ui has no component for a need, build it in this package from
 3. Style with token utilities and the customising contract above.
 4. Add keyboard, focus and ARIA tests to `test/basics.tsx`; the tokens package
    test compiles every theme against the new classes. Export it in
-   `package.json`, add a demo to `apps/showcase`, then run `bun run gen` in
-   `packages/mcp` and `bun run gen:api` at the root.
+   `package.json` and add a demo to `apps/showcase`. The MCP index and
+   API.md regenerate on their own (see CONTRIBUTING.md).
 
 The full export list is in
 [API.md](https://github.com/dapplelight/signet/blob/main/API.md).
