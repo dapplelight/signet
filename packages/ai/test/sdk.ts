@@ -379,6 +379,22 @@ console.log("analyticsUsage")
     "flattens usage into props",
     ev.props.inputTokens === 1 && ev.props.costUsd === 0.5 && ev.props.key === "k",
   )
+  ok("no cache props on a paid call", !("cacheHit" in ev.props && ev.props.cacheHit !== undefined))
+  onUsage({
+    operation: "extract",
+    provider: "p",
+    model: "m",
+    costUsd: 0,
+    cacheHit: true,
+    savedUsd: 0.25,
+    durationMs: 1,
+  })
+  const hit = written[1] as { props: Record<string, unknown> }
+  ok(
+    "cache hit: cacheHit and savedUsd in props",
+    hit.props.cacheHit === 1 && hit.props.savedUsd === 0.25,
+    hit.props,
+  )
   const rejecting = analyticsUsage({ write: () => Promise.reject(new Error("down")) })
   rejecting({ operation: "embed", provider: "p", model: "m", costUsd: 0, durationMs: 0 })
   await new Promise((r) => setTimeout(r, 0))
