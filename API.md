@@ -54,6 +54,7 @@ Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit 
 | `@dapplelight/signet-db/postgres` | createDb | Postgres driver on postgres-js (Supabase, Neon, RDS, a local server): `createDb(databaseUrl, config)`, or pass a `postgres()` client |
 | `@dapplelight/signet-db/privacy` | createPrivacy, PrivacyTables, PrivacyOptions, Consent, DataRequestKind, DataRequestStatus, … | DPDP building blocks (India's Digital Personal Data Protection Act, 2023) on the tables from `privacyTables()`: consent records per purpose and notice |
 | `@dapplelight/signet-db/sqlite` | createDb | SQLite driver on bun:sqlite (Bun runtime, e.g |
+| `@dapplelight/signet-db/workflows` | defineWorkflow, createWorkflows, WorkflowTables, RunStatus, StepKind, StepStatus, … | Durable workflows on your own database: multi-step jobs that sleep, wait for events and for a person's approval, retry failed steps with backoff, and  |
 | `@dapplelight/signet-db/zod` | MANAGED_KEYS, toZod, ZodMode, ZodOutput | Zod schemas generated from a table's columns: `toZod(table, { mode })` for validating request bodies (e.g |
 
 ## @dapplelight/signet-lib
@@ -138,6 +139,7 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/http/errors` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus | Server half of the error envelope |
 | `@dapplelight/signet-server/http/routes` | entitlementRoutes, flagRoutes, approvalRoutes, EntitlementRoutes, FlagRoutes | Read routes for signet-db's entitlements and flags, typed for `hc` |
 | `@dapplelight/signet-server/http/validate` | parseBody, parseQuery, parseParams, zValidator, VALIDATES | Zod request validation |
+| `@dapplelight/signet-server/http/workflows` | workflowRoutes, WorkflowEngineLike, WorkflowRoutesOptions, WorkflowRoutes | HTTP routes for signet-db's durable workflows (`createWorkflows`): start a run, read its status and step history, send an event, approve or reject an  |
 | `@dapplelight/signet-server/jobs` | parseCron, cronMatches, defineSchedule, runDueSchedules, cloudflareScheduled, startScheduler, … | re-exports cron, jobs, runtimes, tools |
 | `@dapplelight/signet-server/mcp` | toolResult, toMcpTool, defineTool, createMcpServer, resolveMcpServer, ToolAnnotations, … | re-exports server |
 | `@dapplelight/signet-server/mcp/client` | McpClientError, createMcpClient, McpClientOptions, McpToolInfo, McpCallResult, McpClient | Call a remote MCP server's tools over streamable HTTP with a bearer token: list tools, call one, get a typed result |
@@ -223,6 +225,7 @@ Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"
 | `@dapplelight/signet-ui/screens/growth-screens` | DEFAULT_GROWTH_LABELS, WaitlistJoin, InviteAccept, ReferralCard, OnboardingChecklist, FeedbackForm, … |  |
 | `@dapplelight/signet-ui/screens/notification-screens` | DEFAULT_NOTIFICATION_LABELS, NotifyChannel, InboxEntry, InboxFilter, ChannelPrefs, PreferenceCategory, … |  |
 | `@dapplelight/signet-ui/screens/privacy-screens` | DEFAULT_PRIVACY_LABELS, ConsentRecord, DataRequestRow, ConsentPurpose, PrivacyLabels |  |
+| `@dapplelight/signet-ui/screens/workflow-screens` | DEFAULT_WORKFLOW_LABELS, waitingText, WorkflowRunTimeline, ApprovalInboxCard, RunStatus, WorkflowRunView, … |  |
 | `@dapplelight/signet-ui/utils` | TYPE_RAMP, cn |  |
 
 ## Not here
