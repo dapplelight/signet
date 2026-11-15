@@ -242,28 +242,11 @@ function WorkflowsDemo() {
           workflow: "vendor-payout",
           status: "waiting",
           createdAt: at(0),
-          waitingOn: {
-            step: "approval",
-            kind: "approval",
-            until: at(600),
-            approvers: ["Meera Iyer", "Kabir Rao"],
-          },
+          waitingOn: { step: "approval", kind: "approval", until: at(600), approvers: ["Meera Iyer", "Kabir Rao"] },
         }}
         steps={[
-          {
-            stepId: "load-invoice",
-            kind: "run",
-            status: "completed",
-            attempts: 1,
-            startedAt: at(0),
-          },
-          {
-            stepId: "verify-gstin",
-            kind: "run",
-            status: "completed",
-            attempts: 3,
-            startedAt: at(1),
-          },
+          { stepId: "load-invoice", kind: "run", status: "completed", attempts: 1, startedAt: at(0) },
+          { stepId: "verify-gstin", kind: "run", status: "completed", attempts: 3, startedAt: at(1) },
           { stepId: "cool-off", kind: "sleep", status: "completed", startedAt: at(2) },
           {
             stepId: "approval",
