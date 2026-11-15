@@ -205,7 +205,7 @@ const FULL_DEV_DEPS = {
 
 const FULL_SCRIPTS = {
   // Both halves: the API (restarting on change) and Vite, which proxies /api to it.
-  dev: "bun --watch api/server.ts & vite",
+  dev: "bun scripts/dev.ts",
   build: "tsc -b && vite build",
   // One process serves the API and the built app from dist/.
   start: "bun api/server.ts",

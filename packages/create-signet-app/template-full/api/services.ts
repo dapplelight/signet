@@ -1,4 +1,4 @@
-import { defineAdmin, roles } from "@dapplelight/signet-db/admin"
+import { type AdminContext, type Authorize, defineAdmin, roles } from "@dapplelight/signet-db/admin"
 import { createEntitlements, definePlans } from "@dapplelight/signet-db/entitlements"
 import { createGrowth } from "@dapplelight/signet-db/growth"
 import { createPrivacy } from "@dapplelight/signet-db/privacy"
@@ -79,6 +79,22 @@ export const templates = defineTemplates({
  * socket's address, so one hop. Behind your own proxy, see server.ts.
  */
 export const TRUST = { forwardedHops: 1 } as const
+
+/** Users' columns only an admin may set: who someone is, and what they may do. */
+const ADMIN_ONLY_USER_COLUMNS = ["role", "phone"]
+const byRole = roles()
+
+/**
+ * signet-db's DEFAULT_ROLES (admin: all; staff: all but delete; readonly:
+ * look), except that only an admin writes a user's role or phone, so staff
+ * cannot promote themselves or take over an account.
+ */
+const adminAuthorize: Authorize<AdminContext> = (ctx, check) =>
+  check.table === "users" &&
+  ctx.role !== "admin" &&
+  Object.keys(check.input ?? {}).some((k) => ADMIN_ONLY_USER_COLUMNS.includes(k))
+    ? false
+    : byRole(ctx, check)
 
 export type Deps = {
   db: Db
@@ -163,7 +179,7 @@ export function createServices({ db, query, kv, sms }: Deps) {
     }),
     growth: createGrowth(db, { tables: schema }),
     admin: defineAdmin(schema, {
-      authorize: roles(),
+      authorize: adminAuthorize,
       // Per table by SQL name: search, readonly, hidden columns, row actions.
       tables: { kv: false, idempotency_keys: false },
     }),

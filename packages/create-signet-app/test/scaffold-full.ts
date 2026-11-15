@@ -144,6 +144,35 @@ try {
     css.includes("--cat-needs:#2563eb") && css.includes("data-slot"),
   )
 
+  // `dev` is a Bun script (not `a & b`, which Windows shells lack): both the
+  // API and Vite come up, and stopping it stops both.
+  const devPort = 3900 + Math.floor(Math.random() * 100)
+  const devLog = join(DIR, "dev.log")
+  const dev = Bun.spawn(["bun", "run", "dev"], {
+    cwd: DIR,
+    env: { ...process.env, PORT: String(devPort) },
+    stdout: Bun.file(devLog),
+    stderr: Bun.file(devLog),
+  })
+  const apiUp = () =>
+    fetch(`http://localhost:${devPort}/api/health`).then(
+      (r) => r.ok,
+      () => false,
+    )
+  let both = false
+  for (let i = 0; i < 60 && !both; i++) {
+    both = (await apiUp()) && (await Bun.file(devLog).text()).includes("Local:")
+    if (!both) await Bun.sleep(500)
+  }
+  dev.kill("SIGTERM")
+  await dev.exited
+  await Bun.sleep(500)
+  ok(
+    "dev runs the API and Vite together, and stops both",
+    both && !(await apiUp()),
+    (await Bun.file(devLog).text()).slice(-600),
+  )
+
   await $`bunx playwright install chromium`.cwd(DIR).quiet()
   const e2e = await $`bun run test:e2e`.cwd(DIR).nothrow().quiet()
   ok("browser: sign in → admin → billing → inbox, account, privacy", e2e.exitCode === 0, out(e2e))

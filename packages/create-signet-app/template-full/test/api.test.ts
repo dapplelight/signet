@@ -109,3 +109,27 @@ test("sign-out revokes the session", async () => {
   await post("/api/auth/sign-out", {}, cookie)
   expect((await app.request("/api/account/me", { headers: { cookie } })).status).toBe(401)
 })
+
+test("staff cannot change a role or phone; an admin can", async () => {
+  const { users } = await import("../api/db/schema.ts")
+  const { eq } = await import("drizzle-orm")
+  const staff = await signIn("+919000000006")
+  const staffRow = db.orm.select().from(users).where(eq(users.phone, "+919000000006")).get()
+  db.orm.update(users).set({ role: "staff" }).where(eq(users.phone, "+919000000006")).run()
+  const patch = (cookie: string, id: string, body: unknown) =>
+    app.request(`/api/admin/users/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify(body),
+    })
+  const id = staffRow?.id ?? ""
+
+  expect((await patch(staff, id, { role: "admin" })).status).toBe(403)
+  expect((await patch(staff, id, { phone: "+919000000099" })).status).toBe(403)
+  expect((await patch(staff, id, { name: "Staff" })).status).toBe(200)
+  expect(db.orm.select().from(users).where(eq(users.id, id)).get()?.role).toBe("staff")
+
+  const admin = await signIn(ADMIN)
+  expect((await patch(admin, id, { role: "readonly" })).status).toBe(200)
+  expect(db.orm.select().from(users).where(eq(users.id, id)).get()?.role).toBe("readonly")
+})

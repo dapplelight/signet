@@ -15,5 +15,5 @@
     "noEmit": true,
     "types": ["bun"]
   },
-  "include": ["api", "test", "e2e", "drizzle.config.ts", "playwright.config.ts"]
+  "include": ["api", "scripts", "test", "e2e", "drizzle.config.ts", "playwright.config.ts"]
 }
