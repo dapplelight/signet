@@ -13,7 +13,7 @@
 
 import { existsSync, readFileSync } from "node:fs"
 import { createRequire } from "node:module"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 
 export type CodemodEdit = { path: string; before: string; after: string }
 export type CodemodResult = {
@@ -272,17 +272,24 @@ type Scanner = {
 
 /** A tokenizer over the app's own TypeScript, or undefined when it has none. */
 async function loadTokenizer(root: string): Promise<((text: string) => Tok[]) | undefined> {
-  const req = createRequire(join(root, "package.json"))
+  // The app's own copy only, found the way Node would (this dir, then each parent),
+  // so Bun's auto-install never fetches one.
+  let dir = root
+  while (!existsSync(join(dir, "node_modules/typescript/package.json"))) {
+    const up = dirname(dir)
+    if (up === dir) return undefined
+    dir = up
+  }
+  const tsDir = join(dir, "node_modules/typescript")
   let make: ((text: string) => Scanner) | undefined
-  try {
-    const { createScanner } = await import(req.resolve("typescript/unstable/ast/scanner"))
+  const v7 = join(tsDir, "dist/ast/scanner.js")
+  if (existsSync(v7)) {
+    const { createScanner } = await import(v7)
     make = (text) => createScanner(true, 0, text)
-  } catch {
-    try {
-      const ts = req("typescript")
-      if (typeof ts.createScanner === "function")
-        make = (text) => ts.createScanner(ts.ScriptTarget.Latest, true, 0, text)
-    } catch {}
+  } else {
+    const ts = createRequire(import.meta.url)(tsDir)
+    if (typeof ts.createScanner === "function")
+      make = (text) => ts.createScanner(ts.ScriptTarget.Latest, true, 0, text)
   }
   if (!make) return undefined
   const scanner = make
