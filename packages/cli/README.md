@@ -66,8 +66,7 @@ hand.
 It then installs the npm packages the module needs with the app's package
 manager, read from its lockfile (`bun.lock`, `pnpm-lock.yaml`,
 `package-lock.json`; bun without one). `--no-install` prints the command
-instead. `@dapplelight/signet-db` is not on npm yet: link it from a Signet
-checkout.
+instead.
 
 Module files are items like any other: `signet upgrade` merges upstream
 changes into your edited copies, and `signet diff auth` shows them.

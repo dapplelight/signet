@@ -166,7 +166,7 @@ by hand once, and only then joins the automated release:
 4. Add it to `ORDER` (after its dependencies) and `PKGS`, so the next version
    bump publishes from CI.
 
-`@dapplelight/signet-payments` is at step 1.
+`@dapplelight/signet-db` and `@dapplelight/signet-payments` are at step 1.
 
 ## Versioning: bump only what changed
 
