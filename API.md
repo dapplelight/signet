@@ -46,11 +46,13 @@ Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit 
 | `@dapplelight/signet-db/analytics` | createAnalyticsStore, StoredEventInput, AnalyticsStoreOptions, Bucket, Period, Range, … | Analytics events stored in your own database (any signet-db dialect), and typed questions over them: counts, unique people, time series, breakdowns, f |
 | `@dapplelight/signet-db/columns/pg` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotencyKeys`, `aiCache` |
 | `@dapplelight/signet-db/columns/sqlite` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotency |
+| `@dapplelight/signet-db/customers` | timelineKind, createCustomers, TimelineKind, CustomerEventLike, TimelineEntry, TimelineTotal, … | Customers across the App Store, Google Play and the web, on the tables from `monetisationTables()` and `entitlementTables()`: - **Timeline:** one view |
 | `@dapplelight/signet-db/d1` | createDb | Cloudflare D1 driver: `createDb(env.DB, config)` |
 | `@dapplelight/signet-db/entitlements` | definePlans, defaultStatusOf, storeStateOf, defaultPeriodEndOf, defaultPlanIdOf, periodOf, … | Plans, entitlements and usage limits, on the tables from `entitlementTables()` |
-| `@dapplelight/signet-db/flags` | defineFlags, bucket, evaluateFlag, createFlags, FlagValue, FlagRule, … | Feature flags defined in code, with stored overrides in `flagOverrides()` |
+| `@dapplelight/signet-db/flags` | defineFlags, bucket, matchesRule, evaluateFlag, createFlags, FlagValue, … | Feature flags defined in code, with stored overrides in `flagOverrides()` |
 | `@dapplelight/signet-db/growth` | DEFAULT_FEEDBACK_KINDS, normalizeEmail, createGrowth, GrowthTables, GrowthOptions, WaitlistEntry, … | Growth basics every app rebuilds, on the tables from `growthTables()`: waitlist, invites, referrals, onboarding progress, changelog "what's new" and f |
 | `@dapplelight/signet-db/migrations` | checkMigrationSql, formatIssues, MigrationIssueKind, MigrationIssue | Scan SQL migrations for changes that lose data or break running code: dropped tables or columns, renames, and NOT NULL added without a default |
+| `@dapplelight/signet-db/offerings` | createOfferings, plansFromProducts, ProductStore, ProductInterval, OfferingProduct, PaywallConfig, … | Offerings and remote paywalls, on the tables from `monetisationTables()` |
 | `@dapplelight/signet-db/orgs` | ORG_PERMISSIONS, DEFAULT_ORG_ROLES, defineRoles, hasPermission, canGrant, OrgError, … | Organisations for multi-tenant apps: orgs with a slug, a custom domain and a theme; memberships with a role; roles that map to permission sets, with c |
 | `@dapplelight/signet-db/postgres` | createDb | Postgres driver on postgres-js (Supabase, Neon, RDS, a local server): `createDb(databaseUrl, config)`, or pass a `postgres()` client |
 | `@dapplelight/signet-db/privacy` | createPrivacy, PrivacyTables, PrivacyOptions, Consent, DataRequestKind, DataRequestStatus, … | DPDP building blocks (India's Digital Personal Data Protection Act, 2023) on the tables from `privacyTables()`: consent records per purpose and notice |
@@ -141,6 +143,7 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/http/admin` | adminRoutes, AdminHttpRequest, AdminHandler, AdminRoutesOptions | Mount an admin API (signet-db's `defineAdmin`) as Hono routes |
 | `@dapplelight/signet-server/http/cache` | cacheControlValue, mergeVary, etagMatches, httpCache, cachedResponse, CacheControlOptions, … | HTTP caching for GET routes |
 | `@dapplelight/signet-server/http/errors` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus | Server half of the error envelope |
+| `@dapplelight/signet-server/http/monetisation` | monetisationRoutes, monetisationAdminRoutes, OfferingStore, CustomerStore, MonetisationRoutesOptions, MonetisationAdminOptions | Monetisation routes on signet-db's `createOfferings` and `createCustomers` (typed structurally, so this package does not depend on signet-db): offerin |
 | `@dapplelight/signet-server/http/openapi` | apiDoc, ERROR_ENVELOPE_SCHEMA, openApiSpec, serveOpenApi, apiDocsHtml, SecuritySchemeName, … | OpenAPI 3.1 from the app's own routes |
 | `@dapplelight/signet-server/http/orgs` | currentTenant, currentMembership, grants, tenant, orgGuards, orgCookie, … | Multi-tenant Hono pieces on signet-db's `createOrgs` (typed structurally, so this package does not depend on signet-db): resolve the tenant from the r |
 | `@dapplelight/signet-server/http/routes` | entitlementRoutes, flagRoutes, approvalRoutes, EntitlementRoutes, FlagRoutes | Read routes for signet-db's entitlements and flags, typed for `hc` |
@@ -231,6 +234,7 @@ Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"
 | `@dapplelight/signet-ui/screens/auth-screens` | DEFAULT_AUTH_LABELS, AuthMode, AuthChannel, OAuthProvider, AuthLabels, CodeRequest |  |
 | `@dapplelight/signet-ui/screens/billing-screens` | plansFromEntitlements, DEFAULT_BILLING_LABELS, formatMoney, PlanPicker, RestorePurchasesButton, CurrentPlanCard, … |  |
 | `@dapplelight/signet-ui/screens/growth-screens` | DEFAULT_GROWTH_LABELS, WaitlistJoin, InviteAccept, ReferralCard, OnboardingChecklist, FeedbackForm, … |  |
+| `@dapplelight/signet-ui/screens/monetisation-screens` | DEFAULT_MONETISATION_LABELS, plansFromOffering, RemotePaywall, CustomerCenter, CustomerTimeline, RemoteProduct, … |  |
 | `@dapplelight/signet-ui/screens/notification-screens` | DEFAULT_NOTIFICATION_LABELS, NotifyChannel, InboxEntry, InboxFilter, ChannelPrefs, PreferenceCategory, … |  |
 | `@dapplelight/signet-ui/screens/org-screens` | DEFAULT_ORG_LABELS, OrgSwitcher, MembersList, InviteDialog, AcceptInvitePage, OrgSettings, … |  |
 | `@dapplelight/signet-ui/screens/privacy-screens` | DEFAULT_PRIVACY_LABELS, ConsentRecord, DataRequestRow, ConsentPurpose, PrivacyLabels |  |
