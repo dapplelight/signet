@@ -64,9 +64,10 @@
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "test": "bun run build && bun test test/*.test.ts && bun run test/overlay.tsx",
-    "test:e2e": "playwright test -c test/e2e --update-snapshots=all --grep @baseline && playwright test -c test/e2e --grep-invert @baseline",
+    "test:e2e": "playwright test -c test/e2e",
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
-    "prepublishOnly": "bun run build"
+    "prepublishOnly": "bun run build",
+    "test:e2e:update": "playwright test -c test/e2e --update-snapshots=missing"
   },
   "peerDependencies": {
     "@dapplelight/signet-payments": "^0.1.0",

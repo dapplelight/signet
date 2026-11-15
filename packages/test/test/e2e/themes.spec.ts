@@ -3,7 +3,11 @@ import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import { join } from "node:path"
 import { expect, type Page, test } from "@playwright/test"
-import { expectAcrossThemes, seed, signInAs } from "../../src/playwright"
+import { applyTheme, expectAcrossThemes, MODES, seed, signInAs, THEMES } from "../../src/playwright"
+
+// Baselines live in __screenshots__/linux, rendered by CI.
+const LINUX_ONLY =
+  "screenshot baselines are Linux-only (rendered in CI); comparison skipped on this OS"
 
 // The real token stylesheets, served raw: each theme's CSS variables (and its
 // .dark block) drive a small page, so the screenshots differ per theme and mode.
@@ -52,33 +56,28 @@ async function serve(page: Page, css = "") {
   await page.goto(`${origin}/`)
 }
 
-test("@baseline writes the 6 baselines", async ({ page }) => {
+test("matches the stored baselines in every theme and mode", async ({ page }) => {
+  test.skip(process.platform !== "linux", LINUX_ONLY)
   await serve(page)
   await expectAcrossThemes(page, "card")
 })
 
-test("matches the stored baselines in every theme and mode", async ({ page }) => {
-  await serve(page)
+test("a visual change fails", async ({ page }) => {
+  test.skip(process.platform !== "linux", LINUX_ONLY)
+  test.fail()
+  await serve(page, ".btn { padding: 20px 40px }")
   await expectAcrossThemes(page, "card")
 })
 
 test("each theme and mode looks different", async ({ page }) => {
   await serve(page)
   const shots = new Set<string>()
-  await expectAcrossThemes(page, "card", {
-    apply: async (p, theme, mode) => {
-      const { applyTheme } = await import("../../src/playwright")
-      await applyTheme(p, theme, mode)
-      shots.add((await p.screenshot()).toString("base64"))
-    },
-  })
-  expect(shots.size).toBe(6)
-})
-
-test("a visual change fails", async ({ page }) => {
-  test.fail()
-  await serve(page, ".btn { padding: 20px 40px }")
-  await expectAcrossThemes(page, "card")
+  for (const theme of THEMES)
+    for (const mode of MODES) {
+      await applyTheme(page, theme, mode)
+      shots.add((await page.screenshot()).toString("base64"))
+    }
+  expect(shots.size).toBe(THEMES.length * MODES.length)
 })
 
 test("signInAs sets the session cookie; seed posts to the app", async ({ page }) => {
