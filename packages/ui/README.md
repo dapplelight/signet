@@ -53,6 +53,14 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   `domain/upload` is a drag-and-drop uploader with per-file progress (XHR to
   a presigned URL), retry, and size/type hints; `getTarget` and `onUploaded`
   talk to your server.
+- `screens/` ready screens, out of the barrel: `auth-screens` (sign in / up
+  by email or phone code, OAuth, verify, session expired), `account-screens`
+  (profile, devices, API keys), `notification-screens` (inbox, preferences)
+  and `privacy-screens` (DPDP consents, export and erasure requests). Plain
+  data in, callbacks out, shaped like signet-server and signet-db; wire them
+  through `createRpcClient`. Strings come from `DEFAULT_*_LABELS` and the
+  `labels` prop; parts take `className`, composites `classNames`. Demo:
+  `screens-user.html` in the showcase (linked from its header).
 
 ## Behaviours and recipes
 
