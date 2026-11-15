@@ -48,7 +48,7 @@
     --border-strong: var(--color-warm-400);
 
     /* ── Accent ──────────────────────────────────────── */
-    --accent-green: #12833c;
+    --accent-green: #117e3a; /* 4.5:1 on --bg-surface, which cards use */
     --accent-blue: #2563eb;
     --accent-amber: #986908;
     --accent-red: #b91c1c;

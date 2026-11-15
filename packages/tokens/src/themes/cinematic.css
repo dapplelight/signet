@@ -28,7 +28,7 @@
     --border-subtle: #e8e8ee;
     --border-strong: #b8b8c4;
 
-    --accent-green: #0c847a;
+    --accent-green: #0b7e75; /* 4.5:1 on --bg-surface, which cards use */
     --accent-blue: #4f46e5;
     --accent-amber: #b16105;
     /* #e11d48 fell to 3.7:1 as badge text on its own 10% tint. */
