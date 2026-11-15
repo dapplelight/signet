@@ -1236,6 +1236,42 @@ await collab.undo(who, ref, { expected: 5 })       // 409 if the record moved on
 - signet-server's `collabRoutes` mounts all of this over HTTP; signet-ui's
   `screens/collab-screens` renders it.
 
+## AI spend caps
+
+Per-user, per-org and global caps on AI spend, per UTC day and month, in
+cost units (1 unit = one millionth of a US dollar, so spend stays an
+integer). It plugs into signet-ai's extractor as its `ledger`.
+
+```ts
+import { aiSpendCaps, entitlementTables } from "@dapplelight/signet-db/columns/sqlite"
+import { createAiSpend, spendKey } from "@dapplelight/signet-db/ai-spend"
+
+export const { usageCounters } = entitlementTables()
+export const spendCaps = aiSpendCaps()
+
+const spend = createAiSpend(db, {
+  tables: { usageCounters, aiSpendCaps: spendCaps },
+  caps: { user: { day: 200_000 }, org: { month: 20_000_000 }, global: { month: 100_000_000 } },
+})
+const extractor = createExtractor({ providers, ledger: spend.ledger })
+await extractor.extract({ ...args, budget: { key: spendKey({ userId, orgId }) } })
+```
+
+- The ledger checks every cap that applies before a call (refused as
+  signet-ai's `AI_BUDGET_EXCEEDED`) and records the call's cost after, on
+  the user's, org's and global counters. A plain string `key` is a user id.
+- `streamChat`, `chat` and `ground` have no ledger: check first (signet-server's
+  `requireAiSpend`, or `spend.check(subject)`) and pass `onUsage: spend.onUsage`.
+  Do not give an extractor both, or spend counts twice.
+- Caps an admin sets (`setCap`, or signet-server's `aiSpendAdminRoutes`) win
+  over `caps`: a user's or org's own row, then the `*` row for its scope, then
+  the option. `units: null` stores unlimited; `removeCap` goes back.
+- `check(subject, estimateUnits?)` refuses once a cap is reached, and says
+  which (`scope`, `period`, `capUnits`, `usedUnits`, `resetsAt`).
+  `usage(scope, id)` and `top("user" | "org", period)` feed an admin screen.
+- Fails closed: a database error refuses the call. Calls in flight are not
+  reserved, so concurrent calls can overshoot by their own cost.
+
 ## Sequences
 
 ```ts

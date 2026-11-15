@@ -61,6 +61,13 @@ export const ERROR_CODES = [
   "INVALID_CODE",
   "CODE_EXPIRED",
   "TOO_MANY_ATTEMPTS",
+  // abuse: bot checks, disposable email, AI spend caps
+  "CAPTCHA_REQUIRED",
+  "CAPTCHA_FAILED",
+  "CAPTCHA_UNAVAILABLE",
+  "DISPOSABLE_EMAIL",
+  "AI_SPEND_CAP_EXCEEDED",
+  "AI_SPEND_UNAVAILABLE",
   // monetisation: an offer claim refused (the reason is in details)
   "OFFER_REFUSED",
   // oauth-rs (RFC 6750)

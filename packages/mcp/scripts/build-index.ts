@@ -1133,6 +1133,39 @@ const RECIPES: RecipeSpec[] = [
     ],
   },
   {
+    id: "add-abuse-protection",
+    title: "Add bot checks, disposable-email blocking and AI spend caps",
+    keywords: [
+      "abuse",
+      "bot",
+      "bots",
+      "captcha",
+      "turnstile",
+      "hcaptcha",
+      "disposable email",
+      "throwaway email",
+      "temporary email",
+      "spam signups",
+      "ai spend",
+      "ai cost",
+      "spend cap",
+      "usage cap",
+    ],
+    // signet-db is `private: true`, so it is not in the install line.
+    install: ["@dapplelight/signet-server", "@dapplelight/signet-ai", "hono", "drizzle-orm"],
+    refs: [
+      ["server", "Bot checks"],
+      ["server", "Disposable email"],
+      ["db", "AI spend caps"],
+      ["server", "AI spend routes"],
+    ],
+    verify: [
+      "bun run test; POST to sign-up without a captcha token is 400 CAPTCHA_REQUIRED, with CAPTCHA_TEST_PASS in test mode it passes",
+      "sign up as someone@mailinator.com: 400 DISPOSABLE_EMAIL",
+      "set a user's daily cap to 0 in the admin screen: their next AI request is 429 AI_SPEND_CAP_EXCEEDED",
+    ],
+  },
+  {
     id: "add-subscription-charts",
     title:
       "Add subscription charts, offers (free trial, intro, win-back), promotional entitlements and Apple refund requests",
