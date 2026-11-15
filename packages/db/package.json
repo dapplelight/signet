@@ -104,6 +104,11 @@
       "types": "./dist/privacy.d.ts",
       "import": "./dist/privacy.js",
       "default": "./dist/privacy.js"
+    },
+    "./workflows": {
+      "types": "./dist/workflows.d.ts",
+      "import": "./dist/workflows.js",
+      "default": "./dist/workflows.js"
     }
   },
   "bin": {

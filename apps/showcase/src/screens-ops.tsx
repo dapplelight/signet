@@ -1,5 +1,5 @@
 // Demo page for the operator and money screens: /screens-ops.html?screen=admin
-// (admin, admin-record, billing, paywall, growth), &theme=<name>, &dark=1.
+// (admin, admin-record, billing, paywall, growth, workflows), &theme=<name>, &dark=1.
 // Everything runs on in-memory data; nothing calls a server.
 import {
   type AdminApi,
@@ -21,6 +21,10 @@ import {
   WaitlistJoin,
   WhatsNew,
 } from "@dapplelight/signet-ui/screens/growth-screens"
+import {
+  ApprovalInboxCard,
+  WorkflowRunTimeline,
+} from "@dapplelight/signet-ui/screens/workflow-screens"
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 import { applyTheme, initialTheme, THEMES } from "./themes"
@@ -227,7 +231,64 @@ const PLANS = plansFromEntitlements(
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+const at = (min: number) => new Date(Date.UTC(2026, 10, 14, 9, min)).toISOString()
+
+function WorkflowsDemo() {
+  return (
+    <div className="mx-auto grid max-w-5xl gap-5 px-4 py-8 md:grid-cols-[3fr_2fr]">
+      <WorkflowRunTimeline
+        run={{
+          id: "run_1",
+          workflow: "vendor-payout",
+          status: "waiting",
+          createdAt: at(0),
+          waitingOn: { step: "approval", kind: "approval", until: at(600), approvers: ["Meera Iyer", "Kabir Rao"] },
+        }}
+        steps={[
+          { stepId: "load-invoice", kind: "run", status: "completed", attempts: 1, startedAt: at(0) },
+          { stepId: "verify-gstin", kind: "run", status: "completed", attempts: 3, startedAt: at(1) },
+          { stepId: "cool-off", kind: "sleep", status: "completed", startedAt: at(2) },
+          {
+            stepId: "approval",
+            kind: "approval",
+            status: "waiting",
+            summary: "Pay Northwind Studio ₹48,000",
+            approvers: ["Meera Iyer", "Kabir Rao"],
+            startedAt: at(62),
+          },
+        ]}
+        onCancel={() => wait(600)}
+      />
+      <ApprovalInboxCard
+        approvals={[
+          {
+            runId: "run_1",
+            stepId: "approval",
+            workflow: "vendor-payout",
+            summary: "Pay Northwind Studio ₹48,000",
+            approvers: ["Meera Iyer"],
+            requestedAt: at(62),
+            expiresAt: at(600),
+          },
+          {
+            runId: "run_2",
+            stepId: "approval",
+            workflow: "refund",
+            summary: "Refund order #1042",
+            approvers: ["Meera Iyer"],
+            requestedAt: at(75),
+          },
+        ]}
+        onApprove={() => wait(600)}
+        onReject={() => wait(600)}
+        href={(a) => `#${a.runId}`}
+      />
+    </div>
+  )
+}
+
 function Screen() {
+  if (which === "workflows") return <WorkflowsDemo />
   if (which === "admin" || which === "admin-record")
     return (
       <div className="p-4 md:p-8">
@@ -374,7 +435,7 @@ function Screen() {
   )
 }
 
-const SCREENS = ["admin", "admin-record", "billing", "paywall", "growth"]
+const SCREENS = ["admin", "admin-record", "billing", "paywall", "growth", "workflows"]
 
 /** Links between the demos, keeping the theme and dark mode in the URL. */
 function DemoBar() {
