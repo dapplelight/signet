@@ -128,6 +128,16 @@
       "types": "./dist/customers.d.ts",
       "import": "./dist/customers.js",
       "default": "./dist/customers.js"
+    },
+    "./experiments": {
+      "types": "./dist/experiments.d.ts",
+      "import": "./dist/experiments.js",
+      "default": "./dist/experiments.js"
+    },
+    "./status": {
+      "types": "./dist/status.d.ts",
+      "import": "./dist/status.js",
+      "default": "./dist/status.js"
     }
   },
   "bin": {

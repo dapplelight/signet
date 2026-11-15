@@ -96,6 +96,13 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   contact support. `CustomerTimeline` is the admin view of one customer's
   purchases, renewals, refunds, cancellations, billing issues and grace
   periods across stores and web, with ledger totals.
+- `screens/experiment-screens`: `ExperimentList` and `ExperimentResults`,
+  the admin readout of a signet-db experiment (exposures, conversions, rate,
+  lift and p-value per variant against the control) with start, stop and
+  roll out a winner, over signet-server's `experimentAdminRoutes`.
+- `screens/status-screens`: `StatusPage`, the public status page from
+  signet-db's `status.summary()`: overall status, a maintenance notice,
+  components and recent incidents with their updates.
 - `screens/growth-screens`: `WaitlistJoin` (with the place in line),
   `InviteAccept`, `ReferralCard`, `OnboardingChecklist`, `FeedbackWidget` /
   `FeedbackForm` and `WhatsNew`, shaped like signet-db's growth results.
@@ -174,6 +181,7 @@ without an app changing. Each component's source starts with its recipe:
 | `spinner` | live-region |
 | `screens/billing-screens` | selection + roving-focus + controllable-state + live-region |
 | `screens/monetisation-screens` | selection + roving-focus + controllable-state + live-region |
+| `screens/experiment-screens` | selection + live-region |
 | `screens/growth-screens` | selection + roving-focus + controllable-state + popup + dismiss + live-region + field-wiring |
 | `screens/workflow-screens` | roving-focus (timeline) + live-region + field-wiring |
 | `screens/org-screens` | popup + dismiss + live-region + field-wiring + controllable-state |

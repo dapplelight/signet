@@ -490,6 +490,67 @@ signet-db errors become the envelope (`BAD_VALUE` is 400 `VALIDATION_FAILED`,
 `NOT_FOUND` 404). These are cookie-authenticated writes: put
 `csrfMiddleware` in front when the session cookie is `SameSite=None`.
 
+### Experiment routes
+
+`@dapplelight/signet-server/http/experiments` serves signet-db's
+`createExperiments`, typed by shape.
+
+```ts
+import { experimentAdminRoutes, experimentRoutes } from "@dapplelight/signet-server/http/experiments"
+
+app.route("/api/experiments", experimentRoutes({
+  experiments,
+  subject: (c) => ({ id: me(c) ?? c.req.header("x-app-user"), plan: c.get("session")?.plan }),
+}))
+app.route("/api/admin/experiments", experimentAdminRoutes({
+  experiments,
+  authorize: (c) => c.get("session")?.role === "admin", // deny by default
+  actor: (c) => ({ type: "user", id: me(c) }),
+}))
+```
+
+| Route | What |
+|---|---|
+| `GET /:key` | The caller's `{ assignment }`; nothing recorded. No subject is 401, an unknown key 404. |
+| `POST /:key/exposure` | Records the exposure (once per subject, only while running). |
+| Admin: `GET /`, `POST /` | List; create a draft `{ key, variants, goal, description?, audience?, salt? }`. |
+| Admin: `GET /:key[?goal=]`, `PATCH /:key` | `{ experiment, results }` (results null without the events table); edit a draft. |
+| Admin: `POST /:key/start`, `/stop`, `/rollout` | Start or resume, stop, `{ variant }` for everyone. A wrong move is 409 `CONFLICT`. |
+
+Subject plan and attributes come from your `subject(c)`, never the query.
+
+### Status page and maintenance mode
+
+`@dapplelight/signet-server/http/status` serves signet-db's `createStatus`;
+`@dapplelight/signet-server/middleware/maintenance` turns the API off for
+everyone but the allowlist.
+
+```ts
+import { statusAdminRoutes, statusRoutes } from "@dapplelight/signet-server/http/status"
+import { maintenanceMode } from "@dapplelight/signet-server/middleware/maintenance"
+
+app.use("*", maintenanceMode({
+  state: () => status.maintenance(),
+  paths: ["/health", "/api/status", "/api/admin"],   // always pass: health checks, status page, admin
+  allow: (c) => c.get("session")?.role === "admin",  // admins pass everywhere
+}))
+app.route("/api/status", statusRoutes({ status }))  // public, Cache-Control: public, max-age=30
+app.route("/api/admin/status", statusAdminRoutes({ status, authorize, actor }))
+```
+
+| Route | What |
+|---|---|
+| `GET /` (public) | `{ status, components, incidents, maintenance }` for the status page. |
+| Admin: `GET /components`, `PUT /components/:key`, `DELETE /components/:key` | Components and their status. |
+| Admin: `GET /incidents?days=`, `POST /incidents`, `POST /incidents/:id/updates` | Open an incident, post updates; `resolved` closes it. |
+| Admin: `GET /maintenance`, `PUT /maintenance` | `{ on, message?, until? }`: the maintenance switch. |
+
+While on, a request outside the allowlist gets 503 with the standard
+envelope (`code: "MAINTENANCE"`, the state's message) and `Retry-After`:
+seconds until `until`, else `retryAfterSeconds` (300). A path prefix
+matches itself and what is under it. The state is read at most once per
+`cacheMs` (5000) per isolate, so a toggle reaches every isolate within that.
+
 ## Real-time: presence, live updates, shared state
 
 One hub, the same protocol on every runtime. The hub owns channels,
