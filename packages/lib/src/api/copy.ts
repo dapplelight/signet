@@ -216,6 +216,36 @@ export const DEFAULT_ERROR_COPY: Record<ErrorCode, ErrorCopy> = {
     detail: "Your access has expired or isn't valid.",
     action: "sign_in",
   },
+  CAPTCHA_REQUIRED: {
+    title: "Complete the check",
+    detail: "Finish the bot check, then try again.",
+    action: "retry",
+  },
+  CAPTCHA_FAILED: {
+    title: "The check didn't pass",
+    detail: "Try the bot check again.",
+    action: "retry",
+  },
+  CAPTCHA_UNAVAILABLE: {
+    title: "Temporarily unavailable",
+    detail: "The bot check couldn't load. Try again in a moment.",
+    action: "retry",
+  },
+  DISPOSABLE_EMAIL: {
+    title: "Use a permanent email",
+    detail: "Temporary email addresses can't be used here.",
+    action: "edit",
+  },
+  AI_SPEND_CAP_EXCEEDED: {
+    title: "AI limit reached",
+    detail: "You've used this period's AI allowance. It resets soon.",
+    action: "wait",
+  },
+  AI_SPEND_UNAVAILABLE: {
+    title: "Temporarily unavailable",
+    detail: "Try again in a moment.",
+    action: "retry",
+  },
   insufficient_scope: {
     title: "More access needed",
     detail: "Grant the requested permission, then try again.",
