@@ -162,7 +162,7 @@ export function tenant<O extends TenantOrg>(opts: TenantOptions<O>): MiddlewareH
       if (root && host.endsWith(`.${root}`)) {
         const sub = host.slice(0, -root.length - 1)
         if (!sub.includes(".")) org = await opts.orgs.bySlug(sub)
-      } else if (host !== root) org = await opts.orgs.byDomain(host)
+      } else if (root && host !== root) org = await opts.orgs.byDomain(host)
     }
     if (!org && opts.param) org = await bySlugOrId(c.req.param(opts.param))
     if (!org && header) org = await bySlugOrId(c.req.header(header))

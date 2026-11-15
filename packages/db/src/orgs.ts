@@ -313,14 +313,18 @@ export function createOrgs(db: SignetDb<unknown>, options: OrgsOptions) {
 
   /** Custom roles of one org, by name. */
   const customRoles = async (orgId: string): Promise<Record<string, Permission[]>> => {
-    if (!R) return {}
+    // No prototype: a role named `constructor` or `__proto__` must not resolve to an inherited member.
+    const map: Record<string, Permission[]> = Object.create(null)
+    if (!R) return map
     const rows: Cols[] = await o.select().from(T.orgRoles).where(eq(R.orgId, orgId))
-    return Object.fromEntries(rows.map((r) => [r.name, (r.permissions ?? []) as Permission[]]))
+    for (const r of rows) map[r.name] = (r.permissions ?? []) as Permission[]
+    return map
   }
   /** A role's permissions in an org: code roles first, then the org's custom roles. Unknown roles get none. */
   const permissionsOf = async (orgId: string, role: string): Promise<Permission[] | null> => {
     if (Object.hasOwn(codeRoles, role)) return [...(codeRoles[role] ?? [])]
-    return (await customRoles(orgId))[role] ?? null
+    const perms = (await customRoles(orgId))[role]
+    return Array.isArray(perms) ? perms : null
   }
   const roleExists = async (orgId: string, role: string) => {
     if (typeof role !== "string" || !role) throw bad("role is required.")

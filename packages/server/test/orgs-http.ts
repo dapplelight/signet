@@ -206,6 +206,21 @@ ok(
   "domain beats header",
   (await j(await call("/api/whoami", { host: "app.acme.example", org: "bolt" }))).org === "org_a",
 )
+// No rootDomain: a request host is never looked up as a custom domain.
+{
+  const bare = new Hono()
+  bare.use("*", tenant({ orgs: store }))
+  bare.get("/who", (c) =>
+    c.json({ org: (c.get("tenant" as never) as TenantOrg | undefined)?.id ?? null }),
+  )
+  const who = async (host: string, headers: Record<string, string> = {}) =>
+    (await j(await bare.request(`http://${host}/who`, { headers }))).org
+  ok("no rootDomain: host is not a domain lookup", (await who("app.acme.example")) === null)
+  ok(
+    "no rootDomain: header still resolves",
+    (await who("app.acme.example", { "x-org": "bolt" })) === "org_b",
+  )
+}
 const none = await call("/api/whoami")
 ok("no tenant: currentTenant is 404", none.status === 404, none.status)
 ok("unknown org: 404", (await call("/api/whoami", { org: "nope" })).status === 404)

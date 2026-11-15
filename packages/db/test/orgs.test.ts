@@ -221,6 +221,13 @@ describe.each(backends)("$name", (backend) => {
     expect((await fails(orgs.addMember(b.id, "fin", "billing"))).code).toBe("BAD_INPUT")
     expect((await orgs.roles(a.id)).billing).toEqual(["billing:read", "billing:write"])
     expect((await fails(orgs.deleteRole(a.id, "billing"))).code).toBe("CONFLICT")
+    // Names that exist on every object are not roles.
+    for (const name of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+      expect((await fails(orgs.addMember(a.id, "ghost", name))).code).toBe("BAD_INPUT")
+      expect((await fails(orgs.invite({ orgId: a.id, role: name, invitedBy: "alice" }))).code).toBe(
+        "BAD_INPUT",
+      )
+    }
   })
 
   test("invites: token once, expiry, revoke, email, cross-org", async () => {
