@@ -24,6 +24,8 @@ user bought, and are they subscribed", in your own backend.
 | `@dapplelight/signet-payments/razorpay` ... `/dodo` | One adapter per subpath |
 | `@dapplelight/signet-payments/appstore`, `/googleplay` | App store billing: purchases made on the device, verified and tracked on the server |
 | `@dapplelight/signet-payments/agent` | `paymentTools`: MCP tools for agents |
+| `@dapplelight/signet-payments/upi` | `upiIntent`: `upi://pay` links and QR payloads |
+| `@dapplelight/signet-payments/gst` | GSTIN validation, `gstInvoice`, `renderGstInvoiceHtml`, invoice numbers, amounts in words |
 
 ## Capability matrix
 
@@ -403,6 +405,62 @@ App Store amounts are Apple's configured price, not settled revenue: they
 post as `capture:approximate` and are never reconciled (no settlement report).
 Settlement lines come from Razorpay's settlement recon, Stripe's balance
 transactions for the day, and PayU's settlement details.
+
+## UPI intents
+
+```ts
+import { upiIntent } from "@dapplelight/signet-payments/upi"
+
+const link = upiIntent({ pa: "shop@okbank", pn: "Corner Shop", amount: 49_900, tr: orderId, note: "Order 42" })
+// upi://pay?pa=shop%40okbank&pn=Corner%20Shop&tr=...&tn=Order%2042&am=499.00&cu=INR
+```
+
+Parameters follow NPCI's UPI Linking Specification: `pa`, `pn`, `am`, `mam`,
+`cu` (always INR), `tn`, `tr`, `tid`, `mc`, `url`. Amounts are paise in and
+rupees with two decimals out; values are percent-encoded. Use it as an `href`
+on mobile, or as the payload of a QR code. **No QR encoder ships**: Signet
+has no QR dependency yet, so render the string with the QR library of your
+choice. Not supported: signed intents (`sign`, `orgid`), `mode`/`purpose`
+codes and mandates. A UPI app opening the link is not a payment: confirm
+through your gateway's webhook or a status call.
+
+## GST invoices
+
+```ts
+import { financialYear, gstInvoice, invoiceNumber, renderGstInvoiceHtml } from "@dapplelight/signet-payments/gst"
+import { nextSequence } from "@dapplelight/signet-db"
+
+const fy = financialYear(now)                                   // "2026-27", 1 April to 31 March IST
+const seq = await nextSequence(db, schema.sequences, `invoice:INV:${fy}`)
+const inv = gstInvoice({
+  number: invoiceNumber({ prefix: "INV", fy, seq }),            // "INV/26-27/0001"
+  date: now,
+  supplier: { name, address, gstin },
+  recipient: { name, address, gstin },                          // or stateCode for an unregistered buyer
+  placeOfSupply: "29",                                          // a GST state code; deciding it is yours
+  lines: [{ description: "Plan, 1 year", hsn: "998314", quantity: 1, unit: "OTH", unitPrice: 99_900, rate: 18 }],
+})
+inv.taxType          // "intra": CGST + SGST (UTGST in a UT without a legislature); "inter": IGST
+inv.totals           // { taxable, cgst, sgst, utgst, igst, total } in paise
+const html = renderGstInvoiceHtml(inv)
+```
+
+Follows rule 46 of the CGST Rules: "Tax Invoice", supplier and recipient
+name, address and GSTIN, a number of at most 16 letters, digits, `-` and `/`
+unique in the financial year, date, HSN/SAC, quantity and unit, taxable value
+after discount, rate and amount of each tax, place of supply with state name,
+delivery address when different, the reverse-charge statement, and a
+signatory line. An unregistered recipient's address and state are required
+from a taxable value of Rs 50,000. GSTINs are checked by format, state code
+and check character (`isValidGstin`, `parseGstin`). Tax is rounded per line
+to the paisa, half up, in exact integer arithmetic. A supply to an SEZ unit
+or developer (`recipient.sez`) is IGST. Amounts in words use lakh and crore.
+
+Refused with `UNSUPPORTED` or `BAD_INPUT` rather than guessed: reverse
+charge, exports and other zero-rated supplies, cess, place of supply 97,
+TDS/TCS and non-resident GSTIN formats. Not built: e-invoicing (IRN and its
+signed QR), the B2C dynamic QR, credit and debit notes, the HSN digit count
+your turnover requires, digital signatures, and PDF output (print the HTML).
 
 ## Agent tools
 

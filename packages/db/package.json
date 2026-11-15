@@ -79,6 +79,21 @@
       "types": "./dist/flags.d.ts",
       "import": "./dist/flags.js",
       "default": "./dist/flags.js"
+    },
+    "./admin": {
+      "types": "./dist/admin.d.ts",
+      "import": "./dist/admin.js",
+      "default": "./dist/admin.js"
+    },
+    "./growth": {
+      "types": "./dist/growth.d.ts",
+      "import": "./dist/growth.js",
+      "default": "./dist/growth.js"
+    },
+    "./privacy": {
+      "types": "./dist/privacy.d.ts",
+      "import": "./dist/privacy.js",
+      "default": "./dist/privacy.js"
     }
   },
   "bin": {

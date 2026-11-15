@@ -19,6 +19,98 @@ a package at the version it had when the repository was opened to the public.
   as `createApiClient` plus `retries` (GET/HEAD only, default 0) and `fetch`.
   Sends `x-request-id`, throws `AuthError` on 401 and `ApiError` from the
   envelope on any other failure, so `.json()` is the success type.
+### signet-server: notifications
+
+- New `./notify/notifier`: `createNotifier` with `notify(userId, event, data)`
+  over zod-typed, per-locale, per-channel templates (`defineTemplates`);
+  preferences per user × category × channel with required categories
+  (security, otp, billing); timezone-aware quiet hours (default
+  Asia/Kolkata, urgent bypasses); signed one-click unsubscribe (RFC 8058
+  headers); in-app inbox (cursor list, unread count, mark read, archive);
+  delivery records; suppression; WhatsApp opt-in; per-user per-channel rate
+  limit; idempotent deliveries; `notifyJob` to send through `createJobs`;
+  `exportUser` / `deleteUser`; `kvNotifyStore`; themed `emailLayout` with a
+  plain-text fallback.
+- New `./notify/channels`: fetch-only senders for Resend, Postmark, Twilio SMS,
+  MSG91 SMS, the WhatsApp Cloud API, web push and Telegram; `devSender` (refuses
+  production and staging); DLT refusal for `+91` SMS; `smsSenderFor` gives
+  auth's OTP a real SMS sender.
+- New `./notify/webhooks`: signature-verified handlers for Resend (Svix),
+  Twilio and Meta, normalised into delivery events; hard bounce, complaint and
+  STOP suppress the address; `unsubscribeRoute`.
+- New `./notify/tools`: `list_my_notifications`, `notification_prefs`,
+  `update_prefs`, and staff-only `send_notification` behind `requireApproval`.
+
+### signet-ui (unreleased)
+
+- New components on UI SDK behaviours, styled with theme tokens: `toast`
+  (`<Toaster />` and a sonner-compatible `toast()`), `alert-dialog`, `field`
+  (takes TanStack Form `errors`), `avatar` (with `initials()`), `radio-group`,
+  `command` (with a ⌘K `CommandDialog`), `timeline`, `stepper`, `sidebar`
+  (collapsible, a drawer on phones, ⌘B), `breadcrumb`, `spinner`.
+- New `@dapplelight/signet-ui/behaviors`: `useShortcut`, `useShortcutLabel`,
+  `useControllableState`, `matchScore`, with Signet's own types.
+- New dependencies `@ui-sdk/core` and `@ui-sdk/react`, pinned to
+  0.1.0-beta.2. They are internal: no UI SDK type or function is re-exported.
+- Existing components are unchanged.
+
+### signet-mcp (unreleased)
+
+- New `compose_component` tool: from a need in words, the matching components
+  with their behaviour recipe (each component's `// Recipe:` line), parts,
+  token classes and example, plus the behaviours and the build guide.
+  `get_component` now returns `summary` and `recipe`.
+### signet-payments: UPI intents and GST invoices
+
+- New `./upi`: `upiIntent` builds `upi://pay` links from NPCI's linking
+  parameters (amounts in paise), `isVpa`. No QR encoder ships.
+- New `./gst`: `isValidGstin`/`parseGstin` (check character), `gstInvoice`
+  (rule 46 checks, CGST + SGST or UTGST within a state, IGST across states
+  or to an SEZ, per-line half-up rounding in integers), `renderGstInvoiceHtml`,
+  `financialYear`, `invoiceNumber`, `amountInWords`, `formatInr`,
+  `GST_STATES`. Reverse charge, exports, cess, place of supply 97 and
+  e-invoicing are unsupported.
+
+### signet-db: DPDP consent and data requests, sequences
+
+- New `./privacy`: `createPrivacy` on `privacyTables()` (both dialects):
+  append-only consent records per purpose and notice version, withdrawal,
+  export and erasure requests fulfilled with `exportUser`/`deleteUser`,
+  optional due dates, `overdue()`. `privacyTools` for an agent acting for
+  one person; writes gated on `approve`.
+- `nextSequence(db, sequences(), key)`: concurrent-safe named counters.
+
+### signet-db: growth basics (waitlist, invites, referrals, onboarding, changelog, feedback)
+
+- New `./growth`: `createGrowth(db, { tables })` on `growthTables()` (both
+  dialects). Waitlist with idempotent join and position; invites whose token
+  is returned once and stored as SHA-256, accepted once by a conditional
+  update, with expiry, revocation and an optional email lock; referral codes,
+  one referrer per person, convert and reward once; onboarding steps and
+  changelog "last seen" on a `marks` table; feedback with kinds, rating and
+  status.
+- `growthTools(...)`: operator agent tools; writes gated on `approve`.
+- Internal: the plain tool shape and approval gate moved to `tool-kit.ts`;
+  `entitlementTools` is unchanged.
+### signet-ai 0.4.0: AI SDK 7, usage hook, tool loops, streaming, embeddings, grounding
+
+- **Breaking peer:** `ai` is now `>=7.0.0` (was `>=5`). `aiSdkProvider` calls
+  `generateText` with `output: Output.object({ schema })` instead of the
+  deprecated `generateObject`; its behaviour and `meta` are unchanged.
+- `onUsage` on `createExtractor`: tokens and cost of every provider call that
+  returned, with the budget key for per-user cost. `analyticsUsage(sink)` turns
+  any `AnalyticsSink` into an `onUsage`. A throwing hook or rejecting sink is
+  ignored. `UsageReport`, `OnUsage` and `reportUsage` are on the barrel.
+- New `./chat`: `runTools` (multi-step tool calling with `maxSteps`, default 5,
+  and a `capped` flag) and `streamChat` (UI message stream `Response` from
+  `useChat` messages, usage sent as message metadata).
+- New `./react`: `useSignetChat`, `useChat` from `@ai-sdk/react` pointed at a
+  `streamChat` route, plus the conversation's summed `usage`; `sumUsage`.
+  `@ai-sdk/react` is a new optional peer.
+- New `./ground`: `embedDocuments`, `searchDocuments` (cosine similarity, `topK`,
+  `minScore`) and `groundedAnswer`, which answers from app-provided documents
+  and keeps only citations whose quote appears verbatim in the cited document.
+- Tests drive every helper through the SDK's mock models (`ai/test`).
 
 ### signet-server: auth backend (sessions, key rotation, phone OTP, API keys)
 
@@ -111,6 +203,24 @@ a package at the version it had when the repository was opened to the public.
   template now carry `.ts`.
 - signet-mcp's scaffold index mirrors the default (cloudflare) target, and its
   env-at-module-scope check treats a `node:http` entry as a process entry.
+
+### Admin API from the schema
+
+- signet-db: new `./admin` subpath. `defineAdmin(schema, { authorize })`
+  gives list (cursor pages, allow-listed sort and typed filters, text search),
+  get, create, update, delete (soft where the table has `deletedAt`), bulk
+  delete, per-row actions and a `meta` description for admin UIs and agents.
+  Deny by default (`roles()` for admin/staff/readonly); encrypted and
+  secret-looking columns hidden; inputs validated with `toZod`; every write
+  through `audited()` with the caller as actor; the audit table is read-only
+  and its snapshots redacted. `handle()` serves it over HTTP, framework-free.
+- signet-db: `adminTools(admin, { db, ctx, approve })`, admin MCP tools from
+  the same definition; writes only after `approve` (signet-server's
+  `requireApproval`) says yes, audited as the agent.
+- signet-db: new error codes `FORBIDDEN`, `VALIDATION_FAILED`,
+  `METHOD_NOT_ALLOWED`, `BAD_CONFIG`; `AdminError` carries an HTTP status.
+- signet-server: new `./http/admin`, `adminRoutes(admin, { db, ctx })`, mounting
+  it on Hono with the standard error envelope.
 
 ### signet-payments 0.1.0 (new, public; first publish is manual, see PUBLISHING.md)
 

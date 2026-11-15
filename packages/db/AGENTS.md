@@ -17,6 +17,10 @@ Two cases: you are **writing app code** that uses the package, or you are
 - Validate request bodies with `toZod(table, { mode: "insert" | "update" })`.
 - Wrap writes that change something a person cares about in
   `audited(...)`; machine jobs use `{ actor: { type: "system", id } }`.
+- Admin screens and back-office APIs: `defineAdmin(schema, { authorize })`
+  from `./admin`, never hand-rolled unscoped queries. `authorize` decides;
+  leave the secret-column defaults on and add `hidden` for anything else
+  private.
 - New migration? Run `signet-db-check` on the new SQL files before committing.
 - Errors are `SignetDbError`; branch on `e.code`, and the message says how to
   fix it.
@@ -50,3 +54,32 @@ Tools come from `agentTools(db, { tables, userId, allowWrites, maxRows })`.
   exist only with `allowWrites`, always ask a person to approve, and return
   `APPROVAL_REQUIRED` with nothing changed when the client cannot ask. Show
   the person the summary; do not retry to get around it.
+
+## Acting as an admin agent
+
+Tools come from `adminTools(admin, { db, ctx, approve })`.
+
+- Call `admin_schema` first: it lists the tables, columns, filter operators
+  and ops you may use. Hidden columns do not exist as far as you can tell.
+- `admin_<table>_list` pages with `nextCursor`; keep the same `sort` and
+  `order` when you pass it back.
+- `_create`, `_update`, `_delete` and actions ask the person to approve.
+  `APPROVAL_REQUIRED` or `APPROVAL_DECLINED` means nothing changed.
+- `FORBIDDEN` is final for this caller; do not retry it another way.
+
+## Growth
+
+- `createGrowth(db, { tables: growthTables() })`. Never store or log an invite
+  token; it is shown once. Branch on `acceptInvite`'s `reason`, do not throw.
+- Reward a referrer only when `convertReferral(...).first` is true, then call
+  `markRewarded`; both are once-only.
+- `growthTools(...)` writes (`create_invite`, `revoke_invite`,
+  `set_feedback_status`) always ask a person to approve.
+
+## Privacy (DPDP)
+
+- Check `privacy.has(subject, purpose)` before processing for a purpose that
+  needs consent; never infer consent from a missing record.
+- Withdrawal must be as easy as giving: wire `withdraw` wherever `give` is.
+- `privacyTools(...)` only opens requests and withdraws consent, always with
+  approval. Do not call `fulfil` from an agent.

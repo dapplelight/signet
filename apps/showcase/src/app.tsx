@@ -1,6 +1,31 @@
 import { Alert, AlertDescription, AlertTitle } from "@dapplelight/signet-ui/components/alert"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@dapplelight/signet-ui/components/alert-dialog"
 import { AnswerHeadline } from "@dapplelight/signet-ui/components/answer-headline"
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+  initials,
+} from "@dapplelight/signet-ui/components/avatar"
 import { Badge } from "@dapplelight/signet-ui/components/badge"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@dapplelight/signet-ui/components/breadcrumb"
 import { Button } from "@dapplelight/signet-ui/components/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@dapplelight/signet-ui/components/card"
 import {
@@ -10,6 +35,15 @@ import {
   ChartTooltipContent,
 } from "@dapplelight/signet-ui/components/chart"
 import {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandShortcut,
+} from "@dapplelight/signet-ui/components/command"
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -18,9 +52,32 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@dapplelight/signet-ui/components/dialog"
+import {
+  Field,
+  FieldControl,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@dapplelight/signet-ui/components/field"
 import { Input } from "@dapplelight/signet-ui/components/input"
+import { Kbd } from "@dapplelight/signet-ui/components/kbd"
 import { Progress } from "@dapplelight/signet-ui/components/progress"
+import { RadioGroup, RadioGroupItem } from "@dapplelight/signet-ui/components/radio-group"
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@dapplelight/signet-ui/components/sidebar"
+import { Spinner } from "@dapplelight/signet-ui/components/spinner"
 import { StatStrip } from "@dapplelight/signet-ui/components/stat-strip"
+import { Stepper } from "@dapplelight/signet-ui/components/stepper"
 import { Switch } from "@dapplelight/signet-ui/components/switch"
 import {
   Table,
@@ -32,6 +89,17 @@ import {
 } from "@dapplelight/signet-ui/components/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@dapplelight/signet-ui/components/tabs"
 import { ThemeToggle } from "@dapplelight/signet-ui/components/theme-toggle"
+import {
+  Timeline,
+  TimelineConnector,
+  TimelineDescription,
+  TimelineItem,
+  TimelineMarker,
+  TimelineTime,
+  TimelineTitle,
+} from "@dapplelight/signet-ui/components/timeline"
+import { Toaster, toast } from "@dapplelight/signet-ui/components/toast"
+import { HomeIcon, InboxIcon, SettingsIcon, UsersIcon } from "lucide-react"
 import { type ReactNode, useState } from "react"
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts"
 import { applyTheme, THEMES } from "./themes"
@@ -71,6 +139,8 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 export function App({ initial }: { initial: string }) {
   const [theme, setTheme] = useState(initial)
   const [on, setOn] = useState(true)
+  const [palette, setPalette] = useState(false)
+  const [email, setEmail] = useState("ada@")
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
@@ -164,6 +234,141 @@ export function App({ initial }: { initial: string }) {
           </Dialog>
         </Section>
 
+        <Section title="Basics">
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink href="#">Workspace</BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbLink href="#">Projects</BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>Launch plan</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+          <Stepper
+            aria-label="Onboarding"
+            current={1}
+            steps={[
+              { title: "Account", description: "Email and password" },
+              { title: "Workspace", description: "Name and members" },
+              { title: "Billing", description: "Plan and card" },
+            ]}
+          />
+          <div className="grid gap-6 sm:grid-cols-2">
+            <Field errors={email.includes(".") ? [] : [{ message: "Enter a full email address" }]}>
+              <FieldLabel>Work email</FieldLabel>
+              <FieldControl type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <FieldDescription>We send the invite here.</FieldDescription>
+              <FieldError />
+            </Field>
+            <Field>
+              <FieldLabel>Plan</FieldLabel>
+              <RadioGroup defaultValue="team">
+                {["Free", "Team", "Enterprise"].map((plan) => (
+                  // biome-ignore lint/a11y/noLabelWithoutControl: RadioGroupItem is the control
+                  <label key={plan} className="flex items-center gap-2 text-sm">
+                    <RadioGroupItem value={plan.toLowerCase()} />
+                    {plan}
+                  </label>
+                ))}
+              </RadioGroup>
+            </Field>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex gap-1">
+              {ROWS.map((r) => (
+                <Avatar key={r.name}>
+                  <AvatarImage alt={r.name} />
+                  <AvatarFallback>{initials(r.name)}</AvatarFallback>
+                </Avatar>
+              ))}
+            </div>
+            <Button
+              variant="outline"
+              onClick={() =>
+                toast.success("Invite sent", {
+                  description: "Grace can join the workspace now.",
+                  action: { label: "Undo", onClick: () => toast("Invite withdrawn") },
+                })
+              }
+            >
+              Show a toast
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger render={<Button variant="destructive" />}>
+                Remove member
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Remove Grace from the workspace?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    She loses access to every project at once.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction variant="destructive">Remove</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <Button variant="outline" onClick={() => setPalette(true)}>
+              Search… <Kbd>⌘K</Kbd>
+            </Button>
+            <Spinner />
+          </div>
+          <Timeline aria-label="Activity">
+            {[
+              ["Invite accepted", "2026-11-14T09:12", "Today, 9:12", "Grace joined Launch plan."],
+              ["Project created", "2026-11-13T17:40", "Yesterday", "Ada started Launch plan."],
+              ["Workspace opened", "2026-11-01T10:00", "1 Nov", "The workspace went live."],
+            ].map(([title, at, when, detail]) => (
+              <TimelineItem key={title}>
+                <TimelineMarker />
+                <TimelineConnector />
+                <TimelineTitle>{title}</TimelineTitle>
+                <TimelineTime dateTime={at}>{when}</TimelineTime>
+                <TimelineDescription>{detail}</TimelineDescription>
+              </TimelineItem>
+            ))}
+          </Timeline>
+        </Section>
+
+        <Section title="Sidebar">
+          <SidebarProvider shortcut={null} className="min-h-0 overflow-hidden rounded-lg border">
+            <Sidebar aria-label="Workspace" className="static h-72">
+              <SidebarContent>
+                <SidebarGroup>
+                  <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+                  <SidebarMenu>
+                    {[
+                      [HomeIcon, "Home"],
+                      [InboxIcon, "Inbox"],
+                      [UsersIcon, "Members"],
+                      [SettingsIcon, "Settings"],
+                    ].map(([Icon, label]) => (
+                      <SidebarMenuItem key={label as string}>
+                        <SidebarMenuButton isActive={label === "Home"}>
+                          <Icon />
+                          <span>{label as string}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
+                  </SidebarMenu>
+                </SidebarGroup>
+              </SidebarContent>
+            </Sidebar>
+            <SidebarInset className="gap-2 p-4 text-sm text-muted-foreground">
+              <SidebarTrigger />
+              Collapses to icons on desktop, a drawer on phones.
+            </SidebarInset>
+          </SidebarProvider>
+        </Section>
+
         <Section title="Table">
           <Table>
             <TableHeader>
@@ -227,6 +432,28 @@ export function App({ initial }: { initial: string }) {
           </Tabs>
         </Section>
       </main>
+
+      <CommandDialog open={palette} onOpenChange={setPalette} onAction={(v) => toast(`Ran ${v}`)}>
+        <CommandInput aria-label="Search commands" placeholder="Type a command or search…" />
+        <CommandEmpty>No results found.</CommandEmpty>
+        <CommandList>
+          <CommandGroup heading="Go to">
+            <CommandItem value="home">Home</CommandItem>
+            <CommandItem value="inbox">Inbox</CommandItem>
+            <CommandItem value="members" keywords={["people", "team"]}>
+              Members
+            </CommandItem>
+          </CommandGroup>
+          <CommandGroup heading="Actions">
+            <CommandItem value="invite">Invite someone</CommandItem>
+            <CommandItem value="settings" shortcut="mod+,">
+              Settings
+              <CommandShortcut />
+            </CommandItem>
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
+      <Toaster />
     </div>
   )
 }

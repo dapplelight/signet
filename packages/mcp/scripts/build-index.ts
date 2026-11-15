@@ -476,6 +476,28 @@ function exampleFor(
   return `${importLine}\n\n${take.join("\n").trim()}`
 }
 
+/** The leading `//` comment block (after "use client") and its `// Recipe:` line. */
+function headerOf(src: string): { summary: string; recipe: string[] } {
+  const lines = src.replace(/^"use client"\s*/, "").split("\n")
+  const block: string[] = []
+  for (const l of lines) {
+    if (!l.startsWith("//")) break
+    block.push(l.replace(/^\/\/\s?/, ""))
+  }
+  const recipeLine = block.find((l) => l.startsWith("Recipe:"))
+  return {
+    summary: block
+      .filter((l) => l !== recipeLine)
+      .join(" ")
+      .trim(),
+    recipe: recipeLine
+      ? [...new Set(recipeLine.slice(7).match(/\b[a-z]+(?:-[a-z]+)*\b/g) ?? [])].filter(
+          (w) => !["adds", "on", "phones"].includes(w),
+        )
+      : [],
+  }
+}
+
 const components: ComponentInfo[] = []
 {
   const ui = pkgJson("ui")
@@ -520,6 +542,7 @@ const components: ComponentInfo[] = []
       tokens: tokens.filter((t) => utilityRe(t.name).test(src)).map((t) => t.name),
       example: exampleFor(importPath, values, main, props[main]),
       domain: sub.startsWith("./domain/"),
+      ...headerOf(src),
     })
   }
 }
@@ -688,6 +711,34 @@ const RECIPES: RecipeSpec[] = [
     verify: ["test with the fake provider (no network, no spend)"],
   },
   {
+    id: "add-ai-chat",
+    title: "Add AI chat, tool loops, embeddings or grounded answers",
+    keywords: [
+      "chat",
+      "streaming",
+      "usechat",
+      "tools",
+      "tool calling",
+      "agent",
+      "embeddings",
+      "search",
+      "rag",
+      "grounding",
+      "citations",
+      "token usage",
+    ],
+    install: ["@dapplelight/signet-ai", "zod", "ai", "@ai-sdk/react"],
+    refs: [
+      ["ai", "Usage reporting"],
+      ["ai", "Tool loops"],
+      ["ai", "Streaming chat"],
+      ["ai", "Embeddings and search"],
+      ["ai", "Grounded answers"],
+      ["ai", "Testing the helpers"],
+    ],
+    verify: ["test with the mock models from ai/test (no network)"],
+  },
+  {
     id: "payments",
     title: "Take payments (Razorpay, Stripe, UPI and more) with a webhook inbox and ledger",
     keywords: [
@@ -713,6 +764,49 @@ const RECIPES: RecipeSpec[] = [
       ["payments", "Agent tools"],
     ],
     verify: ["bun test (conformance suite)", "reconcile a settled day: mismatches is empty"],
+  },
+  {
+    id: "add-growth",
+    title: "Add a waitlist, invites, referrals, onboarding, changelog and feedback",
+    keywords: [
+      "growth",
+      "waitlist",
+      "invite",
+      "invites",
+      "referral",
+      "referrals",
+      "onboarding",
+      "changelog",
+      "feedback",
+    ],
+    install: ["@dapplelight/signet-db", "drizzle-orm"],
+    refs: [["db", "Growth: waitlist, invites, referrals, onboarding, changelog, feedback"]],
+    verify: ["bun run test", "accept the same invite twice: the second gets already: true or used"],
+  },
+  {
+    id: "add-india",
+    title: "Add India basics: UPI links, GST invoices, DPDP consent and data requests",
+    keywords: [
+      "india",
+      "upi",
+      "gst",
+      "gstin",
+      "invoice",
+      "hsn",
+      "sac",
+      "dpdp",
+      "consent",
+      "erasure",
+      "privacy",
+    ],
+    install: ["@dapplelight/signet-payments", "@dapplelight/signet-db", "drizzle-orm"],
+    refs: [
+      ["payments", "UPI intents"],
+      ["payments", "GST invoices"],
+      ["db", "DPDP: consent and data requests"],
+      ["db", "Sequences"],
+    ],
+    verify: ["bun run test", "an invoice to another state shows IGST only"],
   },
   {
     id: "add-analytics",
