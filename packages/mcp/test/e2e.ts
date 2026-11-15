@@ -358,6 +358,7 @@ try {
           "Per-user scope and soft delete",
           "Transactional outbox",
           "Idempotency keys",
+          "AI answer cache",
           "Tools for AI agents",
           "Errors",
         ]) &&

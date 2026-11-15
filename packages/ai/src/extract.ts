@@ -36,8 +36,10 @@ export type ExtractConfig = {
   onEvent?: (event: string, data: Record<string, unknown>) => void
   /**
    * Token usage and cost of every provider call that returned, including one
-   * then refused by the per-call cap. Cache hits and fallbacks spend nothing and
-   * are not reported. Wrap an analytics sink with `analyticsUsage(sink)`.
+   * then refused by the per-call cap. A cache hit is reported too, with
+   * `costUsd: 0`, `cacheHit: true` and `savedUsd`, the original call's cost.
+   * Fallbacks spend nothing and are not reported. Wrap an analytics sink with
+   * `analyticsUsage(sink)`.
    */
   onUsage?: OnUsage
   now?: () => number
@@ -86,6 +88,8 @@ export function createExtractor(config: ExtractConfig) {
   const maxRetries = config.maxRetriesPerProvider ?? 1
   const ttl = config.cacheTtlSeconds ?? 3600
   const now = config.now ?? (() => Date.now())
+  // Part of the cache key: a different model is a different answer.
+  const chain = config.providers.map((p) => `${p.name}/${p.model}`).join(",")
   if (config.ledger && !config.allowUnpriced) {
     const unpriced = config.providers.filter((p) => !p.pricing).map((p) => p.name)
     if (unpriced.length) {
@@ -94,6 +98,20 @@ export function createExtractor(config: ExtractConfig) {
         UNPRICED_PROVIDER,
         500,
       )
+    }
+  }
+
+  /**
+   * A cache is an optimisation: a store that is down reads as a miss, and a
+   * failed write must not throw away an answer that was already paid for (it
+   * would fail over and pay again).
+   */
+  async function cacheOp<R>(op: "get" | "set", fn: () => R | Promise<R>): Promise<R | undefined> {
+    try {
+      return await fn()
+    } catch (err) {
+      config.onEvent?.("ai.cache_error", { op, error: String((err as Error)?.message ?? err) })
+      return undefined
     }
   }
 
@@ -109,10 +127,20 @@ export function createExtractor(config: ExtractConfig) {
     const useCache = args.cache !== false && !!config.cache
     let key: string | undefined
     if (useCache) {
-      key = await cacheKey(fingerprintSchema(args.schema), args.instructions, args.input)
-      const hit = await config.cache?.get(key)
+      key = await cacheKey(fingerprintSchema(args.schema), args.instructions, args.input, chain)
+      const hit = await cacheOp("get", () => config.cache?.get(key as string))
       if (hit) {
         config.onEvent?.("ai.cache_hit", { key })
+        reportUsage(config.onUsage, {
+          operation: "extract",
+          provider: hit.meta.provider,
+          model: hit.meta.model,
+          costUsd: 0,
+          cacheHit: true,
+          savedUsd: hit.meta.costUsd,
+          key: args.budget?.key,
+          durationMs: now() - started,
+        })
         return {
           value: hit.value as T,
           meta: { ...hit.meta, cacheHit: true, durationMs: now() - started },
@@ -198,7 +226,10 @@ export function createExtractor(config: ExtractConfig) {
             attempts,
             durationMs: now() - started,
           }
-          if (useCache && key) await config.cache?.set(key, { value: parsed.data, meta }, ttl)
+          if (useCache && key) {
+            const k = key
+            await cacheOp("set", () => config.cache?.set(k, { value: parsed.data, meta }, ttl))
+          }
           config.onEvent?.("ai.ok", { provider: provider.name, costUsd, attempts })
           return { value: parsed.data, meta }
         } catch (err) {

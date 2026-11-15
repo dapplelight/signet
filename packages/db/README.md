@@ -8,7 +8,7 @@ The core never imports a driver. Thin entry points connect it to one:
 
 | Import | What |
 |---|---|
-| `@dapplelight/signet-db` | Core: `scoped`, `audited`, `createCipher`, money, `newId`, `seed`, `exportUser`, `deleteUser`, `nextSequence`, `describeSchema`, `defineQuery`, `fromDrizzle` |
+| `@dapplelight/signet-db` | Core: `scoped`, `audited`, `createCipher`, money, `newId`, `seed`, `exportUser`, `deleteUser`, `nextSequence`, `describeSchema`, `defineQuery`, `fromDrizzle`, `dbCache` |
 | `@dapplelight/signet-db/columns/sqlite` | Column helpers for SQLite and D1 tables |
 | `@dapplelight/signet-db/columns/pg` | The same helpers for Postgres tables |
 | `@dapplelight/signet-db/d1` | `createDb(env.DB)`, Cloudflare D1 |
@@ -377,6 +377,29 @@ expires after `leaseMs` (60 s). If the function throws, the key is released.
 With a cipher on the db the stored result is encrypted, so `encrypted()` fields
 the function returns are not left as plaintext in the table.
 `pruneIdempotency(db)` deletes expired keys.
+
+## AI answer cache
+
+A persistent cache for signet-ai's `createExtractor`, on a table in either
+dialect, so paid answers survive restarts and are shared by every process.
+
+```ts
+// schema.ts
+import { aiCache } from "@dapplelight/signet-db/columns/sqlite" // or /columns/pg
+export const aiAnswers = aiCache() // table "ai_cache"
+
+// where the extractor is made
+import { dbCache } from "@dapplelight/signet-db"
+const ai = createExtractor({ providers, cache: dbCache(db, schema.aiAnswers) })
+```
+
+Rows are keyed by signet-ai's hash of model, schema, instructions and input,
+hold the entry as JSON and expire after the extractor's `cacheTtlSeconds`. An
+expired or unreadable row is a miss (an expired one is deleted on read). With a
+cipher on the db the entry is encrypted, since answers often repeat the
+personal data they were given. `pruneAiCache(db, table)` deletes expired rows;
+run it from a cron. Held in a variable before it reaches `createExtractor`,
+type it: `dbCache<CacheEntry>(db, table)`.
 
 ## Named queries
 
