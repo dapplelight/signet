@@ -201,6 +201,11 @@ export const DEFAULT_ERROR_COPY: Record<ErrorCode, ErrorCopy> = {
     detail: "Ask for a new code to try again.",
     action: "retry",
   },
+  OFFER_REFUSED: {
+    title: "Offer not available",
+    detail: "This offer has been used or isn't available to you.",
+    action: "go_back",
+  },
   PRESIGN_UNSUPPORTED: {
     title: "Upload unavailable",
     detail: "Uploads aren't set up here yet. Try again later.",
