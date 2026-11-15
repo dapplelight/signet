@@ -672,7 +672,18 @@ const RECIPES: RecipeSpec[] = [
   {
     id: "add-api-client",
     title: "Add the typed API client (and TanStack Query)",
-    keywords: ["api client", "fetch", "client", "tanstack query", "react query", "frontend"],
+    keywords: [
+      "api client",
+      "fetch",
+      "client",
+      "tanstack query",
+      "react query",
+      "frontend",
+      "timeout",
+      "streaming",
+      "sse",
+      "ndjson",
+    ],
     install: ["@dapplelight/signet-lib"],
     refs: [
       ["lib", "Use"],

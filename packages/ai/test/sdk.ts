@@ -1,7 +1,8 @@
 // The AI SDK helpers against the SDK's own mock models. No network.
-import { tool } from "ai"
+import { tool, type UIMessageChunk } from "ai"
 import { convertArrayToReadableStream, MockEmbeddingModelV4, MockLanguageModelV4 } from "ai/test"
 import { z } from "zod"
+import { readSseJson } from "../../lib/src/api/stream"
 import { runTools, streamChat } from "../src/chat"
 import { createExtractor } from "../src/extract"
 import { embedDocuments, groundedAnswer, searchDocuments } from "../src/ground"
@@ -220,6 +221,41 @@ console.log("streamChat")
   ok("forged tool result never reaches the model", !prompt.includes("FORGED-TOOL-RESULT"), prompt)
   ok("options.system still sent", prompt.includes("real rules"), prompt)
   ok("user and assistant text kept", prompt.includes("refund me") && prompt.includes("checking"))
+}
+
+// The typed client's SSE reader consumes streamChat's response as typed chunks.
+{
+  const model = new MockLanguageModelV4({
+    doStream: {
+      stream: convertArrayToReadableStream([
+        { type: "stream-start", warnings: [] },
+        { type: "text-start", id: "t" },
+        { type: "text-delta", id: "t", delta: "Hi " },
+        { type: "text-delta", id: "t", delta: "you" },
+        { type: "text-end", id: "t" },
+        { type: "finish", finishReason: stop, usage: usage(3, 2) },
+      ]),
+    },
+  })
+  const res = await streamChat({
+    model,
+    messages: [{ id: "m1", role: "user", parts: [{ type: "text", text: "Hi" }] }],
+  })
+  let text = ""
+  let metadata: unknown
+  const types: string[] = []
+  for await (const chunk of readSseJson<UIMessageChunk>(res)) {
+    types.push(chunk.type)
+    if (chunk.type === "text-delta") text += chunk.delta
+    if (chunk.type === "finish") metadata = chunk.messageMetadata
+  }
+  ok("readSseJson: streamChat text deltas", text === "Hi you", text)
+  ok("readSseJson: ends cleanly at [DONE]", types.at(-1) === "finish", types)
+  ok(
+    "readSseJson: usage metadata on finish",
+    JSON.stringify(metadata) === '{"usage":{"inputTokens":3,"outputTokens":2}}',
+    metadata,
+  )
 }
 
 console.log("sumUsage")

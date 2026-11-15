@@ -6,8 +6,9 @@
 import { Hono } from "hono"
 import { hc } from "hono/client"
 import { z } from "zod"
-import { createRpcClient } from "../../lib/src/api/client"
-import { ApiError, AuthError } from "../../lib/src/api/errors"
+import { createRpcClient, timeout } from "../../lib/src/api/client"
+import { ApiError, AuthError, TimeoutError } from "../../lib/src/api/errors"
+import { readNdjson } from "../../lib/src/api/stream"
 import { memoryKv } from "../src/adapters"
 import { type SessionRoutes, sessionRoutes } from "../src/auth/hono"
 import { kvSessionStore, startSession } from "../src/auth/sessions"
@@ -40,7 +41,19 @@ const Note = z.object({
   title: z.string().min(1),
   tags: z.array(z.string()).default([]),
 })
-const seen: { reqIds: string[]; flaky: number } = { reqIds: [], flaky: 0 }
+const seen: { reqIds: string[]; flaky: number; slow: number; slowFirst: number } = {
+  reqIds: [],
+  flaky: 0,
+  slow: 0,
+  slowFirst: 0,
+}
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+// The first `slowFirst` calls take 300 ms, the rest answer at once.
+const slowly = async () => {
+  seen.slow++
+  if (seen.slow <= seen.slowFirst) await sleep(300)
+  return { calls: seen.slow }
+}
 
 const app = new Hono()
   .use("*", requestId())
@@ -93,6 +106,11 @@ const app = new Hono()
     return c.json({ attempts: seen.flaky })
   })
   .get("/api/me", (c) => c.json({ auth: c.req.header("authorization") ?? null }))
+  .get("/api/slow", async (c) => c.json(await slowly()))
+  .post("/api/slow", async (c) => c.json(await slowly()))
+  .get("/api/rows", (c) =>
+    c.body('{"n":1}\n{"n":2}\n', 200, { "content-type": "application/x-ndjson" }),
+  )
 app.onError(errorHandler({ isProduction: () => false }))
 type AppType = typeof app
 const viaApp = async (input: RequestInfo | URL, init?: RequestInit) =>
@@ -134,6 +152,8 @@ async function typeTests() {
   await sessions[":id"].$delete({ param: { id: "s1" } })
   // @ts-expect-error no such route
   await sessions.everything.$delete()
+  // A per-call timeout goes in hc's `init`.
+  await api.api.me.$get({}, { init: timeout(1000) })
   return [tags, plan, grace, asDate, beta, current]
 }
 void typeTests
@@ -247,6 +267,89 @@ void typeTests
   })
   const e = await rejects(anon.index.$get())
   ok("401 → AuthError and onAuthError once", e instanceof AuthError && calls === 1, e)
+}
+
+{
+  const timed = (extra: Record<string, unknown> = {}) =>
+    createRpcClient(hc<AppType>, {
+      baseUrl: "http://localhost",
+      fetch: viaApp,
+      timeoutMs: 50,
+      ...extra,
+    })
+  seen.slow = 0
+  seen.slowFirst = 1
+  const e = await rejects(timed().api.slow.$get({}, { headers: { "x-request-id": "slow-1" } }))
+  ok("timeout: client default aborts with TimeoutError", e instanceof TimeoutError, e)
+  const t = e as TimeoutError
+  ok("timeout: in the ApiError family", t instanceof ApiError && t.status === 408)
+  ok(
+    "timeout: TIMEOUT code, limit and request id",
+    t.code === "TIMEOUT" && t.timeoutMs === 50 && t.requestId === "slow-1",
+    t,
+  )
+
+  seen.slow = 0
+  seen.slowFirst = 1
+  const body = await (await timed().api.slow.$get({}, { init: timeout(1000) })).json()
+  ok("timeout: per-call override extends the default", body.calls === 1, body)
+  seen.slow = 0
+  const off = await (await timed().api.slow.$get({}, { init: timeout(0) })).json()
+  ok("timeout: per-call 0 turns it off", off.calls === 1, off)
+  seen.slow = 0
+  const none = createRpcClient(hc<AppType>, { baseUrl: "http://localhost", fetch: viaApp })
+  const short = await rejects(none.api.slow.$get({}, { init: timeout(20) }))
+  ok(
+    "timeout: per-call without a client default",
+    short instanceof TimeoutError && (short as TimeoutError).timeoutMs === 20,
+    short,
+  )
+
+  seen.slow = 0
+  seen.slowFirst = 1
+  const again = await (await timed({ retries: 1 }).api.slow.$get()).json()
+  ok("timeout: a timed-out GET is retried", again.calls === 2, again)
+  seen.slow = 0
+  seen.slowFirst = 1
+  const post = await rejects(timed({ retries: 2 }).api.slow.$post())
+  ok(
+    "timeout: a timed-out POST is not retried",
+    post instanceof TimeoutError && seen.slow === 1,
+    seen.slow,
+  )
+
+  seen.slow = 0
+  seen.slowFirst = 1
+  const ctl = new AbortController()
+  setTimeout(() => ctl.abort(), 10)
+  const aborted = await rejects(
+    timed({ timeoutMs: 1000, retries: 2 }).api.slow.$get({}, { init: { signal: ctl.signal } }),
+  )
+  ok(
+    "timeout: caller's own abort is not a TimeoutError",
+    !!aborted && !(aborted instanceof TimeoutError),
+    aborted,
+  )
+  ok("timeout: caller's abort is not retried", seen.slow === 1, seen.slow)
+
+  let sent: AbortSignal | null | undefined
+  const spy = createRpcClient(hc<AppType>, {
+    baseUrl: "http://localhost",
+    timeoutMs: 1000,
+    fetch: async (input, init) => {
+      sent = init?.signal
+      return viaApp(input, init)
+    },
+  })
+  await spy.api.me.$get()
+  ok("timeout: the real fetch gets an AbortSignal", sent instanceof AbortSignal && !sent.aborted)
+  seen.slowFirst = 0
+}
+{
+  const res = await api.api.rows.$get()
+  const rows: number[] = []
+  for await (const r of readNdjson<{ n: number }>(res)) rows.push(r.n)
+  ok("stream: an rpc response reads as NDJSON", rows.join() === "1,2", rows)
 }
 
 console.log(`\nrpc: ${pass} passed, ${fail} failed`)

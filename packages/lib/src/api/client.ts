@@ -11,7 +11,7 @@
  */
 
 import { isErrorEnvelope } from "./contract.js"
-import { ApiError, AuthError } from "./errors.js"
+import { ApiError, AuthError, TimeoutError } from "./errors.js"
 import { isRetryable } from "./query-client.js"
 
 export type ApiClientOptions = {
@@ -168,17 +168,41 @@ export type RpcClientOptions = ApiClientOptions & {
   retries?: number
   /** The fetch underneath. Default `globalThis.fetch`; a Worker can pass a service binding's. */
   fetch?: typeof fetch
+  /**
+   * Milliseconds to wait for each attempt's response headers before aborting
+   * it with `TimeoutError`. Default none. Override per call with `timeout(ms)`.
+   * The body is not timed, so a stream may run as long as it needs; a timed-out
+   * GET or HEAD counts as transient for `retries`.
+   */
+  timeoutMs?: number
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+const TIMEOUT = Symbol.for("signet.timeoutMs")
+type TimedInit = RequestInit & { [TIMEOUT]?: number }
+
+/**
+ * Per-call timeout for a `createRpcClient` call, replacing the client's
+ * `timeoutMs` (0 turns it off). Pass it as hc's `init`; other `RequestInit`
+ * fields, such as a caller's own `signal`, go in the second argument.
+ *
+ *   await api.reports.$get({}, { init: timeout(60_000) })
+ *   await api.reports.$get({}, { init: timeout(5_000, { signal: ctl.signal }) })
+ */
+export function timeout(ms: number, init: RequestInit = {}): RequestInit {
+  return { ...init, [TIMEOUT]: ms } as TimedInit
+}
 
 /**
  * A typed client for a Hono app: pass `hc<AppType>` from `hono/client` and get
  * its client back, with this module's fetch underneath. Request and response
  * types come from the server's routes (`zValidator` for inputs); the fetch
  * adds `headers()` and credentials, an `x-request-id` (kept across retries),
- * optional retries, and throws instead of returning a failed response: a 401
- * is `AuthError`, any other non-2xx an `ApiError` read from the envelope.
+ * optional retries and timeouts, and throws instead of returning a failed
+ * response: a 401 is `AuthError`, a timeout `TimeoutError`, any other non-2xx
+ * an `ApiError` read from the envelope. Read a streamed body with `readSse`,
+ * `readNdjson` or `readText` from `./stream`.
  * So `await (await api.notes.$get()).json()` is the success type.
  *
  *   import { hc } from "hono/client"
@@ -194,19 +218,39 @@ export function createRpcClient<C>(
   const base = opts.fetch ?? ((...a: Parameters<typeof fetch>) => globalThis.fetch(...a))
   const retries = opts.retries ?? 0
 
-  const rpcFetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
+  const rpcFetch = async (input: RequestInfo | URL, timed: TimedInit = {}) => {
+    const { [TIMEOUT]: callTimeout, ...init } = timed
+    const ms = callTimeout ?? opts.timeoutMs ?? 0
     const headers = mergeHeaders((await opts.headers?.()) ?? {}, init.headers)
     if (!headers.has("x-request-id")) headers.set("x-request-id", crypto.randomUUID())
+    const requestId = headers.get("x-request-id") ?? undefined
     const method = (init.method ?? "GET").toUpperCase()
     const idempotent = method === "GET" || method === "HEAD"
     for (let attempt = 0; ; attempt++) {
       let res: Response
+      const clock = new AbortController()
+      const timer = ms > 0 ? setTimeout(() => clock.abort(), ms) : undefined
+      const signal = init.signal ? AbortSignal.any([init.signal, clock.signal]) : clock.signal
+      // Raced as well as signalled: a custom fetch (a service binding, a test's
+      // app.request) may ignore the signal.
+      const expired = new Promise<never>((_, reject) => {
+        if (signal.aborted) reject(signal.reason)
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true })
+      })
       try {
-        res = await base(input, { credentials: opts.credentials ?? "include", ...init, headers })
-      } catch (err) {
+        res = await Promise.race([
+          base(input, { credentials: opts.credentials ?? "include", ...init, headers, signal }),
+          expired,
+        ])
+      } catch (cause) {
+        // Only our clock makes a TimeoutError; the caller's own abort stays an abort.
+        const err =
+          clock.signal.aborted && !init.signal?.aborted ? new TimeoutError(ms, requestId) : cause
         if (!idempotent || attempt >= retries || init.signal?.aborted) throw err
         await sleep(500 * 2 ** attempt)
         continue
+      } finally {
+        clearTimeout(timer)
       }
       if (res.status === 401) {
         const err = await toAuthError(res)
