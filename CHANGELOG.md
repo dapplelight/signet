@@ -46,6 +46,58 @@ a package at the version it had when the repository was opened to the public.
   with their behaviour recipe (each component's `// Recipe:` line), parts,
   token classes and example, plus the behaviours and the build guide.
   `get_component` now returns `summary` and `recipe`.
+### signet-payments: UPI intents and GST invoices
+
+- New `./upi`: `upiIntent` builds `upi://pay` links from NPCI's linking
+  parameters (amounts in paise), `isVpa`. No QR encoder ships.
+- New `./gst`: `isValidGstin`/`parseGstin` (check character), `gstInvoice`
+  (rule 46 checks, CGST + SGST or UTGST within a state, IGST across states
+  or to an SEZ, per-line half-up rounding in integers), `renderGstInvoiceHtml`,
+  `financialYear`, `invoiceNumber`, `amountInWords`, `formatInr`,
+  `GST_STATES`. Reverse charge, exports, cess, place of supply 97 and
+  e-invoicing are unsupported.
+
+### signet-db: DPDP consent and data requests, sequences
+
+- New `./privacy`: `createPrivacy` on `privacyTables()` (both dialects):
+  append-only consent records per purpose and notice version, withdrawal,
+  export and erasure requests fulfilled with `exportUser`/`deleteUser`,
+  optional due dates, `overdue()`. `privacyTools` for an agent acting for
+  one person; writes gated on `approve`.
+- `nextSequence(db, sequences(), key)`: concurrent-safe named counters.
+
+### signet-db: growth basics (waitlist, invites, referrals, onboarding, changelog, feedback)
+
+- New `./growth`: `createGrowth(db, { tables })` on `growthTables()` (both
+  dialects). Waitlist with idempotent join and position; invites whose token
+  is returned once and stored as SHA-256, accepted once by a conditional
+  update, with expiry, revocation and an optional email lock; referral codes,
+  one referrer per person, convert and reward once; onboarding steps and
+  changelog "last seen" on a `marks` table; feedback with kinds, rating and
+  status.
+- `growthTools(...)`: operator agent tools; writes gated on `approve`.
+- Internal: the plain tool shape and approval gate moved to `tool-kit.ts`;
+  `entitlementTools` is unchanged.
+### signet-ai 0.4.0: AI SDK 7, usage hook, tool loops, streaming, embeddings, grounding
+
+- **Breaking peer:** `ai` is now `>=7.0.0` (was `>=5`). `aiSdkProvider` calls
+  `generateText` with `output: Output.object({ schema })` instead of the
+  deprecated `generateObject`; its behaviour and `meta` are unchanged.
+- `onUsage` on `createExtractor`: tokens and cost of every provider call that
+  returned, with the budget key for per-user cost. `analyticsUsage(sink)` turns
+  any `AnalyticsSink` into an `onUsage`. A throwing hook or rejecting sink is
+  ignored. `UsageReport`, `OnUsage` and `reportUsage` are on the barrel.
+- New `./chat`: `runTools` (multi-step tool calling with `maxSteps`, default 5,
+  and a `capped` flag) and `streamChat` (UI message stream `Response` from
+  `useChat` messages, usage sent as message metadata).
+- New `./react`: `useSignetChat`, `useChat` from `@ai-sdk/react` pointed at a
+  `streamChat` route, plus the conversation's summed `usage`; `sumUsage`.
+  `@ai-sdk/react` is a new optional peer.
+- New `./ground`: `embedDocuments`, `searchDocuments` (cosine similarity, `topK`,
+  `minScore`) and `groundedAnswer`, which answers from app-provided documents
+  and keeps only citations whose quote appears verbatim in the cited document.
+- Tests drive every helper through the SDK's mock models (`ai/test`).
+
 ### signet-server: auth backend (sessions, key rotation, phone OTP, API keys)
 
 - New `./auth/sessions`: opt-in stored sessions. `SessionStore` (create, get,

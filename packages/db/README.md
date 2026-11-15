@@ -8,7 +8,7 @@ The core never imports a driver. Thin entry points connect it to one:
 
 | Import | What |
 |---|---|
-| `@dapplelight/signet-db` | Core: `scoped`, `audited`, `createCipher`, money, `newId`, `seed`, `exportUser`, `deleteUser`, `describeSchema`, `defineQuery`, `fromDrizzle` |
+| `@dapplelight/signet-db` | Core: `scoped`, `audited`, `createCipher`, money, `newId`, `seed`, `exportUser`, `deleteUser`, `nextSequence`, `describeSchema`, `defineQuery`, `fromDrizzle` |
 | `@dapplelight/signet-db/columns/sqlite` | Column helpers for SQLite and D1 tables |
 | `@dapplelight/signet-db/columns/pg` | The same helpers for Postgres tables |
 | `@dapplelight/signet-db/d1` | `createDb(env.DB)`, Cloudflare D1 |
@@ -20,6 +20,8 @@ The core never imports a driver. Thin entry points connect it to one:
 | `@dapplelight/signet-db/entitlements` | `definePlans`, `createEntitlements`, billing events, usage limits, `entitlementTools` |
 | `@dapplelight/signet-db/flags` | `defineFlags`, `evaluateFlag`, `createFlags` |
 | `@dapplelight/signet-db/admin` | `defineAdmin(schema, { authorize })`, an admin API and admin MCP tools (needs zod) |
+| `@dapplelight/signet-db/privacy` | `createPrivacy`: DPDP consent records, withdrawal, export and erasure requests; `privacyTools` |
+| `@dapplelight/signet-db/growth` | `createGrowth`: waitlist, invites, referrals, onboarding, changelog, feedback; `growthTools` |
 
 Peers: `drizzle-orm` ^0.45, `@dapplelight/signet-lib` ^0.3, `postgres` only
 for `./postgres` and `zod` only for `./zod`. Types flow from your table definitions: rows, inserts
@@ -519,6 +521,131 @@ Read: `get_plan`, `check_entitlement`, `usage`, `list_flags`. Write (with
 `approve`; without one they change nothing and return `APPROVAL_REQUIRED`.
 They are audited as `actor`. Give writes only to agents run by staff: on a
 per-user agent the person approving is the user who benefits.
+
+## Growth: waitlist, invites, referrals, onboarding, changelog, feedback
+
+```ts
+import { growthTables } from "@dapplelight/signet-db/columns/sqlite" // or /columns/pg
+import { createGrowth } from "@dapplelight/signet-db/growth"
+
+export const { waitlist, invites, referralCodes, referrals, marks, feedback } = growthTables()
+
+const growth = createGrowth(db, {
+  tables: { waitlist, invites, referralCodes, referrals, marks, feedback },
+  inviteTtlMs: 7 * 86_400_000,          // the default
+})
+
+// Waitlist: idempotent, position among people still waiting
+await growth.joinWaitlist(email, { source: "launch", referralCode }) // { email, position, joined }
+await growth.waitlistStats()            // { total, pending, invited }
+await growth.markInvited([email])       // then send them an invite
+
+// Invites: the token is returned once; only its SHA-256 is stored
+const { invite, token } = await growth.createInvite({ invitedBy: userId, scope: orgId, role: "member", email })
+await growth.acceptInvite(token, { userId, email }) // { ok: true, invite, already } | { ok: false, reason }
+await growth.revokeInvite(invite.id)
+
+// Referrals: one referrer per person, no self-referral, reward once
+const code = await growth.referralCode(userId)   // 8 Crockford base32 characters, stable
+await growth.refer(code, newUserId)               // at sign-up
+const c = await growth.convertReferral(newUserId) // at first payment
+if (c?.first) { /* reward c.referral.referrer */ await growth.markRewarded(newUserId) }
+
+// Onboarding and "what's new"
+await growth.completeStep(userId, "profile")
+await growth.onboarding(userId, ["profile", "invite", "first-project"]) // { done, next, complete, percent }
+await growth.unseenChangelog(userId, entries) // entries newer than the last markChangelogSeen
+await growth.markChangelogSeen(userId)
+
+// Feedback
+await growth.sendFeedback({ subject: userId, kind: "bug", message, rating: 4, page: "/settings" })
+await growth.listFeedback({ status: "new" })
+```
+
+`acceptInvite` fails with `not_found`, `expired`, `used` (by someone else),
+`revoked` or `email_mismatch` (the invite names an email and the caller's
+does not match). The claim is one conditional `UPDATE`, so two people
+cannot accept the same invite. What accepting grants (org membership, a role)
+is the app's: read `invite.scope` and `invite.role`. `marks` is one timestamp
+per subject and key; onboarding uses `onboarding:<step>` keys and the
+changelog `changelog:seen`, and `mark`/`marksOf` are there for your own
+(tours dismissed, tips seen). Feedback kinds default to
+`DEFAULT_FEEDBACK_KINDS` (bug, idea, praise, other); pass `feedbackKinds` to
+change them. These writes are the user's own actions and are not audited.
+
+### Tools for agents
+
+```ts
+import { growthTools } from "@dapplelight/signet-db/growth"
+
+const tools = growthTools({ growth, allowWrites: true, invitedBy: staffId, approve })
+```
+
+For an operator agent. Read: `waitlist_stats`, `list_waitlist`,
+`list_feedback`, `referral_stats`, `list_invites`. Write (with
+`allowWrites`): `create_invite`, `revoke_invite`, `set_feedback_status`, each
+gated on `approve` like the entitlement tools.
+
+## DPDP: consent and data requests
+
+```ts
+import { privacyTables } from "@dapplelight/signet-db/columns/sqlite" // or /columns/pg
+import { createPrivacy } from "@dapplelight/signet-db/privacy"
+
+export const { consents, dataRequests } = privacyTables()
+
+const privacy = createPrivacy(db, {
+  tables: { consents, dataRequests },
+  userTables: [notes, tags, [users, users.id]], // what export and erasure cover, children first
+  respondWithinMs: 30 * 86_400_000,             // optional: sets dueAt; no default
+})
+
+await privacy.give(userId, "marketing-email", { noticeVersion: "2026-11-01", source: "signup" })
+await privacy.has(userId, "marketing-email", { noticeVersion: "2026-11-01" })
+await privacy.withdraw(userId, "marketing-email") // or withdraw(userId) for every purpose
+await privacy.history(userId)                      // every record, withdrawn ones included
+
+const req = await privacy.requestErasure(userId)   // or requestExport; one open request per kind
+await privacy.overdue()                            // pending past dueAt
+await privacy.fulfil(req.id, { actor: { type: "user", id: staffId } })
+await privacy.reject(req.id, { actor, reason: "Could not verify identity" })
+```
+
+Consent records are append-only: each says which purpose, under which
+notice version, how, and when it was given and withdrawn. Giving again under
+the same notice returns the record in force; under a new notice it adds one.
+`fulfil` on an export returns the data from `exportUser` (send it to the
+person; it is not stored). On an erasure it runs `deleteUser` over
+`userTables` (audited when the db has an audit table), withdraws every
+consent, and stores the row counts. Consent and request records are kept as
+the proof of what happened; whether and when to purge them, the response
+deadline and the notice text are the app's decisions, not this module's.
+This is record-keeping for the DPDP Act, not legal advice.
+
+### Tools for agents
+
+```ts
+import { privacyTools } from "@dapplelight/signet-db/privacy"
+
+const tools = privacyTools({ privacy, subject: userId, approve })
+```
+
+For an agent acting for one person. Read: `list_consents`,
+`list_data_requests`. Write: `withdraw_consent`, `request_data_export`,
+`request_erasure`, always gated on `approve`. Agents only open requests;
+`fulfil` is a staff action in code.
+
+## Sequences
+
+```ts
+import { sequences } from "@dapplelight/signet-db/columns/sqlite"
+import { nextSequence } from "@dapplelight/signet-db"
+
+await nextSequence(db, schema.sequences, "invoice:INV:2026-27") // 1, 2, 3, ...
+```
+
+One upsert per call, so concurrent callers never get the same value. A value
+taken by a request that then fails is skipped, not reused.
 
 ## Errors
 
