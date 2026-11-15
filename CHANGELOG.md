@@ -5,6 +5,35 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-server: org settings no longer take a custom domain
+
+- `PATCH /current` in `orgRoutes` now answers 400 when the body has `domain`, instead of dropping it and returning 200. `tenant()` matches the custom domain first, so a member who could set any host would decide the tenant for every request to it. Set it with `orgs.update` from an operator or verified-DNS flow.
+- signet-ui `OrgSettings`: the custom domain field is gone, along with `domain` in `OrgSettingsValue` and the `domain`, `domainHint` and `invalidDomain` labels. Migration: stop passing those labels and stop sending `domain` from `onSave`.
+
+### signet-db: audit trail for org writes
+
+- `createOrgs` writes an `auditLog()` entry for org create and settings changes, member add, role change, remove and leave, custom role create, change and delete, and invite create, accept and revoke: actor, action, and before/after snapshots carrying the `orgId`. Never the invite token or its hash. Skipped when the db has no audit table.
+
+### signet-db: organisations and tenant scope
+
+- New `./orgs`: `createOrgs` for organisations (slug, custom domain, theme, brand colour), memberships with roles, role → permission sets with per-org custom roles, invites with expiring single-use tokens, and no-escalation and last-owner checks. `DEFAULT_ORG_ROLES`, `ORG_PERMISSIONS`, `defineRoles`, `hasPermission`, `canGrant`, `OrgError`.
+- `orgTables()` in `./columns/sqlite` and `./columns/pg`: `organizations`, `memberships`, `invitations`, `orgRoles`.
+- `scoped(db, { orgId })` and `scoped(db, { userId, orgId })`: org-scoped reads and writes, deny-by-default for tables without `orgId` (`NOT_TENANT_TABLE`, `CROSS_ORG_WRITE`).
+- `defineAdmin`: `ctx.orgId` limits the admin API to one org; `tenant: true` requires it.
+
+### signet-server: organisations and tenants
+
+- New `./http/orgs`: `tenant()` middleware resolves the org from the custom domain, subdomain, route param, `x-org` header or switch cookie; `orgGuards()` gives `requireMember`, `requireRole` and `requirePermission` (401 / 404 for outsiders / 403); `orgRoutes()` mounts org switching, settings, members and invites on signet-db's `createOrgs`. `currentTenant`, `currentMembership`, `grants`, `orgCookie`.
+
+### create-signet-app: organisations in the full template
+
+- Sign-up creates a personal org (owner). `tenant()` resolves the org from the switch cookie or `x-org` header, and from a custom domain or `<slug>.ORG_ROOT_DOMAIN` (new optional env). An org switcher in the app shell; `/org` settings and `/org/members` with roles and invite links; `/invite/$token` to accept (signed-out visitors sign in and come back). `/admin` stays the platform operator's view. Migration `0001_orgs`. API and browser tests cover a second org, an accepted invite, and 404 for another org.
+
+### signet-ui: org screens
+
+- New `./screens/org-screens`: `OrgSwitcher`, `MembersList`, `InviteDialog`, `AcceptInvitePage` and `OrgSettings` (name, custom domain, theme, brand colour with a live `buildTheme` preview), shaped like signet-server's `orgRoutes`. Showcase demo: `screens-orgs.html`.
+- `InviteDialog` takes `askEmail={false}` for apps with no verified email to bind an invite to.
+
 ### signet-db: durable workflows
 
 - New `./workflows`: `defineWorkflow(name, async (step, input) => ...)` and `createWorkflows(db, { tables, workflows })`. Steps: `step.run` (memoised, retries with backoff), `step.sleep` / `step.sleepUntil`, `step.waitForEvent(name, { timeout })`, `step.approval({ approvers, timeout })`. Engine: `start`, `tick` (lease-claimed, safe across concurrent runners), `poll`, `get`, `list`, `sendEvent`, `approve` / `reject`, `pendingApprovals`, `cancel`, `prune`. Runs resume from the database after a restart.

@@ -14,6 +14,9 @@ export type SignetDbErrorCode =
   | "NO_USER_ID"
   | "NO_OWNER_COLUMN"
   | "CROSS_USER_WRITE"
+  | "NO_ORG_ID"
+  | "NOT_TENANT_TABLE"
+  | "CROSS_ORG_WRITE"
   | "UNSCOPED_WRITE"
   | "BAD_VALUE"
   | "CURRENCY_MISMATCH"
@@ -32,6 +35,7 @@ export type SignetDbErrorCode =
   | "BAD_CONFIG"
   | "STEP_FAILED"
   | "NONDETERMINISTIC"
+  | "CONFLICT"
 
 export class SignetDbError extends Error {
   readonly code: SignetDbErrorCode

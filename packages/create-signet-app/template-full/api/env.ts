@@ -22,6 +22,13 @@ export const envSchema = z.object({
    * (see README).
    */
   BILLING: z.enum(["fake", "razorpay"]).default("fake"),
+  /**
+   * Your app's own domain, e.g. "app.example.com": then acme.app.example.com
+   * opens the org with slug "acme". Hosts outside it are looked up as an
+   * org's custom domain (Org settings). Unset, the org comes from the
+   * x-org header or the switch cookie, which is all local development needs.
+   */
+  ORG_ROOT_DOMAIN: z.string().optional(),
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),
   RAZORPAY_WEBHOOK_SECRET: z.string().optional(),

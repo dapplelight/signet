@@ -1,8 +1,9 @@
 /**
  * The full template, end to end, OUTSIDE the monorepo: scaffold with
  * `--theme finance`, install Signet's packages from local packs, then lint,
- * typecheck, run the app's tests, build, and drive sign-in → admin → billing
- * in headless Chromium (the app's own e2e/smoke.spec.ts, fake SMS and billing,
+ * typecheck, run the app's tests, build, and drive sign-in → admin → billing,
+ * then orgs (a second org, an invite accepted by a second user, a 404 for
+ * the other org) in headless Chromium (the app's own e2e/smoke.spec.ts, fake SMS and billing,
  * no keys). Then a `--no-mcp --pm pnpm` app installs with pnpm, typechecks,
  * tests and builds; and `--pm npm` rewrites CI for npm.
  *
@@ -68,6 +69,10 @@ try {
       "src/routes/_app/privacy.tsx",
       "src/routes/_app/billing.tsx",
       "src/routes/_app/admin.tsx",
+      "src/routes/_app/org/index.tsx",
+      "src/routes/_app/org/members.tsx",
+      "src/routes/invite.$token.tsx",
+      "drizzle/0001_orgs.sql",
       "src/lib/api.ts",
       "api/app.ts",
       "api/db/schema.ts",
@@ -175,7 +180,11 @@ try {
 
   await $`bunx playwright install chromium`.cwd(DIR).quiet()
   const e2e = await $`bun run test:e2e`.cwd(DIR).nothrow().quiet()
-  ok("browser: sign in → admin → billing → inbox, account, privacy", e2e.exitCode === 0, out(e2e))
+  ok(
+    "browser: sign in → admin → billing → inbox, account, privacy; orgs: second org, invite, isolation",
+    e2e.exitCode === 0 && out(e2e).includes("2 passed"),
+    out(e2e),
+  )
 } catch (err) {
   ok("full scaffold run completed", false, String(err))
 } finally {

@@ -17,6 +17,10 @@
  *   is built from Drizzle column objects, never from request strings.
  * - Writes go through `audited(db, { actor: ctx.actor })`, so the db needs an
  *   audit table. An `auditLog()` table itself is list and get only.
+ * - Tenant scope: when `ctx.orgId` is set, only tables with an `orgId` column
+ *   exist for the caller, every read and write is limited to that org's rows,
+ *   creates get its `orgId`, and no update can move a row to another org.
+ *   `tenant: true` makes `ctx.orgId` required (403 without it).
  */
 
 import {
@@ -46,14 +50,18 @@ import { decryptRows } from "./crypt.js"
 import { columnsOf, isEncrypted, type SignetDb } from "./db.js"
 import { type ColumnInfo, describeSchema } from "./describe.js"
 import { SignetDbError } from "./errors.js"
-import { type Actor, audited, type Ops } from "./scoped.js"
+import { type Actor, audited, type Ops, scoped } from "./scoped.js"
 import { MANAGED_KEYS, toZod } from "./zod.js"
 
 export type AdminOp = "list" | "get" | "create" | "update" | "delete" | "action"
 export const ADMIN_OPS: readonly AdminOp[] = ["list", "get", "create", "update", "delete", "action"]
 
-/** Who is asking. `actor` is written to the audit log; `role` is what `roles()` reads. */
-export type AdminContext = { actor: Actor; role?: string }
+/**
+ * Who is asking. `actor` is written to the audit log; `role` is what `roles()`
+ * reads; `orgId` limits every table to that org's rows (tables without an
+ * `orgId` column are left out).
+ */
+export type AdminContext = { actor: Actor; role?: string; orgId?: string }
 
 type Rec = Record<string, unknown>
 
@@ -120,6 +128,8 @@ export type AdminOptions<S, C> = {
   }
   /** Most rows a list returns. Default 100. */
   maxRows?: number
+  /** Every call must carry `ctx.orgId` (multi-tenant apps). Default false: no `orgId` means every org. */
+  tenant?: boolean
 }
 
 export type FilterOp =
@@ -462,11 +472,18 @@ function build<C extends AdminContext>(
     }
   }
 
-  const find = (table: string | undefined): Model<C> => {
+  // A tenant caller sees only tables it can be scoped on; the rest do not exist for it.
+  const inTenant = (ctx: C | undefined, m: Model<C>) => !ctx?.orgId || "orgId" in m.cols
+  const find = (table: string | undefined, ctx?: C): Model<C> => {
+    if (ctx && options.tenant && !ctx.orgId)
+      throw new AdminError(403, "FORBIDDEN", "This admin API needs an organisation.")
     const m = table === undefined ? undefined : models.get(table)
-    if (!m) throw new AdminError(404, "NOT_FOUND", `No admin table ${String(table)}.`)
+    if (!m || !inTenant(ctx, m))
+      throw new AdminError(404, "NOT_FOUND", `No admin table ${String(table)}.`)
     return m
   }
+  const tenantCond = (ctx: C, m: Model<C>) =>
+    ctx.orgId ? eq(m.cols.orgId as Column, ctx.orgId) : undefined
 
   const gate = async (ctx: C, m: Model<C>, op: AdminOp, extra: Partial<AdminCheck> = {}) => {
     if (!m.ops.has(op))
@@ -530,13 +547,25 @@ function build<C extends AdminContext>(
 
   const byId = (m: Model<C>, id: unknown) => eq(m.cols[m.id as string] as Column, idValue(m, id))
 
-  const one = async (db: SignetDb<unknown>, m: Model<C>, id: unknown, withDeleted?: boolean) => {
-    const [row] = await read(db, m, and(byId(m, id), live(m, withDeleted)), { limit: 1 })
+  const one = async (
+    db: SignetDb<unknown>,
+    ctx: C,
+    m: Model<C>,
+    id: unknown,
+    withDeleted?: boolean,
+  ) => {
+    const [row] = await read(db, m, and(byId(m, id), live(m, withDeleted), tenantCond(ctx, m)), {
+      limit: 1,
+    })
     if (!row) throw new AdminError(404, "NOT_FOUND", `No ${m.name} row with ${m.id} ${String(id)}.`)
     return row
   }
 
-  const writer = (db: SignetDb<unknown>, ctx: C) => audited(db, { actor: ctx.actor })
+  const writer = (db: SignetDb<unknown>, ctx: C): Ops<false> =>
+    ctx.orgId
+      ? // Same calls, plus org_id on every where and insert; the type stays Ops<false> for actions.
+        (audited(scoped(db, { orgId: ctx.orgId }), { actor: ctx.actor }) as unknown as Ops<false>)
+      : audited(db, { actor: ctx.actor })
 
   // pg: uuid, enum and string-mode timestamp columns have no ilike, so compare as text.
   const likeCond = (col: Column, dialect: string, pattern: string) =>
@@ -626,7 +655,7 @@ function build<C extends AdminContext>(
     table: string,
     query: ListQuery = {},
   ): Promise<ListResult> {
-    const m = find(table)
+    const m = find(table, ctx)
     await gate(ctx, m, "list")
     const qv = validate(z.object(listShape(m)).strict(), query)
     const sort = qv.sort ?? m.info.defaultSort.sort
@@ -634,6 +663,7 @@ function build<C extends AdminContext>(
     const limit = qv.limit ?? Math.min(50, maxRows)
     const conds: (SQL | undefined)[] = [
       live(m, qv.withDeleted),
+      tenantCond(ctx, m),
       ...filterCond(m, qv.filter, db.dialect),
     ]
     if (qv.q && m.searchable.length) {
@@ -648,7 +678,10 @@ function build<C extends AdminContext>(
           "cursor",
           "This cursor is for a different sort, or is not a cursor. Start from the first page.",
         )
-      const anchorWhere = and(...m.pk.map((k, i) => eq(m.cols[k] as Column, c.k[i])))
+      const anchorWhere = and(
+        ...m.pk.map((k, i) => eq(m.cols[k] as Column, c.k[i])),
+        tenantCond(ctx, m),
+      )
       const o = db.orm as AnyOrm
       const [anchor] = await o.select({ x: sql`1` }).from(m.table).where(anchorWhere).limit(1)
       if (!anchor)
@@ -693,9 +726,9 @@ function build<C extends AdminContext>(
     id: unknown,
     options: { withDeleted?: boolean } = {},
   ) {
-    const m = find(table)
+    const m = find(table, ctx)
     await gate(ctx, m, "get")
-    const row = await view(ctx, m, await one(db, m, id, options.withDeleted))
+    const row = await view(ctx, m, await one(db, ctx, m, id, options.withDeleted))
     await gate(ctx, m, "get", { row })
     return row
   }
@@ -707,9 +740,13 @@ function build<C extends AdminContext>(
   }
 
   async function create(db: SignetDb<unknown>, ctx: C, table: string, body: unknown, g?: Gate) {
-    const m = find(table)
+    const m = find(table, ctx)
     await gate(ctx, m, "create")
-    const input = validate(m.insert, body) as Rec
+    // A tenant caller's rows always land in its own org, whatever the body says.
+    const input = validate(
+      m.insert,
+      ctx.orgId && body && typeof body === "object" ? { ...body, orgId: ctx.orgId } : body,
+    ) as Rec
     await gate(ctx, m, "create", { row: input, input })
     await hold(g, `Create a ${m.name} row`, input)
     const [row] = await writer(db, ctx).insert(m.table, input as never)
@@ -724,11 +761,13 @@ function build<C extends AdminContext>(
     body: unknown,
     g?: Gate,
   ) {
-    const m = find(table)
+    const m = find(table, ctx)
     await gate(ctx, m, "update")
     const input = validate(m.update, body) as Rec
     if (Object.keys(input).length === 0) throw bad("(body)", "Nothing to change.")
-    const before = strip(m, await one(db, m, id))
+    if (ctx.orgId && has(input, "orgId"))
+      throw new AdminError(403, "FORBIDDEN", "Rows cannot be moved to another organisation.")
+    const before = strip(m, await one(db, ctx, m, id))
     await gate(ctx, m, "update", { row: before, input })
     await hold(g, `Update ${m.name} ${String(id)}`, { before, changes: input })
     const [row] = await writer(db, ctx).update(m.table, input as never, byId(m, id))
@@ -737,9 +776,9 @@ function build<C extends AdminContext>(
   }
 
   async function remove(db: SignetDb<unknown>, ctx: C, table: string, id: unknown, g?: Gate) {
-    const m = find(table)
+    const m = find(table, ctx)
     await gate(ctx, m, "delete")
-    const row = strip(m, await one(db, m, id))
+    const row = strip(m, await one(db, ctx, m, id))
     await gate(ctx, m, "delete", { row })
     const soft = m.info.softDelete
     await hold(g, `${soft ? "Delete" : "Permanently delete"} ${m.name} ${String(id)}`, { row })
@@ -748,7 +787,7 @@ function build<C extends AdminContext>(
   }
 
   async function bulkDelete(db: SignetDb<unknown>, ctx: C, table: string, ids: unknown) {
-    const m = find(table)
+    const m = find(table, ctx)
     await gate(ctx, m, "delete")
     const list = validate(
       z
@@ -760,7 +799,7 @@ function build<C extends AdminContext>(
     )
     const values = list.map((v) => idValue(m, v))
     const pk = m.cols[m.id as string] as Column
-    const rows = await read(db, m, and(inArray(pk, values), live(m)))
+    const rows = await read(db, m, and(inArray(pk, values), live(m), tenantCond(ctx, m)))
     const found = rows.map((r) => r[m.id as string])
     for (const [i, row] of rows.map((r) => strip(m, r)).entries()) {
       if (!(await allowed(ctx, { table: m.name, op: "delete", row })))
@@ -783,12 +822,12 @@ function build<C extends AdminContext>(
     body: unknown,
     g?: Gate,
   ) {
-    const m = find(table)
+    const m = find(table, ctx)
     const def = has(m.actions, name) ? m.actions[name] : undefined
     if (!def) throw new AdminError(404, "NOT_FOUND", `No action ${name} on ${m.name}.`)
     await gate(ctx, m, "action", { action: name })
     const input = def.input ? (validate(def.input, body ?? {}) as Rec) : {}
-    const row = strip(m, await one(db, m, id))
+    const row = strip(m, await one(db, ctx, m, id))
     await gate(ctx, m, "action", { action: name, row, input })
     await hold(g, `${name} on ${m.name} ${String(id)}`, { row, input })
     return (await def.run({ row, input, ctx, db, ops: writer(db, ctx) })) ?? null
@@ -796,7 +835,9 @@ function build<C extends AdminContext>(
 
   async function meta(ctx: C): Promise<AdminMeta> {
     const tables: AdminTableMeta[] = []
+    if (options.tenant && !ctx.orgId) return { tables }
     for (const m of models.values()) {
+      if (!inTenant(ctx, m)) continue
       const ops: AdminOp[] = []
       for (const op of m.ops)
         if (op !== "action" && (await allowed(ctx, { table: m.name, op }))) ops.push(op)

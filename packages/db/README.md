@@ -23,6 +23,7 @@ The core never imports a driver. Thin entry points connect it to one:
 | `@dapplelight/signet-db/webhooks` | `createWebhooks`: outbound webhooks per user or org, signed, retried through the outbox, with a delivery log |
 | `@dapplelight/signet-db/privacy` | `createPrivacy`: DPDP consent records, withdrawal, export and erasure requests; `privacyTools` |
 | `@dapplelight/signet-db/analytics` | `createAnalyticsStore`: events in your database, counts, uniques, series, breakdowns, funnels, retention, trends; `analyticsTools` |
+| `@dapplelight/signet-db/orgs` | `createOrgs`: organisations, memberships, roles and permissions, custom roles, invites, per-org domain and theme |
 | `@dapplelight/signet-db/growth` | `createGrowth`: waitlist, invites, referrals, onboarding, changelog, feedback; `growthTools` |
 | `@dapplelight/signet-db/workflows` | `defineWorkflow`, `createWorkflows`: durable multi-step runs with sleeps, events, human approvals, retries, cancel |
 
@@ -670,6 +671,49 @@ or, with `createMcpServer({ approvals })`, opens a pending approval the
 person decides in the app (see signet-server's "Approvals").
 They are audited as `actor`. Give writes only to agents run by staff: on a
 per-user agent the person approving is the user who benefits.
+
+## Organisations and tenant scope
+
+```ts
+import { orgTables } from "@dapplelight/signet-db/columns/sqlite" // or /columns/pg
+export const { organizations, memberships, invitations, orgRoles } = orgTables()
+export const projects = sqliteTable("projects", { id: id(), orgId: text("org_id").notNull(), name: text("name").notNull() })
+
+import { createOrgs } from "@dapplelight/signet-db/orgs"
+const orgs = createOrgs(db, { tables: { organizations, memberships, invitations, orgRoles } })
+const org = await orgs.create({ name: "Acme", ownerId: userId })      // creator is the owner
+await orgs.update(org.id, { domain: "app.acme.example", brandColor: "#12833c" }, { by: userId })
+const { token } = await orgs.invite({ orgId: org.id, role: "member", invitedBy: userId, email })
+await orgs.acceptInvite(token, { userId: other, email })               // { ok, membership, org } | { ok: false, reason }
+await orgs.can(org.id, other, "members:invite")                        // false
+await orgs.saveRole(org.id, "billing", ["billing:read"], { by: userId }) // a custom role in this org
+
+const data = scoped(db, { orgId: org.id })            // org_id on every where and insert
+const mine = scoped(db, { userId, orgId: org.id })    // both
+```
+
+- Roles map to permission sets (`DEFAULT_ORG_ROLES`: owner `*`, admin,
+  member; `defineRoles` for your own). `members:*` matches every `members:`
+  permission. Custom roles live per org in `orgRoles`.
+- With `{ by }`, a change is checked against the actor: they need the
+  permission (`ORG_PERMISSIONS`) and cannot hand out a role with
+  permissions they lack. An org always keeps one owner.
+- Invite tokens are 256 random bits shown once; only the SHA-256 is stored.
+  They expire (`inviteTtlMs`, default 7 days), work once and can be revoked.
+- `byDomain(host)` and `bySlug(slug)` resolve a tenant; signet-server's
+  `tenant()` middleware uses them.
+- An org scope is deny-by-default: a table without `orgId` (and without a
+  `userId` the scope also fixes) throws `NOT_TENANT_TABLE`; writes that name
+  another org throw `CROSS_ORG_WRITE`.
+- `defineAdmin` with `ctx.orgId` shows only tables with `orgId`, limits every
+  op to that org and puts creates in it; `tenant: true` requires an org.
+- With an audit table, every write is logged: `org.create`, `org.update`,
+  `member.add`, `member.role`, `member.remove`, `member.leave`,
+  `role.create`, `role.update`, `role.delete`, `invite.create`,
+  `invite.accept`, `invite.revoke`. Each entry has the actor (`by`, else the
+  system), and before/after snapshots carrying `orgId`. Invite tokens and
+  hashes are never logged. Without an audit table nothing is written.
+- Failures are `OrgError` (a `SignetDbError` with an HTTP `status`).
 
 ## Growth: waitlist, invites, referrals, onboarding, changelog, feedback
 

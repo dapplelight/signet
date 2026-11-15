@@ -36,6 +36,7 @@ package ships all three rather than forcing them together.
 | `@dapplelight/signet-server/http/openapi` | `hono`, `zod` >=4.2 (optional peers) | `openApiSpec`, `serveOpenApi`, `apiDoc`, `apiDocsHtml`: OpenAPI 3.1 and HTML docs from `zValidator` routes. See [Public API](#public-api-openapi-docs-webhooks-caching). |
 | `@dapplelight/signet-server/http/cache` | `hono` (optional peer) | `httpCache` (Cache-Control, ETag, 304, Vary), `cachedResponse` (stale-while-revalidate on a `KeyValue`). |
 | `@dapplelight/signet-server/http/webhooks` | `hono`, `zod` (optional peers) | `webhookRoutes`: admin routes for signet-db's outbound webhooks. |
+| `@dapplelight/signet-server/http/orgs` | `hono` (optional peer) | `tenant`, `orgGuards` (`requireMember`, `requireRole`, `requirePermission`), `orgRoutes`: multi-tenant orgs on signet-db's `createOrgs`. See [Organisations](#organisations-and-tenants). |
 | `@dapplelight/signet-server/mcp` | `@modelcontextprotocol/server` ^2.1, `zod` >=4.2 (optional peers; not `hono`) | `defineTool`, `createMcpServer`; stdio via the SDK's `serveStdio`. See [MCP servers](#mcp-servers). |
 | `@dapplelight/signet-server/jobs` | `zod` (optional peer) | `defineJob`, `createJobs`, retries, schedules, Cloudflare/QStash/Node runtimes. See [Jobs](#jobs). |
 | `@dapplelight/signet-server/http/workflows` | `hono` (optional peer) | `workflowRoutes` for signet-db's durable workflows: start, status, events, approve/reject, cancel, admin list. See [Workflow routes](#workflow-routes). |
@@ -380,6 +381,39 @@ here settles the step. Pass `notify: (to, r) => notifier.notify(to,
 Nothing runs until something calls `wf.tick()`: a cron trigger on Workers,
 `wf.poll()` on Bun or Node.
 
+### Organisations and tenants
+
+`@dapplelight/signet-server/http/orgs` puts signet-db's `createOrgs` on Hono,
+typed by shape. One app serves many orgs, each on its own domain.
+
+```ts
+import { orgGuards, orgRoutes, tenant, currentTenant } from "@dapplelight/signet-server/http/orgs"
+
+const userId = (c) => c.get("session")?.sub
+app.use("/api/*", tenant({ orgs, rootDomain: "app.example" })) // c.get("tenant")
+const { requirePermission, requireRole } = orgGuards({ orgs, userId })
+app.get("/api/projects", requirePermission("projects:read"), async (c) =>
+  c.json(await scoped(db, { orgId: currentTenant(c).id }).select(projects)))
+app.route("/api/orgs", orgRoutes({ orgs, userId, email: (c) => c.get("session")?.email }))
+// org-scoped admin: pass the tenant into the admin context
+app.use("/admin/*", requirePermission("admin:access"))
+app.route("/admin", adminRoutes(admin, { db, ctx: (c) => ({ actor: { type: "user", id: userId(c) }, role: "admin", orgId: currentTenant(c).id }) }))
+```
+
+- `tenant()` resolves, first match wins: custom domain, subdomain of
+  `rootDomain`, a route `param`, the `x-org` header, the `signet_org` cookie
+  that `POST /api/orgs/switch` sets. It names the org; it grants nothing.
+- Guards: 401 signed out, 404 when the caller is not a member (an outsider
+  learns nothing about the org), 403 for a member without the role or
+  permission. `currentMembership(c)` has the role and permissions.
+- `orgRoutes`: my orgs, create, switch, current org and settings (name, slug,
+  theme, brand colour; a `domain` in the body gets 400, because whoever holds
+  a host decides the tenant, so set it with `orgs.update` from an operator
+  or verified-DNS flow), members (change role, remove, leave), invites
+  (create, list, revoke, preview, accept). Every `/current` route checks
+  membership in the tenant, and signet-db refuses role escalation and
+  removing the last owner. `OrgError` becomes the envelope.
+
 ## Public API: OpenAPI, docs, webhooks, caching
 
 Three modules for an API other developers call: the spec and docs come from
@@ -475,6 +509,7 @@ app.get("/stats", (c) =>
   at once while one background render refreshes the entry (`waitUntil` on
   Workers), and `varyBy` (the user or org) is part of the key. Only 200s
   without `Set-Cookie` are stored. `X-Cache` says `HIT`, `STALE` or `MISS`.
+
 
 ## Env — Workers-safe configuration
 
