@@ -60,6 +60,18 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   column types, create, bulk delete, row actions and the audit trail. Every
   part is exported (`AdminPanel`, `AdminTable`, `AdminRecordSheet`…) with
   `useAdmin()` for your own.
+- `screens/billing-screens`: `BillingScreen` and `Paywall` on signet-db
+  entitlements and signet-payments: plan picker (web and store plans,
+  monthly / yearly), current plan with `currentPeriodEnd` and source, restore
+  purchases, usage meters, GST invoice links and a wallet balance.
+  `plansFromEntitlements(definePlans(...), display)` builds the plan list.
+- `screens/growth-screens`: `WaitlistJoin` (with the place in line),
+  `InviteAccept`, `ReferralCard`, `OnboardingChecklist`, `FeedbackWidget` /
+  `FeedbackForm` and `WhatsNew`, shaped like signet-db's growth results.
+- Every screen takes plain data and callbacks, so any client fits
+  (`createRpcClient`, fetch). Strings come from `DEFAULT_*_LABELS` and the
+  `labels` prop. Demo: `apps/showcase/screens-ops.html` (`?screen=`,
+  `?theme=`, `?dark=1`).
 
 ## Behaviours and recipes
 
@@ -82,6 +94,8 @@ without an app changing. Each component's source starts with its recipe:
 | `sidebar` | disclosure + controllable-state + shortcut; on phones the Drawer's popup + focus-trap + dismiss + swipe |
 | `breadcrumb` | landmark |
 | `spinner` | live-region |
+| `screens/billing-screens` | selection + roving-focus + controllable-state + live-region |
+| `screens/growth-screens` | selection + roving-focus + controllable-state + popup + dismiss + live-region + field-wiring |
 | `screens/admin-screens` | selection + controllable-state + popup + focus-trap + dismiss + roving-focus (tabs) + field-wiring |
 
 `@dapplelight/signet-ui/behaviors` exports the behaviours a new component
