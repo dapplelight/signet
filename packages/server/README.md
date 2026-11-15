@@ -33,6 +33,7 @@ package ships all three rather than forcing them together.
 | `@dapplelight/signet-server/auth/api-keys` | none | API-key manager: scoped, expiring, stored as hashes. |
 | `@dapplelight/signet-server/auth/mcp` | `@modelcontextprotocol/server`, `zod` (optional peers) | `authTools`: per-user session and API-key tools for agents. |
 | `@dapplelight/signet-server/auth/hono` | `hono` (optional peer) | `requireAuth`, `requireSession`, `requireStoredSession`, `sessionRoutes`, `requireApiKey`. |
+| `@dapplelight/signet-server/http/orgs` | `hono` (optional peer) | `tenant`, `orgGuards` (`requireMember`, `requireRole`, `requirePermission`), `orgRoutes`: multi-tenant orgs on signet-db's `createOrgs`. See [Organisations](#organisations-and-tenants). |
 | `@dapplelight/signet-server/mcp` | `@modelcontextprotocol/server` ^2.1, `zod` >=4.2 (optional peers; not `hono`) | `defineTool`, `createMcpServer`; stdio via the SDK's `serveStdio`. See [MCP servers](#mcp-servers). |
 | `@dapplelight/signet-server/jobs` | `zod` (optional peer) | `defineJob`, `createJobs`, retries, schedules, Cloudflare/QStash/Node runtimes. See [Jobs](#jobs). |
 | `@dapplelight/signet-server/storage` | none | `createUploads`: checked presigned or streamed uploads. See [Storage](#storage). |
@@ -338,6 +339,37 @@ and create; `GET|PATCH|DELETE /:table/:id`; `POST /:table/bulk-delete` with
 `{ ids }`; `POST /:table/:id/:action`. A missing context is 401; signet-db's
 `AdminError` becomes an `ApiException`, so the envelope carries its status,
 code, field `details` and the request id.
+
+### Organisations and tenants
+
+`@dapplelight/signet-server/http/orgs` puts signet-db's `createOrgs` on Hono,
+typed by shape. One app serves many orgs, each on its own domain.
+
+```ts
+import { orgGuards, orgRoutes, tenant, currentTenant } from "@dapplelight/signet-server/http/orgs"
+
+const userId = (c) => c.get("session")?.sub
+app.use("/api/*", tenant({ orgs, rootDomain: "app.example" })) // c.get("tenant")
+const { requirePermission, requireRole } = orgGuards({ orgs, userId })
+app.get("/api/projects", requirePermission("projects:read"), async (c) =>
+  c.json(await scoped(db, { orgId: currentTenant(c).id }).select(projects)))
+app.route("/api/orgs", orgRoutes({ orgs, userId, email: (c) => c.get("session")?.email }))
+// org-scoped admin: pass the tenant into the admin context
+app.use("/admin/*", requirePermission("admin:access"))
+app.route("/admin", adminRoutes(admin, { db, ctx: (c) => ({ actor: { type: "user", id: userId(c) }, role: "admin", orgId: currentTenant(c).id }) }))
+```
+
+- `tenant()` resolves, first match wins: custom domain, subdomain of
+  `rootDomain`, a route `param`, the `x-org` header, the `signet_org` cookie
+  that `POST /api/orgs/switch` sets. It names the org; it grants nothing.
+- Guards: 401 signed out, 404 when the caller is not a member (an outsider
+  learns nothing about the org), 403 for a member without the role or
+  permission. `currentMembership(c)` has the role and permissions.
+- `orgRoutes`: my orgs, create, switch, current org and settings (domain,
+  theme, brand colour), members (change role, remove, leave), invites
+  (create, list, revoke, preview, accept). Every `/current` route checks
+  membership in the tenant, and signet-db refuses role escalation and
+  removing the last owner. `OrgError` becomes the envelope.
 
 ## Env — Workers-safe configuration
 
