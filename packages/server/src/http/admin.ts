@@ -75,8 +75,12 @@ export function adminRoutes<D, C>(admin: AdminHandler<D, C>, options: AdminRoute
       }
     }
     const { table, id, action } = c.req.param() as Record<string, string | undefined>
+    // From auditContext(), if mounted: lets signet-db record ip, user agent and request id.
+    const request = (c.get("audit") as { request?: unknown } | undefined)?.request
+    const withRequest =
+      request && typeof ctx === "object" && !("request" in ctx) ? { ...ctx, request } : ctx
     try {
-      const res = await admin.handle(await options.db(c), ctx, {
+      const res = await admin.handle(await options.db(c), withRequest as C, {
         method: c.req.method,
         ...(table !== undefined ? { table } : {}),
         ...(id !== undefined ? { id } : {}),

@@ -9,7 +9,8 @@
  *
  * `audited(ops | db, { actor })` returns the same operations, also writing
  * who/what/when/before/after to the `auditLog()` table for each changed row.
- * Encrypted fields are stored in the audit log as ciphertext.
+ * Encrypted fields are stored in the audit log as ciphertext; fields named
+ * like a secret (`password`, `token`, ...) are redacted outright.
  */
 
 import {
@@ -23,6 +24,7 @@ import {
   type SQL,
   type Table,
 } from "drizzle-orm"
+import { type AuditRequest, redact, requestColumns } from "./audit.js"
 import { decryptRows, encryptValues } from "./crypt.js"
 import { columnsOf, type SignetDb } from "./db.js"
 import { SignetDbError } from "./errors.js"
@@ -64,7 +66,7 @@ export type Ops<S extends boolean = true> = {
 /** Who made a change. Agent writes are recorded as `{ type: "agent", id }`. */
 export type Actor = { type: "user" | "agent" | "system"; id: string }
 
-type State = { db: SignetDb<unknown>; userId?: string; actor?: Actor }
+type State = { db: SignetDb<unknown>; userId?: string; actor?: Actor; request?: AuditRequest }
 const states = new WeakMap<object, State>()
 
 // biome-ignore lint/suspicious/noExplicitAny: structural call into a Drizzle db of any dialect
@@ -84,13 +86,20 @@ export function scoped<TOrm>(db: SignetDb<TOrm>, { userId }: { userId: string })
 /**
  * Wrap scoped operations, or a whole db (unscoped, for admin jobs), so every
  * insert, update and delete also writes an audit entry. `actor` defaults to
- * `{ type: "user", id: userId }` of the scope.
+ * `{ type: "user", id: userId }` of the scope. `request` (ip, user agent,
+ * request id) is stored on every entry; snapshots are redacted, see `redact`.
  */
-export function audited<S extends boolean>(target: Ops<S>, options?: { actor?: Actor }): Ops<S>
-export function audited<TOrm>(target: SignetDb<TOrm>, options: { actor: Actor }): Ops<false>
+export function audited<S extends boolean>(
+  target: Ops<S>,
+  options?: { actor?: Actor; request?: AuditRequest },
+): Ops<S>
+export function audited<TOrm>(
+  target: SignetDb<TOrm>,
+  options: { actor: Actor; request?: AuditRequest },
+): Ops<false>
 export function audited(
   target: Ops<boolean> | SignetDb<unknown>,
-  options: { actor?: Actor } = {},
+  options: { actor?: Actor; request?: AuditRequest } = {},
 ): Ops<boolean> {
   const base = states.get(target) ?? { db: target as SignetDb<unknown> }
   if (!base.db.audit)
@@ -105,7 +114,7 @@ export function audited(
       "NO_ACTOR",
       'audited(db) is unscoped, so it cannot default the actor. Pass { actor: { type: "system", id: "<job name>" } }.',
     )
-  return make({ ...base, actor })
+  return make({ ...base, actor, request: options.request ?? base.request })
 }
 
 function primaryKey(table: Table): string | undefined {
@@ -114,7 +123,7 @@ function primaryKey(table: Table): string | undefined {
 }
 
 function make(state: State): Ops<boolean> {
-  const { db, userId, actor } = state
+  const { db, userId, actor, request } = state
   const o = db.orm as AnyOrm
 
   const where = (table: Table, extra?: SQL, options: ReadOptions = {}) => {
@@ -125,6 +134,8 @@ function make(state: State): Ops<boolean> {
     if (extra) conds.push(extra)
     return and(...conds)
   }
+
+  const snap = (r: Rec | undefined) => (r ? redact(r, db.auditConfig?.redact) : null)
 
   const audit = async (table: Table, action: string, before: Rec[], after: Rec[]) => {
     if (actor === undefined || !db.audit) return
@@ -141,8 +152,9 @@ function make(state: State): Ops<boolean> {
         action,
         tableName,
         rowId: idOf(r),
-        before: action === "insert" ? null : (beforeById.get(idOf(r)) ?? null),
-        after: after.length ? r : null,
+        before: action === "insert" ? null : snap(beforeById.get(idOf(r))),
+        after: after.length ? snap(r) : null,
+        ...requestColumns(request),
       })),
     )
   }

@@ -42,6 +42,7 @@ import {
 } from "drizzle-orm"
 import { z } from "zod"
 import { jsonSchema } from "./agent.js"
+import type { AuditRequest } from "./audit.js"
 import { decryptRows } from "./crypt.js"
 import { columnsOf, isEncrypted, type SignetDb } from "./db.js"
 import { type ColumnInfo, describeSchema } from "./describe.js"
@@ -53,7 +54,7 @@ export type AdminOp = "list" | "get" | "create" | "update" | "delete" | "action"
 export const ADMIN_OPS: readonly AdminOp[] = ["list", "get", "create", "update", "delete", "action"]
 
 /** Who is asking. `actor` is written to the audit log; `role` is what `roles()` reads. */
-export type AdminContext = { actor: Actor; role?: string }
+export type AdminContext = { actor: Actor; role?: string; request?: AuditRequest }
 
 type Rec = Record<string, unknown>
 
@@ -536,7 +537,8 @@ function build<C extends AdminContext>(
     return row
   }
 
-  const writer = (db: SignetDb<unknown>, ctx: C) => audited(db, { actor: ctx.actor })
+  const writer = (db: SignetDb<unknown>, ctx: C) =>
+    audited(db, { actor: ctx.actor, request: ctx.request })
 
   // pg: uuid, enum and string-mode timestamp columns have no ilike, so compare as text.
   const likeCond = (col: Column, dialect: string, pattern: string) =>

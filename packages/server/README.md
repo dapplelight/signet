@@ -694,6 +694,27 @@ every method refuses a key outside the caller's prefix (`canAccess` to
 change that). Errors are `UploadError` with a `code` and the HTTP `status`
 to answer with (413 too large, 415 type, 403 not yours, 501 no presign).
 
+## Audit context
+
+```ts
+import { auditContext } from "@dapplelight/signet-server/middleware/audit"
+
+app.use("*", requestId())
+app.use("*", auditContext({
+  trust: "cloudflare",                       // same setting as rateLimit; default "none" records no IP
+  actor: async (c) => (await currentUser(c)) ?? undefined, // { type, id }
+}))
+
+const { actor, request } = c.get("audit")    // request: { ip, userAgent, requestId }
+await audit({ db, actor, request }, "export", { type: "invoices" }) // signet-db
+```
+
+Run it after `requestId()` so the request id is recorded. The IP follows
+`ClientIpTrust` (a spoofable header is never believed without a trust
+setting), and the user agent is cut to 512 characters. `adminRoutes` passes
+`request` to `defineAdmin`'s handler, so admin writes land in the audit log
+with the caller's IP, user agent and request id.
+
 ## Logging
 
 ```ts

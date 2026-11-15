@@ -27,6 +27,7 @@ import {
   text,
 } from "drizzle-orm/sqlite-core"
 import postgres from "postgres"
+import type { AuditConfig } from "../src/audit"
 import type { Cipher } from "../src/cipher"
 import * as pgc from "../src/columns/pg"
 import * as sqc from "../src/columns/sqlite"
@@ -158,11 +159,12 @@ async function setup(i: Instance): Promise<Instance> {
   return i
 }
 
-export type Options = { cipher?: Cipher; audit?: boolean }
+export type Options = { cipher?: Cipher; audit?: boolean; auditConfig?: AuditConfig }
 
 const withAudit = (o: Options, S: Schema): DbConfig => ({
   cipher: o.cipher,
   audit: o.audit ? S.audit : undefined,
+  auditConfig: o.auditConfig,
   outbox: S.outbox,
   idempotency: S.idem,
 })

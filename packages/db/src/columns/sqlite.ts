@@ -75,19 +75,28 @@ export const encrypted = (name: string) => encryptedType(name)
 
 /** The audit trail table for `createDb(..., { audit })`. */
 export const auditLog = (name = "audit_log") =>
-  sqliteTable(name, {
-    id: id(),
-    at: stamp("at"),
-    /** user | agent | system */
-    actorType: text("actor_type").notNull(),
-    actorId: text("actor_id").notNull(),
-    /** insert | update | delete | delete_user */
-    action: text("action").notNull(),
-    tableName: text("table_name").notNull(),
-    rowId: text("row_id"),
-    before: text("before", { mode: "json" }),
-    after: text("after", { mode: "json" }),
-  })
+  sqliteTable(
+    name,
+    {
+      id: id(),
+      at: stamp("at"),
+      /** user | agent | system */
+      actorType: text("actor_type").notNull(),
+      actorId: text("actor_id").notNull(),
+      /** insert | update | delete | delete_user */
+      action: text("action").notNull(),
+      tableName: text("table_name").notNull(),
+      rowId: text("row_id"),
+      before: text("before", { mode: "json" }),
+      after: text("after", { mode: "json" }),
+      /** Extra detail from `audit()`, redacted. */
+      meta: text("meta", { mode: "json" }),
+      ip: text("ip"),
+      userAgent: text("user_agent"),
+      requestId: text("request_id"),
+    },
+    (t) => [index(`${name}_at_idx`).on(t.at), index(`${name}_actor_idx`).on(t.actorId)],
+  )
 
 /** The transactional outbox table for `createDb(..., { outbox })`. */
 export const outbox = (name = "outbox") =>

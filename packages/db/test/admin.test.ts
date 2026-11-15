@@ -328,7 +328,7 @@ describe.each(backends)("$name", (backend) => {
       ["user", "admin-1", "insert", "tags"],
       ["user", "admin-1", "delete", "tags"],
     ])
-    expect(log[1]!.before.passwordHash).toBe("argon2$y")
+    expect(log[1]!.before.passwordHash).toBe("[redacted]") // never stored in the clear
     const viaAdmin = (await admin.list(db, ctx(), "audit_log", { sort: "at", order: "asc" }))
       .rows as Row[]
     expect(viaAdmin[1]!.before.phone).toBeNull()

@@ -169,8 +169,58 @@ const bot = audited(db, { actor: { type: "system", id: "nightly-cleanup" } }) //
 Each changed row gets an entry: `actorType` (`user`, `agent` or `system`),
 `actorId`, `action`
 (insert/update/delete/delete_user), `tableName`, `rowId`, `before`, `after`,
-`at`. Encrypted fields are recorded as ciphertext. The change and its entry
+`at`, plus `ip`, `userAgent` and `requestId` when the writer was given a
+request. Encrypted fields are recorded as ciphertext. The change and its entry
 are separate statements; on D1 they are not one transaction.
+
+**Who, from where.** `audited(db, { actor, request })` stores the request on
+every entry. signet-server's `auditContext()` middleware builds it
+(`c.get("audit").request`), and `adminRoutes` passes it to `defineAdmin`
+for you.
+
+**Redaction.** `before`, `after` and `meta` are redacted before they are
+written: any field whose name (lowercased, without `_`, `-` and spaces)
+contains `password`, `passwd`, `secret`, `token`, `apikey`, `authorization`,
+`cookie`, `credential` or `privatekey` becomes `"[redacted]"`, at any depth.
+Add names with `createDb(..., { audit, auditConfig: { redact: ["pin", "ssn"] } })`;
+the defaults stay on. This is a substring match, so `tokensUsed` is redacted too.
+
+**Events that are not row writes.** `audit(ctx, action, target, meta)`:
+
+```ts
+await audit({ db, actor, request }, "export", { type: "invoices", id: "inv_1" }, { rows: 40 })
+// target.type is stored as tableName, target.id as rowId; meta as JSON, redacted
+```
+
+**Reading it back.** Newest first, with a total for page controls:
+
+```ts
+const { rows, total } = await queryAudit(db, {
+  actorId: "u1", action: "update", target: { type: "invoices" }, // each optional
+  from: new Date("2026-01-01"), to: new Date("2026-02-01"),        // from inclusive, to exclusive
+  limit: 50, offset: 100,                                           // limit default 50, max 200
+})
+```
+
+For a ready-made admin screen, `defineAdmin` already lists the `auditLog()`
+table (list and get only).
+
+**Retention.** Set `auditConfig: { retentionDays: 90 }` and call
+`purgeAudit(db)` from a scheduled job; it returns the number of rows deleted.
+Nothing is deleted unless a retention is configured or passed
+(`purgeAudit(db, { olderThanDays })`).
+
+**Upgrading an existing `audit_log`.** Add the new nullable columns and indexes
+(SQLite and D1 shown; use `jsonb` for `meta` on Postgres):
+
+```sql
+ALTER TABLE audit_log ADD COLUMN meta text;
+ALTER TABLE audit_log ADD COLUMN ip text;
+ALTER TABLE audit_log ADD COLUMN user_agent text;
+ALTER TABLE audit_log ADD COLUMN request_id text;
+CREATE INDEX audit_log_at_idx ON audit_log (at);
+CREATE INDEX audit_log_actor_idx ON audit_log (actor_id);
+```
 
 ## Migration safety check
 
