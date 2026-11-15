@@ -7,6 +7,7 @@ import {
   truncateBytes,
 } from "../src/analytics/engine"
 import { registerIngest } from "../src/analytics/ingest"
+import { analyticsContext, serverTracker } from "../src/analytics/session"
 import { type AnalyticsSink, consoleSink, httpSink, memorySink } from "../src/analytics/sinks"
 
 let pass = 0,
@@ -233,6 +234,64 @@ ok(
   } finally {
     globalThis.fetch = realFetch
   }
+}
+
+// --- sessions and identify ---
+{
+  const ids = { anonymousId: "anon-1", sessionId: "sess-1", userId: "spoofed" }
+  const send = async (opts: Partial<Parameters<typeof registerIngest>[2]>) => {
+    const mem = memorySink()
+    const a = new Hono()
+    registerIngest(a as never, "/e", { engine: mem, ...opts })
+    await a.request("/e", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        events: [
+          { name: "x", ...ids },
+          { name: "y", anonymousId: "bad id; drop" },
+        ],
+      }),
+    })
+    return mem.events
+  }
+  let ev = await send({})
+  ok(
+    "ingest keeps anonymous and session ids",
+    ev[0].anonymousId === "anon-1" && ev[0].sessionId === "sess-1",
+  )
+  ok("ingest drops a client userId by default", ev[0].userId === undefined)
+  ok("ingest drops malformed ids", ev[1].anonymousId === undefined)
+  ev = await send({ userId: () => "real-user" })
+  ok("userId resolver wins over the client", ev[0].userId === "real-user")
+  ev = await send({ trustClientUserId: true })
+  ok("trustClientUserId keeps it", ev[0].userId === "spoofed")
+
+  const dp2 = toDataPoint({ name: "n", anonymousId: "a1", sessionId: "s1", props: { k: "v" } })
+  ok(
+    "engine keeps ids as blobs",
+    dp2.blobs.join(",") === "n,aid,a1,sid,s1,k,v",
+    dp2.blobs.join(","),
+  )
+
+  const h = new Headers({ "x-signet-anonymous-id": "anon-9", "x-signet-session-id": "<script>" })
+  const ctx = analyticsContext(h)
+  ok(
+    "analyticsContext reads headers, drops junk",
+    ctx.anonymousId === "anon-9" && ctx.sessionId === undefined,
+  )
+  const mem = memorySink()
+  const t = serverTracker(mem, ctx)
+  await t.track("before")
+  await t.identify("u-1")
+  await t.track("signup", { plan: "free" })
+  ok(
+    "serverTracker stamps ids and links after identify",
+    mem.events[0].userId === undefined &&
+      mem.events[1].name === "$identify" &&
+      mem.events[1].anonymousId === "anon-9" &&
+      mem.events[2].userId === "u-1",
+  )
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

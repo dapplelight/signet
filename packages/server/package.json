@@ -183,6 +183,10 @@
       "types": "./dist/analytics/sinks.d.ts",
       "import": "./dist/analytics/sinks.js"
     },
+    "./analytics/session": {
+      "types": "./dist/analytics/session.d.ts",
+      "import": "./dist/analytics/session.js"
+    },
     "./oauth-rs": {
       "types": "./dist/oauth-rs/index.d.ts",
       "import": "./dist/oauth-rs/index.js"
