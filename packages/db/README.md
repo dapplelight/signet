@@ -622,7 +622,7 @@ access until its `currentPeriodEnd` (`ends_at`).
 RevenueCat-style monetisation on top of plans and entitlements, in your own
 database. Tables: `monetisationTables()` from `/columns/sqlite` or `/columns/pg`
 (`offerings`, `placements`, `customerIdentities`, `customerEvents`,
-`customerRequests`).
+`customerRequests`, `chartAudiences`).
 
 ### Offerings and remote paywalls
 
@@ -752,6 +752,209 @@ await customers.requests({ status: "open" }); await customers.setRequestStatus(i
   gateway still reports the subscription active until its period end.
 - signet-ui's `CustomerCenter` renders it; signet-server's
   `monetisationRoutes` serves it.
+
+### Offers
+
+Free trials, intro offers and win-back offers ride on offering products, so
+they change with a `publish` like the rest of the paywall:
+
+```ts
+await off.publish("default", {
+  products: [{
+    id: "pro.monthly", store: "appstore", plan: "pro", interval: "month",
+    offers: [
+      { id: "trial7", type: "free_trial", days: 7 },                       // never subscribed, once
+      { id: "winback50", type: "win_back", price: { amount: 249, currency: "USD" }, days: 30,
+        eligibility: { lapsedDays: 30 } },                                 // lapsed 30+ days, once
+    ],
+  }],
+}, { actor })
+
+const offering = await customers.withOffers(userId, await off.current("onboarding", audience))
+// each product's `offers` cut to what this customer may see now, best first
+await customers.redeemOffer(userId, offering, "winback50")
+// { redeemed: true, offer, product } | { redeemed: false, reason: "not_eligible" | "already_used" | "no_such_offer" }
+```
+
+- Eligibility (`offerEligible(offer, history)`, a pure function): never while
+  a subscription is live; `neverSubscribed` (the default for free trials and
+  intro offers) means no subscription or trial before on any plan;
+  `lapsedDays: n` (required for win-back) means the last subscription ended
+  at least `n` days ago; every offer is once per customer unless
+  `once: false`, and a free trial is also spent by any earlier trial on the
+  timeline.
+- `redeemOffer` claims the offer before you apply it (a web coupon, a trial
+  at checkout): one row per customer and offer, so of concurrent claims one
+  wins. Store offers are still the store's to grant (App Store intro
+  eligibility, Play offer tags); the filter decides what the paywall shows.
+- signet-server's `GET /offerings/:placement` returns the filtered offering;
+  signet-ui's `RemotePaywall` shows the first offer and passes it to
+  `onPurchase`.
+
+### Promotional entitlements
+
+```ts
+await customers.grantPromotional(userId, { plan: "pro", days: 30, note: "Beta tester" }, { actor })
+// or { expiresAt }; also ent.grantPromotional(subject, plan, { actor, expiresAt })
+await customers.endPromotional(userId, grantId, { actor })   // early; once
+```
+
+A promotional grant is its own entitlement source (gateway `promotional`): it
+rolls up with subscriptions, a paid plan declared later still wins, and it
+lapses exactly at its expiry with no job to run and no grace period. The
+timeline shows `promotional` when granted and `expiration` when it lapses or
+is ended. It is not a paid source: the Customer Center does not offer to
+cancel it, and charts leave it out.
+
+### Apple refund requests (CONSUMPTION_REQUEST)
+
+When a customer asks Apple for a refund, Apple sends `CONSUMPTION_REQUEST`
+and wants your consumption information within 12 hours, only for a customer
+who consented to share it.
+
+```ts
+const customers = createCustomers(db, {
+  ...,
+  consumption: {
+    consented: (subject) => privacy.has(subject, "apple_refund_info"), // required; no consent = no answer
+    refundPreference: (ctx) => undefined,                             // optional: DECLINE | GRANT_FULL | GRANT_PRORATED
+  },
+})
+onEvent: async (e) => {
+  await customers.record(e)                                   // on the timeline as refund_request
+  const r = await customers.consumptionInfo(e)
+  if (r.respond) await appstoreGateway.sendConsumptionInfo(r.transactionId, r.body)
+}
+```
+
+The body is Apple's v2 ConsumptionRequest, built from the customer's data:
+`customerConsented: true`, `deliveryStatus` `DELIVERED` when the purchase is
+on their timeline (else `UNDELIVERED_OTHER`), `consumptionPercentage` as the
+share of the paid period used (0 unless delivered, left out with
+`GRANT_PRORATED`), and `sampleContentProvided` when they had a free trial.
+Every field has a hook to override. `respond: false` says why
+(`no_consent`, `no_subject`, `not_configured`, `not_consumption_request`).
+
+### Subscription charts
+
+```ts
+import { chartsCsv, createCharts } from "@dapplelight/signet-db/charts"
+
+const charts = createCharts(db, {
+  tables: { customerEvents, chartAudiences, offerings },        // products from every offering version
+  fx: { base: "USD", rates: { INR: 0.012, EUR: 1.08 } },        // optional: totals in one currency
+})
+const r = await charts.metrics({ from: "2026-10-01", to: "2026-10-31", store: "appstore", country: "IN" })
+// r.days[i]: activeSubscribers, activeTrials, mrr, mrrTotal, newRevenue, renewalRevenue, refunds,
+//            refundCount, newSubscriptions, trialsStarted, trialConversions, churned, impressions, conversions
+// r.summary: the same on the last day or summed, plus trialConversion, churnRate, paywallConversion
+const a = await charts.saveAudience("India App Store", { store: "appstore", country: "IN" }, { actor })
+await charts.metrics({ from, to, audience: a.id })
+await charts.csv({ from, to })                                  // one row per day; or chartsCsv(r)
+await customers.logImpression(userId, { offering: "default", version: 3, country: "IN" }) // paywall views
+```
+
+One GROUP BY on SQLite, D1 or Postgres buckets the timeline per subscription,
+kind and UTC day; the rows are then replayed per subscription. Money stays per
+currency in minor units; `mrrTotal` is set only when `fx` has a rate for
+every currency in it. App Store amounts are list prices, so such results say
+`approximate`. How the timeline reads: the first paid charge is new revenue
+and later ones renewals; each charge covers one interval of its product
+(unknown products a month) and MRR is that charge per month (a year / 12;
+events without an amount use the product's display price); a refund or
+expiration ends coverage that day, and coverage that ends without a renewal is
+churn; a `trial` (a zero-amount or App Store FREE_TRIAL purchase) lasts the
+product's free-trial `days` (else `trialDays`, 7) and converts when paid
+within it; a start is a paywall conversion when the customer saw an offering
+within `attributionDays` (7) before, and that offering is what the offering
+filter matches. A customer's country is the latest one recorded
+(`record(e, { country })` or the impression's). Ranges are at most 731 days.
+signet-server's `monetisationAdminRoutes({ charts })` serves it and signet-ui's
+`SubscriptionCharts` draws it.
+
+## Web-to-app funnels
+
+`@dapplelight/signet-db/funnels`: a hosted web checkout that sells an
+offering's web products, then unlocks the purchase in the app. Tables:
+`funnelTables()` (in `./columns/sqlite` and `./columns/pg`) plus
+`customerEvents` from `monetisationTables()`.
+
+### Funnels and checkout
+
+```ts
+import { createFunnels, funnelSteps } from "@dapplelight/signet-db/funnels"
+
+const funnels = createFunnels(db, {
+  tables: { ...funnelTables(), customerEvents },
+  funnels: [{
+    key: "spring", placement: "web", title: "Sleep better",
+    questions: [{ id: "goal", title: "Your goal?", options: [{ value: "sleep", label: "Sleep" }] }],
+  }],
+  discounts: [{ code: "SPRING25", percentOff: 25, expiresAt: "2027-04-01", maxRedemptions: 500, plans: ["pro"] }],
+  offerings, customers, entitlements,          // entitlements' billing.plans from plansFromProducts
+  checkout: (input) => payments.checkout(input), // signet-payments
+  track: (e) => sink.write([e]),               // any signet-server AnalyticsSink
+  onPaid: async (s) => s.email && sendMail(s.email, (await redemptionLink(opts, s.id)).link),
+})
+createPayments({ ..., onEvent: async (e) => {
+  await entitlements.applyBillingEvent(e); await customers.record(e); await funnels.applyEvent(e)
+} })
+```
+
+- `page(key, { code })` is what the hosted page shows: the funnel, the
+  placement's priced web products, and the URL's code priced per product.
+- `start(key, { productId, answers, code, email, visitor })` checks the
+  product is a priced web product of the offering and the answers fit the
+  questions, prices the discount and takes one use, creates a new anonymous
+  customer (`customers.anonymousId`), and asks the gateway for exactly that
+  amount under the session id (`fs_<uuid>`) as idempotency key and reference.
+  The client never sends a price.
+- `applyEvent(e)`: a verified `payment.captured` for a funnel checkout, for
+  the amount and currency priced, grants the plan to the anonymous customer
+  (one interval from the capture; lifetime for `once`) through
+  `entitlements.applySubscription`, puts the discount on the customer
+  timeline (kind `discount`) and marks the session `paid`, once. A different
+  amount is `amount_mismatch` and grants nothing. `refund.processed` ends the
+  access, on whichever account it was merged into. Pass `grant` to start a
+  renewing gateway subscription instead.
+
+### URL discounts
+
+A code arrives in the funnel URL (`/f/spring?code=SPRING25`) and is priced on
+the server only: it must exist (case-insensitive), be unexpired, cover the
+plan (`plans`) and the currency (`amountOff`), have uses left, and leave
+something to charge. It is charged as a price override, so it works on every
+gateway. `maxRedemptions` is held by one conditional UPDATE, so concurrent
+checkouts never pass it; a checkout the gateway refused gives its use back.
+An abandoned checkout holds its use for `discountHoldMs` (default 1 hour):
+when a code looks used up, open sessions older than that are marked
+`expired` and their uses freed. A payment captured after that still grants
+the plan and takes a use again, so a limited code can go over by those late
+payers only.
+
+### Redemption
+
+```ts
+const r = await funnels.redeem(sessionId, userId, { orgId })
+// { redeemed: true, already: false, session } | { redeemed: false, reason }
+```
+
+The session is claimed for one account with a conditional UPDATE, then
+`customers.merge` moves the anonymous buyer's plan, payments and timeline to
+it. Repeating it for the same account returns `already: true` and finishes a
+merge a crash left half done; another account gets `already_redeemed`; of
+two accounts racing, exactly one wins. A refused merge (`other_org`,
+`not_member`) frees the claim. Before payment it is `not_paid`; after a
+refund, `refunded`. The redemption token (signed, expiring) is
+signet-server's: `funnelRoutes` checks it before calling this.
+
+### Funnel analytics
+
+Every step is an event named `funnel:<key>:<step>`: one per question, then
+`plans`, `checkout`, `purchased`, `redeemed`, with the browser's analytics
+id so the purchase joins the visit. Drop-off:
+`analytics.funnel({ steps: funnelSteps(def) })`. Analytics never fails a
+purchase.
 
 ## Feature flags
 

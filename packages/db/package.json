@@ -143,6 +143,16 @@
       "types": "./dist/status.d.ts",
       "import": "./dist/status.js",
       "default": "./dist/status.js"
+    },
+    "./charts": {
+      "types": "./dist/charts.d.ts",
+      "import": "./dist/charts.js",
+      "default": "./dist/charts.js"
+    },
+    "./funnels": {
+      "types": "./dist/funnels.d.ts",
+      "import": "./dist/funnels.js",
+      "default": "./dist/funnels.js"
     }
   },
   "bin": {

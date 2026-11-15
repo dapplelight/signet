@@ -63,7 +63,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "bun run build && bun test test/*.test.ts && bun run test/overlay.tsx",
+    "test": "bun run build && bun test test/*.test.ts && bun run test/overlay.tsx && bun run test/funnel-page.tsx",
     "test:e2e": "playwright test -c test/e2e",
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "prepublishOnly": "bun run build",

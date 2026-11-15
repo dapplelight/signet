@@ -38,6 +38,36 @@ export type OfferingProduct = {
   interval?: ProductInterval
   /** Display price in minor units. Stores charge their own price; this is what the paywall shows. */
   price?: { amount: number; currency: string }
+  /** Free trials, intro and win-back offers on this product, best first. */
+  offers?: ProductOffer[]
+}
+
+export type OfferType = "free_trial" | "intro" | "win_back"
+
+/**
+ * Who may see an offer. Defaults: free trials and intro offers only for
+ * customers who never subscribed; win-back offers need `lapsedDays`. Every
+ * offer is once per customer unless `once: false`, and never shown to a
+ * customer with a live subscription.
+ */
+export type OfferEligibility = {
+  /** Only customers with no subscription or trial before, on any plan. */
+  neverSubscribed?: boolean
+  /** Only customers whose last subscription ended at least this many days ago. */
+  lapsedDays?: number
+  /** Once per customer (default true): a redeemed offer, or any earlier free trial for a trial, is not shown again. */
+  once?: boolean
+}
+
+export type ProductOffer = {
+  /** The store's id for it: App Store offer identifier, Google Play offer id, or your web coupon or price id. */
+  id: string
+  type: OfferType
+  /** The free trial's length, or how long the offer price lasts. */
+  days?: number
+  /** The offer price shown (intro and win-back), in minor units. */
+  price?: { amount: number; currency: string }
+  eligibility?: OfferEligibility
 }
 
 /** What the remote paywall shows. Every field is optional; the screen has defaults. */
@@ -125,6 +155,51 @@ const optStr = (v: unknown, name: string, max = 500) => {
     throw bad(`paywall.${name} is a string of at most ${max} characters.`)
 }
 
+const isPrice = (v: Cols | undefined) =>
+  Number.isSafeInteger(v?.amount) && v?.amount >= 0 && /^[A-Z]{3}$/.test(v?.currency)
+const isDays = (v: unknown) => Number.isSafeInteger(v) && (v as number) > 0 && (v as number) <= 3660
+
+function checkOffers(offers: unknown, at: string): ProductOffer[] {
+  if (!Array.isArray(offers) || offers.length > 10)
+    throw bad(`${at}.offers is a list of at most 10 offers.`)
+  const ids = new Set<string>()
+  return offers.map((x: Cols, j) => {
+    const where = `${at}.offers[${j}]`
+    if (!x || !isStr(x.id) || !["free_trial", "intro", "win_back"].includes(x.type))
+      throw bad(`${where} needs id and type (free_trial, intro or win_back).`)
+    if (ids.has(x.id)) throw bad(`${where}: offer ${x.id} is listed twice.`)
+    ids.add(x.id)
+    if (x.days !== undefined && !isDays(x.days)) throw bad(`${where}.days is 1 to 3660.`)
+    if (x.price !== undefined && !isPrice(x.price))
+      throw bad(`${where}.price is { amount: minor units, currency: "INR" }.`)
+    if (x.type === "free_trial" && x.days === undefined)
+      throw bad(`${where}: a free trial needs days.`)
+    if (x.type !== "free_trial" && x.price === undefined)
+      throw bad(`${where}: an ${x.type} offer needs its price.`)
+    const e = (x.eligibility ?? {}) as Cols
+    if (typeof e !== "object" || Array.isArray(e)) throw bad(`${where}.eligibility is an object.`)
+    if (e.lapsedDays !== undefined && !(Number.isSafeInteger(e.lapsedDays) && e.lapsedDays >= 0))
+      throw bad(`${where}.eligibility.lapsedDays is a whole number of days.`)
+    for (const k of ["neverSubscribed", "once"])
+      if (e[k] !== undefined && typeof e[k] !== "boolean")
+        throw bad(`${where}.eligibility.${k} is true or false.`)
+    if (x.type === "win_back" && e.lapsedDays === undefined)
+      throw bad(`${where}: a win-back offer needs eligibility.lapsedDays.`)
+    if (e.neverSubscribed && e.lapsedDays !== undefined)
+      throw bad(`${where}: neverSubscribed and lapsedDays cannot both hold.`)
+    const eligibility: OfferEligibility = {}
+    for (const k of ["neverSubscribed", "lapsedDays", "once"] as const)
+      if (e[k] !== undefined) (eligibility as Cols)[k] = e[k]
+    return {
+      id: x.id,
+      type: x.type,
+      ...(x.days !== undefined ? { days: x.days } : {}),
+      ...(x.price ? { price: { amount: x.price.amount, currency: x.price.currency } } : {}),
+      ...(Object.keys(eligibility).length ? { eligibility } : {}),
+    }
+  })
+}
+
 export function createOfferings(db: SignetDb<unknown>, options: OfferingsOptions) {
   const { offerings: O, placements: PL } = options.tables
   const oc = O as unknown as Cols
@@ -151,24 +226,19 @@ export function createOfferings(db: SignetDb<unknown>, options: OfferingsOptions
         )
       if (p.interval !== undefined && !["month", "year", "once"].includes(p.interval))
         throw bad(`products[${i}].interval is month, year or once.`)
-      if (
-        p.price !== undefined &&
-        !(
-          Number.isSafeInteger(p.price?.amount) &&
-          p.price.amount >= 0 &&
-          /^[A-Z]{3}$/.test(p.price?.currency)
-        )
-      )
+      if (p.price !== undefined && !isPrice(p.price))
         throw bad(`products[${i}].price is { amount: minor units, currency: "INR" }.`)
       const id = `${p.store}:${p.id}`
       if (seen.has(id)) throw bad(`products[${i}]: ${id} is listed twice.`)
       seen.add(id)
+      const offers = p.offers === undefined ? undefined : checkOffers(p.offers, `products[${i}]`)
       return {
         id: p.id,
         store: p.store,
         plan: p.plan,
         ...(p.interval ? { interval: p.interval } : {}),
         ...(p.price ? { price: { amount: p.price.amount, currency: p.price.currency } } : {}),
+        ...(offers?.length ? { offers } : {}),
       }
     })
   }
@@ -401,4 +471,33 @@ export function plansFromProducts<K extends string>(
   return Object.fromEntries(
     products.map((p) => [p.store === "web" ? p.id : `${p.store}:${p.id}`, p.plan]),
   )
+}
+
+/** What `offerEligible` reads about a customer; `customers.withOffers` builds it from their history. */
+export type OfferHistory = {
+  /** Had a subscription or a trial before, on any plan. */
+  subscribed: boolean
+  /** A subscription is live now. */
+  active: boolean
+  /** When the last subscription ended; null when never or unknown. */
+  lapsedAt: Date | null
+  /** Had a free trial before. */
+  trialed: boolean
+  /** Offer ids this customer redeemed. */
+  redeemed: ReadonlySet<string>
+}
+
+const DAY_MS = 86_400_000
+
+/** Whether a customer may see `offer` now. Never with a live subscription. */
+export function offerEligible(offer: ProductOffer, h: OfferHistory, now: Date = new Date()) {
+  if (h.active) return false
+  const e = offer.eligibility ?? {}
+  if ((e.once ?? true) && (h.redeemed.has(offer.id) || (offer.type === "free_trial" && h.trialed)))
+    return false
+  if (e.lapsedDays !== undefined)
+    return (
+      h.subscribed && !!h.lapsedAt && now.getTime() - h.lapsedAt.getTime() >= e.lapsedDays * DAY_MS
+    )
+  return !(e.neverSubscribed ?? offer.type !== "win_back") || !h.subscribed
 }

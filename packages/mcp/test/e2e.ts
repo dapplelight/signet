@@ -489,6 +489,52 @@ try {
     exr.json?.id,
   )
 
+  const chr = await call("recipe", { task: "subscription charts: mrr, churn, trial conversion" })
+  ok(
+    "recipe: add-subscription-charts covers charts, offers, promotional grants and CONSUMPTION_REQUEST",
+    chr.json?.id === "add-subscription-charts" &&
+      JSON.stringify(chr.json.steps.map((st: any) => st.title)) ===
+        JSON.stringify([
+          "Subscription charts",
+          "Offers",
+          "Promotional entitlements",
+          "Apple refund requests (CONSUMPTION_REQUEST)",
+          "Monetisation routes",
+        ]) &&
+      [
+        "createCharts(db",
+        "withOffers(",
+        "grantPromotional(",
+        "consumptionInfo(",
+        "/charts/csv",
+      ].every((t) => JSON.stringify(chr.json).includes(t)) &&
+      chr.json.verify.length === 4,
+    chr.json?.id,
+  )
+
+  const fun = await call("recipe", { task: "web-to-app funnel redemption link and discount code" })
+  ok(
+    "recipe: add-funnels is cut from the db and server READMEs and covers checkout, discounts, redemption, analytics and routes",
+    fun.json?.id === "add-funnels" &&
+      JSON.stringify(fun.json.steps.map((st: any) => st.title)) ===
+        JSON.stringify([
+          "Funnels and checkout",
+          "URL discounts",
+          "Redemption",
+          "Funnel analytics",
+          "Funnel routes",
+        ]) &&
+      [
+        "createFunnels(db",
+        "funnels.applyEvent(",
+        "funnels.redeem(",
+        "funnelRoutes(",
+        "payment_method_domains",
+      ].every((t) => JSON.stringify(fun.json).includes(t)) &&
+      !fun.json.install.includes("@dapplelight/signet-db"),
+    fun.json?.id,
+  )
+
   const wfr = await call("recipe", { task: "durable workflow with an approval step" })
   ok(
     "recipe: add-workflows is cut from the db and server READMEs and covers steps, runners and routes",

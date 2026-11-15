@@ -74,7 +74,72 @@ export type AppStoreConfig = HttpOptions & {
   now?: () => number
 }
 
+/** `deliveryStatus` in Apple's ConsumptionRequest. */
+export type ConsumptionDeliveryStatus =
+  | "DELIVERED"
+  | "UNDELIVERED_QUALITY_ISSUE"
+  | "UNDELIVERED_WRONG_ITEM"
+  | "UNDELIVERED_SERVER_OUTAGE"
+  | "UNDELIVERED_OTHER"
+
+/**
+ * The body of Send Consumption Information (App Store Server API v2), the
+ * answer to a `CONSUMPTION_REQUEST` notification.
+ * https://developer.apple.com/documentation/appstoreserverapi/consumptionrequest
+ */
+export type ConsumptionRequest = {
+  /** Must be true: send nothing at all for a customer who did not consent. */
+  customerConsented: true
+  deliveryStatus: ConsumptionDeliveryStatus
+  sampleContentProvided: boolean
+  /** 0 to 100000 (milliunits of a percent). 0 unless DELIVERED; omitted with GRANT_PRORATED. */
+  consumptionPercentage?: number
+  /** GRANT_PRORATED is for auto-renewable subscriptions only. */
+  refundPreference?: "DECLINE" | "GRANT_FULL" | "GRANT_PRORATED"
+}
+
+const DELIVERY = new Set([
+  "DELIVERED",
+  "UNDELIVERED_QUALITY_ISSUE",
+  "UNDELIVERED_WRONG_ITEM",
+  "UNDELIVERED_SERVER_OUTAGE",
+  "UNDELIVERED_OTHER",
+])
+
+/** BAD_INPUT unless `body` is a ConsumptionRequest Apple accepts. */
+export function checkConsumptionRequest(body: ConsumptionRequest): ConsumptionRequest {
+  const no = (m: string) => new PaymentsError("BAD_INPUT", `appstore: ${m}`, { gateway: G })
+  if (body?.customerConsented !== true)
+    throw no("customerConsented must be true; without consent, do not answer the request.")
+  if (!DELIVERY.has(body.deliveryStatus)) throw no("deliveryStatus is not one of Apple's values.")
+  if (typeof body.sampleContentProvided !== "boolean")
+    throw no("sampleContentProvided is a boolean.")
+  const pct = body.consumptionPercentage
+  if (pct !== undefined && !(Number.isInteger(pct) && pct >= 0 && pct <= 100000))
+    throw no("consumptionPercentage is an integer from 0 to 100000.")
+  if (pct && body.deliveryStatus !== "DELIVERED")
+    throw no("consumptionPercentage must be 0 unless deliveryStatus is DELIVERED.")
+  const pref = body.refundPreference
+  if (pref !== undefined && !["DECLINE", "GRANT_FULL", "GRANT_PRORATED"].includes(pref))
+    throw no("refundPreference is DECLINE, GRANT_FULL or GRANT_PRORATED.")
+  if (pref === "GRANT_PRORATED" && pct !== undefined)
+    throw no("omit consumptionPercentage with GRANT_PRORATED; Apple computes it.")
+  return {
+    customerConsented: true,
+    deliveryStatus: body.deliveryStatus,
+    sampleContentProvided: body.sampleContentProvided,
+    ...(pct !== undefined ? { consumptionPercentage: pct } : {}),
+    ...(pref ? { refundPreference: pref } : {}),
+  }
+}
+
 export type AppStoreGateway = PaymentGateway & {
+  /**
+   * Answer a `CONSUMPTION_REQUEST` notification (within 12 hours, only for a
+   * customer who consented): PUT /inApps/v2/transactions/consumption/{id}.
+   * signet-db's `customers.consumptionInfo(event)` builds the body.
+   */
+  sendConsumptionInfo(transactionId: string, body: ConsumptionRequest): Promise<void>
   /** Verify a signed transaction (a StoreKit `jwsRepresentation`, say) and normalise it. */
   decodeTransaction(jws: string): Promise<Payment>
   /** Get Transaction History v2: every transaction for the customer, a page at a time. */
@@ -364,6 +429,11 @@ export function appstore(config: AppStoreConfig): AppStoreGateway {
 
   return Object.assign(gw, {
     decodeTransaction: transaction,
+    // https://developer.apple.com/documentation/appstoreserverapi/send-consumption-information
+    async sendConsumptionInfo(transactionId: string, body: ConsumptionRequest) {
+      const ok = checkConsumptionRequest(body)
+      await raw("PUT", `/inApps/v2/transactions/consumption/${id(transactionId)}`, ok)
+    },
     // GET /inApps/v2/history/{anyTransactionId}?revision=...
     // https://developer.apple.com/documentation/appstoreserverapi/get-transaction-history
     transactionHistory: async (

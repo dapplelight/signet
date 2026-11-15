@@ -473,6 +473,7 @@ app.route("/api/billing", monetisationRoutes({
 }))
 app.route("/api/admin/billing", monetisationAdminRoutes({
   offerings, customers,
+  charts,                                               // signet-db createCharts: charts, audiences, CSV
   authorize: (c) => c.get("session")?.role === "admin", // deny by default: anything but true is 403
   actor: (c) => ({ type: "user", id: me(c) }),
 }))
@@ -480,7 +481,9 @@ app.route("/api/admin/billing", monetisationAdminRoutes({
 
 | Route | What |
 |---|---|
-| `GET /offerings/:placement` | The offering and paywall for this audience (404 none). Country from `cf-ipcountry`, else `?country`; platform from `?platform`. Attributes come only from your `audience(c)`, never the query. |
+| `GET /offerings/:placement` | The offering and paywall for this audience (404 none). Country from `cf-ipcountry`, else `?country`; platform from `?platform`. Attributes come only from your `audience(c)`, never the query. Each product's `offers` are cut to the ones this customer may see (`customers.withOffers`; no subject is a new visitor). |
+| `POST /offerings/:placement/impression` | Log that the customer saw this placement's paywall, for paywall conversion (204; once per customer, offering and day). |
+| `POST /offerings/:placement/redeem` | `{ offerId }`: claim an offer once, before applying it at checkout; refused is 409 `OFFER_REFUSED` with the reason (`not_eligible`, `already_used`, `no_such_offer`). |
 | `POST /anonymous` | `{ anonymousId }` for a device before sign-in. |
 | `POST /merge` | `{ anonymousId }` into the signed-in user; refused is 409 `MERGE_REFUSED` with the reason. |
 | `GET /customer`, `GET /customer/timeline` | The Customer Center overview; the customer's own history. |
@@ -488,6 +491,9 @@ app.route("/api/admin/billing", monetisationAdminRoutes({
 | `POST /customer/retention` | Accept the retention offer. |
 | `POST /customer/refund`, `POST /customer/support` | Recorded and sent to the team through `notify`. A refund for a payment that is not the caller's is 404. |
 | Admin: `GET/POST /offerings/:key`, `GET /placements`, `PUT /placements/:placement`, `GET /customers/:subject[/timeline]`, `GET /requests`, `PATCH /requests/:id` | Publish versions, point placements, read any customer's timeline, close requests. |
+| Admin: `POST /customers/:subject/promotional`, `DELETE /customers/:subject/promotional/:id` | `{ plan, days \| expiresAt, note? }`: grant a promotional plan that lapses on its own; end one early. |
+| Admin: `GET /charts`, `GET /charts/csv` | `?from=&to=` (YYYY-MM-DD, default the last 30 days) `&store=&plan=&country=&offering=&audience=`: subscription charts, or one CSV row per day as an attachment. |
+| Admin: `GET /audiences`, `POST /audiences`, `DELETE /audiences/:id` | Saved chart filters: `{ name, filter: { store?, plan?, country?, offering? } }`. |
 
 signet-db errors become the envelope (`BAD_VALUE` is 400 `VALIDATION_FAILED`,
 `NOT_FOUND` 404). These are cookie-authenticated writes: put
@@ -553,6 +559,61 @@ envelope (`code: "MAINTENANCE"`, the state's message) and `Retry-After`:
 seconds until `until`, else `retryAfterSeconds` (300). A path prefix
 matches itself and what is under it. The state is read at most once per
 `cacheMs` (5000) per isolate, so a toggle reaches every isolate within that.
+### Funnel routes
+
+`@dapplelight/signet-server/http/funnels` serves signet-db's `createFunnels`
+as a public hosted checkout and the redemption the app calls after install.
+
+```ts
+import { funnelRoutes, redemptionLink } from "@dapplelight/signet-server/http/funnels"
+
+app.route("/f", funnelRoutes({
+  funnels,
+  secret: env.FUNNEL_SECRET,                     // 32+ characters
+  redeemUrl: "https://app.example.com/redeem",   // a universal / app link, or example://redeem
+  userId: (c) => c.get("session")?.sub,
+  page: { stripePublishableKey: env.STRIPE_PUBLISHABLE_KEY, razorpayKeyId: env.RAZORPAY_KEY_ID },
+}))
+app.post("/webhooks/:gateway", (c) => payments.handleWebhook(c.req.param("gateway"), c.req.raw))
+```
+
+| Route | What |
+|---|---|
+| `GET /:key` | The hosted page: questions, plan picker, email and code, then the gateway. Plain HTML with one nonce'd script and a strict CSP. |
+| `GET /:key/config?code=` | Funnel, priced web products, the code priced per product. |
+| `POST /:key/events` | `{ step }`: a step view (only that funnel's steps). |
+| `POST /:key/checkout` | `{ productId, answers?, code?, email? }`: `{ session, checkout }`; a refused code is 400. |
+| `GET /sessions/:id` | Status; once paid, and only to the browser that started the checkout, `{ redemption: { link, token, expiresAt } }`. |
+| `POST /redeem` | `{ token }` as the signed-in user. 400 `BAD_TOKEN` (forged, expired), 409 `REDEEM_REFUSED` with the reason. |
+
+The page finishes the checkout the way the gateway answers: Stripe's
+**Express Checkout Element** (Apple Pay, Google Pay) and Payment Element,
+with Stripe.js loaded from Stripe at runtime; Razorpay Checkout for an
+order; a redirect `url`; or a POSTed `form` (PayU). Back from the gateway it
+waits for the webhook, then shows "Open the app" and the code to paste.
+
+**Redemption tokens** (`redemptionToken`, `readRedemptionToken`,
+`redemptionLink`): HMAC-signed with `secret`, expiring (`ttlSeconds`, default
+7 days), bound to their purpose so a session cookie signed with the same
+secret never passes as one. `previousSecrets` rotates keys. A token works
+once because redeeming claims its session for one account; `GET
+/sessions/:id` stops issuing them after that.
+
+The session id sits in the gateway's return URL, so it is not a secret.
+`POST /:key/checkout` sets an HttpOnly, SameSite=Lax cookie (`signet_funnel`,
+an HMAC of the session id under `secret`, scoped to the mount path), and
+`GET /sessions/:id` issues a redemption link only to the browser that holds
+it. Anyone else gets the status; a buyer who finishes on another device gets
+the link from the `onPaid` email.
+
+**Apple Pay domain verification.** Stripe needs no file: register the page's
+domain once with `stripe.raw("POST", "/payment_method_domains", { domain_name })`.
+Razorpay, PayPal and Dodo Payments hand you a file; serve it with
+signet-payments' `applePayDomainAssociation(file)` in front of the app:
+`applePayDomainAssociation(file)(request) ?? app.fetch(request)`.
+
+Put `rateLimit` in front of `/:key/checkout` and `/redeem`. Nothing is
+granted until signet-payments verifies the gateway's webhook signature.
 
 ## Real-time: presence, live updates, shared state
 

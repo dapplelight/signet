@@ -201,10 +201,25 @@ export const DEFAULT_ERROR_COPY: Record<ErrorCode, ErrorCopy> = {
     detail: "Ask for a new code and try again.",
     action: "retry",
   },
+  BAD_TOKEN: {
+    title: "This link doesn't work",
+    detail: "It may have expired. Open the latest link from your purchase email.",
+    action: "go_back",
+  },
+  REDEEM_REFUSED: {
+    title: "This purchase can't be unlocked here",
+    detail: "It may already be unlocked on another account. Contact support if that's wrong.",
+    action: "go_back",
+  },
   TOO_MANY_ATTEMPTS: {
     title: "Too many tries",
     detail: "Ask for a new code to try again.",
     action: "retry",
+  },
+  OFFER_REFUSED: {
+    title: "Offer not available",
+    detail: "This offer has been used or isn't available to you.",
+    action: "go_back",
   },
   PRESIGN_UNSUPPORTED: {
     title: "Upload unavailable",
