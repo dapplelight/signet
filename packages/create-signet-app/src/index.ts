@@ -15,12 +15,79 @@ import { cp, mkdir, readdir, readFile, rename, writeFile } from "node:fs/promise
 import { basename, join, resolve } from "node:path"
 import { createInterface } from "node:readline/promises"
 
-const THEMES = ["editorial", "cinematic"] as const
+const THEMES = ["editorial", "cinematic", "finance"] as const
 type Theme = (typeof THEMES)[number]
-const TEMPLATES = ["web", "api"] as const
+const TEMPLATES = ["web", "api", "full"] as const
 type Template = (typeof TEMPLATES)[number]
 const TARGETS = ["cloudflare", "bun", "node", "vercel"] as const
 type Target = (typeof TARGETS)[number]
+const PMS = ["bun", "npm", "pnpm"] as const
+type Pm = (typeof PMS)[number]
+
+/** `npm create` / `pnpm create` say who ran them; bun otherwise. */
+function detectPm(): Pm {
+  const agent = process.env.npm_config_user_agent ?? ""
+  return agent.startsWith("pnpm/") ? "pnpm" : agent.startsWith("npm/") ? "npm" : "bun"
+}
+
+/** How each package manager spells install, a frozen install and running a script or a bin. */
+const PM: Record<Pm, { install: string; ci: string; run: string; x: string; lock: string }> = {
+  bun: {
+    install: "bun install",
+    ci: "bun install --frozen-lockfile",
+    run: "bun run",
+    x: "bunx",
+    lock: "bun.lock",
+  },
+  npm: {
+    install: "npm install",
+    ci: "npm ci",
+    run: "npm run",
+    x: "npx",
+    lock: "package-lock.json",
+  },
+  pnpm: {
+    install: "pnpm install",
+    ci: "pnpm install --frozen-lockfile",
+    run: "pnpm run",
+    x: "pnpm exec",
+    lock: "pnpm-lock.yaml",
+  },
+}
+
+/**
+ * The CI workflow is written for bun; for npm or pnpm, install and run with
+ * that instead. Bun stays for `bun test` (and the full template's API).
+ */
+function applyPm(ci: string, pm: Pm): string {
+  if (pm === "bun") return ci
+  const p = PM[pm]
+  const setup = [
+    ...(pm === "pnpm"
+      ? ["      - uses: pnpm/action-setup@v4", "        with:", "          version: 10"]
+      : []),
+    "      - uses: actions/setup-node@v4",
+    "        with:",
+    "          node-version: 22",
+    `          cache: ${pm}`,
+    "      - uses: oven-sh/setup-bun@v2",
+  ].join("\n")
+  return ci
+    .replace(/^ {6}- uses: oven-sh\/setup-bun@v2$/m, setup)
+    .replace(
+      /Commit bun\.lock: --frozen-lockfile fails/,
+      `Commit ${p.lock}: a frozen install fails`,
+    )
+    .replace("bun install --frozen-lockfile", p.ci)
+    .replaceAll("bun run ", `${p.run} `)
+    .replaceAll("bunx ", `${p.x} `)
+}
+
+const TEMPLATE_DIRS: Record<Template, string> = {
+  web: "template",
+  api: "template-api",
+  full: "template-full",
+}
 
 // The api template: a Hono Worker with Signet's request id, error envelope,
 // validation and exact Durable Object rate limiting already wired.
@@ -118,6 +185,43 @@ const DEV_DEPS = {
   vite: "^8.3.0",
 }
 
+// The full template: the web app's deps plus the API's, signet-db and
+// signet-payments for plans, admin, privacy and billing, and the screens' peers.
+const FULL_DEPS = {
+  ...DEPS,
+  ...API_DEPS,
+  "@base-ui/react": "^1.3.0",
+  "@dapplelight/signet-db": "^0.1.0",
+  "@dapplelight/signet-payments": "^0.1.0",
+  "drizzle-orm": "^0.45.4",
+  "input-otp": "^1.4.2",
+}
+
+const FULL_DEV_DEPS = {
+  ...DEV_DEPS,
+  "@playwright/test": "^1.65.1",
+  "drizzle-kit": "^0.31.11",
+}
+
+const FULL_SCRIPTS = {
+  // Both halves: the API (restarting on change) and Vite, which proxies /api to it.
+  dev: "bun scripts/dev.ts",
+  build: "tsc -b && vite build",
+  // One process serves the API and the built app from dist/.
+  start: "bun api/server.ts",
+  preview: "vite preview",
+  lint: "biome check .",
+  format: "biome check --write .",
+  typecheck: "tsc -b --noEmit",
+  test: "bun test src test",
+  "test:e2e": "playwright test",
+  "db:generate": "drizzle-kit generate",
+  "db:check": "signet-db-check drizzle",
+}
+
+/** A fresh 48-character secret for the generated env file. */
+const secret = () => Buffer.from(crypto.getRandomValues(new Uint8Array(36))).toString("base64url")
+
 function parseArgs(argv: string[]) {
   const args = argv.slice(2)
   let name: string | undefined
@@ -125,6 +229,7 @@ function parseArgs(argv: string[]) {
   let template: Template = "web"
   let target: Target | undefined
   let mcp: boolean | undefined
+  let pm: Pm | undefined
 
   for (let i = 0; i < args.length; i++) {
     const a = args[i]
@@ -146,6 +251,12 @@ function parseArgs(argv: string[]) {
         throw new Error(`Unknown target "${v}". Available: ${TARGETS.join(", ")}`)
       }
       target = v as Target
+    } else if (a === "--pm") {
+      const v = args[++i]
+      if (!PMS.includes(v as Pm)) {
+        throw new Error(`Unknown package manager "${v}". Available: ${PMS.join(", ")}`)
+      }
+      pm = v as Pm
     } else if (a === "--mcp" || a === "--no-mcp") {
       mcp = a === "--mcp"
     } else if (a === "--help" || a === "-h") {
@@ -153,24 +264,31 @@ function parseArgs(argv: string[]) {
 create-signet-app <directory> [options]
 
 Options:
-  --template <kind>    web | api   (default: web)
+  --template <kind>    web | api | full   (default: web)
                        web: Vite + React + Signet UI
                        api: Hono Worker with the error envelope, request ids,
                             validation and Durable Object rate limiting
+                       full: web + API in one project, typed client between
+                            them, SQLite with migrations, phone sign-in,
+                            account, inbox, privacy, billing and admin
   --target <runtime>   ${TARGETS.join(" | ")}   (default: cloudflare; api only)
                        cloudflare: Worker entry + wrangler.jsonc
                        bun: Bun.serve entry + Dockerfile
                        node: node:http entry (Node 22.18+)
                        vercel: Vercel entry + vercel.json
-  --mcp, --no-mcp      api only: serve the routes to agents at /mcp
+  --mcp, --no-mcp      api and full: serve the routes to agents at /mcp
                        (default: asks when interactive, else --mcp)
-  -t, --theme <name>   ${THEMES.join(" | ")}   (default: editorial; web only)
+  -t, --theme <name>   ${THEMES.join(" | ")}   (default: editorial; web and full)
+  --pm <name>          ${PMS.join(" | ")}   (default: the one that ran this, else bun)
+                       Sets the commands in CI, the README and below.
   -h, --help
 
 Examples:
   bun create-signet-app my-app --theme cinematic
   bun create-signet-app my-api --template api
   bun create-signet-app my-api --template api --target bun
+  bun create-signet-app my-app --template full --theme finance
+  npm create signet-app my-app -- --template full --pm npm
 `)
       process.exit(0)
     } else if (!a.startsWith("-")) {
@@ -182,9 +300,11 @@ Examples:
 
   if (!name) throw new Error("Missing target directory.\nUsage: create-signet-app <directory>")
   if (target && template !== "api") throw new Error("--target applies to --template api only.")
-  if (mcp !== undefined && template !== "api")
-    throw new Error("--mcp / --no-mcp apply to --template api only.")
-  return { name, theme, template, target: target ?? "cloudflare", mcp }
+  if (mcp !== undefined && template === "web")
+    throw new Error("--mcp / --no-mcp apply to --template api and full only.")
+  if (theme !== "editorial" && template === "api")
+    throw new Error("--theme applies to --template web and full only.")
+  return { name, theme, template, target: target ?? "cloudflare", mcp, pm: pm ?? detectPm() }
 }
 
 /** Replace placeholders in every text file under dir. */
@@ -220,7 +340,7 @@ async function askMcp(): Promise<boolean> {
 }
 
 async function main() {
-  const { name, theme, template, target, ...flags } = parseArgs(process.argv)
+  const { name, theme, template, target, pm, ...flags } = parseArgs(process.argv)
   const dest = resolve(process.cwd(), name)
   const appName = basename(dest)
 
@@ -228,11 +348,8 @@ async function main() {
     throw new Error(`${dest} already exists and is not empty.`)
   }
 
-  const mcp = template === "api" && (flags.mcp ?? (await askMcp()))
-  const templateDir = resolve(
-    import.meta.dirname,
-    template === "api" ? "../template-api" : "../template",
-  )
+  const mcp = template !== "web" && (flags.mcp ?? (await askMcp()))
+  const templateDir = resolve(import.meta.dirname, `../${TEMPLATE_DIRS[template]}`)
   await mkdir(dest, { recursive: true })
   const targetsDir = join(templateDir, "_targets")
   const mcpDir = join(templateDir, "_mcp")
@@ -241,13 +358,16 @@ async function main() {
     filter: (src) => src !== targetsDir && src !== mcpDir,
   })
   // Only the chosen runtime's files, laid over the shared ones; MCP's tests with MCP.
-  if (template === "api") {
-    await cp(join(targetsDir, target), dest, { recursive: true })
-    if (mcp) await cp(mcpDir, dest, { recursive: true })
-    for (const f of ["src/app.ts", "src/env.ts"]) {
-      const path = join(dest, f)
-      await writeFile(path, applyMcp(await readFile(path, "utf8"), mcp))
-    }
+  if (template === "api") await cp(join(targetsDir, target), dest, { recursive: true })
+  if (mcp && existsSync(mcpDir)) await cp(mcpDir, dest, { recursive: true })
+  const mcpFiles: Record<Template, string[]> = {
+    web: [],
+    api: ["src/app.ts", "src/env.ts"],
+    full: ["api/app.ts", "api/env.ts"],
+  }
+  for (const f of mcpFiles[template]) {
+    const path = join(dest, f)
+    await writeFile(path, applyMcp(await readFile(path, "utf8"), mcp))
   }
 
   // npm strips a file literally named .gitignore from published packages, so
@@ -258,64 +378,112 @@ async function main() {
   await rename(join(dest, "_github"), join(dest, ".github"))
   if (template === "api" && target === "bun")
     await rename(join(dest, "_dockerignore"), join(dest, ".dockerignore"))
+  // pnpm (10+) refuses to install until build scripts are reviewed; esbuild's
+  // (vite, drizzle-kit, wrangler) and workerd's are the ones these templates
+  // pull in. allowBuilds is pnpm 11+, onlyBuiltDependencies pnpm 10.
+  if (pm === "pnpm")
+    await writeFile(
+      join(dest, "pnpm-workspace.yaml"),
+      "allowBuilds:\n  esbuild: true\n  workerd: true\nonlyBuiltDependencies:\n  - esbuild\n  - workerd\n",
+    )
+  const ci = join(dest, ".github/workflows/ci.yml")
+  await writeFile(ci, applyPm(await readFile(ci, "utf8"), pm))
 
-  await substitute(dest, { __APP_NAME__: appName, __THEME__: theme })
+  await substitute(dest, {
+    __APP_NAME__: appName,
+    __THEME__: theme,
+    __PM_INSTALL__: PM[pm].install,
+    __PM_RUN__: PM[pm].run,
+    __PM_X__: PM[pm].x,
+  })
 
+  if (template === "full") {
+    // The API's secrets for this machine, fresh per app; gitignored. Bun loads
+    // it on its own. Production sets these on the host instead.
+    await writeFile(
+      join(dest, ".env"),
+      [
+        "APP_ENV=development",
+        `SESSION_SECRET=${secret()}`,
+        `OTP_SECRET=${secret()}`,
+        "# Phone numbers (E.164, comma-separated) that become admins on sign-in.",
+        "ADMIN_PHONES=",
+        "BILLING=fake",
+        "",
+      ].join("\n"),
+    )
+  }
+
+  // signet-mcp's index reads the scripts below from this source by their
+  // shape: the api object first, the web object as the next literal.
+  const pkg = {
+    scripts:
+      template === "api"
+        ? {
+            ...API_TARGETS[target].scripts,
+            lint: "biome check .",
+            format: "biome check --write .",
+            typecheck: "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+            test: "bun test",
+          }
+        : template === "full"
+          ? FULL_SCRIPTS
+          : {
+              dev: "vite",
+              build: "tsc -b && vite build",
+              preview: "vite preview",
+              lint: "biome check .",
+              format: "biome check --write .",
+              typecheck: "tsc -b --noEmit",
+              test: "bun test",
+            },
+    dependencies:
+      template === "api"
+        ? { ...API_DEPS, ...(mcp ? MCP_DEPS : {}) }
+        : template === "full"
+          ? { ...FULL_DEPS, ...(mcp ? MCP_DEPS : {}) }
+          : DEPS,
+    devDependencies:
+      template === "api"
+        ? { ...API_DEV_DEPS, ...API_TARGETS[target].devDeps }
+        : template === "full"
+          ? FULL_DEV_DEPS
+          : DEV_DEPS,
+    ...(template === "api" && API_TARGETS[target].engines
+      ? { engines: API_TARGETS[target].engines }
+      : {}),
+  }
   await writeFile(
     join(dest, "package.json"),
-    `${JSON.stringify(
-      {
-        name: appName,
-        private: true,
-        version: "0.1.0",
-        type: "module",
-        scripts:
-          template === "api"
-            ? {
-                ...API_TARGETS[target].scripts,
-                lint: "biome check .",
-                format: "biome check --write .",
-                typecheck: "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-                test: "bun test",
-              }
-            : {
-                dev: "vite",
-                build: "tsc -b && vite build",
-                preview: "vite preview",
-                lint: "biome check .",
-                format: "biome check --write .",
-                typecheck: "tsc -b --noEmit",
-                test: "bun test",
-              },
-        dependencies: template === "api" ? { ...API_DEPS, ...(mcp ? MCP_DEPS : {}) } : DEPS,
-        devDependencies:
-          template === "api" ? { ...API_DEV_DEPS, ...API_TARGETS[target].devDeps } : DEV_DEPS,
-        ...(template === "api" && API_TARGETS[target].engines
-          ? { engines: API_TARGETS[target].engines }
-          : {}),
-      },
-      null,
-      2,
-    )}\n`,
+    `${JSON.stringify({ name: appName, private: true, version: "0.1.0", type: "module", ...pkg }, null, 2)}\n`,
   )
 
+  const { install, run } = PM[pm]
+  const steps = `cd ${name}\n  ${install}\n  ${run} dev`
   console.log(
     template === "api"
       ? `
   Created ${appName}, an API for ${target}${mcp ? ", with MCP at /mcp (MCP=off turns it off)" : ""}.
 
-  cd ${name}
-  bun install
-  bun dev
+  ${steps}
 
   ${API_NEXT_STEPS[target]}
 `
-      : `
+      : template === "full"
+        ? `
+  Created ${appName}: web app + API with the ${theme} theme${mcp ? ", MCP at /mcp" : ""}.
+
+  ${steps}
+
+  Open the URL Vite prints and sign in with any phone number; in development
+  the code is printed in this terminal. Put your number in ADMIN_PHONES (.env)
+  to see /admin. README.md walks through the first day. The API runs on Bun,
+  whichever package manager installs it.
+`
+        : `
   Created ${appName} with the ${theme} theme.
 
-  cd ${name}
-  bun install
-  bun dev
+  ${steps}
 
   Switch themes by editing the @dapplelight/signet-tokens import in src/app.css.
 `,

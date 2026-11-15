@@ -1,0 +1,9 @@
+@import "tailwindcss";
+@import "@dapplelight/signet-tokens/__THEME__.css";
+@import "@dapplelight/signet-tokens/base.css";
+
+/* Tailwind does not scan node_modules, and @dapplelight/signet-ui ships compiled JS
+   whose class names must be seen or every component renders unstyled. The theme
+   cannot declare this — a package does not know where it is installed.
+   Must come after the @import rules: CSS requires imports first. */
+@source "../node_modules/@dapplelight/signet-ui/dist";

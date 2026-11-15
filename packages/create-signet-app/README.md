@@ -8,7 +8,67 @@ bunx create-signet-app my-app --theme cinematic
 cd my-app && bun install && bun dev
 ```
 
-`--theme` takes `editorial` or `cinematic` (default `editorial`).
+`--theme` takes `editorial`, `cinematic` or `finance` (editorial plus the
+spend-category and money tokens; default `editorial`).
+
+`--pm bun|npm|pnpm` sets the commands printed after scaffolding, in the CI
+workflow (setup, frozen install, `<pm> run`) and in the full template's README.
+Default: the package manager that ran it (`npm create` / `pnpm create` say so
+in `npm_config_user_agent`), else bun. With pnpm a `pnpm-workspace.yaml`
+approves esbuild's and workerd's build scripts, which pnpm 10+ otherwise refuses
+to install without. Tests stay on `bun test`, so CI sets up Bun too.
+
+## `--template full`: web app + API in one project
+
+```bash
+bunx create-signet-app my-app --template full --theme finance
+cd my-app && bun install && bun run dev
+```
+
+One package, two halves: `src/` (the web template's Vite app) and `api/` (Hono
+on Bun), with `api/server.ts` serving the API under `/api` and the built app
+for every other path, so one process deploys it and the session cookie stays
+same-origin. In dev, Vite proxies `/api` to it. What a fresh app has:
+
+- **Typed client.** `src/lib/api.ts` is `createRpcClient(hc<AppType>)` over
+  `import type { AppType } from "../../api/app.ts"`: paths, inputs
+  (`zValidator`) and responses typed from the routes, with the envelope and
+  401 redirect of the web template.
+- **Database.** SQLite (bun:sqlite) through signet-db, the schema in
+  `api/db/schema.ts`: users with roles, the audit log, idempotency keys,
+  `entitlementTables()`, `growthTables()`, `privacyTables()`, and a `kv` table
+  that backs signet-server's stores (stored sessions, phone codes, API keys,
+  the notification inbox and prefs, rate limits). drizzle-kit migrations in
+  `drizzle/`, applied on start; signet-payments' tables from `paymentsSchema`.
+- **Sign-in.** Phone one-time codes (`requestPhoneOtp`/`verifyPhoneOtp`,
+  rate-limited), stored sessions with fixation protection, sign-out. In
+  development `devSmsSender` prints the code; it refuses staging and production.
+  `ADMIN_PHONES` grants the admin role.
+- **Screens wired to it.** `AuthScreen` (`/login`), `ProfileCard` +
+  `SessionsList` + `ApiKeysManager` (`/account`), `NotificationInbox` +
+  `NotificationPreferences` (`/notifications`, from `createNotifier`'s inbox),
+  `ConsentList` + `DataRequests` (`/privacy`, signet-db privacy), billing
+  (`/billing`: plans from `definePlans`, current plan from entitlements,
+  `BILLING=fake` upgrades at once and is refused outside development; Razorpay
+  webhooks go through signet-payments to `applyBillingEvent`), and admin
+  (`/admin`, signet-db `defineAdmin` over the schema via `adminRoutes`, by
+  role). Billing and admin are interim pages marked `TODO(billing-screen)` /
+  `TODO(admin-screen)` until signet-ui's billing and admin screens are
+  published.
+- **Env.** `api/env.ts` (`createEnv`), and a generated, gitignored env file
+  with fresh `SESSION_SECRET` / `OTP_SECRET`.
+- **MCP** as in the api template (`--mcp` / `--no-mcp`).
+- **Tests.** `test/api.test.ts` drives sign-in, plans, inbox, admin roles,
+  consent and sign-out against an in-memory database; `src/router.test.ts`
+  resolves every page; `e2e/smoke.spec.ts` (Playwright, `test:e2e`) starts the
+  server with a throwaway database, reads the code from its console and goes
+  sign-in → admin → billing → inbox → account → privacy in headless Chromium.
+- **README.md**, a first-day guide: run, become admin, try billing, add a
+  table → route → page, check, deploy.
+
+The API runs on Bun whichever package manager installs it. signet-db and
+signet-payments are not on npm yet, so a full app installs only once they are
+published (the test installs packs of this checkout).
 
 ## Why
 
@@ -142,7 +202,14 @@ config into anything new produces a crash.
 
 ## Test
 
-Both templates ship `_gitignore` and `_github`, renamed to `.gitignore` and
+`test/scaffold-full.ts` scaffolds the full template outside the monorepo with
+`--theme finance`, installs packs of every Signet package it uses, then lints,
+typechecks, runs the app's tests, builds, checks the finance tokens reached the
+CSS, and runs the app's Playwright smoke test headless. A `--no-mcp --pm pnpm`
+app is then installed with pnpm, typechecked, tested and built, and `--pm npm`
+is checked to rewrite CI.
+
+All templates ship `_gitignore` and `_github`, renamed to `.gitignore` and
 `.github` on scaffold: npm strips `.gitignore` from a package and may drop
 dot-directories.
 
