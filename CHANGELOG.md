@@ -5,6 +5,32 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-db, signet-server, signet-ui: experiments, status page and maintenance mode
+
+- signet-db `./experiments`: `createExperiments` runs A/B/n tests on top of
+  feature flags. Weighted variants with sticky assignment from the flags'
+  `bucket` (no storage needed), exposure logging once per subject, conversions
+  from `analyticsEvents()` goal events after exposure, and `results` with
+  per-variant rates, lift and a two-proportion z-test against the control.
+  Lifecycle `create` / `update` (draft) / `start` / `stop` / `rollout`. A
+  variant's `value` is free JSON, so a placement can later serve an offering
+  by variant. Tables: `experimentTables()`.
+- signet-db `./status`: `createStatus` for a status page: components,
+  incidents with appended updates, the maintenance switch and `summary()`.
+  Tables: `statusTables()`.
+- signet-server `./http/experiments`: `experimentRoutes` (assignment and
+  exposure) and `experimentAdminRoutes` (create, edit, start, stop, results,
+  roll out; deny by default).
+- signet-server `./http/status`: public `statusRoutes` and
+  `statusAdminRoutes` for components, incidents and maintenance.
+- signet-server `./middleware/maintenance`: `maintenanceMode` answers 503
+  with `Retry-After` and the envelope (`code: "MAINTENANCE"`), with a path
+  allowlist and an `allow` callback for admins.
+- signet-lib: new error code `MAINTENANCE` with default copy.
+- signet-ui `screens/experiment-screens` (`ExperimentList`,
+  `ExperimentResults`) and `screens/status-screens` (`StatusPage`).
+- signet-mcp: recipe `add-experiments`.
+
 ### signet-db: web-to-app funnels
 
 - New `./funnels`: `createFunnels(db, { tables, funnels, discounts, offerings, customers, entitlements, checkout, track?, grant?, onPaid? })`. A funnel is optional questions, a plan picker from an offering placement's priced web products, and the gateway's checkout. `start` prices the product and any discount on the server, creates a new anonymous customer and asks the gateway for exactly that amount under the session id. `applyEvent` grants the plan only on a verified `payment.captured` for the priced amount and currency, once; `refund.processed` ends the access. `redeem(sessionId, userId)` claims the session for one account (race-safe, idempotent for the same account) and merges the buyer in with `customers.merge`. URL discounts (`percentOff` or `amountOff`, `expiresAt`, `maxRedemptions` held atomically and given back for checkouts abandoned longer than `discountHoldMs`, default 1 hour, `plans`) are charged as a price override and recorded on the customer timeline as kind `discount`. Step views, purchase and redemption are analytics events `funnel:<key>:<step>`; `funnelSteps(def)` gives the drop-off steps.

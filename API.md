@@ -52,6 +52,7 @@ Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit 
 | `@dapplelight/signet-db/customers` | isTrial, timelineKind, createCustomers, TimelineKind, CustomerEventLike, TimelineEntry, … | Customers across the App Store, Google Play and the web, on the tables from `monetisationTables()` and `entitlementTables()`: - **Timeline:** one view |
 | `@dapplelight/signet-db/d1` | createDb | Cloudflare D1 driver: `createDb(env.DB, config)` |
 | `@dapplelight/signet-db/entitlements` | PROMOTIONAL, definePlans, defaultStatusOf, storeStateOf, defaultPeriodEndOf, defaultPlanIdOf, … | Plans, entitlements and usage limits, on the tables from `entitlementTables()` |
+| `@dapplelight/signet-db/experiments` | checkVariants, pickVariant, twoProportionTest, createExperiments, assignOf, ExperimentStatus, … | A/B/n experiments on top of feature flags, on the tables from `experimentTables()`, with conversions read from `analyticsEvents()` |
 | `@dapplelight/signet-db/flags` | defineFlags, bucket, matchesRule, evaluateFlag, createFlags, FlagValue, … | Feature flags defined in code, with stored overrides in `flagOverrides()` |
 | `@dapplelight/signet-db/funnels` | FUNNEL_TAIL_STEPS, funnelEventName, funnelSteps, periodEnd, createFunnels, FunnelQuestion, … | Web-to-app funnels, on the tables from `funnelTables()` plus `customerEvents` from `monetisationTables()` |
 | `@dapplelight/signet-db/growth` | DEFAULT_FEEDBACK_KINDS, normalizeEmail, createGrowth, GrowthTables, GrowthOptions, WaitlistEntry, … | Growth basics every app rebuilds, on the tables from `growthTables()`: waitlist, invites, referrals, onboarding progress, changelog "what's new" and f |
@@ -61,6 +62,7 @@ Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit 
 | `@dapplelight/signet-db/postgres` | createDb | Postgres driver on postgres-js (Supabase, Neon, RDS, a local server): `createDb(databaseUrl, config)`, or pass a `postgres()` client |
 | `@dapplelight/signet-db/privacy` | createPrivacy, PrivacyTables, PrivacyOptions, Consent, DataRequestKind, DataRequestStatus, … | DPDP building blocks (India's Digital Personal Data Protection Act, 2023) on the tables from `privacyTables()`: consent records per purpose and notice |
 | `@dapplelight/signet-db/sqlite` | createDb | SQLite driver on bun:sqlite (Bun runtime, e.g |
+| `@dapplelight/signet-db/status` | COMPONENT_STATUSES, INCIDENT_STATUSES, INCIDENT_IMPACTS, worst, createStatus, ComponentStatus, … | A status page and the maintenance switch, on the tables from `statusTables()` |
 | `@dapplelight/signet-db/webhooks` | WEBHOOK_TOPIC, assertWebhookUrl, isPrivateAddress, defaultResolveHost, createWebhooks, WebhookEndpoint, … | Outbound webhooks: endpoints registered per user or org, each with its own signing secret; deliveries signed Standard-Webhooks style; retries with bac |
 | `@dapplelight/signet-db/workflows` | defineWorkflow, createWorkflows, WorkflowTables, RunStatus, StepKind, StepStatus, … | Durable workflows on your own database: multi-step jobs that sleep, wait for events and for a person's approval, retry failed steps with backoff, and  |
 | `@dapplelight/signet-db/zod` | MANAGED_KEYS, toZod, ZodMode, ZodOutput | Zod schemas generated from a table's columns: `toZod(table, { mode })` for validating request bodies (e.g |
@@ -151,11 +153,13 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/http/cache` | cacheControlValue, mergeVary, etagMatches, httpCache, cachedResponse, CacheControlOptions, … | HTTP caching for GET routes |
 | `@dapplelight/signet-server/http/collab` | collabRoutes, mentionTemplates, notifyMentions, CollabStore, CollabRoutesOptions, CollabRoutes, … | HTTP routes for signet-db's record collaboration (`createCollab`): comments with @mentions, the mention picker, the activity timeline, and version his |
 | `@dapplelight/signet-server/http/errors` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus | Server half of the error envelope |
+| `@dapplelight/signet-server/http/experiments` | experimentRoutes, experimentAdminRoutes, ExperimentStore, ExperimentRoutesOptions, ExperimentAdminOptions, ExperimentRoutes | Experiment routes on signet-db's `createExperiments` (typed by shape, so this package does not depend on signet-db): the app reads its variant and rec |
 | `@dapplelight/signet-server/http/funnels` | redemptionToken, readRedemptionToken, redemptionLink, DEFAULT_FUNNEL_PAGE_LABELS, funnelRoutes, funnelPageCsp, … | Web-to-app funnels on signet-db's `createFunnels` (typed structurally, so this package does not depend on signet-db): a public hosted checkout page (q |
 | `@dapplelight/signet-server/http/monetisation` | monetisationRoutes, monetisationAdminRoutes, OfferingStore, CustomerStore, ChartStore, MonetisationRoutesOptions, … | Monetisation routes on signet-db's `createOfferings` and `createCustomers` (typed structurally, so this package does not depend on signet-db): offerin |
 | `@dapplelight/signet-server/http/openapi` | apiDoc, ERROR_ENVELOPE_SCHEMA, openApiSpec, serveOpenApi, apiDocsHtml, SecuritySchemeName, … | OpenAPI 3.1 from the app's own routes |
 | `@dapplelight/signet-server/http/orgs` | currentTenant, currentMembership, grants, tenant, orgGuards, orgCookie, … | Multi-tenant Hono pieces on signet-db's `createOrgs` (typed structurally, so this package does not depend on signet-db): resolve the tenant from the r |
 | `@dapplelight/signet-server/http/routes` | entitlementRoutes, flagRoutes, approvalRoutes, EntitlementRoutes, FlagRoutes | Read routes for signet-db's entitlements and flags, typed for `hc` |
+| `@dapplelight/signet-server/http/status` | statusRoutes, statusAdminRoutes, StatusStore, StatusAdminOptions | Status page routes on signet-db's `createStatus` (typed by shape): a public summary for the status page, and admin routes for components, incidents an |
 | `@dapplelight/signet-server/http/validate` | parseBody, parseQuery, parseParams, zValidator, VALIDATES | Zod request validation |
 | `@dapplelight/signet-server/http/webhooks` | WebhookEndpointInput, WebhookEndpointPatch, WebhookDeliveryQuery, webhookRoutes, WebhookDeliveryStatus, WebhookStore, … | Admin routes for outbound webhooks (signet-db's `createWebhooks`) |
 | `@dapplelight/signet-server/http/workflows` | workflowRoutes, WorkflowEngineLike, WorkflowRoutesOptions, WorkflowRoutes | HTTP routes for signet-db's durable workflows (`createWorkflows`): start a run, read its status and step history, send an event, approve or reject an  |
@@ -163,9 +167,10 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/mcp` | toolResult, toMcpTool, defineTool, createMcpServer, resolveMcpServer, ToolAnnotations, … | re-exports server |
 | `@dapplelight/signet-server/mcp/client` | McpClientError, createMcpClient, McpClientOptions, McpToolInfo, McpCallResult, McpClient | Call a remote MCP server's tools over streamable HTTP with a bearer token: list tools, call one, get a typed result |
 | `@dapplelight/signet-server/mcp/hono` | createMcpChanges, mcpHandler, mountMcp, McpChanges, McpHandlerOptions | Serve MCP over streamable HTTP from a Hono route |
-| `@dapplelight/signet-server/middleware` | allowedOrigins, corsMiddleware, CorsOptions, csrfMiddleware, CsrfOptions, memoryStore, … | re-exports cors, csrf, rate-limit, request-id, secure-headers |
+| `@dapplelight/signet-server/middleware` | allowedOrigins, corsMiddleware, CorsOptions, csrfMiddleware, CsrfOptions, maintenanceMode, … | re-exports cors, csrf, maintenance, rate-limit, request-id, secure-headers |
 | `@dapplelight/signet-server/middleware/cors` | allowedOrigins, corsMiddleware, CorsOptions | CORS |
 | `@dapplelight/signet-server/middleware/csrf` | csrfMiddleware, CsrfOptions | CSRF guard for cookie-authenticated APIs |
+| `@dapplelight/signet-server/middleware/maintenance` | maintenanceMode, MaintenanceState, MaintenanceOptions | Maintenance mode |
 | `@dapplelight/signet-server/middleware/rate-limit` | memoryStore, clientIp, rateLimit, RateLimitResult, RateLimitStore, ClientIpTrust, … | Rate limiting with a pluggable store |
 | `@dapplelight/signet-server/middleware/rate-limit-do` | RateLimitCounter, durableObjectStore, RateLimitCounterState, RateLimitNamespace | Exact rate limiting on Cloudflare Workers, backed by a Durable Object |
 | `@dapplelight/signet-server/middleware/request-id` | requestId, RequestIdOptions |  |
@@ -249,6 +254,7 @@ Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"
 | `@dapplelight/signet-ui/screens/auth-screens` | DEFAULT_AUTH_LABELS, AuthMode, AuthChannel, OAuthProvider, AuthLabels, CodeRequest |  |
 | `@dapplelight/signet-ui/screens/billing-screens` | plansFromEntitlements, DEFAULT_BILLING_LABELS, formatMoney, PlanPicker, RestorePurchasesButton, CurrentPlanCard, … |  |
 | `@dapplelight/signet-ui/screens/collab-screens` | DEFAULT_COLLAB_LABELS, mentionsToText, textToMentions, CommentBody, MentionTextarea, CommentThreads, … |  |
+| `@dapplelight/signet-ui/screens/experiment-screens` | DEFAULT_EXPERIMENT_LABELS, ExperimentStatusBadge, ExperimentList, ExperimentResults, ExperimentStatus, ExperimentView, … |  |
 | `@dapplelight/signet-ui/screens/funnel-screens` | DEFAULT_FUNNEL_LABELS, discountedOffering, FunnelQuestion, WebFunnel, loadScript, STRIPE_JS_URL, … |  |
 | `@dapplelight/signet-ui/screens/growth-screens` | DEFAULT_GROWTH_LABELS, WaitlistJoin, InviteAccept, ReferralCard, OnboardingChecklist, FeedbackForm, … |  |
 | `@dapplelight/signet-ui/screens/monetisation-screens` | DEFAULT_MONETISATION_LABELS, plansFromOffering, RemotePaywall, CustomerCenter, CustomerTimeline, PromotionalGrantForm, … |  |
@@ -256,6 +262,7 @@ Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"
 | `@dapplelight/signet-ui/screens/org-screens` | DEFAULT_ORG_LABELS, OrgSwitcher, MembersList, InviteDialog, AcceptInvitePage, OrgSettings, … |  |
 | `@dapplelight/signet-ui/screens/privacy-screens` | DEFAULT_PRIVACY_LABELS, ConsentRecord, DataRequestRow, ConsentPurpose, PrivacyLabels |  |
 | `@dapplelight/signet-ui/screens/realtime-screens` | DEFAULT_REALTIME_LABELS, PresenceMemberView, RealtimeLabels, AvatarStackProps, EditingBadgeProps, TypingIndicatorProps, … |  |
+| `@dapplelight/signet-ui/screens/status-screens` | DEFAULT_STATUS_LABELS, StatusPage, ComponentStatus, StatusIncidentView, StatusSummaryView, StatusLabels, … |  |
 | `@dapplelight/signet-ui/screens/subscription-charts` | DEFAULT_CHART_LABELS, SubscriptionCharts, ChartDayView, ChartResultView, ChartFilterView, ChartAudienceView, … |  |
 | `@dapplelight/signet-ui/screens/workflow-screens` | DEFAULT_WORKFLOW_LABELS, waitingText, WorkflowRunTimeline, ApprovalInboxCard, RunStatus, WorkflowRunView, … |  |
 | `@dapplelight/signet-ui/utils` | TYPE_RAMP, cn |  |
