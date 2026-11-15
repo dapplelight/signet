@@ -341,11 +341,15 @@
     "./screens/realtime-screens": {
       "types": "./dist/components/screens/realtime-screens.d.ts",
       "import": "./dist/components/screens/realtime-screens.js"
+    },
+    "./screens/abuse-screens": {
+      "types": "./dist/components/screens/abuse-screens.d.ts",
+      "import": "./dist/components/screens/abuse-screens.js"
     }
   },
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "bun run test/ui.tsx && bun run test/dom.tsx && bun run test/data-table.tsx && bun run test/shortcuts.tsx && bun run test/markdown.tsx && bun run test/dom2.tsx && bun run test/domain.tsx && bun run test/basics.tsx && bun run test/behaviors.tsx && bun run test/screens-user.tsx && bun run test/screens-admin.tsx && bun run test/screens-billing.tsx && bun run test/screens-monetisation.tsx && bun run test/screens-growth.tsx && bun run test/screens-api.tsx && bun run test/screens-orgs.tsx && bun run test/screens-workflow.tsx && bun run test/screens-collab.tsx && bun run test/ui-domain.tsx && bun run test/metric-headline.tsx && bun run test/realtime.tsx",
+    "test": "bun run test/ui.tsx && bun run test/dom.tsx && bun run test/data-table.tsx && bun run test/shortcuts.tsx && bun run test/markdown.tsx && bun run test/dom2.tsx && bun run test/domain.tsx && bun run test/basics.tsx && bun run test/behaviors.tsx && bun run test/screens-user.tsx && bun run test/screens-admin.tsx && bun run test/screens-billing.tsx && bun run test/screens-monetisation.tsx && bun run test/screens-growth.tsx && bun run test/screens-api.tsx && bun run test/screens-orgs.tsx && bun run test/screens-workflow.tsx && bun run test/screens-collab.tsx && bun run test/screens-abuse.tsx && bun run test/ui-domain.tsx && bun run test/metric-headline.tsx && bun run test/realtime.tsx",
     "build": "tsc -p tsconfig.build.json",
     "prepublishOnly": "bun run build"
   },

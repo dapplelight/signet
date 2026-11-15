@@ -117,6 +117,12 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   Load more) and `VersionHistory` (versions, a field diff, Restore, Undo with
   the server's conflict message), shaped like signet-db's `createCollab` and
   signet-server's `collabRoutes`. Demo: `screens-collab.html`.
+- `screens/abuse-screens`: `CaptchaWidget` (loads Cloudflare Turnstile or
+  hCaptcha and reports the token for signet-server's `requireCaptcha`;
+  `provider="test"` reports the test token with no script) and
+  `AiSpendAdmin` (spend against caps today and this month, top users and
+  orgs, set and remove caps), shaped like signet-server's
+  `aiSpendAdminRoutes`.
 - Real-time: `hooks/use-channel` and `screens/realtime-screens`, see
   [Real-time](#real-time). Demo: `screens-realtime.html`.
 
