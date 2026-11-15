@@ -1,8 +1,8 @@
 /**
  * Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`,
  * `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotencyKeys`,
- * `entitlementTables`, `flagOverrides`, `growthTables`, `privacyTables` and
- * `sequences` tables.
+ * `aiCache`, `entitlementTables`, `flagOverrides`, `growthTables`, `privacyTables`,
+ * `analyticsEvents` and `sequences` tables.
  */
 
 import {
@@ -105,6 +105,16 @@ export const outbox = (name = "outbox") =>
     lastError: text("last_error"),
     createdAt: stamp("created_at"),
     sentAt: timestamp("sent_at", { withTimezone: true, mode: "date" }),
+  })
+
+/** The cache table for `dbCache(db, table)`, behind signet-ai's `createExtractor`. */
+export const aiCache = (name = "ai_cache") =>
+  pgTable(name, {
+    /** SHA-256 of model, schema, instructions and input. */
+    key: text("key").primaryKey(),
+    /** The entry as JSON, or ciphertext when the db has a cipher. */
+    entry: text("entry").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
   })
 
 /** The idempotency key table for `createDb(..., { idempotency })`. */
@@ -325,6 +335,30 @@ export const privacyTables = (prefix = "") => ({
     (t) => [index(`${prefix}data_requests_subject`).on(t.subject)],
   ),
 })
+
+/**
+ * Stored analytics events for `createAnalyticsStore` from
+ * `@dapplelight/signet-db/analytics`. `ts` is epoch ms; `props` is JSON.
+ * Has `userId`, so it can go in `deleteUser` / privacy `userTables`.
+ */
+export const analyticsEvents = (name = "analytics_events") =>
+  pgTable(
+    name,
+    {
+      id: id(),
+      name: text("name").notNull(),
+      ts: bigint("ts", { mode: "number" }).notNull(),
+      anonymousId: text("anonymous_id"),
+      sessionId: text("session_id"),
+      userId: text("user_id"),
+      props: jsonb("props"),
+    },
+    (t) => [
+      index(`${name}_name_ts`).on(t.name, t.ts),
+      index(`${name}_anonymous_id`).on(t.anonymousId),
+      index(`${name}_user_id`).on(t.userId),
+    ],
+  )
 
 /** Named counters for `nextSequence`, e.g. invoice numbers per financial year. */
 export const sequences = (name = "sequences") =>

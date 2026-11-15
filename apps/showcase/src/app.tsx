@@ -99,6 +99,15 @@ import {
   TimelineTitle,
 } from "@dapplelight/signet-ui/components/timeline"
 import { Toaster, toast } from "@dapplelight/signet-ui/components/toast"
+import { Amount } from "@dapplelight/signet-ui/domain/amount"
+import {
+  Kanban,
+  KanbanColumn,
+  KanbanColumnHeader,
+  KanbanColumnTitle,
+  KanbanItem,
+  KanbanList,
+} from "@dapplelight/signet-ui/domain/kanban"
 import { HomeIcon, InboxIcon, SettingsIcon, UsersIcon } from "lucide-react"
 import { type ReactNode, useState } from "react"
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts"
@@ -124,6 +133,25 @@ const ROWS = [
   { name: "Alan Turing", plan: "Team", status: "Active", seats: 8 },
   { name: "Katherine Johnson", plan: "Free", status: "Paused", seats: 1 },
 ]
+
+const TASKS: Record<string, string> = {
+  t1: "Draft the launch post",
+  t2: "Invite beta testers",
+  t3: "Fix the sign-in redirect",
+  t4: "Price the Team plan",
+  t5: "Set up billing alerts",
+}
+const LANES = [
+  ["todo", "To do"],
+  ["doing", "In progress"],
+  ["done", "Done"],
+] as const
+
+const LEDGER = [
+  { label: "Salary", value: 185000, tone: "auto" },
+  { label: "Rent", value: -42000, tone: "auto" },
+  { label: "To savings", value: -25000, tone: "transfer" },
+] as const
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -343,6 +371,51 @@ export function App({ initial }: { initial: string }) {
               </TimelineItem>
             ))}
           </Timeline>
+        </Section>
+
+        <Section title="Domain: amount and kanban">
+          <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2">
+            <Amount
+              value={12500000}
+              className="text-3xl font-medium"
+              classNames={{
+                currency: "mr-0.5 text-xl text-text-muted",
+                fraction: "text-text-muted",
+              }}
+            />
+            <Amount value={1250000} notation="compact" className="text-xl" />
+            <Amount value={-1999.5} currency="USD" locale="en-US" className="text-xl" />
+          </div>
+          <ul className="m-0 flex list-none flex-col divide-y divide-border p-0 text-sm">
+            {LEDGER.map((r) => (
+              <li key={r.label} className="flex justify-between py-2">
+                <span>{r.label}</span>
+                <Amount value={r.value} tone={r.tone} signDisplay="exceptZero" />
+              </li>
+            ))}
+          </ul>
+          <Kanban
+            aria-label="Launch tasks"
+            defaultValue={{ todo: ["t1", "t2"], doing: ["t3", "t4"], done: ["t5"] }}
+          >
+            {(board) =>
+              LANES.map(([id, title]) => (
+                <KanbanColumn key={id} value={id} className="w-auto min-w-44 flex-1">
+                  <KanbanColumnHeader>
+                    <KanbanColumnTitle>{title}</KanbanColumnTitle>
+                    <Badge variant="secondary">{board[id]?.length ?? 0}</Badge>
+                  </KanbanColumnHeader>
+                  <KanbanList>
+                    {(board[id] ?? []).map((task) => (
+                      <KanbanItem key={task} value={task}>
+                        {TASKS[task]}
+                      </KanbanItem>
+                    ))}
+                  </KanbanList>
+                </KanbanColumn>
+              ))
+            }
+          </Kanban>
         </Section>
 
         <Section title="Sidebar">

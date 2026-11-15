@@ -32,9 +32,33 @@ and a test checks it.
 
 ## Make your own theme
 
-Copy a theme file, change the values, and keep every variable the contract
-lists. `@dapplelight/signet-ui` reads only these variables, so the components
-follow.
+From one brand colour:
+
+```ts
+import { buildTheme, toCss, toDesignTokens, toFigmaVariables } from "@dapplelight/signet-tokens/theme"
+
+const theme = buildTheme({ brand: "#e11d48", base: "cinematic" }) // mode: "light" | "dark" | "both"
+toCss(theme)            // a theme file: imports the base, overrides its colours in light and dark
+theme.adjustments       // tokens moved to reach WCAG 4.5:1 (text) or 3:1 (focus, charts)
+toDesignTokens(theme)   // W3C Design Tokens JSON; fromDesignTokens(json) reads it back
+toFigmaVariables(theme) // body for Figma's POST /v1/files/:key/variables
+```
+
+Or `signet theme "#e11d48" --base cinematic > src/brand.css`, and import that
+file in place of the base theme. Every text token is checked against every
+surface it sits on, so a pale brand comes back darker in light mode, with the
+change listed.
+
+By hand: copy a theme file, change the values, and keep every variable the
+contract lists. `@dapplelight/signet-ui` reads only these variables, so the
+components follow.
+
+## Density
+
+`data-density="compact"` (or `comfortable`, `spacious`) on any element tightens
+or loosens the spacing of everything inside it. `--density-button: 0.8` (and
+`input`, `card`, `badge`, ... see CONTRACT.md) on `:root` does it for one
+component everywhere. Nothing set means the theme's normal spacing, unchanged.
 
 ## License
 

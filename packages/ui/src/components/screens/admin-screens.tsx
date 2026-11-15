@@ -1406,11 +1406,15 @@ const toLocalInput = (d: Date) => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
-function toDraft(cols: AdminColumn[], row: AdminRow): Draft {
+/** Each column's input kind, decided once from the row value so the form and the save agree. */
+const kindsOf = (cols: AdminColumn[], row: AdminRow) =>
+  Object.fromEntries(cols.map((c) => [c.key, kindOf(c, row[c.key])])) as Record<string, FieldKind>
+
+function toDraft(cols: AdminColumn[], row: AdminRow, kinds: Record<string, FieldKind>): Draft {
   const out: Draft = {}
   for (const c of cols) {
     const v = row[c.key]
-    const kind = kindOf(c, v)
+    const kind = kinds[c.key] as FieldKind
     if (kind === "boolean") out[c.key] = Boolean(v)
     else if (v === null || v === undefined) out[c.key] = ""
     else if (kind === "datetime")
@@ -1424,19 +1428,26 @@ function toDraft(cols: AdminColumn[], row: AdminRow): Draft {
   return out
 }
 
-/** Draft values back to what signet-db validates: numbers, booleans, ISO dates, parsed JSON, null for empty optional fields. */
+/**
+ * Draft values back to what signet-db validates: numbers, booleans, ISO dates, parsed JSON, null for
+ * cleared optional fields. On create a blank field with a default, or an optional one, is left out
+ * so the server applies the default.
+ */
 function fromDraft(
   cols: AdminColumn[],
   draft: Draft,
   initial: Draft,
   all: Draft,
+  kinds: Record<string, FieldKind>,
+  creating: boolean,
 ): { values: AdminRow; errors: Record<string, string> } {
   const values: AdminRow = {}
   const errors: Record<string, string> = {}
   for (const c of cols) {
     const raw = draft[c.key]
     if (raw === initial[c.key]) continue
-    const kind = kindOf(c, typeof raw === "boolean" ? raw : undefined)
+    if (creating && raw === "" && (c.hasDefault || !c.notNull)) continue
+    const kind = kinds[c.key] as FieldKind
     if (typeof raw === "boolean") values[c.key] = raw
     else if (raw === "") values[c.key] = c.notNull ? "" : null
     else if (kind === "number") values[c.key] = Number(raw)
@@ -1480,7 +1491,8 @@ export function AdminRecordForm({ row, onSaved, className, renderField }: AdminR
       ) ?? [],
     [table, creating],
   )
-  const initial = React.useMemo(() => toDraft(cols, row ?? {}), [cols, row])
+  const kinds = React.useMemo(() => kindsOf(cols, row ?? {}), [cols, row])
+  const initial = React.useMemo(() => toDraft(cols, row ?? {}, kinds), [cols, row, kinds])
   const [draft, setDraft] = React.useState<Draft>(initial)
   React.useEffect(() => setDraft(initial), [initial])
   const [errors, setErrors] = React.useState<Record<string, string[]>>({})
@@ -1494,7 +1506,14 @@ export function AdminRecordForm({ row, onSaved, className, renderField }: AdminR
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const { values, errors: local } = fromDraft(editable, draft, creating ? {} : initial, draft)
+    const { values, errors: local } = fromDraft(
+      editable,
+      draft,
+      creating ? {} : initial,
+      draft,
+      kinds,
+      creating,
+    )
     if (Object.keys(local).length) {
       setErrors(Object.fromEntries(Object.entries(local).map(([k, m]) => [k, [m]])))
       return
@@ -1538,7 +1557,7 @@ export function AdminRecordForm({ row, onSaved, className, renderField }: AdminR
         const disabled = !editable.includes(c)
         const value = draft[c.key] ?? ""
         const set = (v: string | boolean) => setDraft((d) => ({ ...d, [c.key]: v }))
-        const kind = kindOf(c, value)
+        const kind = kinds[c.key] as FieldKind
         const custom = renderField?.({ column: c, value, onChange: set, id })
         if (disabled && !creating) {
           return (

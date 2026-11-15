@@ -60,7 +60,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json && tsc --noEmit -p tsconfig.search.json",
-    "test": "bun run test/smoke.ts && bun run test/format.ts && bun run test/date.ts && bun run test/date-only.ts America/Los_Angeles && bun run test/date-only.ts Asia/Kolkata && bun run test/analytics.ts && bun run test/form.ts && bun run test/copy.ts && bun run test/crypto.ts && bun test test/search",
+    "test": "bun run test/smoke.ts && bun run test/format.ts && bun run test/date.ts && bun run test/date-only.ts America/Los_Angeles && bun run test/date-only.ts Asia/Kolkata && bun run test/analytics.ts && bun run test/form.ts && bun run test/copy.ts && bun run test/crypto.ts && bun run test/stream.ts && bun test test/search",
     "build": "tsc -p tsconfig.build.json",
     "prepublishOnly": "bun run build"
   },

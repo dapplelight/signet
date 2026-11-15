@@ -7,6 +7,7 @@
  *                    themes, contract tokens, recipes, create-signet-app templates
  *   doctor-check.ts  packages/server/src/doctor/check.ts, verbatim
  *   contrast.ts      packages/tokens/test/contrast.ts, verbatim
+ *   theme.ts         packages/tokens/src/theme.ts (the theme builder), verbatim
  *
  * The two copies are how check_app and check_theme reuse the repo's own logic
  * without the server or tokens package exporting it.
@@ -672,7 +673,18 @@ const RECIPES: RecipeSpec[] = [
   {
     id: "add-api-client",
     title: "Add the typed API client (and TanStack Query)",
-    keywords: ["api client", "fetch", "client", "tanstack query", "react query", "frontend"],
+    keywords: [
+      "api client",
+      "fetch",
+      "client",
+      "tanstack query",
+      "react query",
+      "frontend",
+      "timeout",
+      "streaming",
+      "sse",
+      "ndjson",
+    ],
     install: ["@dapplelight/signet-lib"],
     refs: [
       ["lib", "Use"],
@@ -700,10 +712,15 @@ const RECIPES: RecipeSpec[] = [
       "structured output",
       "model",
       "classifier",
+      "cache",
+      "persistent cache",
+      "kv",
+      "cost saved",
     ],
     install: ["@dapplelight/signet-ai", "zod", "ai"],
     refs: [
       ["ai", ""],
+      ["ai", "Persistent caches"],
       ["ai", "Budgets across isolates"],
       ["ai", "Testing without network or spend"],
       ["ai", "Errors"],
@@ -810,15 +827,35 @@ const RECIPES: RecipeSpec[] = [
   },
   {
     id: "add-analytics",
-    title: "Add analytics (Cloudflare Web Analytics or Analytics Engine)",
-    keywords: ["analytics", "events", "tracking", "pageview", "analytics engine", "beacon"],
+    title:
+      "Add analytics (Cloudflare, or events in your database with sessions, queries and answers)",
+    keywords: [
+      "analytics",
+      "events",
+      "tracking",
+      "pageview",
+      "analytics engine",
+      "beacon",
+      "sessions",
+      "identify",
+      "funnel",
+      "retention",
+      "headline",
+    ],
     install: ["@dapplelight/signet-lib", "@dapplelight/signet-server"],
     refs: [
       ["analytics", "Tier 1 — invite, gift and marketing sites"],
       ["analytics", "Tier 2 — products wanting custom events"],
+      ["analytics", "Sessions and identify"],
+      ["analytics", "Store events in your database"],
+      ["analytics", "Ask questions"],
+      ["analytics", "Answers, not dashboards"],
       ["analytics", "Things that bite"],
     ],
-    verify: ["check_app: the ingest route is rate limited"],
+    verify: [
+      "check_app: the ingest route is rate limited",
+      "a client-sent userId is dropped unless registerIngest has a userId resolver",
+    ],
   },
   {
     id: "add-portability-adapters",
@@ -886,6 +923,7 @@ const RECIPES: RecipeSpec[] = [
       "encrypted",
       "outbox",
       "idempotency",
+      "ai cache",
       "scoped",
       "agent tools",
     ],
@@ -898,6 +936,7 @@ const RECIPES: RecipeSpec[] = [
       ["db", "Per-user scope and soft delete"],
       ["db", "Transactional outbox"],
       ["db", "Idempotency keys"],
+      ["db", "AI answer cache"],
       ["db", "Tools for AI agents"],
       ["db", "Errors"],
     ],
@@ -953,6 +992,31 @@ const RECIPES: RecipeSpec[] = [
     verify: ["call tools/list from an MCP client; bun run test"],
   },
   {
+    id: "mcp-by-default",
+    title: "Expose an app to agents: routes as tools, per-user tools, approvals",
+    keywords: [
+      "mcp",
+      "routes as tools",
+      "appTools",
+      "asTool",
+      "approval",
+      "approve",
+      "pending approval",
+      "per-user tools",
+      "visible",
+      "agent",
+    ],
+    install: ["@dapplelight/signet-server", "@modelcontextprotocol/server", "hono", "zod"],
+    refs: [
+      ["server", "Apps inside agents"],
+      ["create-signet-app", "`--template api`: a Hono API on the runtime you pick"],
+    ],
+    verify: [
+      "tools/list shows each zValidator route; a write answers APPROVAL_PENDING or APPROVAL_REQUIRED until approved",
+      "bun run test && bun run typecheck",
+    ],
+  },
+  {
     id: "add-oauth",
     title: "Protect an API or MCP endpoint with OAuth 2.1 (resource server)",
     keywords: ["oauth", "token", "jwt", "jwks", "bearer", "scope", "resource server"],
@@ -991,6 +1055,63 @@ const RECIPES: RecipeSpec[] = [
     verify: [
       "signet list shows the item as added; bun run typecheck passes with the copies",
       "after signet upgrade: no <<<<<<< markers left (grep), then bun run lint, typecheck and test",
+    ],
+  },
+  {
+    id: "add-tests",
+    title: "Test an app: fake providers, Playwright across themes, dev overlay, demo mode",
+    keywords: [
+      "test",
+      "testing",
+      "fake",
+      "mock",
+      "playwright",
+      "e2e",
+      "visual regression",
+      "screenshot",
+      "demo mode",
+      "offline",
+      "dev overlay",
+      "outbox",
+    ],
+    // signet-test is `private: true` (not on npm yet), so it is not in the install line.
+    install: ["@playwright/test"],
+    refs: [
+      ["test", "Fake providers", true],
+      ["test", "Payments"],
+      ["test", "Notifications"],
+      ["test", "Playwright"],
+      ["test", "Dev overlay"],
+      ["test", "Demo mode"],
+    ],
+    verify: [
+      "bun run test with the fakes; npx playwright test --update-snapshots once, then npx playwright test",
+      "a production build (vite build) contains no 'Signet dev overlay' string",
+    ],
+  },
+  {
+    id: "add-backend-module",
+    title: "Wire auth, a database, payments, notifications or an admin API into an api app",
+    keywords: [
+      "signet add auth",
+      "backend module",
+      "wire",
+      "payments",
+      "notifications",
+      "admin api",
+      "database",
+      "codemod",
+      "migrate",
+    ],
+    // signet-cli and signet-db are `private: true`; the module's other packages are installed by signet add.
+    install: ["@dapplelight/signet-server", "hono", "zod"],
+    refs: [
+      ["cli", "Add a backend module"],
+      ["cli", "Codemods"],
+    ],
+    verify: [
+      "src/app.ts has the module's .route(...) once and src/env.ts its keys; bun run typecheck passes",
+      "signet upgrade --dry-run shows codemod diffs before they are applied",
     ],
   },
   {
@@ -1058,6 +1179,10 @@ function apiTarget(field: "scripts" | "devDeps"): Record<string, string> {
   )
 }
 /** What create-signet-app copies: the tracked template files, renamed as it renames them. */
+// As create-signet-app's applyMcp with MCP chosen (its non-interactive default):
+// the `_mcp/` overlay is laid on and the `// mcp:begin` / `// mcp:end` markers go.
+const dropMcpMarkers = (text: string) => text.replace(/^[ \t]*\/\/ mcp:(begin|end)\n/gm, "")
+
 function templateFiles(dir: string, target?: string): TemplateFile[] {
   const files = execFileSync("git", ["ls-files", dir], { cwd: ROOT, encoding: "utf8" })
     .split("\n")
@@ -1065,17 +1190,22 @@ function templateFiles(dir: string, target?: string): TemplateFile[] {
   // Shared files, then the chosen target's laid over them, as the scaffolder copies.
   const byPath = new Map<string, string>()
   const overlay = `${dir}/_targets/${target}/`
-  for (const f of files.filter((f) => !f.startsWith(`${dir}/_targets/`)))
+  const mcp = `${dir}/_mcp/`
+  for (const f of files.filter((f) => !f.startsWith(`${dir}/_targets/`) && !f.startsWith(mcp)))
     byPath.set(f.slice(dir.length + 1), f)
-  if (target)
+  if (target) {
     for (const f of files.filter((f) => f.startsWith(overlay)))
       byPath.set(f.slice(overlay.length), f)
+    for (const f of files.filter((f) => f.startsWith(mcp))) byPath.set(f.slice(mcp.length), f)
+  }
   return [...byPath.keys()].sort().map((path) => ({
     path: path
       .replace(/^_gitignore$/, ".gitignore")
       .replace(/^_dockerignore$/, ".dockerignore")
       .replace(/^_github\//, ".github/"),
-    content: read(byPath.get(path) as string),
+    content: target
+      ? dropMcpMarkers(read(byPath.get(path) as string))
+      : read(byPath.get(path) as string),
   }))
 }
 const themeNames = /const THEMES = \[([^\]]*)\]/.exec(CSA)?.[1]?.match(/[\w-]+/g) ?? []
@@ -1090,7 +1220,7 @@ const scaffold: SignetIndex["scaffold"] = {
   api: {
     files: templateFiles("packages/create-signet-app/template-api", "cloudflare"),
     scripts: scripts("api"),
-    dependencies: objectConst("API_DEPS"),
+    dependencies: { ...objectConst("API_DEPS"), ...objectConst("MCP_DEPS") },
     devDependencies: { ...objectConst("API_DEV_DEPS"), ...apiTarget("devDeps") },
   } satisfies ScaffoldTemplate,
 }
@@ -1117,6 +1247,7 @@ const outputs: [string, string][] = [
   ],
   ["doctor-check.ts", `${banner}${read("packages/server/src/doctor/check.ts")}`],
   ["contrast.ts", `${banner}${read("packages/tokens/test/contrast.ts")}`],
+  ["theme.ts", `${banner}${read("packages/tokens/src/theme.ts")}`],
 ]
 
 mkdirSync(OUT, { recursive: true })

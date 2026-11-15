@@ -115,6 +115,7 @@ const EXPECTED = [
   "get_theme",
   "list_tokens",
   "check_theme",
+  "build_theme",
   "scaffold_app",
   "scaffold_files",
   "check_app",
@@ -276,6 +277,24 @@ try {
     ct.json,
   )
 
+  const bt = await call("build_theme", { brand: "#facc15", base: "cinematic" })
+  ok(
+    "build_theme: CSS, contrast clean, pale brand adjusted",
+    bt.json?.css?.includes('@import "@dapplelight/signet-tokens/cinematic.css"') &&
+      bt.json.contrast.checked > 20 &&
+      bt.json.contrast.failed.length === 0 &&
+      bt.json.adjustments.some((a: { token: string }) => a.token === "--primary"),
+    bt.json,
+  )
+  const btj = await call("build_theme", { brand: "#123456", format: "tokens" })
+  ok("build_theme: tokens format is DTCG", btj.json?.tokens?.light?.primary?.$type === "color")
+  const badBrand = await call("build_theme", { brand: "teal" })
+  ok(
+    "build_theme: a non-hex brand is refused",
+    badBrand.isError || !!badBrand.r?.error,
+    badBrand.text,
+  )
+
   const sa = await call("scaffold_app", { name: "my-api", template: "api" })
   ok(
     "scaffold_app: the exact command and file list",
@@ -345,6 +364,32 @@ try {
       own.json.steps.some((st: any) => st.markdown.includes("signet upgrade")),
     own.json?.id,
   )
+  const mod = await call("recipe", { task: "wire a backend module and a codemod" })
+  ok(
+    "recipe: add-backend-module is cut from the cli README and covers wiring and codemods",
+    mod.json?.id === "add-backend-module" &&
+      mod.json.steps.some((st: any) => st.markdown.includes("signet add auth payments")) &&
+      mod.json.steps.some((st: any) => st.markdown.includes("generateText")),
+    mod.json?.id,
+  )
+  const mcpr = await call("recipe", { task: "routes as tools with approval" })
+  ok(
+    "recipe: mcp-by-default is cut from the server README and covers appTools and approvals",
+    mcpr.json?.id === "mcp-by-default" &&
+      JSON.stringify(mcpr.json).includes("appTools") &&
+      JSON.stringify(mcpr.json).includes("kvApprovals"),
+    mcpr.json?.id,
+  )
+  const tr = await call("recipe", { task: "playwright visual regression with fake payments" })
+  ok(
+    "recipe: add-tests is cut from the signet-test README and covers fakes, themes and demo mode",
+    tr.json?.id === "add-tests" &&
+      ["fakeGateway", "expectAcrossThemes", "createDemo", "DevOverlay"].every((t) =>
+        JSON.stringify(tr.json).includes(t),
+      ) &&
+      !tr.json.install.includes("@dapplelight/signet-test"),
+    tr.json?.id,
+  )
   const dbr = await call("recipe", { task: "add a database" })
   ok(
     "recipe: add-db is cut from the db README headings and does not install the private signet-db",
@@ -358,6 +403,7 @@ try {
           "Per-user scope and soft delete",
           "Transactional outbox",
           "Idempotency keys",
+          "AI answer cache",
           "Tools for AI agents",
           "Errors",
         ]) &&

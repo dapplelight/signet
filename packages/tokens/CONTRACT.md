@@ -159,35 +159,37 @@ repaint red as rose and pin green/blue/amber/emerald to v3 hexes; `cinematic.css
 did the same to violet. `bun run test` now fails if a theme defines any stock
 scale variable or changes what a stock `bg-*` utility paints.
 
-## Density — corrected
+## Density
 
-An earlier version of this document said the ~200 raw density literals (`h-8`,
-`px-2`, `size-4`) "do **not** respond to this contract". **That was wrong.**
-Compiling shows:
+A theme's `--spacing` is inlined into every `h-*`, `px-*`, `gap-*` and `size-*`
+the components use (about 225 of them):
 
 ```css
-.h-8  { height: calc(var(--spacing) * 8); }
-.px-3 { padding-inline: calc(var(--spacing) * 3); }
+.h-8 { height: calc(calc(0.25rem * var(--density, 1) * var(--density-component, 1)) * 8); }
 ```
 
-The value comes from `--spacing` and is inlined per theme, so a theme that sets
-it retunes every one of them. Editorial `0.25rem` gives `h-8` = 2rem; Cinematic
-`0.3rem` gives 2.4rem. Asserted by `bun run test`.
+The unit is the theme's (editorial `0.25rem`, cinematic `0.3rem`), so density
+still differs per theme at build time. The two multipliers are read at runtime
+on the element itself and default to `1`, so with nothing set the look is
+exactly the unit times n. `bun run test` asserts that for every spacing
+utility under every theme.
 
-Note it is **inlined, not a runtime `var()`** — so density cannot be flipped by
-overriding a CSS variable at runtime the way colour can. It is a build-time
-property of the theme.
+`base.css` sets them:
 
-The real limitation is narrower than claimed: density scales **globally, not
-per component**. You cannot make buttons roomier while leaving table rows
-tight without editing the components or adding cva size variants. That is worth
-doing when a product actually needs it, and is not the blocker the earlier
-wording implied.
+| Where | Sets | Values |
+|---|---|---|
+| `data-density="compact" \| "comfortable" \| "spacious"` on any element | `--density` for it and everything inside | 0.8, 1, 1.25 |
+| `--density-<slot>` on `:root` (or any ancestor) | `--density-component` on that component's root, through `:where([data-slot=...])` | any number; `buildTheme` writes the levels above |
 
-This is the second claim in this file that compiling falsified, and the
-correction itself was wrong on first attempt — it described `--spacing` as a
-runtime reference, which a second compile disproved. Both original errors came
-from reading the source instead of building it.
+Slots with a token: `button`, `input`, `textarea`, `select-trigger`, `badge`,
+`card`, `tabs-list`, `dialog-content`, `sidebar`. A component's token also
+covers what it contains (a compact card's padding and text gaps), except
+another component with its own token, which resets to its own. A theme that
+defines `--spacing` as a plain length still works; it just ignores density.
+
+Earlier versions of this section said density could not change at runtime or
+per component. Both were true of a plain `--spacing: 0.25rem`; the multipliers
+are what changed.
 
 ## Verified, not asserted
 

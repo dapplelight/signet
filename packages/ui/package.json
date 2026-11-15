@@ -38,6 +38,22 @@
       "types": "./dist/hooks/use-media-query.d.ts",
       "import": "./dist/hooks/use-media-query.js"
     },
+    "./hooks/use-debounce": {
+      "types": "./dist/hooks/use-debounce.d.ts",
+      "import": "./dist/hooks/use-debounce.js"
+    },
+    "./hooks/use-local-storage": {
+      "types": "./dist/hooks/use-local-storage.d.ts",
+      "import": "./dist/hooks/use-local-storage.js"
+    },
+    "./hooks/use-copy": {
+      "types": "./dist/hooks/use-copy.d.ts",
+      "import": "./dist/hooks/use-copy.js"
+    },
+    "./hooks/use-intersection": {
+      "types": "./dist/hooks/use-intersection.d.ts",
+      "import": "./dist/hooks/use-intersection.js"
+    },
     "./components/alert": {
       "types": "./dist/components/ui/alert.d.ts",
       "import": "./dist/components/ui/alert.js"
@@ -49,6 +65,10 @@
     "./components/answer-headline": {
       "types": "./dist/components/ui/answer-headline.d.ts",
       "import": "./dist/components/ui/answer-headline.js"
+    },
+    "./components/metric-headline": {
+      "types": "./dist/components/ui/metric-headline.d.ts",
+      "import": "./dist/components/ui/metric-headline.js"
     },
     "./components/avatar": {
       "types": "./dist/components/ui/avatar.d.ts",
@@ -250,6 +270,14 @@
       "types": "./dist/components/domain/upload.d.ts",
       "import": "./dist/components/domain/upload.js"
     },
+    "./domain/amount": {
+      "types": "./dist/components/domain/amount.d.ts",
+      "import": "./dist/components/domain/amount.js"
+    },
+    "./domain/kanban": {
+      "types": "./dist/components/domain/kanban.d.ts",
+      "import": "./dist/components/domain/kanban.js"
+    },
     "./components/theme-provider": {
       "types": "./dist/components/ui/theme-provider.d.ts",
       "import": "./dist/components/ui/theme-provider.js"
@@ -289,7 +317,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "bun run test/ui.tsx && bun run test/dom.tsx && bun run test/data-table.tsx && bun run test/shortcuts.tsx && bun run test/markdown.tsx && bun run test/dom2.tsx && bun run test/domain.tsx && bun run test/basics.tsx && bun run test/behaviors.tsx && bun run test/screens-user.tsx && bun run test/screens-admin.tsx && bun run test/screens-billing.tsx && bun run test/screens-growth.tsx",
+    "test": "bun run test/ui.tsx && bun run test/dom.tsx && bun run test/data-table.tsx && bun run test/shortcuts.tsx && bun run test/markdown.tsx && bun run test/dom2.tsx && bun run test/domain.tsx && bun run test/basics.tsx && bun run test/behaviors.tsx && bun run test/screens-user.tsx && bun run test/screens-admin.tsx && bun run test/screens-billing.tsx && bun run test/screens-growth.tsx && bun run test/ui-domain.tsx && bun run test/metric-headline.tsx",
     "build": "tsc -p tsconfig.build.json",
     "prepublishOnly": "bun run build"
   },
@@ -307,7 +335,7 @@
     "react": ">=19.0.0",
     "react-day-picker": ">=10.0.0",
     "react-dom": ">=19.0.0",
-    "recharts": ">=2.15.0 <3",
+    "recharts": ">=3.8.0 <4",
     "tailwind-merge": ">=3.0.0",
     "@dapplelight/signet-tokens": "^0.2.0",
     "@tanstack/react-hotkeys": ">=0.12.0 <0.13.0",
@@ -355,7 +383,7 @@
     "input-otp": "^1.5.0",
     "react-day-picker": "^10.0.1",
     "react-markdown": "10.1.0",
-    "recharts": "^2.15.3",
+    "recharts": "^3.10.1",
     "remark-gfm": "4.0.1",
     "remark-parse": "11.0.0",
     "typescript": "^7.0.2",

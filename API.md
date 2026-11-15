@@ -40,10 +40,11 @@ Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit 
 
 | Import | Exports | What |
 |---|---|---|
-| `@dapplelight/signet-db` | isCiphertext, assertCiphertext, generateKey, createCipher, CipherConfig, Cipher, … | re-exports cipher, db, describe, errors, id, idempotency, money, outbox, query, scoped, seed, sequence, user-data |
+| `@dapplelight/signet-db` | dbCache, pruneAiCache, DbCache, isCiphertext, assertCiphertext, generateKey, … | re-exports ai-cache, cipher, db, describe, errors, id, idempotency, money, outbox, query, scoped, seed, sequence, user-data |
 | `@dapplelight/signet-db/admin` | ADMIN_OPS, AdminError, defineAdmin, DEFAULT_ROLES, roles, adminTools, … | An admin API from the schema: `defineAdmin(schema, { authorize })` gives list (cursor pages, sort, typed filters, text search), get, create, update, d |
 | `@dapplelight/signet-db/agent` | jsonSchema, agentTools, AgentTool, AgentToolsOptions | Database tools for AI agents, safe by construction: `agentTools(db, { tables, userId })` returns plain tool definitions (list, get, search per table,  |
-| `@dapplelight/signet-db/columns/pg` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotencyKeys`, `entitlem |
+| `@dapplelight/signet-db/analytics` | createAnalyticsStore, StoredEventInput, AnalyticsStoreOptions, Bucket, Period, Range, … | Analytics events stored in your own database (any signet-db dialect), and typed questions over them: counts, unique people, time series, breakdowns, f |
+| `@dapplelight/signet-db/columns/pg` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotencyKeys`, `aiCache` |
 | `@dapplelight/signet-db/columns/sqlite` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotency |
 | `@dapplelight/signet-db/d1` | createDb | Cloudflare D1 driver: `createDb(env.DB, config)` |
 | `@dapplelight/signet-db/entitlements` | definePlans, defaultStatusOf, storeStateOf, defaultPeriodEndOf, defaultPlanIdOf, periodOf, … | Plans, entitlements and usage limits, on the tables from `entitlementTables()` |
@@ -61,8 +62,8 @@ Signet client primitives. API client, the wire contract, and search.
 
 | Import | Exports | What |
 |---|---|---|
-| `@dapplelight/signet-lib/analytics` | beaconTransport, createAnalytics, noopAnalytics, EventProps, AnalyticsEvent, Transport, … | Client-side event tracking |
-| `@dapplelight/signet-lib/api` | qs, createApiClient, createRpcClient, retryAfterSeconds, toApiError, ApiClientOptions, … | re-exports client, codes, contract, copy, errors |
+| `@dapplelight/signet-lib/analytics` | continueSession, ANALYTICS_HEADERS, beaconTransport, createAnalytics, noopAnalytics, EventProps, … | Client-side event tracking |
+| `@dapplelight/signet-lib/api` | qs, createApiClient, timeout, createRpcClient, retryAfterSeconds, toApiError, … | re-exports client, codes, contract, copy, errors, stream |
 | `@dapplelight/signet-lib/api/query-client` | isRetryable, queryDefaults, onAuthErrorRedirect, QueryDefaultsOptions | TanStack Query defaults |
 | `@dapplelight/signet-lib/crypto` | decryptFields, DecryptFieldsOptions, DecryptFieldsResult | Fail-closed field decryption for apps that encrypt user data on the client (app-a's private mode) |
 | `@dapplelight/signet-lib/form` | errorMessages, firstError, applyServerErrors, clearServerErrors, submitWithServerErrors, FieldError, … | TanStack Form integration |
@@ -113,9 +114,10 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/adapters/supabase` | supabaseBlobStore, SupabaseStorageConfig, SupabaseBlobStore | Supabase Storage as a `BlobStore`, over its REST API with plain fetch |
 | `@dapplelight/signet-server/adapters/upstash` | upstashKv, upstashRateLimitStore, qstashQueue, UpstashConfig, QstashConfig | Upstash over plain fetch: Redis REST as a `KeyValue` (atomic `incr`), and QStash as a `Queue` |
 | `@dapplelight/signet-server/adapters/vercel` | vercelDefer | Vercel as Signet adapters |
-| `@dapplelight/signet-server/analytics` | LIMITS, truncateBytes, toDataPoint, createAnalyticsEngine, AnalyticsEngineDataset, TrackedEvent, … | re-exports engine, ingest, sinks |
+| `@dapplelight/signet-server/analytics` | LIMITS, truncateBytes, toDataPoint, createAnalyticsEngine, AnalyticsEngineDataset, TrackedEvent, … | re-exports engine, ingest, session, sinks |
 | `@dapplelight/signet-server/analytics/engine` | LIMITS, truncateBytes, toDataPoint, createAnalyticsEngine, AnalyticsEngineDataset, TrackedEvent, … | Cloudflare Workers Analytics Engine writer |
-| `@dapplelight/signet-server/analytics/ingest` | registerIngest, cloudflareEnrichment, IngestOptions | Hono ingest route for browser events |
+| `@dapplelight/signet-server/analytics/ingest` | cleanId, registerIngest, cloudflareEnrichment, IngestOptions | Hono ingest route for browser events |
+| `@dapplelight/signet-server/analytics/session` | ANALYTICS_HEADERS, analyticsContext, serverTracker, AnalyticsContext | Server-side events that join the browser's visit and user |
 | `@dapplelight/signet-server/analytics/sinks` | httpSink, memorySink, consoleSink, AnalyticsSink, HttpSinkConfig | Where server-side analytics events go, independent of runtime |
 | `@dapplelight/signet-server/auth` | kvApiKeyStore, createApiKey, listApiKeys, revokeApiKey, verifyApiKey, ApiKeyRecord, … | re-exports api-keys, bearer, better-auth, guards, otp, passcode, session, sessions |
 | `@dapplelight/signet-server/auth/api-keys` | kvApiKeyStore, createApiKey, listApiKeys, revokeApiKey, verifyApiKey, ApiKeyRecord, … | API-key manager: create (secret shown once), list, revoke, with scopes and optional expiry |
@@ -134,8 +136,8 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/http` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus, … | re-exports errors, validate |
 | `@dapplelight/signet-server/http/admin` | adminRoutes, AdminHttpRequest, AdminHandler, AdminRoutesOptions | Mount an admin API (signet-db's `defineAdmin`) as Hono routes |
 | `@dapplelight/signet-server/http/errors` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus | Server half of the error envelope |
-| `@dapplelight/signet-server/http/routes` | entitlementRoutes, flagRoutes, EntitlementRoutes, FlagRoutes | Read routes for signet-db's entitlements and flags, typed for `hc` |
-| `@dapplelight/signet-server/http/validate` | parseBody, parseQuery, parseParams, zValidator | Zod request validation |
+| `@dapplelight/signet-server/http/routes` | entitlementRoutes, flagRoutes, approvalRoutes, EntitlementRoutes, FlagRoutes | Read routes for signet-db's entitlements and flags, typed for `hc` |
+| `@dapplelight/signet-server/http/validate` | parseBody, parseQuery, parseParams, zValidator, VALIDATES | Zod request validation |
 | `@dapplelight/signet-server/jobs` | parseCron, cronMatches, defineSchedule, runDueSchedules, cloudflareScheduled, startScheduler, … | re-exports cron, jobs, runtimes, tools |
 | `@dapplelight/signet-server/mcp` | toolResult, toMcpTool, defineTool, createMcpServer, resolveMcpServer, ToolAnnotations, … | re-exports server |
 | `@dapplelight/signet-server/mcp/client` | McpClientError, createMcpClient, McpClientOptions, McpToolInfo, McpCallResult, McpClient | Call a remote MCP server's tools over streamable HTTP with a bearer token: list tools, call one, get a typed result |
@@ -164,6 +166,20 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/observability/sentry` | redactSecrets, parseStack, createSentry, SentryConfig, StackFrame, SentryRequest, … | Sentry reporting over the Envelope HTTP API |
 | `@dapplelight/signet-server/storage` | sniffType, stripMetadata, UploadError, assertContentMatches, createUploads, abandonedUploadsJob, … | re-exports metadata, uploads |
 
+## @dapplelight/signet-test
+
+Testing kit for Signet apps: fake providers with the real interfaces (payments, app stores, notifications, AI, clock), Playwright helpers with visual regression across themes, a dev overlay and demo mode.
+
+| Import | Exports | What |
+|---|---|---|
+| `@dapplelight/signet-test` | SECOND, MINUTE, HOUR, DAY, fakeClock, FakeClock, … | re-exports clock, fetch, notify |
+| `@dapplelight/signet-test/ai` | fakeModel, fakeModel, fakeModel, FakeReply, FakeModel | A fake AI model on the AI SDK's own mock (`MockLanguageModelV4` from `ai/test`): pass it anywhere a `LanguageModel` goes (`generateText`, `streamText` |
+| `@dapplelight/signet-test/demo` | isDemo, createDemo, DevState, DemoOptions, Demo | Demo mode: one switch that wires every fake and your seed data, so an app runs fully offline for a demo, a screenshot run or a Playwright suite |
+| `@dapplelight/signet-test/overlay` | DevOverlay, DevOverlayProps | A dev-only panel in the corner of the app: who is signed in, their plan, entitlements and flags, a theme and light/dark switcher, and the fake provide |
+| `@dapplelight/signet-test/payments` | fakeGateway, GatewayShape, GatewayCall, Fault, FakeGatewayState, FakeGateway | Fake payment gateways: the real Razorpay, Stripe and PayU adapters, pointed at an in-memory server that speaks each gateway's own API |
+| `@dapplelight/signet-test/playwright` | THEMES, MODES, applyTheme, expectAcrossThemes, signInAs, seed, … | Playwright helpers for Signet apps |
+| `@dapplelight/signet-test/stores` | fakeAppStore, fakeGooglePlay, AppStoreTransaction, AppStoreStatus, FakeAppStore, PlayState, … | Fake App Store and Google Play backends for the real `appstore()` and `googleplay()` adapters |
+
 ## @dapplelight/signet-tokens
 
 Signet design tokens. One theme file per design system; all themes satisfy CONTRACT.md.
@@ -174,14 +190,15 @@ Signet design tokens. One theme file per design system; all themes satisfy CONTR
 | `@dapplelight/signet-tokens/cinematic.css` | — | stylesheet |
 | `@dapplelight/signet-tokens/editorial.css` | — | stylesheet |
 | `@dapplelight/signet-tokens/finance.css` | — | stylesheet |
+| `@dapplelight/signet-tokens/theme` | DENSITY, DENSITY_SLOTS, normalizeHex, hexToOklch, oklchToHex, contrast, … | Theme builder: one brand colour in, every colour token of a Signet theme out, light and dark, derived in OKLCH |
 
 ## @dapplelight/signet-ui
 
 Signet component kit — token-driven React primitives.
 
-`import { X } from "@dapplelight/signet-ui/components/<name>"` — 52 components:
+`import { X } from "@dapplelight/signet-ui/components/<name>"` — 53 components:
 
-`alert` · `alert-dialog` · `answer-headline` · `avatar` · `badge` · `breadcrumb` · `button` · `calendar` · `card` · `chart` · `checkbox` · `combobox` · `command` · `data-table` · `dialog` · `drawer` · `dropdown-menu` · `emoji-picker` · `empty-state` · `error-state` · `field` · `input` · `input-group` · `input-otp` · `kbd` · `label` · `markdown` · `pagination` · `pill-group` · `popover` · `privacy-mask` · `progress` · `radio-group` · `responsive-sheet` · `search-input` · `select` · `shortcuts` · `sidebar` · `skeleton` · `slider` · `spinner` · `stat-strip` · `stepper` · `switch` · `table` · `tabs` · `textarea` · `theme-provider` · `theme-toggle` · `timeline` · `toast` · `tooltip`
+`alert` · `alert-dialog` · `answer-headline` · `avatar` · `badge` · `breadcrumb` · `button` · `calendar` · `card` · `chart` · `checkbox` · `combobox` · `command` · `data-table` · `dialog` · `drawer` · `dropdown-menu` · `emoji-picker` · `empty-state` · `error-state` · `field` · `input` · `input-group` · `input-otp` · `kbd` · `label` · `markdown` · `metric-headline` · `pagination` · `pill-group` · `popover` · `privacy-mask` · `progress` · `radio-group` · `responsive-sheet` · `search-input` · `select` · `shortcuts` · `sidebar` · `skeleton` · `slider` · `spinner` · `stat-strip` · `stepper` · `switch` · `table` · `tabs` · `textarea` · `theme-provider` · `theme-toggle` · `timeline` · `toast` · `tooltip`
 
 Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"`.
 
@@ -189,11 +206,18 @@ Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"
 |---|---|---|
 | `@dapplelight/signet-ui` | — |  |
 | `@dapplelight/signet-ui/behaviors` | useShortcut, useShortcutLabel, useControllableState, matchScore |  |
+| `@dapplelight/signet-ui/domain/amount` | — |  |
 | `@dapplelight/signet-ui/domain/job-runs` | JobRun |  |
+| `@dapplelight/signet-ui/domain/kanban` | — |  |
 | `@dapplelight/signet-ui/domain/trend-chip` | — |  |
 | `@dapplelight/signet-ui/domain/upload` | xhrUpload, UploadTarget, UploadTransport |  |
+| `@dapplelight/signet-ui/hooks/use-copy` | useCopy |  |
+| `@dapplelight/signet-ui/hooks/use-debounce` | useDebounce |  |
+| `@dapplelight/signet-ui/hooks/use-intersection` | useIntersection |  |
+| `@dapplelight/signet-ui/hooks/use-local-storage` | useLocalStorage |  |
 | `@dapplelight/signet-ui/hooks/use-media-query` | DESKTOP_QUERY, useMediaQuery |  |
 | `@dapplelight/signet-ui/screens/account-screens` | DEFAULT_ACCOUNT_LABELS, When, SessionRow, ApiKeyRow, Profile, AccountLabels |  |
+| `@dapplelight/signet-ui/screens/admin-screens` | AdminApiError, createAdminApi, DEFAULT_ADMIN_LABELS, useAdmin, AdminPanel, AdminNav, … |  |
 | `@dapplelight/signet-ui/screens/auth-screens` | DEFAULT_AUTH_LABELS, AuthMode, AuthChannel, OAuthProvider, AuthLabels, CodeRequest |  |
 | `@dapplelight/signet-ui/screens/notification-screens` | DEFAULT_NOTIFICATION_LABELS, NotifyChannel, InboxEntry, InboxFilter, ChannelPrefs, PreferenceCategory, … |  |
 | `@dapplelight/signet-ui/screens/privacy-screens` | DEFAULT_PRIVACY_LABELS, ConsentRecord, DataRequestRow, ConsentPurpose, PrivacyLabels |  |

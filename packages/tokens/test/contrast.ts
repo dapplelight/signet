@@ -70,6 +70,14 @@ export const PAIRS: [fg: string, bg: string, min: number][] = [
   ["--muted-fg", "--muted", TEXT],
   ["--accent-fg", "--accent", TEXT],
   ["--accent-green", "--bg-base", TEXT],
+  // Green text sits on cards (stat-strip, trend-chip, amount's credit tone).
+  ["--accent-green", "--bg-surface", TEXT],
+  ["--accent-green", "--card", TEXT],
+  ["--accent-amber", "--bg-surface", TEXT],
+  ["--accent-amber", "--card", TEXT],
+  // `text-primary` links and labels sit on cards too.
+  ["--primary", "--bg-surface", TEXT],
+  ["--primary", "--card", TEXT],
   ["--accent-amber", "--bg-base", TEXT],
   ["--accent-red", "--bg-base", TEXT],
   ["--accent-blue", "--bg-base", TEXT],
@@ -110,7 +118,7 @@ type Tinted = {
   on: string[]
 }
 // Called from check() only: signet-mcp copies this file and must not read ui/.
-const tinted = (): Tinted[] => [
+export const tinted = (): Tinted[] => [
   {
     name: "inactive TabsTrigger",
     light: alphaOf(ui("tabs.tsx"), /\stext-text-primary\/(\d+)\s/, "tabs"),

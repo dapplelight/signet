@@ -149,6 +149,33 @@ error, 5xx, 408 or 429, keeping one request id; leave it at 0 under TanStack
 Query, which already retries. `fetch` swaps the transport (a Worker service
 binding, or `app.request` in tests).
 
+**Timeouts.** `timeoutMs` bounds each attempt's wait for response headers;
+`timeout(ms)` in hc's `init` replaces it for one call (`timeout(0)` turns it
+off). A timed-out call throws `TimeoutError`: an `ApiError` with status 408
+and code `TIMEOUT`, so `errorCopy` and `isRetryable` already handle it. A
+timed-out GET or HEAD counts toward `retries`; anything else is never retried.
+Your own `signal` still works and its abort is not turned into a timeout.
+
+```ts
+export const api = createRpcClient(hc<AppType>, { baseUrl: "/", timeoutMs: 10_000 })
+await api.api.reports.$get({}, { init: timeout(60_000) })           // a slow one
+await api.api.notes.$get({}, { init: timeout(5_000, { signal }) })  // plus your own abort
+```
+
+**Streaming.** The body is not timed, so a stream runs as long as it needs.
+Read it as an async iterator with `readText` (chunks), `readNdjson<T>` (one
+JSON value per line), `readSse` (server-sent events) or `readSseJson<T>` (each
+event's data as JSON, stopping at `[DONE]`). That last one reads signet-ai's
+`streamChat` response directly; breaking out of the loop cancels the body.
+
+```ts
+import type { UIMessageChunk } from "ai"
+const res = await api.api.chat.$post({ json: { messages } })
+for await (const chunk of readSseJson<UIMessageChunk>(res)) {
+  if (chunk.type === "text-delta") append(chunk.delta)
+}
+```
+
 ### TanStack Query
 
 ```ts

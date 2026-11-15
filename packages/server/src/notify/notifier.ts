@@ -204,7 +204,7 @@ export const DEFAULT_EMAIL_THEME: EmailTheme = {
   background: "#faf9f7",
   foreground: "#1a1814",
   card: "#f2f0ec",
-  primary: "#12833c",
+  primary: "#117e3a",
   primaryFg: "#ffffff",
   mutedFg: "#6d665e",
   border: "#d8d4cc",

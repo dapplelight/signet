@@ -86,7 +86,7 @@ const META: Meta = {
   ],
 }
 
-function fakeApi() {
+function fakeApi(meta: Meta = META) {
   const rows = Array.from({ length: 30 }, (_, i) => ({
     id: `p${String(i + 1).padStart(2, "0")}`,
     name: i === 0 ? "Apollo" : `Project ${i + 1}`,
@@ -109,7 +109,7 @@ function fakeApi() {
     },
   ]
   const api: Api = {
-    meta: async () => META,
+    meta: async () => meta,
     list: async (table: string, q: Query) => {
       calls.push({ op: "list", args: [table, q] })
       if (table === "audit_log") return { rows: audit, nextCursor: null }
@@ -322,6 +322,73 @@ await t("Admin: create with server field errors", async () => {
     )
   })
   ok("Admin: and shows the message", !!within(dialog).getByText("Required"))
+})
+
+const PREFS: Meta = {
+  tables: [
+    {
+      ...(META.tables[0] as Meta["tables"][0]),
+      name: "prefs",
+      columns: [
+        col("id", { primaryKey: true, hasDefault: true, readonly: true }),
+        col("name"),
+        col("role", { hasDefault: true }),
+        col("mode", { enum: ["light", "dark"], hasDefault: true }),
+        col("note", { notNull: false }),
+        // SQLite json columns have SQL type text
+        col("config", { notNull: false }),
+      ],
+    },
+  ],
+}
+
+await t("Admin: create leaves blank defaulted and optional fields out", async () => {
+  const { api, calls } = fakeApi(PREFS)
+  render(<AdminScreen api={api} />)
+  await userEvent.click(await screen.findByRole("button", { name: "New" }))
+  const dialog = await screen.findByRole("dialog")
+  await userEvent.type(within(dialog).getByLabelText(/^Name/), "Ada")
+  await userEvent.click(within(dialog).getByRole("button", { name: "New" }))
+  await waitFor(() =>
+    must(
+      "Admin: create ran",
+      calls.some((c) => c.op === "create"),
+    ),
+  )
+  ok(
+    "Admin: only the typed field is sent on create",
+    JSON.stringify(calls.find((c) => c.op === "create")?.args[0]) === '{"name":"Ada"}',
+    calls.find((c) => c.op === "create")?.args[0],
+  )
+})
+
+await t("Admin: editing an object in a text-typed column sends parsed JSON", async () => {
+  const { api, calls } = fakeApi(PREFS)
+  api.list = async () => ({
+    rows: [{ id: "s1", name: "Ada", role: "member", mode: "light", note: null, config: { a: 1 } }],
+    nextCursor: null,
+  })
+  api.get = async () => ({ id: "s1", name: "Ada", role: "member", mode: "light", config: { a: 1 } })
+  render(<AdminScreen api={api} />)
+  await userEvent.click(await screen.findByRole("button", { name: "Open s1" }))
+  const dialog = await screen.findByRole("dialog")
+  const config = (await within(dialog).findByLabelText(/^Config/)) as HTMLTextAreaElement
+  ok("Admin: object shows as JSON text", JSON.parse(config.value).a === 1)
+  await userEvent.clear(config)
+  await userEvent.click(config)
+  await userEvent.paste('{"a":2}')
+  await userEvent.click(within(dialog).getByRole("button", { name: "Save" }))
+  await waitFor(() =>
+    must(
+      "Admin: update ran",
+      calls.some((c) => c.op === "update"),
+    ),
+  )
+  ok(
+    "Admin: config is sent as an object, not a string",
+    JSON.stringify(calls.find((c) => c.op === "update")?.args) === '["s1",{"config":{"a":2}}]',
+    calls.find((c) => c.op === "update")?.args,
+  )
 })
 
 await t("Admin: row actions", async () => {

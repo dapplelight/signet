@@ -1,0 +1,125 @@
+{
+  "name": "@dapplelight/signet-test",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Testing kit for Signet apps: fake providers with the real interfaces (payments, app stores, notifications, AI, clock), Playwright helpers with visual regression across themes, a dev overlay and demo mode.",
+  "keywords": [
+    "signet",
+    "testing",
+    "fakes",
+    "playwright",
+    "visual regression",
+    "demo mode"
+  ],
+  "homepage": "https://signet.dapplelight.in/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dapplelight/signet.git",
+    "directory": "packages/test"
+  },
+  "bugs": {
+    "url": "https://github.com/dapplelight/signet/issues"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./payments": {
+      "types": "./dist/payments.d.ts",
+      "import": "./dist/payments.js",
+      "default": "./dist/payments.js"
+    },
+    "./stores": {
+      "types": "./dist/stores.d.ts",
+      "import": "./dist/stores.js",
+      "default": "./dist/stores.js"
+    },
+    "./ai": {
+      "types": "./dist/ai.d.ts",
+      "import": "./dist/ai.js",
+      "default": "./dist/ai.js"
+    },
+    "./demo": {
+      "types": "./dist/demo.d.ts",
+      "import": "./dist/demo.js",
+      "default": "./dist/demo.js"
+    },
+    "./playwright": {
+      "types": "./dist/playwright.d.ts",
+      "import": "./dist/playwright.js",
+      "default": "./dist/playwright.js"
+    },
+    "./overlay": {
+      "types": "./dist/overlay.d.ts",
+      "production": "./dist/overlay.production.js",
+      "import": "./dist/overlay.js",
+      "default": "./dist/overlay.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "bun run build && bun test test/*.test.ts && bun run test/overlay.tsx",
+    "test:e2e": "playwright test -c test/e2e",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "prepublishOnly": "bun run build",
+    "test:e2e:update": "playwright test -c test/e2e --update-snapshots=missing"
+  },
+  "peerDependencies": {
+    "@dapplelight/signet-payments": "^0.1.0",
+    "@dapplelight/signet-server": "^0.4.0",
+    "@dapplelight/signet-ui": "^0.2.2",
+    "@playwright/test": ">=1.50.0",
+    "ai": ">=7.0.0",
+    "react": ">=19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@dapplelight/signet-payments": {
+      "optional": true
+    },
+    "@dapplelight/signet-server": {
+      "optional": true
+    },
+    "@dapplelight/signet-ui": {
+      "optional": true
+    },
+    "@playwright/test": {
+      "optional": true
+    },
+    "ai": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@dapplelight/signet-db": "^0.1.0",
+    "@dapplelight/signet-payments": "^0.1.0",
+    "@dapplelight/signet-server": "^0.4.0",
+    "@dapplelight/signet-ui": "^0.2.2",
+    "@happy-dom/global-registrator": "^20.14.5",
+    "@playwright/test": "1.65.1",
+    "@testing-library/react": "^16.3.3",
+    "@types/bun": "^1.4.2",
+    "@types/node": "^26.6.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "ai": "^7.0.109",
+    "drizzle-orm": "^0.45.4",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "typescript": "^7.0.2",
+    "zod": "^4.6.5"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist"
+  ]
+}
