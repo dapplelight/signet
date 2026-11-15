@@ -166,6 +166,20 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/observability/sentry` | redactSecrets, parseStack, createSentry, SentryConfig, StackFrame, SentryRequest, … | Sentry reporting over the Envelope HTTP API |
 | `@dapplelight/signet-server/storage` | sniffType, stripMetadata, UploadError, assertContentMatches, createUploads, abandonedUploadsJob, … | re-exports metadata, uploads |
 
+## @dapplelight/signet-test
+
+Testing kit for Signet apps: fake providers with the real interfaces (payments, app stores, notifications, AI, clock), Playwright helpers with visual regression across themes, a dev overlay and demo mode.
+
+| Import | Exports | What |
+|---|---|---|
+| `@dapplelight/signet-test` | SECOND, MINUTE, HOUR, DAY, fakeClock, FakeClock, … | re-exports clock, fetch, notify |
+| `@dapplelight/signet-test/ai` | fakeModel, fakeModel, fakeModel, FakeReply, FakeModel | A fake AI model on the AI SDK's own mock (`MockLanguageModelV4` from `ai/test`): pass it anywhere a `LanguageModel` goes (`generateText`, `streamText` |
+| `@dapplelight/signet-test/demo` | isDemo, createDemo, DevState, DemoOptions, Demo | Demo mode: one switch that wires every fake and your seed data, so an app runs fully offline for a demo, a screenshot run or a Playwright suite |
+| `@dapplelight/signet-test/overlay` | DevOverlay, DevOverlayProps | A dev-only panel in the corner of the app: who is signed in, their plan, entitlements and flags, a theme and light/dark switcher, and the fake provide |
+| `@dapplelight/signet-test/payments` | fakeGateway, GatewayShape, GatewayCall, Fault, FakeGatewayState, FakeGateway | Fake payment gateways: the real Razorpay, Stripe and PayU adapters, pointed at an in-memory server that speaks each gateway's own API |
+| `@dapplelight/signet-test/playwright` | THEMES, MODES, applyTheme, expectAcrossThemes, signInAs, seed, … | Playwright helpers for Signet apps |
+| `@dapplelight/signet-test/stores` | fakeAppStore, fakeGooglePlay, AppStoreTransaction, AppStoreStatus, FakeAppStore, PlayState, … | Fake App Store and Google Play backends for the real `appstore()` and `googleplay()` adapters |
+
 ## @dapplelight/signet-tokens
 
 Signet design tokens. One theme file per design system; all themes satisfy CONTRACT.md.
