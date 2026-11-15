@@ -166,7 +166,11 @@ export async function cachedResponse<R extends Response>(
     if (res.status !== 200 || res.headers.has("Set-Cookie")) return res
     const b = await res.clone().text()
     const entry: Entry = { s: res.status, h: [...res.headers], b, t: Date.now() }
-    await opts.kv.set(key, JSON.stringify(entry), { ttlSeconds: ttl })
+    try {
+      await opts.kv.set(key, JSON.stringify(entry), { ttlSeconds: ttl })
+    } catch {
+      // a failed cache write (KV 429, network) must not fail a good response
+    }
     return res
   }
 

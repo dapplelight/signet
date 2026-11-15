@@ -350,6 +350,16 @@ ok("same user hits", a2.headers.get("X-Cache") === "HIT" && ((await a2.json()) a
 await sapp.request("/fail")
 const f2 = await sapp.request("/fail")
 ok("errors are never cached", f2.headers.get("X-Cache") === "MISS" && f2.status === 500)
+const brokenKv = { ...memoryKv(), set: async () => Promise.reject(new Error("429")) }
+const bapp = new Hono()
+bapp.get("/x", (c) =>
+  cachedResponse(c, { kv: brokenKv, freshSeconds: 10, staleSeconds: 60 }, () => c.json({ n: 1 })),
+)
+const bx = await bapp.request("/x")
+ok(
+  "failed cache write still returns the 200",
+  bx.status === 200 && bx.headers.get("X-Cache") === "MISS",
+)
 Date.now = realNow
 
 // ---------------------------------------------------------------- webhook routes
