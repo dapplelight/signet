@@ -224,7 +224,7 @@ function ConsentList({
 const STATUS_VARIANT = {
   pending: "outline",
   completed: "secondary",
-  rejected: "destructive",
+  rejected: "outline",
 } as const
 
 type DataRequestsProps = {
@@ -291,7 +291,7 @@ function DataRequests({
               {busy === "export" ? <Spinner /> : <FileDownIcon aria-hidden />}
               {l.exportData}
             </span>
-            <span className="text-xs font-normal text-text-muted">{l.exportHint}</span>
+            <span className="text-xs font-normal text-text-secondary">{l.exportHint}</span>
           </Button>
         ) : null}
         {onRequestErasure ? (
@@ -309,7 +309,7 @@ function DataRequests({
                 {busy === "erasure" ? <Spinner /> : <TrashIcon aria-hidden />}
                 {l.eraseData}
               </span>
-              <span className="text-xs font-normal text-text-muted">{l.eraseHint}</span>
+              <span className="text-xs font-normal text-text-secondary">{l.eraseHint}</span>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
@@ -357,7 +357,12 @@ function DataRequests({
                   {l.download}
                 </Button>
               ) : (
-                <Badge variant={STATUS_VARIANT[r.status]}>{l.status[r.status]}</Badge>
+                <Badge variant={STATUS_VARIANT[r.status]}>
+                  {r.status === "rejected" ? (
+                    <span aria-hidden className="size-1.5 rounded-full bg-destructive" />
+                  ) : null}
+                  {l.status[r.status]}
+                </Badge>
               )}
             </li>
           ))}

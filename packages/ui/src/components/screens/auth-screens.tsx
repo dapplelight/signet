@@ -189,7 +189,7 @@ function AuthDivider({ className, children, ...props }: React.ComponentProps<"di
     <div
       data-slot="auth-divider"
       className={cn(
-        "flex items-center gap-3 text-xs text-text-hint before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border",
+        "flex items-center gap-3 text-xs text-text-muted before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border",
         className,
       )}
       {...props}
@@ -433,7 +433,12 @@ function AuthScreen({
           description={
             <>
               {l.sentTo(sent.to)}{" "}
-              <Button variant="link" size="sm" className="h-auto p-0" onClick={() => setSent(null)}>
+              <Button
+                variant="link"
+                size="sm"
+                className="h-auto p-0 text-text-primary underline"
+                onClick={() => setSent(null)}
+              >
                 {l.change}
               </Button>
             </>
@@ -493,7 +498,12 @@ function AuthScreen({
         >
           <TabsList aria-label={l.channels} className="w-full">
             {channels.map((c) => (
-              <TabsTrigger key={c} value={c}>
+              <TabsTrigger
+                key={c}
+                value={c}
+                // The stock inactive tint misses 4.5:1 on some themes.
+                className="text-text-secondary dark:text-text-secondary"
+              >
                 {c === "email" ? <MailIcon aria-hidden /> : <PhoneIcon aria-hidden />}
                 {c === "email" ? l.email : l.phone}
               </TabsTrigger>
@@ -514,7 +524,7 @@ function AuthScreen({
           <Button
             variant="link"
             size="sm"
-            className="h-auto p-0"
+            className="h-auto p-0 text-text-primary underline"
             onClick={() => setMode(mode === "sign-in" ? "sign-up" : "sign-in")}
           >
             {mode === "sign-in" ? l.signUp : l.signIn}
@@ -524,7 +534,7 @@ function AuthScreen({
       {footer ? (
         <div
           data-slot="auth-footer"
-          className={cn("text-center text-xs text-text-hint", classNames.footer)}
+          className={cn("text-center text-xs text-text-muted", classNames.footer)}
         >
           {footer}
         </div>
@@ -566,7 +576,12 @@ function VerifyCodeScreen({
             <>
               {to ? l.sentTo(to) : null}{" "}
               {onBack ? (
-                <Button variant="link" size="sm" className="h-auto p-0" onClick={onBack}>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-text-primary underline"
+                  onClick={onBack}
+                >
                   {l.change}
                 </Button>
               ) : null}

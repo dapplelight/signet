@@ -175,7 +175,7 @@ function InboxItemBody({
       </span>
       <time
         dateTime={toDate(item.createdAt).toISOString()}
-        className="pt-0.5 text-xs whitespace-nowrap text-text-hint tabular-nums"
+        className="pt-0.5 text-xs whitespace-nowrap text-text-muted tabular-nums"
       >
         {ago(item.createdAt, l.justNow, locale)}
       </time>
@@ -452,7 +452,11 @@ function NotificationPreferences({
                 <span className="flex items-center gap-1.5 font-medium">
                   {cat.label}
                   {cat.required ? (
-                    <LockIcon aria-label={l.required} className="size-3 text-text-hint" />
+                    <LockIcon
+                      role="img"
+                      aria-label={l.required}
+                      className="size-3 text-text-muted"
+                    />
                   ) : null}
                 </span>
                 {cat.description ? (
