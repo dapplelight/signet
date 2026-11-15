@@ -36,6 +36,7 @@ export const ERROR_CODES = [
   "TIMEOUT",
   "APPROVAL_REQUIRED",
   "APPROVAL_DECLINED",
+  "APPROVAL_PENDING",
   // jobs: a run that stopped for good
   "BAD_INPUT",
   "JOB_FAILED",

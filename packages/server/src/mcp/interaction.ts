@@ -11,6 +11,7 @@
  */
 
 import { inputRequired, inputResponse, isInputRequiredResult } from "@modelcontextprotocol/server"
+import type { ApprovalRecord } from "./approvals.js"
 import { type CallToolResult, type ToolContext, toolResult } from "./server.js"
 
 const CONFIRM_KEY = "signet_confirm"
@@ -176,9 +177,12 @@ export type ApprovalOptions = {
   key?: string
 }
 
+type ApprovalCode = "APPROVAL_REQUIRED" | "APPROVAL_DECLINED" | "APPROVAL_PENDING"
+
 function approvalResult(
-  { code, message }: { code: "APPROVAL_REQUIRED" | "APPROVAL_DECLINED"; message: string },
+  { code, message }: { code: ApprovalCode; message: string },
   { summary, details }: ApprovalOptions,
+  record?: ApprovalRecord,
 ): CallToolResult {
   // An error result on purpose: nothing happened, and an output schema is
   // not checked against it. `approval` lets an agent show the person what to approve.
@@ -189,15 +193,27 @@ function approvalResult(
       success: false,
       error: message,
       code,
-      approval: { summary, ...(details !== undefined ? { details } : {}) },
+      approval: {
+        summary,
+        ...(details !== undefined ? { details } : {}),
+        ...(record
+          ? {
+              id: record.id,
+              status: record.status,
+              expiresAt: new Date(record.expiresAt).toISOString(),
+            }
+          : {}),
+      },
     },
   })
 }
 
 /**
  * Gate a risky action (a write, money, a delete) on the person's approval.
- * Returns undefined when approved — go ahead — and otherwise a result to
- * return as-is:
+ * The one approval step every Signet write tool goes through: route tools
+ * (`appTools`), auth and job tools, and — through `approvalGate` — signet-db's
+ * and signet-payments' tool factories. Returns undefined when approved — go
+ * ahead — and otherwise a result to return as-is:
  *
  * ```ts
  * const gate = await requireApproval(ctx, { summary: `Refund ${amount} to ${orderId}`, args: input })
@@ -206,10 +222,16 @@ function approvalResult(
  * ```
  *
  * Built on `confirm`: the client is asked through elicitation, and with a
- * `confirm.key` the answer is bound to `args`. The results it returns:
+ * `confirm.key` the answer is bound to `args`. With an `approvals` store on
+ * `createMcpServer`, a client that cannot ask gets a pending record instead,
+ * which the person approves or denies in the app; the same call (tool,
+ * principal, `args`) then runs once. The results it returns:
  *   the pending ask   the client answers it and retries the call
  *   APPROVAL_DECLINED the person said no; nothing was done
- *   APPROVAL_REQUIRED the client cannot ask (no elicitation), so nothing was
+ *   APPROVAL_PENDING  (with a store) waiting for the person in the app; call
+ *                     again with the same arguments once they approve.
+ *                     `structuredContent.approval` has the record's `id`
+ *   APPROVAL_REQUIRED (no store) the client cannot ask, so nothing was
  *                     done — never acting is the fallback, with the summary
  *                     and details in `structuredContent.approval`
  */
@@ -218,6 +240,25 @@ export async function requireApproval(
   options: ApprovalOptions,
 ): Promise<CallToolResult | ReturnType<typeof inputRequired> | undefined> {
   const { summary, details, args, key } = options
+  const declined = () =>
+    approvalResult(
+      { code: "APPROVAL_DECLINED", message: `Not approved: ${summary}. Nothing was changed.` },
+      options,
+    )
+  const store = ctx.approvals
+  const call = store && {
+    tool: ctx.tool,
+    principal: ctx.principal ?? null,
+    summary,
+    ...(details !== undefined ? { details } : {}),
+    fp: await fingerprint(args ?? details),
+  }
+  if (store && call) {
+    const live = await store.find(call)
+    if (live?.status === "approved" && (await store.use(live.id))) return undefined
+    if (live?.status === "denied") return declined()
+    if (live?.status === "pending") return pending(live)
+  }
   const detail =
     details === undefined || typeof details === "string"
       ? details
@@ -231,12 +272,11 @@ export async function requireApproval(
     ...(key ? { key } : {}),
   })
   if (isConfirmPending(answer)) return answer
-  if (answer === "confirmed") return undefined
-  if (answer === "declined")
-    return approvalResult(
-      { code: "APPROVAL_DECLINED", message: `Not approved: ${summary}. Nothing was changed.` },
-      options,
-    )
+  if (answer !== "unsupported") {
+    if (store && call) await store.answered(call, answer === "confirmed")
+    return answer === "confirmed" ? undefined : declined()
+  }
+  if (store && call) return pending(await store.request(call))
   return approvalResult(
     {
       code: "APPROVAL_REQUIRED",
@@ -244,7 +284,31 @@ export async function requireApproval(
     },
     options,
   )
+
+  function pending(record: ApprovalRecord) {
+    return approvalResult(
+      {
+        code: "APPROVAL_PENDING",
+        message: `Waiting for the person to approve: ${summary}. Nothing was changed yet. Once they approve it in the app, call ${ctx.tool} again with the same arguments.`,
+      },
+      options,
+      record,
+    )
+  }
 }
+
+/**
+ * `requireApproval` in the shape signet-db's and signet-payments' tool
+ * factories take as `approve`, so their write tools use the same step:
+ *
+ *   entitlementTools({ ..., approve: approvalGate })
+ *   paymentTools({ ..., approve: approvalGate })
+ */
+export const approvalGate = (
+  ctx: unknown,
+  request: ApprovalOptions,
+): Promise<CallToolResult | ReturnType<typeof inputRequired> | undefined> =>
+  requireApproval(ctx as ToolContext, request)
 
 /**
  * Report progress on a long-running tool (an import, a bulk export). A no-op
