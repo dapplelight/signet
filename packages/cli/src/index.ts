@@ -11,6 +11,7 @@ import { resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { add, CONFIG, DEFAULTS, diff, list, SignetCliError, upgrade } from "./core.js"
 import type { Registry } from "./registry.js"
+import { theme } from "./theme.js"
 
 const HELP = `
 signet <command> [options]
@@ -20,6 +21,7 @@ Commands:
   upgrade [name...]    Merge upstream changes into added items (default: all)
   diff <name>          Show what changed upstream since the item was copied
   list                 Every item, with what is added, edited or out of date
+  theme <hex>          A whole theme from one brand colour (signet theme --help)
 
 Options:
   --force              add: overwrite files you have edited
@@ -79,6 +81,7 @@ const peersLine = (peers: Record<string, string>) =>
     : ""
 
 function main(): number {
+  if (process.argv[2] === "theme") return theme(process.argv.slice(3))
   const o = parseArgs(process.argv)
   if (!o.command || o.command === "help") {
     console.log(HELP)
