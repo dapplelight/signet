@@ -136,6 +136,34 @@ for (const backend of backends) {
       expect(await store.count({ event: "signup", where: { plan: "pro", trial: false } })).toBe(1)
     })
 
+    test("props from a public client are bounded: scalars only, 20 keys, 256 chars", async () => {
+      const { store, db, table } = await make()
+      const props: Record<string, unknown> = {
+        long: "x".repeat(5000),
+        nested: { deep: [1, 2] },
+        list: [1],
+        nan: Number.NaN,
+        "bad key": "v",
+        ok: 1,
+        flag: true,
+      }
+      for (let i = 0; i < 40; i++) props[`k${i}`] = i
+      await store.write([ev("big", NOW - 1000, { props: props as never })])
+      const rows = (await (
+        db.orm as never as {
+          select(): { from(t: unknown): Promise<Array<{ props: Record<string, unknown> }>> }
+        }
+      )
+        .select()
+        .from(table)) as Array<{ props: Record<string, unknown> }>
+      const saved = rows[0]?.props ?? {}
+      expect((saved.long as string).length).toBe(256)
+      expect(Object.keys(saved).length).toBe(20)
+      for (const k of ["nested", "list", "nan", "bad key"]) expect(k in saved).toBe(false)
+      expect(saved.flag).toBe("true")
+      expect(saved.ok).toBe(1)
+    })
+
     test("injection: values are bound, property names are checked", async () => {
       const { store } = await make()
       await store.write([

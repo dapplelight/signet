@@ -118,6 +118,8 @@ type Cols = Record<string, any>
 const bad = (msg: string) => new SignetDbError("BAD_INPUT", msg)
 const ms = (t: Time) => (t instanceof Date ? t.getTime() : t)
 const PROP = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/
+const MAX_PROPS = 20
+const MAX_PROP_CHARS = 256
 const BUCKETS: Record<Bucket, number> = { hour: HOUR, day: DAY, week: WEEK }
 
 /** Bucket start for `ts`; the same formula runs in SQL. */
@@ -168,11 +170,15 @@ export function createAnalyticsStore(db: SignetDb<unknown>, options: AnalyticsSt
   const num = (v: unknown) => Number(v ?? 0)
 
   const toRow = (e: StoredEventInput, keepUser: boolean) => {
+    // The ingest route is public: keep only flat scalars, at most MAX_PROPS keys, strings cut short.
     const props: Record<string, string | number> = {}
     for (const [k, v] of Object.entries(e.props ?? {})) {
-      if (v === null || v === undefined) continue
+      if (Object.keys(props).length >= MAX_PROPS) break
+      if (!PROP.test(k)) continue
+      if (typeof v === "string") props[k] = v.slice(0, MAX_PROP_CHARS)
+      else if (typeof v === "number" && Number.isFinite(v)) props[k] = v
       // Booleans as text, so filters compare the same way in every dialect.
-      props[k] = typeof v === "boolean" ? String(v) : v
+      else if (typeof v === "boolean") props[k] = String(v)
     }
     return {
       name: e.name,
