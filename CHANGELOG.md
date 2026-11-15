@@ -5,6 +5,12 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-ui: amount, kanban and four hooks
+
+- New `./domain/amount`: `Amount` and `formatAmount`. Money in the locale's grouping (lakh/crore in Indian locales), the currency's own decimals, `minorUnits` (bigint-exact), `notation` "standard" | "whole" | "compact" (₹12.5L, ₹1.2Cr, $1.3M), Intl `signDisplay`, and `tone` "credit" | "debit" | "transfer" | "auto" from the theme's `--money-*` slots with status-accent fallbacks. A span with `data-part` and a `classNames` entry per part; `data-tone`, `data-sign`; `render` swaps the `<data>` element.
+- New `./domain/kanban`: `Kanban`, `KanbanColumn`, `KanbanColumnHeader`, `KanbanColumnTitle`, `KanbanList`, `KanbanItem`, plus `moveItem` and `findItem`. Cards move between columns by native drag and drop or by keyboard (Space or Enter picks up, arrows move, Space or Enter drops, Escape cancels), each step announced in a live region with overridable `messages`. Controlled (`value` + `onValueChange`) or uncontrolled (`defaultValue`, children as a function of the board); `onItemMove` reports the single move. `data-over`, `data-lifted`, `data-dragging` for styling.
+- New hooks, one subpath each: `./hooks/use-debounce`, `./hooks/use-local-storage` (JSON, SSR-safe via useSyncExternalStore, synced across tabs and components), `./hooks/use-copy`, `./hooks/use-intersection`.
+
 ### signet-tokens: theme builder and per-component density
 
 - New `./theme` export: `buildTheme({ brand, base?, mode?, density? })` derives every colour token (primary, surfaces, text, borders, status accents, charts, focus, and money on `finance`) for light and dark from one brand colour, in OKLCH. Text tokens are guaranteed WCAG 4.5:1 on the surfaces they sit on (focus and charts 3:1); any token moved to get there is listed in `adjustments`.

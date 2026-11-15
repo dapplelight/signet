@@ -192,9 +192,15 @@ Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"
 |---|---|---|
 | `@dapplelight/signet-ui` | — |  |
 | `@dapplelight/signet-ui/behaviors` | useShortcut, useShortcutLabel, useControllableState, matchScore |  |
+| `@dapplelight/signet-ui/domain/amount` | — |  |
 | `@dapplelight/signet-ui/domain/job-runs` | JobRun |  |
+| `@dapplelight/signet-ui/domain/kanban` | — |  |
 | `@dapplelight/signet-ui/domain/trend-chip` | — |  |
 | `@dapplelight/signet-ui/domain/upload` | xhrUpload, UploadTarget, UploadTransport |  |
+| `@dapplelight/signet-ui/hooks/use-copy` | useCopy |  |
+| `@dapplelight/signet-ui/hooks/use-debounce` | useDebounce |  |
+| `@dapplelight/signet-ui/hooks/use-intersection` | useIntersection |  |
+| `@dapplelight/signet-ui/hooks/use-local-storage` | useLocalStorage |  |
 | `@dapplelight/signet-ui/hooks/use-media-query` | DESKTOP_QUERY, useMediaQuery |  |
 | `@dapplelight/signet-ui/screens/account-screens` | DEFAULT_ACCOUNT_LABELS, When, SessionRow, ApiKeyRow, Profile, AccountLabels |  |
 | `@dapplelight/signet-ui/screens/auth-screens` | DEFAULT_AUTH_LABELS, AuthMode, AuthChannel, OAuthProvider, AuthLabels, CodeRequest |  |
