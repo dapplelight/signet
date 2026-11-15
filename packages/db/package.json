@@ -115,6 +115,11 @@
       "import": "./dist/workflows.js",
       "default": "./dist/workflows.js"
     },
+    "./collab": {
+      "types": "./dist/collab.d.ts",
+      "import": "./dist/collab.js",
+      "default": "./dist/collab.js"
+    },
     "./offerings": {
       "types": "./dist/offerings.d.ts",
       "import": "./dist/offerings.js",

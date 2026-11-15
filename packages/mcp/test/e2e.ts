@@ -461,6 +461,23 @@ try {
     wfr.json?.id,
   )
 
+  const col = await call("recipe", { task: "comments with @mentions and undo on records" })
+  ok(
+    "recipe: add-collab is cut from the db and server READMEs and covers comments, mentions, timeline, undo and routes",
+    col.json?.id === "add-collab" &&
+      [
+        "createCollab",
+        "collabTables",
+        "parseMentions",
+        "timeline(",
+        "undo(",
+        "collabRoutes",
+        "notifyMentions",
+      ].every((t) => JSON.stringify(col.json).includes(t)) &&
+      !col.json.install.includes("@dapplelight/signet-db"),
+    col.json?.id,
+  )
+
   const rtr = await call("recipe", {
     task: "realtime presence and typing indicator over websockets",
   })

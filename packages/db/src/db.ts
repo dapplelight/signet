@@ -29,7 +29,16 @@ export type DbConfig = {
   outbox?: Table
   /** The `idempotencyKeys()` table, for `withIdempotency`. */
   idempotency?: Table
+  /**
+   * Version history, opt-in per table: `{ table: recordVersions, track: [tasks] }`.
+   * Every `scoped`/`audited` insert, update and delete on a tracked table
+   * snapshots the row; `createCollab` lists, diffs, restores and undoes them.
+   */
+  versions?: VersionsConfig
 }
+
+/** The `recordVersions` table from `collabTables()` and the tables whose writes it snapshots. */
+export type VersionsConfig = { table: Table; track: readonly Table[] }
 
 export type SignetDb<TOrm = unknown> = {
   /** The Drizzle instance, for any query signet-db does not wrap. */
@@ -39,6 +48,7 @@ export type SignetDb<TOrm = unknown> = {
   readonly audit?: Table
   readonly outbox?: Table
   readonly idempotency?: Table
+  readonly versions?: VersionsConfig
   /** Run statements atomically. Each is built on the handle it is given. */
   batch(statements: ReadonlyArray<(tx: TOrm) => unknown>): Promise<unknown[]>
 }
@@ -52,7 +62,7 @@ export function fromDrizzle<TOrm>(
   orm: TOrm,
   options: { dialect: Dialect; atomicity: Atomicity } & DbConfig,
 ): SignetDb<TOrm> {
-  const { dialect, atomicity, cipher, audit, outbox, idempotency } = options
+  const { dialect, atomicity, cipher, audit, outbox, idempotency, versions } = options
   const o = orm as AnyOrm
   const batch = async (statements: ReadonlyArray<(tx: TOrm) => unknown>): Promise<unknown[]> => {
     if (statements.length === 0) return []
@@ -66,7 +76,7 @@ export function fromDrizzle<TOrm>(
       return out
     })
   }
-  return { orm, dialect, cipher, audit, outbox, idempotency, batch }
+  return { orm, dialect, cipher, audit, outbox, idempotency, versions, batch }
 }
 
 /** @internal Columns keyed by their JS property name. */

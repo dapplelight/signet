@@ -32,6 +32,7 @@ import {
 import { decryptRows, encryptValues } from "./crypt.js"
 import { columnsOf, type SignetDb } from "./db.js"
 import { SignetDbError } from "./errors.js"
+import { primaryKeyOf, snapshot } from "./versions.js"
 
 type Row<T extends Table> = InferSelectModel<T>
 /**
@@ -148,11 +149,6 @@ export function audited(
   return make({ ...base, actor })
 }
 
-function primaryKey(table: Table): string | undefined {
-  const cols = columnsOf(table)
-  return Object.keys(cols).find((k) => cols[k]?.primary) ?? ("id" in cols ? "id" : undefined)
-}
-
 function make(state: State): Ops<Scope> {
   const { db, userId, orgId, actor } = state
   const o = db.orm as AnyOrm
@@ -176,7 +172,7 @@ function make(state: State): Ops<Scope> {
 
   const audit = async (table: Table, action: string, before: Rec[], after: Rec[]) => {
     if (actor === undefined || !db.audit) return
-    const pk = primaryKey(table)
+    const pk = primaryKeyOf(table)
     const idOf = (r: Rec | undefined) => (pk && r?.[pk] != null ? String(r[pk]) : null)
     const beforeById = new Map(before.map((r) => [idOf(r), r]))
     const rows = after.length ? after : before
@@ -194,6 +190,16 @@ function make(state: State): Ops<Scope> {
       })),
     )
   }
+
+  /** A version of each written row, when the table is tracked (`DbConfig.versions`). */
+  const version = (table: Table, action: string, rows: Rec[]) =>
+    snapshot(
+      db,
+      table,
+      action,
+      rows,
+      actor ?? { type: userId ? "user" : "system", id: userId ?? "signet-db" },
+    )
 
   const update = async (
     table: Table,
@@ -228,6 +234,7 @@ function make(state: State): Ops<Scope> {
     const before: Rec[] = actor !== undefined ? await o.select().from(table).where(cond) : []
     const raw: Rec[] = await o.update(table).set(values).where(cond).returning()
     await audit(table, action, before, raw)
+    await version(table, action, raw)
     return decryptRows(db, table, raw)
   }
 
@@ -278,6 +285,7 @@ function make(state: State): Ops<Scope> {
       )
       const raw: Rec[] = await o.insert(table).values(prepared).returning()
       await audit(table, "insert", [], raw)
+      await version(table, "insert", raw)
       return decryptRows(db, table, raw)
     },
 
@@ -299,6 +307,7 @@ function make(state: State): Ops<Scope> {
         .where(where(table, extra, options))
         .returning()
       await audit(table, "delete", raw, [])
+      await version(table, "delete", raw)
       return decryptRows(db, table, raw)
     },
   } as Ops<Scope>
