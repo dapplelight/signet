@@ -22,7 +22,7 @@ import { $ } from "bun"
 
 // config, tokens and lib depend on nothing local; ui needs tokens; ai needs lib.
 // config is first: it is files only, and consumers install it before anything.
-const ORDER = ["config", "tokens", "lib", "ui", "server", "ai", "create-signet-app"] as const
+const ORDER = ["config", "tokens", "lib", "ui", "server", "ai"] as const
 
 const args = process.argv.slice(2)
 const dryRun = args.includes("--dry-run")
