@@ -953,6 +953,31 @@ const RECIPES: RecipeSpec[] = [
     verify: ["call tools/list from an MCP client; bun run test"],
   },
   {
+    id: "mcp-by-default",
+    title: "Expose an app to agents: routes as tools, per-user tools, approvals",
+    keywords: [
+      "mcp",
+      "routes as tools",
+      "appTools",
+      "asTool",
+      "approval",
+      "approve",
+      "pending approval",
+      "per-user tools",
+      "visible",
+      "agent",
+    ],
+    install: ["@dapplelight/signet-server", "@modelcontextprotocol/server", "hono", "zod"],
+    refs: [
+      ["server", "Apps inside agents"],
+      ["create-signet-app", "`--template api`: a Hono API on the runtime you pick"],
+    ],
+    verify: [
+      "tools/list shows each zValidator route; a write answers APPROVAL_PENDING or APPROVAL_REQUIRED until approved",
+      "bun run test && bun run typecheck",
+    ],
+  },
+  {
     id: "add-oauth",
     title: "Protect an API or MCP endpoint with OAuth 2.1 (resource server)",
     keywords: ["oauth", "token", "jwt", "jwks", "bearer", "scope", "resource server"],

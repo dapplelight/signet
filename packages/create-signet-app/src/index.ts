@@ -22,9 +22,11 @@ const TARGETS = ["cloudflare", "bun", "node", "vercel"] as const
 type Target = (typeof TARGETS)[number]
 
 // The api template: a Hono Worker with Signet's request id, error envelope,
-// validation and exact Durable Object rate limiting already wired.
+// validation, exact Durable Object rate limiting and MCP already wired.
 const API_DEPS = {
   "@dapplelight/signet-server": "^0.4.0",
+  // MCP at /mcp, on by default (src/app.ts); signet-server's optional peer.
+  "@modelcontextprotocol/server": "^2.1.0",
   hono: "^4.13.8",
   zod: "^4.6.5",
 }

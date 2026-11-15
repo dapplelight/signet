@@ -1,7 +1,7 @@
 /**
  * Scaffolds the api template OUTSIDE the monorepo, once per --target.
  *
- * cloudflare (the default): installs from npm,
+ * cloudflare (the default): installs from npm (signet-server from a local pack),
  * typechecks, lints, bundles with wrangler, and runs it under `wrangler dev` on
  * local workerd with the Durable Object from wrangler.jsonc.
  *
@@ -27,6 +27,16 @@ let pass = 0,
   fail = 0
 const ok = (n: string, c: boolean, d = "") => {
   c ? (pass++, console.log("  PASS", n)) : (fail++, console.log("  FAIL", n, d))
+}
+
+/**
+ * Install, then swap in the LOCAL signet-server as a tarball (as scaffold.ts
+ * does for the web template): the template may use what is not on npm yet.
+ */
+async function installLocal(dir: string) {
+  await $`bun install`.cwd(dir).quiet()
+  await $`npm pack ${ROOT}/packages/server`.cwd(dir).quiet()
+  await $`sh -c 'bun add ./dapplelight-signet-server-*.tgz'`.cwd(dir).quiet()
 }
 
 rmSync(DIR, { recursive: true, force: true })
@@ -86,7 +96,12 @@ try {
     indexTs.includes("env.APP_ENV") && !indexTs.includes("getRuntimeEnv"),
   )
 
-  await $`bun install`.cwd(DIR).quiet()
+  ok(
+    "MCP on by default, with an off switch",
+    indexTs.includes('mountMcp(app, "/mcp"') && envTs.includes("MCP:"),
+  )
+
+  await installLocal(DIR)
   ok("typechecks", (await $`bun run typecheck`.cwd(DIR).nothrow().quiet()).exitCode === 0)
   ok("lints clean", (await $`bun run lint`.cwd(DIR).nothrow().quiet()).exitCode === 0)
   const test = await $`bun run test`.cwd(DIR).nothrow().quiet()
@@ -279,7 +294,7 @@ for (const target of ["bun", "node", "vercel"]) {
         ),
       )
 
-    await $`bun install`.cwd(dir).quiet()
+    await installLocal(dir)
     const tc = await $`bun run typecheck`.cwd(dir).nothrow().quiet()
     ok(`${target}: typechecks`, tc.exitCode === 0, tc.stdout.toString().slice(-600))
     ok(`${target}: lints clean`, (await $`bun run lint`.cwd(dir).nothrow().quiet()).exitCode === 0)

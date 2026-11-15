@@ -166,7 +166,7 @@ export type ToolDefinition<
   listed?: boolean
   /**
    * Whether this caller gets the tool at all: their role, plan or feature
-   * (`entitlements.get(sub)`). A hidden tool is neither listed nor callable.
+   * (`entitlements.can(sub, feature)`). A hidden tool is neither listed nor callable.
    * Checked by `resolveMcpServer` / `mcpHandler` per request.
    */
   visible?: (caller: McpCaller) => boolean | Promise<boolean>

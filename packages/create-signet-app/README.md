@@ -86,6 +86,12 @@ The `cloudflare` target is a Hono Worker with:
   the schema, then read `env.KEY`
 - `test/env.test.ts` (`bun test`) and `.github/workflows/ci.yml`: lint,
   typecheck, test and `wrangler deploy --dry-run`
+- MCP on by default at `/mcp`: every route validated with `zValidator` is a
+  tool (`appTools` from `@dapplelight/signet-server/mcp`), run as the caller
+  with their auth header and cookie. GET routes are read tools; any other
+  method asks the person first (`requireApproval`), and without a way to ask
+  does nothing. `asTool(false)` on a route leaves it out; `MCP=off` in the env
+  turns the endpoint off (404). `test/mcp.test.ts` checks both
 
 - on `bun` and `node`, `bun run start` serves the app; rate limiting is
   in-process, keyed by the socket address, or by `x-forwarded-for` when

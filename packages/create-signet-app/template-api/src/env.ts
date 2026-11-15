@@ -6,6 +6,8 @@ import { z } from "zod"
 // Bindings that are not strings (RATE_LIMIT) are typed on the Hono app instead.
 export const envSchema = z.object({
   APP_ENV: z.enum(["development", "staging", "production"]).default("development"),
+  // The MCP endpoint at /mcp (src/app.ts). "off" answers it with a 404.
+  MCP: z.enum(["on", "off"]).default("on"),
 })
 
 export type Env = z.infer<typeof envSchema>

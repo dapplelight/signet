@@ -74,7 +74,9 @@ export type RequestableApp = {
   ): Response | Promise<Response>
 }
 
-const FORWARDED = ["authorization", "cookie"]
+// Auth, plus the client address the app's rate limiter already trusted on the
+// MCP request itself, so route tools share the caller's bucket, not one for all.
+const FORWARDED = ["authorization", "cookie", "cf-connecting-ip", "x-forwarded-for"]
 
 const METHOD_HINTS: Record<RouteTool["method"], ToolAnnotations> = {
   GET: { readOnlyHint: true },
