@@ -5,6 +5,50 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-ui: user-facing screens (auth, account, notifications, privacy)
+
+Ready screens under `@dapplelight/signet-ui/screens/*`, kept out of the main
+barrel. Each takes plain data and callbacks shaped like the backend modules,
+so an app wires them through `createRpcClient`:
+
+- `screens/auth-screens`: `AuthScreen` (sign in / sign up with an email or
+  phone one-time code, OAuth buttons), `VerifyCodeScreen`,
+  `SessionExpiredScreen`, and their parts (`AuthCard`, `OAuthButtons`,
+  `CodeRequestForm`, `VerifyCodeForm`…).
+- `screens/account-screens`: `ProfileCard`, `SessionsList` (rows from
+  signet-server's `sessionRoutes`, sign out one device or every other, with a
+  confirm), `ApiKeysManager` (create shows the key once, then drops it;
+  revoke confirms).
+- `screens/notification-screens`: `NotificationInbox` (all / unread, mark
+  read on open, mark all read, archive, load more, an all-caught-up state;
+  `renderItem` turns rows into links) and `NotificationPreferences` (a switch
+  per category and channel, required categories locked on, a failed save
+  rolls back). Shapes match the notifier's `InboxItem` and `Prefs`.
+- `screens/privacy-screens` (DPDP): `ConsentList` (one switch per purpose;
+  withdrawing is as easy as giving, no confirm; shows the notice version and
+  date) and `DataRequests` (export and erasure requests with status, erasure
+  confirms, a pending request blocks a duplicate, completed exports
+  download). Shapes match signet-db's `Consent` and `DataRequest`.
+
+Every string is a prop (`labels`, spread from `DEFAULT_*_LABELS`), every part
+takes `className` (composites also `classNames`) with state as `data-*`,
+stateful parts are controlled or uncontrolled, and each file's `// Recipe:`
+line lists its behaviours for signet-mcp's `compose_component` (which now
+indexes `./screens/*`). Files import only signet-ui parts, so they copy in.
+
+### signet-ui, signet-tokens: inactive tabs and destructive tints reach 4.5:1
+
+- `TabsTrigger`: inactive text is `text-text-primary/65` (was `/60`) in light
+  and `text-text-primary/55` (was `text-text-muted`) in dark. It measured
+  4.3:1 on the tab list in editorial and finance light, editorial dark and
+  cinematic dark.
+- `cinematic.css` light: `--accent-red` is `#be123c` (was `#e11d48`). Red
+  text on its own 10% tint (destructive `Badge`, `Button` and `Alert`)
+  measured 3.7:1. `--destructive` and `--accent-red-subtle` are unchanged.
+- The tokens contrast test now also checks text painted with an opacity
+  modifier, reading the alphas from the component source, so a class or a
+  token change that drops these below 4.5:1 fails.
+
 ### signet-cli: `signet add` and `signet upgrade` (own the code)
 
 - New private package `@dapplelight/signet-cli` with a `signet` bin. `signet add <name>` copies a signet-ui item and the items it imports into the app as editable source (default `src/components/signet`), rewrites relative imports to the app's alias, records each copy's base hash in `signet.json` and prints the npm packages it still needs.

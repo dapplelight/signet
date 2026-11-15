@@ -31,7 +31,8 @@
     --accent-green: #0c847a;
     --accent-blue: #4f46e5;
     --accent-amber: #b16105;
-    --accent-red: #e11d48;
+    /* #e11d48 fell to 3.7:1 as badge text on its own 10% tint. */
+    --accent-red: #be123c;
     --accent-green-subtle: rgba(13, 148, 136, 0.1);
     --accent-red-subtle: rgba(225, 29, 72, 0.1);
     --accent-amber-subtle: rgba(217, 119, 6, 0.1);
