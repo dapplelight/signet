@@ -53,6 +53,13 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   `domain/upload` is a drag-and-drop uploader with per-file progress (XHR to
   a presigned URL), retry, and size/type hints; `getTarget` and `onUploaded`
   talk to your server.
+- `screens/admin-screens`: `AdminScreen`, an admin panel generated from
+  signet-db's `defineAdmin` metadata over signet-server's `adminRoutes`
+  (`createAdminApi({ baseUrl: "/admin" })`): table list, server sort,
+  filters, search and cursor pages, deleted rows, a record form built from the
+  column types, create, bulk delete, row actions and the audit trail. Every
+  part is exported (`AdminPanel`, `AdminTable`, `AdminRecordSheet`…) with
+  `useAdmin()` for your own.
 
 ## Behaviours and recipes
 
@@ -75,6 +82,7 @@ without an app changing. Each component's source starts with its recipe:
 | `sidebar` | disclosure + controllable-state + shortcut; on phones the Drawer's popup + focus-trap + dismiss + swipe |
 | `breadcrumb` | landmark |
 | `spinner` | live-region |
+| `screens/admin-screens` | selection + controllable-state + popup + focus-trap + dismiss + roving-focus (tabs) + field-wiring |
 
 `@dapplelight/signet-ui/behaviors` exports the behaviours a new component
 needs directly, with Signet's own types: `useShortcut(keys, handler)` and
