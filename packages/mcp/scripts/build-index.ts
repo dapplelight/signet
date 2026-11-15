@@ -810,15 +810,35 @@ const RECIPES: RecipeSpec[] = [
   },
   {
     id: "add-analytics",
-    title: "Add analytics (Cloudflare Web Analytics or Analytics Engine)",
-    keywords: ["analytics", "events", "tracking", "pageview", "analytics engine", "beacon"],
+    title:
+      "Add analytics (Cloudflare, or events in your database with sessions, queries and answers)",
+    keywords: [
+      "analytics",
+      "events",
+      "tracking",
+      "pageview",
+      "analytics engine",
+      "beacon",
+      "sessions",
+      "identify",
+      "funnel",
+      "retention",
+      "headline",
+    ],
     install: ["@dapplelight/signet-lib", "@dapplelight/signet-server"],
     refs: [
       ["analytics", "Tier 1 — invite, gift and marketing sites"],
       ["analytics", "Tier 2 — products wanting custom events"],
+      ["analytics", "Sessions and identify"],
+      ["analytics", "Store events in your database"],
+      ["analytics", "Ask questions"],
+      ["analytics", "Answers, not dashboards"],
       ["analytics", "Things that bite"],
     ],
-    verify: ["check_app: the ingest route is rate limited"],
+    verify: [
+      "check_app: the ingest route is rate limited",
+      "a client-sent userId is dropped unless registerIngest has a userId resolver",
+    ],
   },
   {
     id: "add-portability-adapters",
