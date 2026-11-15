@@ -7,7 +7,7 @@ import { GlobalRegistrator } from "@happy-dom/global-registrator"
 GlobalRegistrator.register()
 
 const { cleanup, render, screen } = await import("@testing-library/react")
-const { fireEvent } = await import("@testing-library/react")
+const { act, fireEvent } = await import("@testing-library/react")
 const { default: userEvent } = await import("@testing-library/user-event")
 const { Amount, formatAmount } = await import("../src/components/domain/amount")
 const {
@@ -19,6 +19,11 @@ const {
   KanbanList,
   moveItem,
 } = await import("../src/components/domain/kanban")
+const { renderHook } = await import("@testing-library/react")
+const { useDebounce } = await import("../src/hooks/use-debounce")
+const { useLocalStorage } = await import("../src/hooks/use-local-storage")
+const { useCopy } = await import("../src/hooks/use-copy")
+const { useIntersection } = await import("../src/hooks/use-intersection")
 type KanbanBoard = import("../src/components/domain/kanban").KanbanBoard
 type KanbanMove = import("../src/components/domain/kanban").KanbanMove
 
@@ -255,6 +260,99 @@ await t("Kanban: controlled", async () => {
   await user.keyboard(" {ArrowRight} ")
   ok("reports the change", last?.doing?.join() === "a")
   ok("stays as the parent says", ids("todo").join() === "a")
+})
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+await t("useDebounce", async () => {
+  const { result, rerender } = renderHook(({ v }) => useDebounce(v, 30), {
+    initialProps: { v: "a" },
+  })
+  ok("starts with the value", result.current === "a")
+  rerender({ v: "ab" })
+  rerender({ v: "abc" })
+  ok("holds while changing", result.current === "a")
+  await act(() => sleep(60))
+  ok("settles on the last value", result.current === "abc")
+})
+
+await t("useLocalStorage", async () => {
+  localStorage.clear()
+  const one = renderHook(() => useLocalStorage("prefs", { dense: false }))
+  const two = renderHook(() => useLocalStorage("prefs", { dense: false }))
+  ok("initial when empty", one.result.current[0].dense === false)
+  await act(async () => one.result.current[1]((p) => ({ ...p, dense: true })))
+  ok("writes JSON", localStorage.getItem("prefs") === '{"dense":true}')
+  ok("other users of the key update", two.result.current[0].dense === true)
+  const first = one.result.current[0]
+  one.rerender()
+  ok("object keeps its identity", one.result.current[0] === first)
+  localStorage.setItem("prefs", "not json")
+  await act(async () => window.dispatchEvent(new StorageEvent("storage", { key: "prefs" })))
+  ok("junk falls back to initial, other tabs sync", one.result.current[0].dense === false)
+  await act(async () => one.result.current[1](undefined))
+  ok("undefined removes", localStorage.getItem("prefs") === null)
+})
+
+await t("useCopy", async () => {
+  let wrote = ""
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: {
+      writeText: async (s: string) => {
+        wrote = s
+      },
+    },
+  })
+  const { result } = renderHook(() => useCopy(30))
+  let done = false
+  await act(async () => {
+    done = await result.current.copy("hello")
+  })
+  ok("copies and resolves true", done && wrote === "hello" && result.current.copied)
+  await act(() => sleep(60))
+  ok("copied resets", !result.current.copied)
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText: async () => Promise.reject(new Error("denied")) },
+  })
+  await act(async () => {
+    done = await result.current.copy("x")
+  })
+  ok("denied resolves false", !done && !result.current.copied)
+})
+
+await t("useIntersection", async () => {
+  const seen: Element[] = []
+  let fire: (e: Partial<IntersectionObserverEntry>[]) => void = () => {}
+  let disconnected = 0
+  const IO = globalThis.IntersectionObserver
+  globalThis.IntersectionObserver = class {
+    constructor(cb: (e: IntersectionObserverEntry[]) => void) {
+      fire = (e) => cb(e as IntersectionObserverEntry[])
+    }
+    observe(el: Element) {
+      seen.push(el)
+    }
+    disconnect() {
+      disconnected++
+    }
+  } as unknown as typeof IntersectionObserver
+  function Probe() {
+    const { ref, isIntersecting } = useIntersection<HTMLDivElement>({ once: true })
+    return <div ref={ref} data-testid="probe" data-visible={String(isIntersecting)} />
+  }
+  render(<Probe />)
+  const el = screen.getByTestId("probe")
+  ok("observes the element", seen[0] === el && el.dataset.visible === "false")
+  await act(async () => fire([{ isIntersecting: true }]))
+  ok("reports visible", el.dataset.visible === "true")
+  ok("once disconnects", disconnected > 0)
+  globalThis.IntersectionObserver = undefined as unknown as typeof IntersectionObserver
+  cleanup()
+  render(<Probe />)
+  ok("no observer counts as visible", screen.getByTestId("probe").dataset.visible === "true")
+  globalThis.IntersectionObserver = IO
 })
 
 console.log(`\n${pass} passed, ${fail} failed`)

@@ -38,6 +38,22 @@
       "types": "./dist/hooks/use-media-query.d.ts",
       "import": "./dist/hooks/use-media-query.js"
     },
+    "./hooks/use-debounce": {
+      "types": "./dist/hooks/use-debounce.d.ts",
+      "import": "./dist/hooks/use-debounce.js"
+    },
+    "./hooks/use-local-storage": {
+      "types": "./dist/hooks/use-local-storage.d.ts",
+      "import": "./dist/hooks/use-local-storage.js"
+    },
+    "./hooks/use-copy": {
+      "types": "./dist/hooks/use-copy.d.ts",
+      "import": "./dist/hooks/use-copy.js"
+    },
+    "./hooks/use-intersection": {
+      "types": "./dist/hooks/use-intersection.d.ts",
+      "import": "./dist/hooks/use-intersection.js"
+    },
     "./components/alert": {
       "types": "./dist/components/ui/alert.d.ts",
       "import": "./dist/components/ui/alert.js"
