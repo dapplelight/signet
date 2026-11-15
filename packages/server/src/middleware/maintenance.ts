@@ -51,7 +51,14 @@ export function maintenanceMode(opts: MaintenanceOptions): MiddlewareHandler {
 
   const read = async (c: Context) => {
     if (cached && now() - cached.at < cacheMs) return cached.state
-    const state = await opts.state(c)
+    let state: MaintenanceState
+    try {
+      state = await opts.state(c)
+    } catch {
+      // Store unreadable: keep the last good state (or "off" with none) and
+      // retry after cacheMs, so an outage never turns into a 500 on every route.
+      state = cached?.state ?? { on: false }
+    }
     cached = { state, at: now() }
     return state
   }

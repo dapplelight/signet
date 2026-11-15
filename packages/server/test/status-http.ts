@@ -214,5 +214,49 @@ console.log("maintenanceMode")
   )
 }
 
+console.log("maintenanceMode with an unreadable store")
+{
+  let t = 0
+  let broken = false
+  const flaky = new Hono()
+  flaky.use(
+    maintenanceMode({
+      state: async () => {
+        if (broken) throw new Error("db down")
+        return { on: true, message: "Upgrading the database" }
+      },
+      cacheMs: 1000,
+      now: () => t,
+    }),
+  )
+  flaky.get("/api/thing", (c) => c.json({ ok: true }))
+  const first = await flaky.request("/api/thing")
+  ok("on while the store works: 503", first.status === 503)
+  broken = true
+  t += 1500
+  const during = await flaky.request("/api/thing")
+  ok(
+    "store throws: keeps the last good state (503 MAINTENANCE, not 500)",
+    during.status === 503 && (await during.json()).code === "MAINTENANCE",
+  )
+
+  let calls = 0
+  const cold = new Hono()
+  cold.use(
+    maintenanceMode({
+      state: async () => {
+        calls++
+        throw new Error("db down")
+      },
+      cacheMs: 1000,
+      now: () => t,
+    }),
+  )
+  cold.get("/api/thing", (c) => c.json({ ok: true }))
+  ok("no cache and store throws: request passes", (await cold.request("/api/thing")).status === 200)
+  await cold.request("/api/thing")
+  ok("failed read is not retried every request", calls === 1, calls)
+}
+
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail) process.exit(1)
