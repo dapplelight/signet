@@ -1,7 +1,8 @@
 // shadcn/ui `chart` (registry: styles/base-nova/chart), on recharts 3 as that
 // registry item is: tooltip props typed from recharts' DefaultTooltipContentProps,
 // legend props from DefaultLegendContentProps, and a ResponsiveContainer
-// `initialDimension` so the first render before measuring has a size.
+// `initialDimension` so the first render before measuring has a size. Bars keep
+// recharts 2's whole-pixel widths (see `withWholePixelBars`).
 //
 // Carried over from app-a. recharts is an optional peer (>=3 <4), so this
 // file is reachable only as `@dapplelight/signet-ui/components/chart`, never from
@@ -60,18 +61,216 @@ function ChartContainer({
         data-slot="chart"
         data-chart={chartId}
         className={cn(
-          "flex aspect-video justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-text-muted [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border-subtle [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border-default [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-hidden [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border-default [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border-default [&_.recharts-sector]:outline-hidden [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-surface]:outline-hidden",
+          "flex aspect-video justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-text-muted [&_.recharts-cartesian-axis-tick-value]:fill-text-muted [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border-subtle [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border-default [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-hidden [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border-default [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border-default [&_.recharts-sector]:outline-hidden [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-surface]:outline-hidden",
           className,
         )}
         {...props}
       >
         <ChartStyle id={chartId} config={config} />
         <RechartsPrimitive.ResponsiveContainer initialDimension={{ width: 320, height: 200 }}>
-          {children}
+          {withWholePixelBars(children)}
         </RechartsPrimitive.ResponsiveContainer>
       </div>
     </ChartContext.Provider>
   )
+}
+
+/** recharts' getPercentValue: "10%" of `total`, or a number of pixels; capped at `total`. */
+function percentOf(value: number | string | undefined, total: number): number {
+  const n =
+    typeof value === "string" && value.endsWith("%")
+      ? (Number.parseFloat(value) / 100) * total
+      : Number(value)
+  return Number.isFinite(n) ? Math.min(n, total) : 0
+}
+
+type WholePixelBarProps = RechartsPrimitive.RectangleProps & {
+  seriesIndex: number
+  seriesCount: number
+  barGap: number | string
+  barCategoryGap: number | string
+  vertical: boolean
+  /** The category axis's `dataKey`, to find this bar's band. */
+  categoryKey: string
+  xAxisId?: string | number
+  yAxisId?: string | number
+}
+
+/**
+ * A bar drawn as recharts 2 drew it. recharts 3 rounds the computed bar width
+ * (Math.round) where recharts 2 floored it, so bars came out up to 1px wider
+ * and each later series 1px further along. This recomputes the unrounded width
+ * from the band and, when rounding went up, floors it and moves the bar back.
+ */
+function WholePixelBar({
+  seriesIndex,
+  seriesCount,
+  barGap,
+  barCategoryGap,
+  vertical,
+  categoryKey,
+  xAxisId,
+  yAxisId,
+  ...props
+}: WholePixelBarProps) {
+  const xScale = RechartsPrimitive.useXAxisScale(xAxisId)
+  const yScale = RechartsPrimitive.useYAxisScale(yAxisId)
+  const scale = vertical ? yScale : xScale
+  const category = (props as { payload?: Record<string, unknown> }).payload?.[categoryKey]
+  const start = scale?.(category, { position: "start" })
+  const end = scale?.(category, { position: "end" })
+  let { x = 0, y = 0, width = 0, height = 0 } = props
+  if (start != null && end != null) {
+    const band = Math.abs(end - start)
+    const categoryGap = percentOf(barCategoryGap, band)
+    let gap = percentOf(barGap, band)
+    if (band - 2 * categoryGap - (seriesCount - 1) * gap <= 0) gap = 0
+    const size = (band - 2 * categoryGap - (seriesCount - 1) * gap) / seriesCount
+    const extra = size > 1 ? Math.round(size) - Math.floor(size) : 0
+    if (extra) {
+      if (vertical) {
+        y -= extra * seriesIndex
+        height = Math.floor(size)
+      } else {
+        x -= extra * seriesIndex
+        width = Math.floor(size)
+      }
+    }
+  }
+  // recharts skips empty bars itself unless a shape is given; keep skipping them.
+  if (!width || !height) return null
+  const {
+    radius = 0,
+    className,
+    fill,
+    fillOpacity,
+    stroke,
+    strokeWidth,
+    strokeOpacity,
+    opacity,
+    style,
+  } = props
+  return (
+    <path
+      className={cn("recharts-rectangle", className)}
+      d={rectanglePath(x, y, width, height, radius)}
+      {...{ fill, fillOpacity, stroke, strokeWidth, strokeOpacity, opacity, style }}
+    />
+  )
+}
+
+/**
+ * recharts 2's rectangle outline. recharts 3's Rectangle rounds every
+ * coordinate to 4 decimals, which shifts the anti-aliasing of rounded corners
+ * by a shade; full precision keeps them as they were.
+ */
+function rectanglePath(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  radius: number | [number, number, number, number],
+): string {
+  const max = Math.min(Math.abs(w) / 2, Math.abs(h) / 2)
+  const ys = h >= 0 ? 1 : -1
+  const xs = w >= 0 ? 1 : -1
+  const cw = (h >= 0 && w >= 0) || (h < 0 && w < 0) ? 1 : 0
+  if (max > 0 && Array.isArray(radius)) {
+    const r = radius.map((v) => Math.min(v ?? 0, max))
+    const [r0 = 0, r1 = 0, r2 = 0, r3 = 0] = r
+    let d = `M${x},${y + ys * r0}`
+    if (r0 > 0) d += `A ${r0},${r0},0,0,${cw},${x + xs * r0},${y}`
+    d += `L ${x + w - xs * r1},${y}`
+    if (r1 > 0) d += `A ${r1},${r1},0,0,${cw},\n        ${x + w},${y + ys * r1}`
+    d += `L ${x + w},${y + h - ys * r2}`
+    if (r2 > 0) d += `A ${r2},${r2},0,0,${cw},\n        ${x + w - xs * r2},${y + h}`
+    d += `L ${x + xs * r3},${y + h}`
+    if (r3 > 0) d += `A ${r3},${r3},0,0,${cw},\n        ${x},${y + h - ys * r3}`
+    return `${d}Z`
+  }
+  if (max > 0 && typeof radius === "number" && radius > 0) {
+    const r = Math.min(max, radius)
+    return `M ${x},${y + ys * r} A ${r},${r},0,0,${cw},${x + xs * r},${y} L ${x + w - xs * r},${y} A ${r},${r},0,0,${cw},${x + w},${y + ys * r} L ${x + w},${y + h - ys * r} A ${r},${r},0,0,${cw},${x + w - xs * r},${y + h} L ${x + xs * r},${y + h} A ${r},${r},0,0,${cw},${x},${y + h - ys * r} Z`
+  }
+  return `M ${x},${y} h ${w} v ${h} h ${-w} Z`
+}
+
+type ChartElementProps = {
+  children?: React.ReactNode
+  barGap?: number | string
+  barCategoryGap?: number | string
+  barSize?: number | string
+  maxBarSize?: number
+  layout?: string
+}
+type AxisElementProps = { dataKey?: unknown; xAxisId?: string | number; yAxisId?: string | number }
+type BarElementProps = {
+  shape?: unknown
+  hide?: boolean
+  stackId?: string | number
+  barSize?: number | string
+  maxBarSize?: number
+  xAxisId?: string | number
+  yAxisId?: string | number
+}
+
+const isBar = (node: React.ReactNode): node is React.ReactElement<BarElementProps> =>
+  React.isValidElement(node) && node.type === RechartsPrimitive.Bar
+
+/**
+ * Gives each plain `<Bar>` directly inside the chart the WholePixelBar shape,
+ * so charts look exactly as they did on recharts 2. Charts with an explicit
+ * `barSize` / `maxBarSize`, and bars with their own `shape`, are left alone.
+ */
+function withWholePixelBars<T extends React.ReactNode>(chart: T): T {
+  if (!React.isValidElement<ChartElementProps>(chart)) return chart
+  const { children, barGap = 4, barCategoryGap = "10%", layout } = chart.props
+  const nodes = React.Children.toArray(children)
+  const bars = nodes.filter(isBar)
+  const vertical = layout === "vertical"
+  const CategoryAxis = vertical ? RechartsPrimitive.YAxis : RechartsPrimitive.XAxis
+  const axes = nodes.filter(
+    (n): n is React.ReactElement<AxisElementProps> =>
+      React.isValidElement(n) && n.type === CategoryAxis,
+  )
+  // The band is found from the category's value, so the axis needs a string dataKey.
+  const categoryKey = (b: React.ReactElement<BarElementProps>) => {
+    const id = vertical ? b.props.yAxisId : b.props.xAxisId
+    const axis = axes.find((a) => (vertical ? a.props.yAxisId : a.props.xAxisId) === id) ?? axes[0]
+    return typeof axis?.props.dataKey === "string" ? axis.props.dataKey : undefined
+  }
+  const sized = (p: ChartElementProps | BarElementProps) =>
+    p.barSize != null || p.maxBarSize != null
+  if (!bars.length || sized(chart.props) || bars.some((b) => sized(b.props))) return chart
+  // Stacked bars share one slot per stackId, as in recharts' own size list.
+  const slot = (b: React.ReactElement<BarElementProps>) =>
+    b.props.stackId != null ? `stack:${b.props.stackId}` : `bar:${bars.indexOf(b)}`
+  const slots = [...new Set(bars.filter((b) => !b.props.hide).map(slot))]
+  return React.cloneElement(
+    chart,
+    undefined,
+    nodes.map((child) => {
+      if (!isBar(child) || child.props.shape != null || child.props.hide) return child
+      const key = categoryKey(child)
+      if (key === undefined) return child
+      const seriesIndex = slots.indexOf(slot(child))
+      return React.cloneElement(child, {
+        shape: (props: RechartsPrimitive.RectangleProps) => (
+          <WholePixelBar
+            {...props}
+            seriesIndex={seriesIndex}
+            seriesCount={slots.length}
+            barGap={barGap}
+            barCategoryGap={barCategoryGap}
+            vertical={vertical}
+            categoryKey={key}
+            xAxisId={child.props.xAxisId}
+            yAxisId={child.props.yAxisId}
+          />
+        ),
+      })
+    }),
+  ) as T
 }
 
 /**
