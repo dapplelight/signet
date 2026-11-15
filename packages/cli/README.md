@@ -40,6 +40,56 @@ it writes nothing, lists the files, and points you to `signet upgrade`.
 `--force` overwrites them. An edited file that signet-ui did not change is
 left alone.
 
+## Add a backend module
+
+```bash
+signet add auth payments
+```
+
+Five modules wire Signet's server packages into an app made with
+`create-signet-app --template api`:
+
+| Module | Files | Wires |
+|---|---|---|
+| `auth` | `src/server/auth.ts` | stored sessions: `signIn`, `requireAuth`, `/api/sessions`; `SESSION_SECRET` |
+| `db` | `src/server/db.ts`, `schema.ts` | signet-db on D1 (binding `DB`): `dbFor`, a table, the audit log |
+| `admin` | `src/server/admin.ts` | `/api/admin` over the schema, deny by default; adds `auth` and `db` |
+| `payments` | `src/server/payments.ts` | Razorpay and Stripe, the webhook inbox at `/webhooks/:gateway`; their keys |
+| `notify` | `src/server/notify.ts` | a notifier with one template, unsubscribe and Resend webhook at `/api/notify`; `API_URL`, `EMAIL_FROM`, `NOTIFY_SECRET`, Resend keys |
+
+Each adds an import and a `.route(...)` line to `src/app.ts` (before
+`.onError(`), its keys to `envSchema` in `src/env.ts`, and entries to
+`.env.example`. Running it again adds nothing twice. Where the anchor is
+missing (an app not made from the template), it prints the lines to add by
+hand.
+
+It then installs the npm packages the module needs with the app's package
+manager, read from its lockfile (`bun.lock`, `pnpm-lock.yaml`,
+`package-lock.json`; bun without one). `--no-install` prints the command
+instead. `@dapplelight/signet-db` is not on npm yet: link it from a Signet
+checkout.
+
+Module files are items like any other: `signet upgrade` merges upstream
+changes into your edited copies, and `signet diff auth` shows them.
+
+## Codemods
+
+`signet upgrade` also migrates your own code when a Signet package you have
+installed needs it, once per app (recorded in `signet.json`):
+
+- signet-ai 0.4: `generateObject` from `ai` becomes
+  `generateText({ output: Output.object({ schema }) })`, reads of
+  `result.object` become `result.output`, and `ai` goes to `^7.0.0`.
+- signet-db: each `setPlan(` call is listed, since it no longer overrides a
+  live subscription on a later plan.
+- signet-server after 0.4.0: each `registerIngest(` without a `userId`
+  resolver or `trustClientUserId` is listed, since a client-sent userId is
+  now dropped.
+
+`--dry-run` prints the diffs and writes nothing. Codemods read your source
+with the TypeScript in your app's `node_modules`; without it they are
+reported and skipped.
+
 ## Configuration
 
 `signet.json` at the app root. `add` creates it on first use:
@@ -85,7 +135,7 @@ copied in on upgrade.
 ## Commands
 
 ```
-signet add <name...>      [--force] [--dir <path>] [--alias <prefix>]
+signet add <name...>      [--force] [--dir <path>] [--alias <prefix>] [--no-install]
 signet upgrade [name...]  [--dry-run]
 signet diff <name>
 signet list
