@@ -1,14 +1,14 @@
-// shadcn/ui `chart` (registry: styles/base-nova/chart). That registry item targets
-// recharts 3; this repo is on recharts 2.15, so three recharts-3-only APIs are
-// swapped for their recharts-2 equivalents (as in the recharts-2 `new-york`
-// registry item): no ResponsiveContainer `initialDimension`, tooltip props typed
-// from recharts 2's own Tooltip props, legend props from `LegendProps`.
+// shadcn/ui `chart` (registry: styles/base-nova/chart), on recharts 3 as that
+// registry item is: tooltip props typed from recharts' DefaultTooltipContentProps,
+// legend props from DefaultLegendContentProps, and a ResponsiveContainer
+// `initialDimension` so the first render before measuring has a size.
 //
-// Carried over from app-a. recharts is an optional peer (>=2.15 <3), so this
+// Carried over from app-a. recharts is an optional peer (>=3 <4), so this
 // file is reachable only as `@dapplelight/signet-ui/components/chart`, never from
 // the barrel: an app that does not chart should not have to install it.
 import * as React from "react"
 import * as RechartsPrimitive from "recharts"
+import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent"
 import { cn } from "../../lib/utils.js"
 
 // Format: { THEME_NAME: CSS_SELECTOR }
@@ -66,7 +66,9 @@ function ChartContainer({
         {...props}
       >
         <ChartStyle id={chartId} config={config} />
-        <RechartsPrimitive.ResponsiveContainer>{children}</RechartsPrimitive.ResponsiveContainer>
+        <RechartsPrimitive.ResponsiveContainer initialDimension={{ width: 320, height: 200 }}>
+          {children}
+        </RechartsPrimitive.ResponsiveContainer>
       </div>
     </ChartContext.Provider>
   )
@@ -143,7 +145,7 @@ function ChartTooltipContent({
     indicator?: "line" | "dot" | "dashed"
     nameKey?: string
     labelKey?: string
-  }) {
+  } & Omit<RechartsPrimitive.DefaultTooltipContentProps<ValueType, NameType>, "accessibilityLayer">) {
   const { config } = useChart()
 
   const tooltipLabel = React.useMemo(() => {
@@ -268,7 +270,7 @@ function ChartLegendContent({
 }: React.ComponentProps<"div"> & {
   hideIcon?: boolean
   nameKey?: string
-} & Pick<RechartsPrimitive.LegendProps, "payload" | "verticalAlign">) {
+} & Pick<RechartsPrimitive.DefaultLegendContentProps, "payload" | "verticalAlign">) {
   const { config } = useChart()
 
   if (!payload?.length) {
