@@ -442,6 +442,24 @@ try {
     wfr.json?.id,
   )
 
+  const rtr = await call("recipe", {
+    task: "realtime presence and typing indicator over websockets",
+  })
+  ok(
+    "recipe: add-realtime is cut from the server and ui READMEs and covers transports, tenancy, outbox and hooks",
+    rtr.json?.id === "add-realtime" &&
+      [
+        "createRealtime",
+        "bunRealtime",
+        "attachRealtime",
+        "realtimeRoom",
+        "REALTIME_TOPIC",
+        "useChannel",
+        "AvatarStack",
+      ].every((t) => JSON.stringify(rtr.json).includes(t)),
+    rtr.json?.id,
+  )
+
   const mg = await call("migration", { from: "0.3.0", to: "0.4.0", package: "server" })
   ok(
     "migration: server 0.3 -> 0.4 has breaking bullets",
