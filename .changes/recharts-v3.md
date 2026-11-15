@@ -1,0 +1,5 @@
+### signet-ui: chart on recharts 3
+
+- `./components/chart` now targets recharts 3 (peer `>=3.8 <4`, the release that added the `useXAxisScale` / `useYAxisScale` hooks the bar shape uses), matching shadcn's current chart. Tooltip and legend content props are typed from recharts 3's `DefaultTooltipContentProps` and `DefaultLegendContentProps`; `ChartContainer` passes an `initialDimension` to `ResponsiveContainer`.
+- Charts look exactly as on recharts 2 (before/after screenshots identical to the pixel in every theme, light and dark). `ChartContainer` gives each plain `<Bar>` a shape that keeps recharts 2's whole-pixel bar widths (recharts 3 rounds where 2 floored) and its full-precision corners, and styles recharts 3's axis tick labels with the theme's muted ink. Bars with their own `shape`, and charts with `barSize` / `maxBarSize`, are left to recharts.
+- Migrating: upgrade the app's `recharts` to 3. Custom tooltip content that read `payload` or `label` from `TooltipProps` should take `TooltipContentProps`.
