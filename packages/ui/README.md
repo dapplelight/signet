@@ -99,6 +99,13 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   `AcceptInvitePage` (a page around `InviteAccept`) and `OrgSettings` (name,
   theme, brand colour with a `buildTheme` preview), shaped like
   signet-server's `orgRoutes` responses. Demo: `screens-orgs.html`.
+- `screens/collab-screens`: `CommentThreads` (threads, replies, edit with
+  an "edited" marker, delete, a composer), `MentionTextarea` (type `@` for a
+  member picker; the body stores `@[Name](user:<id>)`, so a rename never
+  breaks a mention), `ActivityFeed` ("Asha changed status to Done", comments,
+  Load more) and `VersionHistory` (versions, a field diff, Restore, Undo with
+  the server's conflict message), shaped like signet-db's `createCollab` and
+  signet-server's `collabRoutes`. Demo: `screens-collab.html`.
 
 ## Behaviours and recipes
 
@@ -125,6 +132,7 @@ without an app changing. Each component's source starts with its recipe:
 | `screens/growth-screens` | selection + roving-focus + controllable-state + popup + dismiss + live-region + field-wiring |
 | `screens/workflow-screens` | roving-focus (timeline) + live-region + field-wiring |
 | `screens/org-screens` | popup + dismiss + live-region + field-wiring + controllable-state |
+| `screens/collab-screens` | combobox (mention picker: aria-activedescendant, arrows, Enter/Tab, Escape) + live-region |
 | `domain/amount` | money-format + tone (colour from the `--money-*` slots) |
 | `domain/kanban` | controllable-state + live-region + drag + keyboard-move |
 | `screens/admin-screens` | selection + controllable-state + popup + focus-trap + dismiss + roving-focus (tabs) + field-wiring |
