@@ -1,5 +1,15 @@
 export {
+  type ApprovalCall,
+  type ApprovalEvent,
+  type ApprovalRecord,
+  type ApprovalStatus,
+  type Approvals,
+  type KvApprovalsOptions,
+  kvApprovals,
+} from "./approvals.js"
+export {
   type ApprovalOptions,
+  approvalGate,
   type ConfirmOptions,
   type ConfirmPayload,
   type ConfirmResult,
@@ -23,5 +33,15 @@ export {
   type ResourceReturn,
   resourceResult,
 } from "./primitives.js"
-export { type RequestableApp, type RouteTool, routesAsTools } from "./routes.js"
+export {
+  type AppToolsOptions,
+  type AsToolOptions,
+  appTools,
+  asTool,
+  type RequestableApp,
+  type RoutableApp,
+  type RouteTool,
+  routesAsTools,
+  routeToolName,
+} from "./routes.js"
 export * from "./server.js"

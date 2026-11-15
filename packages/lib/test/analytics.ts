@@ -1,4 +1,10 @@
-import { type AnalyticsEvent, beaconTransport, createAnalytics } from "../src/analytics"
+import {
+  ANALYTICS_HEADERS,
+  type AnalyticsEvent,
+  beaconTransport,
+  continueSession,
+  createAnalytics,
+} from "../src/analytics"
 
 let pass = 0,
   fail = 0
@@ -110,6 +116,61 @@ Object.defineProperty(navigator, "sendBeacon", {
 })
 beaconTransport("/api/events")([{ name: "x", ts: 1 }])
 ok("beaconTransport uses sendBeacon", beaconCalls === 1)
+
+// sessions and identify
+a = fresh({ batchSize: 10 })
+a.track("one")
+a.track("two")
+a.flush()
+const [e1, e2] = sent[0]
+ok("events carry anonymous and session ids", !!e1.anonymousId && !!e1.sessionId)
+ok("same visit, same ids", e1.anonymousId === e2.anonymousId && e1.sessionId === e2.sessionId)
+ok("no userId before identify", e1.userId === undefined)
+a.identify("user-7", { plan: "pro", email: "x@example.com" })
+a.track("after")
+a.flush()
+const [ident, after] = sent[1]
+ok(
+  "identify sends $identify with the anonymous id",
+  ident.name === "$identify" && ident.anonymousId === e1.anonymousId && ident.userId === "user-7",
+)
+ok("traits dropped unless allowlisted", Object.keys(ident.props ?? {}).length === 0)
+ok("later events carry userId", after.userId === "user-7")
+const withTraits = fresh({ traitKeys: ["plan"] })
+withTraits.identify("u", { plan: "pro", email: "x@example.com" })
+withTraits.flush()
+ok(
+  "allowlisted trait sent, others not",
+  sent[0][0].props?.plan === "pro" && !("email" in (sent[0][0].props ?? {})),
+)
+const ctx = a.context
+a.reset()
+ok(
+  "reset forgets user and ids",
+  a.context.userId === undefined && a.context.anonymousId !== ctx.anonymousId,
+)
+ok(
+  "headers carry the ids",
+  a.headers()[ANALYTICS_HEADERS.sessionId] === a.context.sessionId &&
+    a.headers()[ANALYTICS_HEADERS.anonymousId] === a.context.anonymousId,
+)
+
+const s0 = continueSession(null, 1000, 100)
+ok("continueSession keeps an active session", continueSession(s0, 1050, 100).id === s0.id)
+ok(
+  "continueSession starts a new one after the timeout",
+  continueSession(s0, 1100, 100).id !== s0.id,
+)
+ok("continueSession treats a clock jump back as new", continueSession(s0, 900, 100).id !== s0.id)
+
+// consent first
+const consentFirst = fresh({ requireConsent: true, optOutKey: "consent-test" })
+consentFirst.track("x")
+ok("requireConsent: nothing before optIn", consentFirst.pending === 0 && consentFirst.isOptedOut)
+ok("requireConsent: no headers before optIn", Object.keys(consentFirst.headers()).length === 0)
+consentFirst.optIn()
+consentFirst.track("x")
+ok("requireConsent: tracks after optIn", consentFirst.pending === 1)
 
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail) process.exit(1)

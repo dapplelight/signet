@@ -57,7 +57,20 @@ export type KeyValueLike = {
   set(key: string, value: string, opts?: { ttlSeconds?: number }): Promise<void>
 }
 
-/** Pluggable so Workers can use the Cache API and Node something else. */
+/**
+ * A Cloudflare Workers KV namespace, structurally: `env.MY_KV` passes as is.
+ * Its `expirationTtl` must be at least 60 seconds.
+ */
+export type KvNamespaceLike = {
+  get(key: string): Promise<string | null>
+  put(key: string, value: string, opts?: { expirationTtl?: number }): Promise<void>
+}
+
+/**
+ * Where `createExtractor` keeps answers. Pluggable: `memoryCache` for one
+ * process, `kvCache` for a shared KV store (Upstash, Workers KV), `dbCache`
+ * from `@dapplelight/signet-db` for a SQLite, D1 or Postgres table, or your own.
+ */
 export type Cache = {
   get(key: string): Promise<CacheEntry | undefined> | CacheEntry | undefined
   set(key: string, entry: CacheEntry, ttlSeconds: number): Promise<void> | void

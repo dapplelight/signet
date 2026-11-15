@@ -103,9 +103,34 @@ places multiplies spend silently underneath a cap.
 have done it. A provider returning an unvalidated object is the exact failure
 this package exists to prevent.
 
-**The schema is part of the cache key.** The same prompt against a changed
-schema is a different question; reusing the old answer returns data that no
-longer validates.
+**The schema and the model are part of the cache key.** The same prompt against
+a changed schema is a different question; reusing the old answer returns data
+that no longer validates. Switching models should not keep serving the old
+one's answers either, so the key also covers the provider chain (`name/model`
+of each provider, in order).
+
+## Persistent caches
+
+`memoryCache()` lives and dies with one isolate. For answers that survive a
+restart and are shared everywhere, pass a persistent `Cache`; it is the same
+two-method interface (`get`, `set(key, entry, ttlSeconds)`), so your own store
+works too.
+
+```ts
+// Workers KV: the namespace binding as is (or any KeyValueLike, e.g. upstashKv)
+createExtractor({ providers, cache: kvCache(env.AI_CACHE), cacheTtlSeconds: 86_400 })
+
+// A table in your database (SQLite, D1 or Postgres), from @dapplelight/signet-db
+import { dbCache } from "@dapplelight/signet-db"
+createExtractor({ providers, cache: dbCache(db, schema.aiCache) })
+```
+
+Entries carry their own expiry, checked on read, so a store that keeps a key
+longer (Workers KV's 60-second minimum) still expires it on time. A cache that
+is down reads as a miss and a failed write is dropped (both emit
+`ai.cache_error` to `onEvent`): an answer already paid for is never thrown away.
+Each hit is reported to `onUsage` with `cacheHit: true`, `costUsd: 0` and
+`savedUsd`, what the original call cost.
 
 ## Budgets across isolates
 
@@ -157,11 +182,14 @@ const ai = createExtractor({
 
 A report is `{ operation, provider, model, usage, costUsd, key, durationMs }`.
 `operation` is `extract`, `tools`, `stream`, `embed` or `ground`; `key` is the
-budget key (a user id), so cost can be attributed per user. Cache hits and
-fallbacks spend nothing and are not reported. A call refused by the per-call cap
+budget key (a user id), so cost can be attributed per user. A cache hit is
+reported with `cacheHit: true`, `costUsd: 0` and `savedUsd` (the original
+call's cost), so the cache's savings add up beside the spend. Fallbacks spend
+nothing and are not reported. A call refused by the per-call cap
 after the spend is reported, because the money is gone. A hook that throws, or a
 sink that rejects, is ignored: analytics must not fail a paid call.
-`analyticsUsage(sink, name?)` writes one `ai.usage` event per report.
+`analyticsUsage(sink, name?)` writes one `ai.usage` event per report, with
+`cacheHit: 1` and `savedUsd` on a hit.
 
 ## AI SDK helpers
 

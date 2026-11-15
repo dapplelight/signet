@@ -8,8 +8,12 @@ export type UsageReport = {
   model: string
   /** Missing when the provider reports none. Embeddings report input tokens only. */
   usage?: Usage
-  /** From the provider's `pricing`; 0 when unpriced. */
+  /** From the provider's `pricing`; 0 when unpriced, and 0 on a cache hit. */
   costUsd: number
+  /** True when the answer came from the cache: nothing was spent. */
+  cacheHit?: boolean
+  /** On a cache hit, what the original call cost: the money the cache saved. */
+  savedUsd?: number
   /** The budget key (a user id, an API key) when the caller passed one, for per-user cost. */
   key?: string
   durationMs: number
@@ -56,6 +60,8 @@ export function analyticsUsage(sink: UsageSink, name = "ai.usage"): OnUsage {
             inputTokens: r.usage?.inputTokens,
             outputTokens: r.usage?.outputTokens,
             costUsd: r.costUsd,
+            cacheHit: r.cacheHit ? 1 : undefined,
+            savedUsd: r.savedUsd,
             durationMs: r.durationMs,
             key: r.key,
           },
