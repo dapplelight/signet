@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### Release: signet-db is public, ready for its first manual publish
+
+`@dapplelight/signet-db` is no longer private, so it is at the same step as `signet-payments` in PUBLISHING.md ("A new package's first release"): CI builds and tests both, but does not publish them. The owner publishes 0.1.0 of each by hand and adds the npm Trusted Publisher, and a later change then adds both, together with `create-signet-app` (whose full template depends on them), to the release order, release-status and publish verification.
+
 ### signet-db: comments, mentions, activity timeline and version history
 
 - New `./collab`: `createCollab(db, { tables: { comments }, records, orgs, people?, notify?, access?, describe? })` with `collabTables()` (`comments`, `recordVersions`) in `./columns/sqlite` and `./columns/pg`. Comment threads on any org record with replies, edit (`editedAt` marker) and soft delete; `@[Name](user:<id>)` mentions (`parseMentions`, `mentionToken`) kept only for org members and notified once per person per comment, however often it is edited; `mentionable(who, query)` for a picker; `timeline(who, ref)` merges the audit log and comments, newest first and cursor-paginated, each item with field `changes` and a `summary` ("Asha changed status to Done", `describeItem`); `versions`, `diff`, `restore` (a new version plus a `restore` audit entry) and `undo` (409 when `expected` is stale or the record changed outside its history). Deny by default: only tables in `records`, another org's record or a non-member is 404; restore and undo need `<record>:write`.
