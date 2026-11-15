@@ -44,6 +44,7 @@ Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit 
 | `@dapplelight/signet-db/admin` | ADMIN_OPS, AdminError, defineAdmin, DEFAULT_ROLES, roles, adminTools, … | An admin API from the schema: `defineAdmin(schema, { authorize })` gives list (cursor pages, sort, typed filters, text search), get, create, update, d |
 | `@dapplelight/signet-db/agent` | jsonSchema, agentTools, AgentTool, AgentToolsOptions | Database tools for AI agents, safe by construction: `agentTools(db, { tables, userId })` returns plain tool definitions (list, get, search per table,  |
 | `@dapplelight/signet-db/analytics` | createAnalyticsStore, StoredEventInput, AnalyticsStoreOptions, Bucket, Period, Range, … | Analytics events stored in your own database (any signet-db dialect), and typed questions over them: counts, unique people, time series, breakdowns, f |
+| `@dapplelight/signet-db/collab` | MENTION_PATTERN, parseMentions, mentionToken, fieldLabel, describeItem, diffRows, … | Record collaboration for org apps: comment threads with @mentions on any record, a per-record activity timeline (audit log plus comments), and version |
 | `@dapplelight/signet-db/columns/pg` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotencyKeys`, `aiCache` |
 | `@dapplelight/signet-db/columns/sqlite` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotency |
 | `@dapplelight/signet-db/customers` | timelineKind, createCustomers, TimelineKind, CustomerEventLike, TimelineEntry, TimelineTotal, … | Customers across the App Store, Google Play and the web, on the tables from `monetisationTables()` and `entitlementTables()`: - **Timeline:** one view |
@@ -142,6 +143,7 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/http` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus, … | re-exports errors, validate |
 | `@dapplelight/signet-server/http/admin` | adminRoutes, AdminHttpRequest, AdminHandler, AdminRoutesOptions | Mount an admin API (signet-db's `defineAdmin`) as Hono routes |
 | `@dapplelight/signet-server/http/cache` | cacheControlValue, mergeVary, etagMatches, httpCache, cachedResponse, CacheControlOptions, … | HTTP caching for GET routes |
+| `@dapplelight/signet-server/http/collab` | collabRoutes, mentionTemplates, notifyMentions, CollabStore, CollabRoutesOptions, CollabRoutes, … | HTTP routes for signet-db's record collaboration (`createCollab`): comments with @mentions, the mention picker, the activity timeline, and version his |
 | `@dapplelight/signet-server/http/errors` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus | Server half of the error envelope |
 | `@dapplelight/signet-server/http/monetisation` | monetisationRoutes, monetisationAdminRoutes, OfferingStore, CustomerStore, MonetisationRoutesOptions, MonetisationAdminOptions | Monetisation routes on signet-db's `createOfferings` and `createCustomers` (typed structurally, so this package does not depend on signet-db): offerin |
 | `@dapplelight/signet-server/http/openapi` | apiDoc, ERROR_ENVELOPE_SCHEMA, openApiSpec, serveOpenApi, apiDocsHtml, SecuritySchemeName, … | OpenAPI 3.1 from the app's own routes |
@@ -238,6 +240,7 @@ Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"
 | `@dapplelight/signet-ui/screens/api-screens` | DEFAULT_API_LABELS, ApiReference, WebhookDeliveryLog, ApiParameter, ApiOperation, ApiSpec, … |  |
 | `@dapplelight/signet-ui/screens/auth-screens` | DEFAULT_AUTH_LABELS, AuthMode, AuthChannel, OAuthProvider, AuthLabels, CodeRequest |  |
 | `@dapplelight/signet-ui/screens/billing-screens` | plansFromEntitlements, DEFAULT_BILLING_LABELS, formatMoney, PlanPicker, RestorePurchasesButton, CurrentPlanCard, … |  |
+| `@dapplelight/signet-ui/screens/collab-screens` | DEFAULT_COLLAB_LABELS, mentionsToText, textToMentions, CommentBody, MentionTextarea, CommentThreads, … |  |
 | `@dapplelight/signet-ui/screens/growth-screens` | DEFAULT_GROWTH_LABELS, WaitlistJoin, InviteAccept, ReferralCard, OnboardingChecklist, FeedbackForm, … |  |
 | `@dapplelight/signet-ui/screens/monetisation-screens` | DEFAULT_MONETISATION_LABELS, plansFromOffering, RemotePaywall, CustomerCenter, CustomerTimeline, RemoteProduct, … |  |
 | `@dapplelight/signet-ui/screens/notification-screens` | DEFAULT_NOTIFICATION_LABELS, NotifyChannel, InboxEntry, InboxFilter, ChannelPrefs, PreferenceCategory, … |  |

@@ -5,6 +5,23 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-db: comments, mentions, activity timeline and version history
+
+- New `./collab`: `createCollab(db, { tables: { comments }, records, orgs, people?, notify?, access?, describe? })` with `collabTables()` (`comments`, `recordVersions`) in `./columns/sqlite` and `./columns/pg`. Comment threads on any org record with replies, edit (`editedAt` marker) and soft delete; `@[Name](user:<id>)` mentions (`parseMentions`, `mentionToken`) kept only for org members and notified once per person per comment, however often it is edited; `mentionable(who, query)` for a picker; `timeline(who, ref)` merges the audit log and comments, newest first and cursor-paginated, each item with field `changes` and a `summary` ("Asha changed status to Done", `describeItem`); `versions`, `diff`, `restore` (a new version plus a `restore` audit entry) and `undo` (409 when `expected` is stale or the record changed outside its history). Deny by default: only tables in `records`, another org's record or a non-member is 404; restore and undo need `<record>:write`.
+- `DbConfig.versions: { table, track }` turns on version snapshots per table: every `scoped`/`audited` insert, update and delete on a tracked table writes the next version of the row.
+
+### signet-server: collab routes
+
+- New `./http/collab`: `collabRoutes({ collab, userId })` mounts comments, the mention picker, the timeline, versions, diff, restore and undo in the request's tenant; 401 signed out, 404 across orgs. `mentionTemplates({ url })` is a `comment.mention` template (email and in-app, `mentions` category for preferences) and `notifyMentions(notifier)` sends it keyed by the mention, so nobody is told twice.
+
+### signet-ui: collab screens
+
+- New `./screens/collab-screens`: `CommentThreads`, `MentionTextarea` (an `@` member picker that stores mentions by id), `ActivityFeed` with Load more, and `VersionHistory` with `VersionDiff`, Restore and Undo. Showcase page `screens-collab.html`.
+
+### signet-mcp: add-collab recipe
+
+- `recipe("add-collab")`: comments, mentions, timeline and version history from the db and server READMEs.
+
 ### signet-server: real-time channels
 
 - New `./realtime`: `createRealtime({ authorize, limits, heartbeatMs, timeoutMs, typingMs, idleMs })`, one hub for every runtime. Channels per resource live under the connection's org (from `authenticate`, never the client), so one org never receives another's events; `authorize` denies by default. Presence (one entry per user with a tab count, `joined` / `left`, `typing` that clears itself, `editing`), heartbeat timeouts, resume after reconnect from a per-channel history (`since` with epoch and seq, `reset` when the gap is too old), a last-writer-wins shared state per channel with versions and a `conflict` notice to a writer that replaced a newer write, inbound size and rate limits and a slow-consumer close for backpressure. `hub.publish`, `hub.disconnect`, `hub.sweep`, `hub.presence`, `hub.state`.
