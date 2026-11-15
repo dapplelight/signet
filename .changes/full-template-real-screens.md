@@ -1,3 +1,0 @@
-### create-signet-app: full template uses the real admin and billing screens
-
-The full-stack template's Admin page is now signet-ui's `AdminPanel` (nav, toolbar with search and filters, server-driven table, pager, record sheet) over the template's `/api/admin`, and its Billing page is `BillingScreen` with `plansFromEntitlements(plans, PLAN_DISPLAY)`. Plans move to `api/plans.ts`, shared by the API and the page; `GET /api/billing` now returns `{ subscription, usage }`. The Playwright smoke test checks that the admin table loads and that the plan picker marks the current plan before and after checkout.
