@@ -2,7 +2,7 @@
  * Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`,
  * `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`,
  * `idempotencyKeys`, `aiCache`, `webhookTables`, `entitlementTables`, `flagOverrides`, `growthTables`,
- * `orgTables`, `privacyTables`, `analyticsEvents`, `sequences`, `workflowTables`, `monetisationTables` and `collabTables` tables.
+ * `orgTables`, `privacyTables`, `analyticsEvents`, `sequences`, `workflowTables`, `monetisationTables`, `funnelTables` and `collabTables` tables.
  */
 
 import { sql } from "drizzle-orm"
@@ -664,7 +664,7 @@ export const monetisationTables = (prefix = "") => ({
       /** `${gateway}|${eventId}`: a notification is on the timeline once. */
       id: text("id").primaryKey(),
       subject: text("subject").notNull(),
-      /** purchase | renewal | refund | cancellation | uncancellation | billing_issue | grace_period | expiration | paused | dispute */
+      /** purchase | renewal | refund | cancellation | uncancellation | billing_issue | grace_period | expiration | paused | dispute | discount */
       kind: text("kind").notNull(),
       gateway: text("gateway").notNull(),
       eventType: text("event_type").notNull(),
@@ -699,4 +699,56 @@ export const monetisationTables = (prefix = "") => ({
     },
     (t) => [index(`${prefix}customer_requests_subject`).on(t.subject, t.kind)],
   ),
+})
+
+/**
+ * The tables for `createFunnels` (`@dapplelight/signet-db/funnels`): one row
+ * per web checkout started from a funnel (who bought what, at what price,
+ * paid and redeemed), and how many times each discount code was used.
+ * Destructure into the schema: `export const { funnelSessions, discountUses } = funnelTables()`.
+ */
+export const funnelTables = (prefix = "") => ({
+  funnelSessions: sqliteTable(
+    `${prefix}funnel_sessions`,
+    {
+      /** `fs_` + a random UUID: the buyer's browser holds it to fetch the redemption link. */
+      id: text("id").primaryKey(),
+      funnel: text("funnel").notNull(),
+      /** The anonymous customer id (`customers.anonymousId()`) the purchase is granted to. */
+      subject: text("subject").notNull(),
+      orgId: text("org_id"),
+      /** The browser's analytics anonymous id, so the purchase joins the visit's step views. */
+      visitor: text("visitor"),
+      productId: text("product_id").notNull(),
+      plan: text("plan").notNull(),
+      /** month | year | once */
+      interval: text("interval").notNull(),
+      /** What was charged, after any discount, in minor units. */
+      amount: integer("amount").notNull(),
+      currency: text("currency").notNull(),
+      discountCode: text("discount_code"),
+      /** Minor units taken off by the discount. */
+      discountOff: integer("discount_off"),
+      /** { [questionId]: value | value[] } */
+      answers: text("answers", { mode: "json" }),
+      email: text("email"),
+      gateway: text("gateway"),
+      /** The checkout's id at the gateway (a PaymentIntent, an order). */
+      checkoutId: text("checkout_id"),
+      /** The captured payment's id, from the verified webhook. */
+      paymentId: text("payment_id"),
+      /** open | paid | redeemed | failed | refunded */
+      status: text("status").notNull(),
+      redeemedBy: text("redeemed_by"),
+      createdAt: stamp("created_at"),
+      paidAt: ms("paid_at"),
+      redeemedAt: ms("redeemed_at"),
+    },
+    (t) => [index(`${prefix}funnel_sessions_checkout`).on(t.gateway, t.checkoutId)],
+  ),
+  discountUses: sqliteTable(`${prefix}discount_uses`, {
+    /** The discount code, upper case. */
+    code: text("code").primaryKey(),
+    used: integer("used").notNull().default(0),
+  }),
 })

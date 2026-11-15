@@ -44,6 +44,8 @@ export type TimelineKind =
   | "expiration"
   | "paused"
   | "dispute"
+  /** A funnel discount code, recorded by signet-db funnels when the purchase is paid. */
+  | "discount"
 
 /** The part of a signet-payments `Event` the timeline reads. */
 export type CustomerEventLike = {
