@@ -296,6 +296,32 @@ describe.each(backends)("$name", (backend) => {
     )
   }
 
+  test("charts: a period ending today is not churned until the day has passed", async () => {
+    const w = await make({ now: at("2026-04-01") })
+    await w.offerings.publish("default", { products }, { actor })
+    await w.customers.record(
+      ev({
+        gateway: "appstore",
+        product: "pro.monthly",
+        type: "subscription.charged",
+        day: "2026-03-01",
+        sub: "R",
+        amount: 499,
+        currency: "USD",
+      }),
+      { subject: "r1" },
+    )
+    // Coverage ends on the 1st (today): the renewal may still be on its way.
+    const today = await w.charts.metrics({ from: "2026-03-30", to: "2026-04-01" })
+    expect(today.days.at(-1)).toMatchObject({ activeSubscribers: 1, churned: 0 })
+    expect(today.summary).toMatchObject({ activeSubscribers: 1, churned: 0, mrr: { USD: 499 } })
+    // A day on with no renewal, it counts as churned on the day coverage ended.
+    w.clock.now = at("2026-04-02")
+    const next = await w.charts.metrics({ from: "2026-03-30", to: "2026-04-02" })
+    expect(next.days.at(-2)).toMatchObject({ day: "2026-04-01", churned: 1 })
+    expect(next.summary).toMatchObject({ activeSubscribers: 0, churned: 1 })
+  })
+
   test("charts: metric math on a fixed fixture, per day and summed", async () => {
     const w = await make()
     await fixture(w)

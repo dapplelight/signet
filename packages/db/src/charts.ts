@@ -295,7 +295,8 @@ export function createCharts(db: SignetDb<unknown>, options: ChartsOptions) {
 
   async function metrics(q: ChartQuery): Promise<ChartResult> {
     const fromDay = dayOf(q.from, "from")
-    const toDay = Math.min(dayOf(q.to, "to"), Math.floor(now().getTime() / DAY))
+    const today = Math.floor(now().getTime() / DAY)
+    const toDay = Math.min(dayOf(q.to, "to"), today)
     if (toDay < fromDay) throw bad("from is on or before to (and not after today).")
     if (toDay - fromDay + 1 > MAX_DAYS) throw bad(`At most ${MAX_DAYS} days at a time.`)
     const filter = { ...(q.audience ? await audienceFilter(q.audience) : {}), ...checkFilter(q) }
@@ -403,7 +404,8 @@ export function createCharts(db: SignetDb<unknown>, options: ChartsOptions) {
       const offering = attributed(first.subject, first.day)
       if (!where(first.subject, first.gateway, info?.plan, offering)) continue
       const trialLen = info?.offers?.find((x) => x.type === "free_trial")?.days ?? trialDefault
-      const pieces: { from: number; to: number; mrr: number; cur: string | null }[] = []
+      const pieces: { from: number; to: number; mrr: number; cur: string | null; cut?: boolean }[] =
+        []
       let trial: { from: number; to: number } | null = null
       let paid = false
       let started = false
@@ -415,7 +417,10 @@ export function createCharts(db: SignetDb<unknown>, options: ChartsOptions) {
       }
       const cut = (day: number) => {
         const last = pieces.at(-1)
-        if (last && last.to > day) last.to = Math.max(day, last.from)
+        if (last && last.to > day) {
+          last.to = Math.max(day, last.from)
+          last.cut = true
+        }
         if (trial && trial.to > day) trial.to = Math.max(day, trial.from)
       }
       for (const r of list) {
@@ -463,14 +468,23 @@ export function createCharts(db: SignetDb<unknown>, options: ChartsOptions) {
         } else if (r.kind === "expiration") cut(r.day)
       }
       for (const [i, p] of pieces.entries()) {
-        for (let day = Math.max(p.from, fromDay); day < Math.min(p.to, toDay + 1); day++) {
+        const next = pieces[i + 1]
+        const ends = !next || next.from > p.to
+        // A paid period that runs out today may still renew (webhook not landed, store a day late):
+        // keep it active through today and count churn only once the end is in the past.
+        // An explicit refund or expiration (cut) ends it at once.
+        const pending = ends && !p.cut && p.to === today
+        for (
+          let day = Math.max(p.from, fromDay);
+          day < Math.min(pending ? p.to + 1 : p.to, toDay + 1);
+          day++
+        ) {
           const d = days[day - fromDay] as ChartDay
           d.activeSubscribers++
           add(d.mrr, p.cur, p.mrr)
         }
-        if (p.from <= fromDay - 1 && fromDay - 1 < p.to) activeBefore++
-        const next = pieces[i + 1]
-        if (!next || next.from > p.to) {
+        if (p.from <= fromDay - 1 && fromDay - 1 < (pending ? p.to + 1 : p.to)) activeBefore++
+        if (ends && (p.cut || p.to < today)) {
           const d = at(p.to)
           if (d && p.to > p.from) d.churned++
         }
