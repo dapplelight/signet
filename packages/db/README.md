@@ -469,8 +469,9 @@ The gateway plan id is read by `billing.planIdOf` (default: Razorpay's
 the event's store `productId`) and mapped through `billing.plans`, trying
 `"<gateway>:<id>"` before `<id>`. `currentPeriodEnd` comes from
 `billing.periodEndOf` (default: Stripe `current_period_end`, Razorpay
-`current_end`, Paddle `current_billing_period.ends_at`; a web gateway's
-`subscription.cancelled` ends access now). For `created` and `updated`, whose type does
+`current_end`, Paddle `current_billing_period.ends_at`, Lemon Squeezy
+`ends_at` else `renews_at`; a web gateway's `subscription.cancelled` ends
+access now, except Lemon Squeezy's, which lasts until `ends_at`). For `created` and `updated`, whose type does
 not say whether the subscription is live, the status comes from the payload
 via `billing.statusOf` (default: Stripe's `data.object.status`, Paddle's
 `data.status`, Razorpay's entity status), falling back to the stored one.

@@ -798,6 +798,38 @@ describe.each(backends)("$name", (backend) => {
       { subject: "u5" },
     )
     expect(await ent.get("u5")).toMatchObject({ plan: "team", status: "cancelled" })
+    // The webhook path agrees: a Lemon Squeezy cancel keeps access until ends_at.
+    const ls = (id: string, type: string, at: string, attributes: Record<string, unknown>) => ({
+      id,
+      gateway: "lemonsqueezy",
+      type,
+      occurredAt: new Date(at),
+      subscriptionId: "sub_L2",
+      productId: "plan_team",
+      raw: { meta: {}, data: { attributes } },
+    })
+    await ent.applyBillingEvent(
+      ls("l1", "subscription.activated", "2026-11-01T00:00:00Z", {
+        status: "active",
+        renews_at: "2026-11-25T00:00:00Z",
+      }),
+      { subject: "u6" },
+    )
+    expect((await ent.get("u6")).currentPeriodEnd).toEqual(new Date("2026-11-25T00:00:00Z"))
+    expect(
+      await ent.applyBillingEvent(
+        ls("l2", "subscription.cancelled", "2026-11-02T00:00:00Z", {
+          status: "cancelled",
+          renews_at: null,
+          ends_at: "2026-11-25T00:00:00Z",
+        }),
+      ),
+    ).toMatchObject({ applied: true, status: "cancelled" })
+    expect(await ent.get("u6")).toMatchObject({
+      plan: "team",
+      status: "cancelled",
+      currentPeriodEnd: new Date("2026-11-25T00:00:00Z"),
+    })
     // A web subscription set to cancel at period end is still active until then.
     await ent.applySubscription(
       {

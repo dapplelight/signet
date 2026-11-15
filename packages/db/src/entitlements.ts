@@ -354,14 +354,20 @@ export function storeStateOf(gateway: string, raw: unknown): SourceState | undef
 /** Web gateways whose `cancelled` means renewal is off and access lasts until the period end. */
 const CANCELLED_UNTIL_PERIOD_END = new Set(["lemonsqueezy"])
 
-/** Stripe `current_period_end` (object or first item), Razorpay `current_end`, Paddle `current_billing_period.ends_at`. */
+/**
+ * Stripe `current_period_end` (object or first item), Razorpay `current_end`,
+ * Paddle `current_billing_period.ends_at`, Lemon Squeezy `data.attributes`
+ * `ends_at` (set once cancelled) else `renews_at`.
+ */
 export function defaultPeriodEndOf(event: BillingEvent): Date | undefined {
   const r = event.raw
   return (
     secDate(dig(r, "data", "object", "current_period_end")) ??
     secDate(dig(r, "data", "object", "items", "data", 0, "current_period_end")) ??
     secDate(dig(r, "payload", "subscription", "entity", "current_end")) ??
-    isoDate(dig(r, "data", "current_billing_period", "ends_at"))
+    isoDate(dig(r, "data", "current_billing_period", "ends_at")) ??
+    isoDate(dig(r, "data", "attributes", "ends_at")) ??
+    isoDate(dig(r, "data", "attributes", "renews_at"))
   )
 }
 
@@ -714,8 +720,8 @@ export function createEntitlements<P extends Plans>(
         : state.currentPeriodEnd
       : cfg.periodEndOf
         ? cfg.periodEndOf(event)
-        : status === "cancelled"
-          ? null // a web gateway's cancellation ends access now
+        : status === "cancelled" && !CANCELLED_UNTIL_PERIOD_END.has(event.gateway)
+          ? null // a web gateway's cancellation ends access now (Lemon Squeezy's lasts until ends_at)
           : defaultPeriodEndOf(event)
     const values: Cols = {
       plan,
