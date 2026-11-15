@@ -77,10 +77,65 @@ export const PAIRS: [fg: string, bg: string, min: number][] = [
   ["--input", "--bg-base", 1.3],
 ]
 
+/** `fg` at `alpha` over `bg`: what a Tailwind `/NN` opacity modifier paints. */
+export function over(fg: string, bg: string, alpha: number): string {
+  const a = rgb(fg)
+  const b = rgb(bg)
+  if (!a || !b) return fg
+  return `#${a
+    .map((v, i) =>
+      Math.round(v * alpha + (b[i] as number) * (1 - alpha))
+        .toString(16)
+        .padStart(2, "0"),
+    )
+    .join("")}`
+}
+
+// Text that components paint with an opacity modifier. The alphas are read
+// from the component source, so a class change is checked as well as a token.
+const ui = (f: string) =>
+  readFileSync(new URL(`../../ui/src/components/ui/${f}`, import.meta.url), "utf8")
+const alphaOf = (src: string, re: RegExp, name: string): number => {
+  const m = re.exec(src)
+  if (!m) throw new Error(`contrast: ${name} no longer matches ${re}`)
+  return Number(m[1]) / 100
+}
+type Tinted = {
+  name: string
+  light: number
+  dark: number
+  text: string
+  /** Each alpha applies to the text (tint false) or to a tint of the text colour behind it (tint true). */
+  tint: boolean
+  on: string[]
+}
+// Called from check() only: signet-mcp copies this file and must not read ui/.
+const tinted = (): Tinted[] => [
+  {
+    name: "inactive TabsTrigger",
+    light: alphaOf(ui("tabs.tsx"), /\stext-text-primary\/(\d+)\s/, "tabs"),
+    dark: alphaOf(ui("tabs.tsx"), /\sdark:text-text-primary\/(\d+)\s/, "tabs"),
+    text: "--text-primary",
+    tint: false,
+    on: ["--bg-elevated"],
+  },
+  ...(["badge.tsx", "button.tsx", "alert.tsx"] as const).map((f) => ({
+    name: `destructive ${f.replace(".tsx", "")}`,
+    light: alphaOf(ui(f), /\bbg-accent-red\/(\d+) text-accent-red/, f),
+    dark: /dark:bg-accent-red\/(\d+)/.test(ui(f))
+      ? alphaOf(ui(f), /\bdark:bg-accent-red\/(\d+)/, f)
+      : alphaOf(ui(f), /\bbg-accent-red\/(\d+) text-accent-red/, f),
+    text: "--accent-red",
+    tint: true,
+    on: ["--bg-base", "--bg-surface"],
+  })),
+]
+
 const dir = new URL("../src/themes/", import.meta.url)
 if (import.meta.main) check()
 
 function check() {
+  const TINTED = tinted()
   for (const [file, darkSel] of [
     ["editorial.css", /\.dark,\s*\[data-theme="ui"\]\s*\{/],
     ["cinematic.css", /\[data-theme="cinematic"\]\s*\{/],
@@ -98,6 +153,23 @@ function check() {
         const r = ratio(a, b)
         if (r === null) continue // not a plain hex (rgba, color-mix): checked by eye
         ok(`${file} ${mode} ${fg} on ${bg} >= ${min}`, r >= min, `${a} on ${b} = ${r.toFixed(2)}`)
+      }
+      for (const t of TINTED) {
+        const alpha = mode === "light" ? t.light : t.dark
+        const text = resolve(vars, vars[t.text] ?? "")
+        for (const on of t.on) {
+          const base = resolve(vars, vars[on] ?? "")
+          const [fgc, bgc] = t.tint
+            ? [text, over(text, base, alpha)]
+            : [over(text, base, alpha), base]
+          const r = ratio(fgc, bgc)
+          if (r === null) continue
+          ok(
+            `${file} ${mode} ${t.name} on ${on} >= ${TEXT}`,
+            r >= TEXT,
+            `${fgc} on ${bgc} = ${r.toFixed(2)}`,
+          )
+        }
       }
     }
   }
