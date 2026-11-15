@@ -75,6 +75,43 @@ export type CustomerStore = {
     limit?: number
   }): Promise<unknown[]>
   setRequestStatus(id: string, status: never, opts: { actor: Actor }): Promise<unknown>
+  /** Paywall impressions for charts (`POST /offerings/:placement/impression`). */
+  logImpression?(
+    subject: string,
+    input: { offering: string; version?: number; placement?: string; country?: string },
+  ): Promise<unknown>
+  /** Cut an offering's offers to those this customer may see. */
+  withOffers?(subject: string | null | undefined, offering: never): Promise<unknown>
+  redeemOffer?(
+    subject: string,
+    offering: never,
+    offerId: string,
+  ): Promise<{ redeemed: boolean; reason?: string }>
+  grantPromotional?(
+    subject: string,
+    input: { plan: string; expiresAt?: Date; days?: number; note?: string },
+    opts: { actor: Actor },
+  ): Promise<unknown>
+  endPromotional?(subject: string, id: string, opts: { actor: Actor }): Promise<boolean>
+}
+
+type ChartQuery = {
+  from: string
+  to: string
+  store?: string
+  plan?: string
+  country?: string
+  offering?: string
+  audience?: string
+}
+
+/** What the admin routes need from signet-db's `createCharts(...)`, as it is. */
+export type ChartStore = {
+  metrics(q: ChartQuery): Promise<unknown>
+  csv(q: ChartQuery): Promise<string>
+  audiences(): Promise<unknown[]>
+  saveAudience(name: string, filter: never, opts: { actor: Actor }): Promise<unknown>
+  removeAudience(id: string, opts: { actor: Actor }): Promise<boolean>
 }
 
 export type MonetisationRoutesOptions = {
@@ -151,7 +188,10 @@ const defaultAudience = (c: Context): Audience => {
 /**
  * The app's routes. Mount with `app.route("/api/billing", monetisationRoutes(opts))`.
  *
- *   GET  /offerings/:placement     the offering and paywall for this audience (404 none)
+ *   GET  /offerings/:placement     the offering and paywall for this audience (404 none),
+ *                                  with only the offers this customer may see
+ *   POST /offerings/:placement/impression   log a paywall view for charts (204)
+ *   POST /offerings/:placement/redeem       { offerId }: claim an offer once (409 OFFER_REFUSED)
  *   POST /anonymous                a new anonymous app-user id: { anonymousId }
  *   POST /merge                    { anonymousId }: move its purchases to the signed-in user
  *                                  (409 MERGE_REFUSED with the reason)
@@ -170,13 +210,46 @@ export function monetisationRoutes(opts: MonetisationRoutesOptions) {
   const app = new Hono()
   app.onError(onError)
   const me = (c: Context) => need(opts.subject, c)
+  const current = async (c: Context) => {
+    if (!opts.offerings) throw new ApiException(404, "No offerings here.", "NOT_FOUND")
+    const audience = await (opts.audience ?? defaultAudience)(c)
+    const offering = await opts.offerings.current(c.req.param("placement") as string, audience)
+    if (!offering) throw new ApiException(404, "No offering for this placement.", "NOT_FOUND")
+    return { offering, audience }
+  }
   return app
     .get("/offerings/:placement", async (c) => {
-      if (!opts.offerings) throw new ApiException(404, "No offerings here.", "NOT_FOUND")
-      const audience = await (opts.audience ?? defaultAudience)(c)
-      const offering = await opts.offerings.current(c.req.param("placement"), audience)
-      if (!offering) throw new ApiException(404, "No offering for this placement.", "NOT_FOUND")
-      return c.json({ offering })
+      const { offering } = await current(c)
+      // Offers this customer may see; no subject is a new visitor.
+      if (!customers.withOffers) return c.json({ offering })
+      const who = (await opts.subject(c)) ?? null
+      return c.json({ offering: await customers.withOffers(who, offering as never) })
+    })
+    .post("/offerings/:placement/impression", async (c) => {
+      if (!customers.logImpression) throw new ApiException(404, "Not enabled.", "NOT_FOUND")
+      const subject = await me(c)
+      const { offering, audience } = await current(c)
+      const o = offering as { key: string; version?: number }
+      await customers.logImpression(subject, {
+        offering: o.key,
+        ...(typeof o.version === "number" ? { version: o.version } : {}),
+        placement: c.req.param("placement"),
+        ...(audience.country ? { country: audience.country } : {}),
+      })
+      return c.body(null, 204)
+    })
+    .post("/offerings/:placement/redeem", async (c) => {
+      if (!customers.redeemOffer) throw new ApiException(404, "Not enabled.", "NOT_FOUND")
+      const subject = await me(c)
+      const offerId = field(await body(c), "offerId", 200)
+      const { offering } = await current(c)
+      const r = await customers.redeemOffer(subject, offering as never, offerId)
+      if (!r.redeemed)
+        throw new ApiException(409, "This offer is not available.", "OFFER_REFUSED", {
+          formErrors: [r.reason ?? "refused"],
+          fieldErrors: { offerId: [r.reason ?? "refused"] },
+        })
+      return c.json(r)
     })
     .post("/anonymous", async (c) => {
       const orgId = (await opts.orgId?.(c)) ?? undefined
@@ -237,6 +310,8 @@ export function monetisationRoutes(opts: MonetisationRoutesOptions) {
 export type MonetisationAdminOptions = {
   offerings?: OfferingStore
   customers?: CustomerStore
+  /** signet-db's `createCharts(...)`: subscription charts, audiences and CSV. */
+  charts?: ChartStore
   /** Deny by default: every route calls it, and anything but true is 403. */
   authorize: (c: Context) => unknown
   /** Who made the change, for the audit log. */
@@ -244,7 +319,24 @@ export type MonetisationAdminOptions = {
 }
 
 const REQUEST_STATUS = new Set(["open", "done", "declined"])
-const REQUEST_KIND = new Set(["refund", "cancel", "retention", "support"])
+const REQUEST_KIND = new Set(["refund", "cancel", "retention", "support", "offer"])
+const DATE = /^\d{4}-\d{2}-\d{2}$/
+
+/** The chart query from the URL: from and to (YYYY-MM-DD, default the last 30 days) and filters. */
+function chartQuery(c: Context): ChartQuery {
+  const today = new Date()
+  const to = c.req.query("to") ?? today.toISOString().slice(0, 10)
+  const from =
+    c.req.query("from") ?? new Date(today.getTime() - 29 * 86_400_000).toISOString().slice(0, 10)
+  if (!DATE.test(from) || !DATE.test(to))
+    throw new ApiException(400, "from and to are dates, YYYY-MM-DD.", "VALIDATION_FAILED")
+  const q: ChartQuery = { from, to }
+  for (const k of ["store", "plan", "country", "offering", "audience"] as const) {
+    const v = c.req.query(k)
+    if (v) q[k] = v
+  }
+  return q
+}
 
 /**
  * Admin routes. Mount with `app.route("/api/admin/billing", monetisationAdminRoutes(opts))`.
@@ -258,6 +350,13 @@ const REQUEST_KIND = new Set(["refund", "cancel", "retention", "support"])
  *   GET   /customers/:subject/timeline  purchases, renewals, refunds... and ledger totals
  *   GET   /requests?kind=&status=&subject=
  *   PATCH /requests/:id                 { status: "done" | "declined" | "open" }
+ *   POST  /customers/:subject/promotional      { plan, days | expiresAt, note? }: a promotional plan
+ *   DELETE /customers/:subject/promotional/:id end it early
+ *   GET   /charts?from=&to=&store=&plan=&country=&offering=&audience=   subscription charts
+ *   GET   /charts/csv?...                       the same, one CSV row per day
+ *   GET   /audiences                           saved chart filters
+ *   POST  /audiences                           { name, filter: { store?, plan?, country?, offering? } }
+ *   DELETE /audiences/:id
  */
 export function monetisationAdminRoutes(opts: MonetisationAdminOptions) {
   const app = new Hono()
@@ -274,6 +373,10 @@ export function monetisationAdminRoutes(opts: MonetisationAdminOptions) {
   const customers = () => {
     if (!opts.customers) throw new ApiException(404, "Customers are not enabled.", "NOT_FOUND")
     return opts.customers
+  }
+  const charts = () => {
+    if (!opts.charts) throw new ApiException(404, "Charts are not enabled.", "NOT_FOUND")
+    return opts.charts
   }
   return app
     .get("/offerings", async (c) => c.json({ offerings: await offerings().list() }))
@@ -344,5 +447,63 @@ export function monetisationAdminRoutes(opts: MonetisationAdminOptions) {
       })
       if (!request) throw new ApiException(404, "No such request.", "NOT_FOUND")
       return c.json({ request })
+    })
+    .post("/customers/:subject/promotional", async (c) => {
+      const grant = customers().grantPromotional
+      if (!grant) throw new ApiException(404, "Promotional grants are not enabled.", "NOT_FOUND")
+      const b = await body(c)
+      const note = optional(b, "note", 500)
+      const days = b.days
+      const expires = optional(b, "expiresAt", 40)
+      const expiresAt = expires === undefined ? undefined : new Date(expires)
+      if (expiresAt && Number.isNaN(expiresAt.getTime()))
+        throw new ApiException(400, "expiresAt is an ISO date.", "VALIDATION_FAILED")
+      if (days !== undefined && !Number.isSafeInteger(days))
+        throw new ApiException(400, "days is a whole number.", "VALIDATION_FAILED")
+      const r = await grant.call(
+        customers(),
+        c.req.param("subject"),
+        {
+          plan: field(b, "plan", 64),
+          ...(expiresAt ? { expiresAt } : {}),
+          ...(days !== undefined ? { days: days as number } : {}),
+          ...(note ? { note } : {}),
+        },
+        { actor: await opts.actor(c) },
+      )
+      return c.json({ grant: r }, 201)
+    })
+    .delete("/customers/:subject/promotional/:id", async (c) => {
+      const end = customers().endPromotional
+      if (!end) throw new ApiException(404, "Promotional grants are not enabled.", "NOT_FOUND")
+      const ended = await end.call(customers(), c.req.param("subject"), c.req.param("id"), {
+        actor: await opts.actor(c),
+      })
+      if (!ended) throw new ApiException(404, "No live grant with that id.", "NOT_FOUND")
+      return c.json({ ended })
+    })
+    .get("/charts", async (c) => c.json(await charts().metrics(chartQuery(c))))
+    .get("/charts/csv", async (c) => {
+      const q = chartQuery(c)
+      return c.body(await charts().csv(q), 200, {
+        "content-type": "text/csv; charset=utf-8",
+        "content-disposition": `attachment; filename="subscriptions-${q.from}-${q.to}.csv"`,
+      })
+    })
+    .get("/audiences", async (c) => c.json({ audiences: await charts().audiences() }))
+    .post("/audiences", async (c) => {
+      const b = await body(c)
+      const filter = b.filter
+      if (!filter || typeof filter !== "object" || Array.isArray(filter))
+        throw new ApiException(400, "filter is an object.", "VALIDATION_FAILED")
+      const audience = await charts().saveAudience(field(b, "name", 100), filter as never, {
+        actor: await opts.actor(c),
+      })
+      return c.json({ audience }, 201)
+    })
+    .delete("/audiences/:id", async (c) => {
+      if (!(await charts().removeAudience(c.req.param("id"), { actor: await opts.actor(c) })))
+        throw new ApiException(404, "No such audience.", "NOT_FOUND")
+      return c.json({ removed: true })
     })
 }

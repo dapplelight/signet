@@ -470,6 +470,7 @@ app.route("/api/billing", monetisationRoutes({
 }))
 app.route("/api/admin/billing", monetisationAdminRoutes({
   offerings, customers,
+  charts,                                               // signet-db createCharts: charts, audiences, CSV
   authorize: (c) => c.get("session")?.role === "admin", // deny by default: anything but true is 403
   actor: (c) => ({ type: "user", id: me(c) }),
 }))
@@ -477,7 +478,9 @@ app.route("/api/admin/billing", monetisationAdminRoutes({
 
 | Route | What |
 |---|---|
-| `GET /offerings/:placement` | The offering and paywall for this audience (404 none). Country from `cf-ipcountry`, else `?country`; platform from `?platform`. Attributes come only from your `audience(c)`, never the query. |
+| `GET /offerings/:placement` | The offering and paywall for this audience (404 none). Country from `cf-ipcountry`, else `?country`; platform from `?platform`. Attributes come only from your `audience(c)`, never the query. Each product's `offers` are cut to the ones this customer may see (`customers.withOffers`; no subject is a new visitor). |
+| `POST /offerings/:placement/impression` | Log that the customer saw this placement's paywall, for paywall conversion (204; once per customer, offering and day). |
+| `POST /offerings/:placement/redeem` | `{ offerId }`: claim an offer once, before applying it at checkout; refused is 409 `OFFER_REFUSED` with the reason (`not_eligible`, `already_used`, `no_such_offer`). |
 | `POST /anonymous` | `{ anonymousId }` for a device before sign-in. |
 | `POST /merge` | `{ anonymousId }` into the signed-in user; refused is 409 `MERGE_REFUSED` with the reason. |
 | `GET /customer`, `GET /customer/timeline` | The Customer Center overview; the customer's own history. |
@@ -485,6 +488,9 @@ app.route("/api/admin/billing", monetisationAdminRoutes({
 | `POST /customer/retention` | Accept the retention offer. |
 | `POST /customer/refund`, `POST /customer/support` | Recorded and sent to the team through `notify`. A refund for a payment that is not the caller's is 404. |
 | Admin: `GET/POST /offerings/:key`, `GET /placements`, `PUT /placements/:placement`, `GET /customers/:subject[/timeline]`, `GET /requests`, `PATCH /requests/:id` | Publish versions, point placements, read any customer's timeline, close requests. |
+| Admin: `POST /customers/:subject/promotional`, `DELETE /customers/:subject/promotional/:id` | `{ plan, days \| expiresAt, note? }`: grant a promotional plan that lapses on its own; end one early. |
+| Admin: `GET /charts`, `GET /charts/csv` | `?from=&to=` (YYYY-MM-DD, default the last 30 days) `&store=&plan=&country=&offering=&audience=`: subscription charts, or one CSV row per day as an attachment. |
+| Admin: `GET /audiences`, `POST /audiences`, `DELETE /audiences/:id` | Saved chart filters: `{ name, filter: { store?, plan?, country?, offering? } }`. |
 
 signet-db errors become the envelope (`BAD_VALUE` is 400 `VALIDATION_FAILED`,
 `NOT_FOUND` 404). These are cookie-authenticated writes: put

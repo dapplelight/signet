@@ -61,6 +61,8 @@ export const ERROR_CODES = [
   "INVALID_CODE",
   "CODE_EXPIRED",
   "TOO_MANY_ATTEMPTS",
+  // monetisation: an offer claim refused (the reason is in details)
+  "OFFER_REFUSED",
   // oauth-rs (RFC 6750)
   "invalid_token",
   "insufficient_scope",
