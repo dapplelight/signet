@@ -43,6 +43,7 @@ Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit 
 | `@dapplelight/signet-db` | dbCache, pruneAiCache, DbCache, isCiphertext, assertCiphertext, generateKey, … | re-exports ai-cache, cipher, db, describe, errors, id, idempotency, money, outbox, query, scoped, seed, sequence, user-data |
 | `@dapplelight/signet-db/admin` | ADMIN_OPS, AdminError, defineAdmin, DEFAULT_ROLES, roles, adminTools, … | An admin API from the schema: `defineAdmin(schema, { authorize })` gives list (cursor pages, sort, typed filters, text search), get, create, update, d |
 | `@dapplelight/signet-db/agent` | jsonSchema, agentTools, AgentTool, AgentToolsOptions | Database tools for AI agents, safe by construction: `agentTools(db, { tables, userId })` returns plain tool definitions (list, get, search per table,  |
+| `@dapplelight/signet-db/analytics` | createAnalyticsStore, StoredEventInput, AnalyticsStoreOptions, Bucket, Period, Range, … | Analytics events stored in your own database (any signet-db dialect), and typed questions over them: counts, unique people, time series, breakdowns, f |
 | `@dapplelight/signet-db/columns/pg` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotencyKeys`, `aiCache` |
 | `@dapplelight/signet-db/columns/sqlite` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotency |
 | `@dapplelight/signet-db/d1` | createDb | Cloudflare D1 driver: `createDb(env.DB, config)` |
@@ -61,7 +62,7 @@ Signet client primitives. API client, the wire contract, and search.
 
 | Import | Exports | What |
 |---|---|---|
-| `@dapplelight/signet-lib/analytics` | beaconTransport, createAnalytics, noopAnalytics, EventProps, AnalyticsEvent, Transport, … | Client-side event tracking |
+| `@dapplelight/signet-lib/analytics` | continueSession, ANALYTICS_HEADERS, beaconTransport, createAnalytics, noopAnalytics, EventProps, … | Client-side event tracking |
 | `@dapplelight/signet-lib/api` | qs, createApiClient, timeout, createRpcClient, retryAfterSeconds, toApiError, … | re-exports client, codes, contract, copy, errors, stream |
 | `@dapplelight/signet-lib/api/query-client` | isRetryable, queryDefaults, onAuthErrorRedirect, QueryDefaultsOptions | TanStack Query defaults |
 | `@dapplelight/signet-lib/crypto` | decryptFields, DecryptFieldsOptions, DecryptFieldsResult | Fail-closed field decryption for apps that encrypt user data on the client (app-a's private mode) |
@@ -113,9 +114,10 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/adapters/supabase` | supabaseBlobStore, SupabaseStorageConfig, SupabaseBlobStore | Supabase Storage as a `BlobStore`, over its REST API with plain fetch |
 | `@dapplelight/signet-server/adapters/upstash` | upstashKv, upstashRateLimitStore, qstashQueue, UpstashConfig, QstashConfig | Upstash over plain fetch: Redis REST as a `KeyValue` (atomic `incr`), and QStash as a `Queue` |
 | `@dapplelight/signet-server/adapters/vercel` | vercelDefer | Vercel as Signet adapters |
-| `@dapplelight/signet-server/analytics` | LIMITS, truncateBytes, toDataPoint, createAnalyticsEngine, AnalyticsEngineDataset, TrackedEvent, … | re-exports engine, ingest, sinks |
+| `@dapplelight/signet-server/analytics` | LIMITS, truncateBytes, toDataPoint, createAnalyticsEngine, AnalyticsEngineDataset, TrackedEvent, … | re-exports engine, ingest, session, sinks |
 | `@dapplelight/signet-server/analytics/engine` | LIMITS, truncateBytes, toDataPoint, createAnalyticsEngine, AnalyticsEngineDataset, TrackedEvent, … | Cloudflare Workers Analytics Engine writer |
-| `@dapplelight/signet-server/analytics/ingest` | registerIngest, cloudflareEnrichment, IngestOptions | Hono ingest route for browser events |
+| `@dapplelight/signet-server/analytics/ingest` | cleanId, registerIngest, cloudflareEnrichment, IngestOptions | Hono ingest route for browser events |
+| `@dapplelight/signet-server/analytics/session` | ANALYTICS_HEADERS, analyticsContext, serverTracker, AnalyticsContext | Server-side events that join the browser's visit and user |
 | `@dapplelight/signet-server/analytics/sinks` | httpSink, memorySink, consoleSink, AnalyticsSink, HttpSinkConfig | Where server-side analytics events go, independent of runtime |
 | `@dapplelight/signet-server/auth` | kvApiKeyStore, createApiKey, listApiKeys, revokeApiKey, verifyApiKey, ApiKeyRecord, … | re-exports api-keys, bearer, better-auth, guards, otp, passcode, session, sessions |
 | `@dapplelight/signet-server/auth/api-keys` | kvApiKeyStore, createApiKey, listApiKeys, revokeApiKey, verifyApiKey, ApiKeyRecord, … | API-key manager: create (secret shown once), list, revoke, with scopes and optional expiry |
@@ -179,9 +181,9 @@ Signet design tokens. One theme file per design system; all themes satisfy CONTR
 
 Signet component kit — token-driven React primitives.
 
-`import { X } from "@dapplelight/signet-ui/components/<name>"` — 52 components:
+`import { X } from "@dapplelight/signet-ui/components/<name>"` — 53 components:
 
-`alert` · `alert-dialog` · `answer-headline` · `avatar` · `badge` · `breadcrumb` · `button` · `calendar` · `card` · `chart` · `checkbox` · `combobox` · `command` · `data-table` · `dialog` · `drawer` · `dropdown-menu` · `emoji-picker` · `empty-state` · `error-state` · `field` · `input` · `input-group` · `input-otp` · `kbd` · `label` · `markdown` · `pagination` · `pill-group` · `popover` · `privacy-mask` · `progress` · `radio-group` · `responsive-sheet` · `search-input` · `select` · `shortcuts` · `sidebar` · `skeleton` · `slider` · `spinner` · `stat-strip` · `stepper` · `switch` · `table` · `tabs` · `textarea` · `theme-provider` · `theme-toggle` · `timeline` · `toast` · `tooltip`
+`alert` · `alert-dialog` · `answer-headline` · `avatar` · `badge` · `breadcrumb` · `button` · `calendar` · `card` · `chart` · `checkbox` · `combobox` · `command` · `data-table` · `dialog` · `drawer` · `dropdown-menu` · `emoji-picker` · `empty-state` · `error-state` · `field` · `input` · `input-group` · `input-otp` · `kbd` · `label` · `markdown` · `metric-headline` · `pagination` · `pill-group` · `popover` · `privacy-mask` · `progress` · `radio-group` · `responsive-sheet` · `search-input` · `select` · `shortcuts` · `sidebar` · `skeleton` · `slider` · `spinner` · `stat-strip` · `stepper` · `switch` · `table` · `tabs` · `textarea` · `theme-provider` · `theme-toggle` · `timeline` · `toast` · `tooltip`
 
 Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"`.
 
