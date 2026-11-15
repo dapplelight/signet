@@ -817,8 +817,7 @@ const RECIPES: RecipeSpec[] = [
       "tick",
       "cron trigger",
     ],
-    // signet-db is `private: true`, so it is not in the install line.
-    install: ["@dapplelight/signet-server", "hono", "drizzle-orm"],
+    install: ["@dapplelight/signet-server", "@dapplelight/signet-db", "hono", "drizzle-orm"],
     refs: [
       ["db", "Workflows: durable runs with approval steps"],
       ["server", "Workflow routes"],
@@ -994,8 +993,7 @@ const RECIPES: RecipeSpec[] = [
       "restore purchases",
       "revenuecat",
     ],
-    // signet-db is `private: true` (not on npm yet), so it is not in the install line.
-    install: ["drizzle-orm"],
+    install: ["@dapplelight/signet-db", "drizzle-orm"],
     refs: [
       ["db", "Plans and entitlements"],
       ["db", "App Store, Google Play and restore"],
@@ -1131,7 +1129,7 @@ const RECIPES: RecipeSpec[] = [
       "codemod",
       "migrate",
     ],
-    // signet-cli and signet-db are `private: true`; the module's other packages are installed by signet add.
+    // signet-cli is `private: true`; the module's other packages are installed by signet add.
     install: ["@dapplelight/signet-server", "hono", "zod"],
     refs: [
       ["cli", "Add a backend module"],

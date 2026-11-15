@@ -392,7 +392,7 @@ try {
   )
   const dbr = await call("recipe", { task: "add a database" })
   ok(
-    "recipe: add-db is cut from the db README headings and does not install the private signet-db",
+    "recipe: add-db is cut from the db README headings and installs signet-db",
     dbr.json?.id === "add-db" &&
       dbr.json.title === "Add a database (D1, SQLite, Postgres) with signet-db" &&
       JSON.stringify(dbr.json.steps.map((st: any) => st.title)) ===
@@ -408,7 +408,7 @@ try {
           "Errors",
         ]) &&
       dbr.json.steps.some((st: any) => st.markdown.includes("agentTools(db")) &&
-      !dbr.json.install.includes("signet-db"),
+      dbr.json.install.includes("@dapplelight/signet-db"),
     dbr.json,
   )
 
@@ -419,7 +419,7 @@ try {
       ["defineWorkflow", "step.approval", "tick()", "workflowRoutes", "cron trigger"].every((t) =>
         JSON.stringify(wfr.json).includes(t),
       ) &&
-      !wfr.json.install.includes("@dapplelight/signet-db"),
+      wfr.json.install.includes("@dapplelight/signet-db"),
     wfr.json?.id,
   )
 
