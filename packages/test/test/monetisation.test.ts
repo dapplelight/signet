@@ -35,7 +35,6 @@ const PRODUCTS = [
   },
 ]
 const admin = { type: "user" as const, id: "admin-1" }
-// biome-ignore lint/suspicious/noExplicitAny: reading gateway payloads in a test
 type Any = any
 
 function world() {
