@@ -30,6 +30,8 @@ export type SignetDbErrorCode =
   | "VALIDATION_FAILED"
   | "METHOD_NOT_ALLOWED"
   | "BAD_CONFIG"
+  | "STEP_FAILED"
+  | "NONDETERMINISTIC"
 
 export class SignetDbError extends Error {
   readonly code: SignetDbErrorCode

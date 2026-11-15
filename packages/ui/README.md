@@ -88,7 +88,11 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
 - `screens/growth-screens`: `WaitlistJoin` (with the place in line),
   `InviteAccept`, `ReferralCard`, `OnboardingChecklist`, `FeedbackWidget` /
   `FeedbackForm` and `WhatsNew`, shaped like signet-db's growth results.
-  Demo for these three: `screens-ops.html` in the showcase (`?screen=`,
+- `screens/workflow-screens`: `WorkflowRunTimeline` (run status, who or
+  what it is waiting on, every step with retries and decisions, cancel) and
+  `ApprovalInboxCard` (approve / reject with a reason), shaped like
+  signet-db's `wf.get(id)` and `wf.pendingApprovals(user)`.
+  Demo for these four: `screens-ops.html` in the showcase (`?screen=`,
   `?theme=`, `?dark=1`).
 
 ## Behaviours and recipes
@@ -114,6 +118,7 @@ without an app changing. Each component's source starts with its recipe:
 | `spinner` | live-region |
 | `screens/billing-screens` | selection + roving-focus + controllable-state + live-region |
 | `screens/growth-screens` | selection + roving-focus + controllable-state + popup + dismiss + live-region + field-wiring |
+| `screens/workflow-screens` | roving-focus (timeline) + live-region + field-wiring |
 | `domain/amount` | money-format + tone (colour from the `--money-*` slots) |
 | `domain/kanban` | controllable-state + live-region + drag + keyboard-move |
 | `screens/admin-screens` | selection + controllable-state + popup + focus-trap + dismiss + roving-focus (tabs) + field-wiring |

@@ -2,7 +2,7 @@
  * Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`,
  * `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`,
  * `idempotencyKeys`, `aiCache`, `webhookTables`, `entitlementTables`, `flagOverrides`, `growthTables`,
- * `privacyTables`, `analyticsEvents` and `sequences` tables.
+ * `privacyTables`, `analyticsEvents`, `sequences` and `workflowTables` tables.
  */
 
 import { sql } from "drizzle-orm"
@@ -419,3 +419,72 @@ export const sequences = (name = "sequences") =>
     key: text("key").primaryKey(),
     value: integer("value").notNull(),
   })
+
+/**
+ * Runs, steps and events for `createWorkflows` from
+ * `@dapplelight/signet-db/workflows`. Destructure into the schema:
+ * `export const { workflowRuns, workflowSteps, workflowEvents } = workflowTables()`.
+ */
+export const workflowTables = (prefix = "") => ({
+  workflowRuns: sqliteTable(
+    `${prefix}workflow_runs`,
+    {
+      id: id(),
+      workflow: text("workflow").notNull(),
+      input: text("input", { mode: "json" }),
+      /** queued | running | sleeping | waiting | completed | failed | cancelled */
+      status: text("status").notNull(),
+      output: text("output", { mode: "json" }),
+      error: text("error"),
+      createdBy: text("created_by"),
+      /** When a runner should next pick the run up; null once it has finished. */
+      wakeAt: ms("wake_at"),
+      leaseOwner: text("lease_owner"),
+      leaseUntil: ms("lease_until"),
+      /** What a sleeping or waiting run is blocked on, for screens. */
+      waitingOn: text("waiting_on", { mode: "json" }),
+      createdAt: ms("created_at").notNull(),
+      updatedAt: ms("updated_at").notNull(),
+      finishedAt: ms("finished_at"),
+    },
+    (t) => [index(`${prefix}workflow_runs_due`).on(t.status, t.wakeAt)],
+  ),
+  workflowSteps: sqliteTable(
+    `${prefix}workflow_steps`,
+    {
+      runId: text("run_id").notNull(),
+      stepId: text("step_id").notNull(),
+      /** The order the run first reached the step. */
+      seq: integer("seq").notNull(),
+      /** run | sleep | event | approval */
+      kind: text("kind").notNull(),
+      /** running | retrying | sleeping | waiting | completed | failed */
+      status: text("status").notNull(),
+      output: text("output", { mode: "json" }),
+      error: text("error"),
+      attempts: integer("attempts").notNull().default(0),
+      /** Retry, sleep end, or wait timeout. */
+      wakeAt: ms("wake_at"),
+      event: text("event"),
+      eventId: text("event_id"),
+      approvers: text("approvers", { mode: "json" }),
+      summary: text("summary"),
+      decidedBy: text("decided_by"),
+      startedAt: ms("started_at").notNull(),
+      finishedAt: ms("finished_at"),
+    },
+    (t) => [primaryKey({ columns: [t.runId, t.stepId] })],
+  ),
+  workflowEvents: sqliteTable(
+    `${prefix}workflow_events`,
+    {
+      id: id(),
+      name: text("name").notNull(),
+      /** Null: every run waiting on `name`. */
+      runId: text("run_id"),
+      payload: text("payload", { mode: "json" }),
+      createdAt: ms("created_at").notNull(),
+    },
+    (t) => [index(`${prefix}workflow_events_name`).on(t.name, t.id)],
+  ),
+})

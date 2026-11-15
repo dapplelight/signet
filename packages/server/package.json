@@ -87,6 +87,10 @@
       "types": "./dist/http/admin.d.ts",
       "import": "./dist/http/admin.js"
     },
+    "./http/workflows": {
+      "types": "./dist/http/workflows.d.ts",
+      "import": "./dist/http/workflows.js"
+    },
     "./http/openapi": {
       "types": "./dist/http/openapi.d.ts",
       "import": "./dist/http/openapi.js"

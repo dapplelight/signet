@@ -801,6 +801,35 @@ const RECIPES: RecipeSpec[] = [
     verify: ["bun run test", "accept the same invite twice: the second gets already: true or used"],
   },
   {
+    id: "add-workflows",
+    title: "Add durable workflows with human approval steps",
+    keywords: [
+      "workflow",
+      "workflows",
+      "durable",
+      "approval",
+      "approve",
+      "multi-step",
+      "long-running",
+      "saga",
+      "wait for event",
+      "sleep",
+      "tick",
+      "cron trigger",
+    ],
+    // signet-db is `private: true`, so it is not in the install line.
+    install: ["@dapplelight/signet-server", "hono", "drizzle-orm"],
+    refs: [
+      ["db", "Workflows: durable runs with approval steps"],
+      ["server", "Workflow routes"],
+    ],
+    verify: [
+      "bun run test",
+      "start a run, POST /runs/:id/steps/approval/approve as a listed approver, tick(): GET /runs/:id is completed; a second approve answers 409",
+      "two runners calling tick() at once never run the same step twice",
+    ],
+  },
+  {
     id: "add-india",
     title: "Add India basics: UPI links, GST invoices, DPDP consent and data requests",
     keywords: [
