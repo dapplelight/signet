@@ -115,6 +115,7 @@ const EXPECTED = [
   "get_theme",
   "list_tokens",
   "check_theme",
+  "build_theme",
   "scaffold_app",
   "scaffold_files",
   "check_app",
@@ -274,6 +275,24 @@ try {
     "check_theme: editorial passes over the wire",
     ct.json?.ok === true && ct.json.contrast.checked > 20,
     ct.json,
+  )
+
+  const bt = await call("build_theme", { brand: "#facc15", base: "cinematic" })
+  ok(
+    "build_theme: CSS, contrast clean, pale brand adjusted",
+    bt.json?.css?.includes('@import "@dapplelight/signet-tokens/cinematic.css"') &&
+      bt.json.contrast.checked > 20 &&
+      bt.json.contrast.failed.length === 0 &&
+      bt.json.adjustments.some((a: { token: string }) => a.token === "--primary"),
+    bt.json,
+  )
+  const btj = await call("build_theme", { brand: "#123456", format: "tokens" })
+  ok("build_theme: tokens format is DTCG", btj.json?.tokens?.light?.primary?.$type === "color")
+  const badBrand = await call("build_theme", { brand: "teal" })
+  ok(
+    "build_theme: a non-hex brand is refused",
+    badBrand.isError || !!badBrand.r?.error,
+    badBrand.text,
   )
 
   const sa = await call("scaffold_app", { name: "my-api", template: "api" })
