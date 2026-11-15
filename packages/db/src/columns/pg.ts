@@ -2,7 +2,7 @@
  * Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`,
  * `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotencyKeys`,
  * `aiCache`, `entitlementTables`, `flagOverrides`, `growthTables`, `privacyTables`,
- * `analyticsEvents` and `sequences` tables.
+ * `analyticsEvents`, `sequences` and `workflowTables` tables.
  */
 
 import {
@@ -366,3 +366,72 @@ export const sequences = (name = "sequences") =>
     key: text("key").primaryKey(),
     value: bigint("value", { mode: "number" }).notNull(),
   })
+
+/**
+ * Runs, steps and events for `createWorkflows` from
+ * `@dapplelight/signet-db/workflows`. Destructure into the schema:
+ * `export const { workflowRuns, workflowSteps, workflowEvents } = workflowTables()`.
+ */
+export const workflowTables = (prefix = "") => ({
+  workflowRuns: pgTable(
+    `${prefix}workflow_runs`,
+    {
+      id: id(),
+      workflow: text("workflow").notNull(),
+      input: jsonb("input"),
+      /** queued | running | sleeping | waiting | completed | failed | cancelled */
+      status: text("status").notNull(),
+      output: jsonb("output"),
+      error: text("error"),
+      createdBy: text("created_by"),
+      /** When a runner should next pick the run up; null once it has finished. */
+      wakeAt: tz("wake_at"),
+      leaseOwner: text("lease_owner"),
+      leaseUntil: tz("lease_until"),
+      /** What a sleeping or waiting run is blocked on, for screens. */
+      waitingOn: jsonb("waiting_on"),
+      createdAt: tz("created_at").notNull(),
+      updatedAt: tz("updated_at").notNull(),
+      finishedAt: tz("finished_at"),
+    },
+    (t) => [index(`${prefix}workflow_runs_due`).on(t.status, t.wakeAt)],
+  ),
+  workflowSteps: pgTable(
+    `${prefix}workflow_steps`,
+    {
+      runId: text("run_id").notNull(),
+      stepId: text("step_id").notNull(),
+      /** The order the run first reached the step. */
+      seq: integer("seq").notNull(),
+      /** run | sleep | event | approval */
+      kind: text("kind").notNull(),
+      /** running | retrying | sleeping | waiting | completed | failed */
+      status: text("status").notNull(),
+      output: jsonb("output"),
+      error: text("error"),
+      attempts: integer("attempts").notNull().default(0),
+      /** Retry, sleep end, or wait timeout. */
+      wakeAt: tz("wake_at"),
+      event: text("event"),
+      eventId: text("event_id"),
+      approvers: jsonb("approvers"),
+      summary: text("summary"),
+      decidedBy: text("decided_by"),
+      startedAt: tz("started_at").notNull(),
+      finishedAt: tz("finished_at"),
+    },
+    (t) => [primaryKey({ columns: [t.runId, t.stepId] })],
+  ),
+  workflowEvents: pgTable(
+    `${prefix}workflow_events`,
+    {
+      id: id(),
+      name: text("name").notNull(),
+      /** Null: every run waiting on `name`. */
+      runId: text("run_id"),
+      payload: jsonb("payload"),
+      createdAt: tz("created_at").notNull(),
+    },
+    (t) => [index(`${prefix}workflow_events_name`).on(t.name, t.id)],
+  ),
+})
