@@ -12,6 +12,9 @@ const { default: userEvent } = await import("@testing-library/user-event")
 const { AuthScreen, SessionExpiredScreen, VerifyCodeScreen, DEFAULT_AUTH_LABELS } = await import(
   "../src/components/screens/auth-screens"
 )
+const { ApiKeysManager, ProfileCard, SessionsList } = await import(
+  "../src/components/screens/account-screens"
+)
 
 let pass = 0,
   fail = 0
@@ -154,6 +157,116 @@ await t("SessionExpiredScreen", async () => {
   ok("Expired: action has focus", document.activeElement === btn)
   await userEvent.keyboard("{Enter}")
   ok("Expired: Enter signs in", signIn === 1)
+})
+
+// --- Account ---
+await t("ProfileCard", async () => {
+  const saved: unknown[] = []
+  render(
+    <ProfileCard
+      profile={{ name: "Ada Lovelace", email: "ada@example.com" }}
+      onSave={(p) => void saved.push(p)}
+    />,
+  )
+  await tick()
+  ok("Profile: region named Profile", !!screen.getByRole("region", { name: "Profile" }))
+  ok("Profile: initials fallback", !!screen.getByText("AL"))
+  const save = screen.getByRole("button", { name: "Save" }) as HTMLButtonElement
+  ok("Profile: save disabled until changed", save.disabled)
+  const name = screen.getByRole("textbox", { name: "Name" })
+  await userEvent.clear(name)
+  await userEvent.type(name, "Ada King{Enter}")
+  ok("Profile: Enter saves the new name", (saved[0] as { name: string })?.name === "Ada King")
+})
+
+await t("SessionsList", async () => {
+  const revoked: string[] = []
+  let others = 0
+  const now = Date.now()
+  render(
+    <SessionsList
+      sessions={[
+        { id: "a", device: "Chrome on macOS", ip: "10.0.0.1", lastSeenAt: now, current: true },
+        { id: "b", device: "Safari on iOS", ip: null, lastSeenAt: now - 7200_000 },
+      ]}
+      onRevoke={(s) => void revoked.push(s.id)}
+      onRevokeOthers={() => void others++}
+    />,
+  )
+  ok("Sessions: region named Devices", !!screen.getByRole("region", { name: "Devices" }))
+  ok("Sessions: current device marked", !!screen.getByText("This device"))
+  ok(
+    "Sessions: current row is data-current",
+    document.querySelectorAll("[data-slot=session-item][data-current]").length === 1,
+  )
+  ok(
+    "Sessions: no sign-out button for this device",
+    !screen.queryByRole("button", { name: "Sign out Chrome on macOS" }),
+  )
+  await userEvent.click(screen.getByRole("button", { name: "Sign out Safari on iOS" }))
+  ok("Sessions: per-device sign out", revoked[0] === "b")
+  const trigger = screen.getByRole("button", { name: "Sign out others" })
+  await userEvent.click(trigger)
+  const dialog = screen.getByRole("alertdialog", { name: "Sign out every other device?" })
+  ok("Sessions: sign out others confirms in an alertdialog", !!dialog)
+  ok("Sessions: focus starts on Cancel", document.activeElement?.textContent === "Cancel")
+  await userEvent.keyboard("{Escape}")
+  ok("Sessions: Escape cancels", others === 0 && !screen.queryByRole("alertdialog"))
+  await waitFor(() => ok("Sessions: focus returns", document.activeElement === trigger))
+  await userEvent.click(trigger)
+  const confirm = within(screen.getByRole("alertdialog")).getByRole("button", {
+    name: "Sign out others",
+  })
+  await userEvent.click(confirm)
+  await waitFor(() => ok("Sessions: confirm runs onRevokeOthers", others === 1))
+})
+
+await t("ApiKeysManager", async () => {
+  const revoked: string[] = []
+  let created = ""
+  render(
+    <ApiKeysManager
+      keys={[
+        { id: "k1", name: "CI", start: "app_1a2b3c", createdAt: Date.now(), lastUsedAt: null },
+      ]}
+      onCreate={async ({ name }) => {
+        created = name
+        return { token: "app_1a2b3c_secret" }
+      }}
+      onRevoke={(k) => void revoked.push(k.id)}
+    />,
+  )
+  ok("Keys: lists the key start, never a secret", !!screen.getByText("app_1a2b3c…"))
+  ok("Keys: never used", !!screen.getByText(/Never used/))
+  await userEvent.click(screen.getByRole("button", { name: "New key" }))
+  const dialog = screen.getByRole("dialog", { name: "New key" })
+  ok("Keys: create opens a named dialog", !!dialog)
+  const name = screen.getByRole("textbox", { name: "Key name" })
+  ok("Keys: name field focused", document.activeElement === name)
+  await userEvent.type(name, "Deploy{Enter}")
+  await tick()
+  ok("Keys: onCreate gets the name", created === "Deploy")
+  const reveal = screen.getByRole("textbox", { name: "Copy your key" }) as HTMLInputElement
+  ok("Keys: token shown once, read-only", reveal.value === "app_1a2b3c_secret" && reveal.readOnly)
+  await userEvent.click(screen.getByRole("button", { name: "Done" }))
+  await waitFor(() => ok("Keys: Done closes", !screen.queryByRole("dialog")))
+  await userEvent.click(screen.getByRole("button", { name: "New key" }))
+  ok(
+    "Keys: the token is gone after closing",
+    !screen.queryByDisplayValue("app_1a2b3c_secret") &&
+      !!screen.getByRole("textbox", { name: "Key name" }),
+  )
+  await userEvent.keyboard("{Escape}")
+  await userEvent.click(screen.getByRole("button", { name: "Revoke CI" }))
+  ok("Keys: revoke confirms", !!screen.getByRole("alertdialog", { name: "Revoke CI?" }))
+  await userEvent.click(screen.getByRole("button", { name: "Revoke" }))
+  await waitFor(() => ok("Keys: revoke runs", revoked[0] === "k1"))
+})
+
+await t("ApiKeysManager: empty", async () => {
+  render(<ApiKeysManager keys={[]} labels={{ noKeys: "Abhi koi key nahi" }} />)
+  ok("Keys: empty state with label override", !!screen.getByText("Abhi koi key nahi"))
+  ok("Keys: no create button without onCreate", !screen.queryByRole("button", { name: "New key" }))
 })
 
 console.log(`\n${pass} passed, ${fail} failed`)

@@ -258,6 +258,10 @@
       "types": "./dist/components/ui/theme-toggle.d.ts",
       "import": "./dist/components/ui/theme-toggle.js"
     },
+    "./screens/account-screens": {
+      "types": "./dist/components/screens/account-screens.d.ts",
+      "import": "./dist/components/screens/account-screens.js"
+    },
     "./screens/auth-screens": {
       "types": "./dist/components/screens/auth-screens.d.ts",
       "import": "./dist/components/screens/auth-screens.js"

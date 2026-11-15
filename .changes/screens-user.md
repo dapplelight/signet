@@ -8,6 +8,10 @@ so an app wires them through `createRpcClient`:
   phone one-time code, OAuth buttons), `VerifyCodeScreen`,
   `SessionExpiredScreen`, and their parts (`AuthCard`, `OAuthButtons`,
   `CodeRequestForm`, `VerifyCodeForm`…).
+- `screens/account-screens`: `ProfileCard`, `SessionsList` (rows from
+  signet-server's `sessionRoutes`, sign out one device or every other, with a
+  confirm), `ApiKeysManager` (create shows the key once, then drops it;
+  revoke confirms).
 
 Every string is a prop (`labels`, spread from `DEFAULT_*_LABELS`), every part
 takes `className` (composites also `classNames`) with state as `data-*`,
