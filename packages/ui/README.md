@@ -97,7 +97,7 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
 - `screens/org-screens`: `OrgSwitcher`, `MembersList` (roles, remove, leave,
   pending invites), `InviteDialog` (one-time link with Copy),
   `AcceptInvitePage` (a page around `InviteAccept`) and `OrgSettings` (name,
-  custom domain, theme, brand colour with a `buildTheme` preview), shaped like
+  theme, brand colour with a `buildTheme` preview), shaped like
   signet-server's `orgRoutes` responses. Demo: `screens-orgs.html`.
 
 ## Behaviours and recipes

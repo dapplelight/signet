@@ -403,8 +403,10 @@ app.route("/admin", adminRoutes(admin, { db, ctx: (c) => ({ actor: { type: "user
 - Guards: 401 signed out, 404 when the caller is not a member (an outsider
   learns nothing about the org), 403 for a member without the role or
   permission. `currentMembership(c)` has the role and permissions.
-- `orgRoutes`: my orgs, create, switch, current org and settings (domain,
-  theme, brand colour), members (change role, remove, leave), invites
+- `orgRoutes`: my orgs, create, switch, current org and settings (name, slug,
+  theme, brand colour; a `domain` in the body gets 400, because whoever holds
+  a host decides the tenant, so set it with `orgs.update` from an operator
+  or verified-DNS flow), members (change role, remove, leave), invites
   (create, list, revoke, preview, accept). Every `/current` route checks
   membership in the tenant, and signet-db refuses role escalation and
   removing the last owner. `OrgError` becomes the envelope.

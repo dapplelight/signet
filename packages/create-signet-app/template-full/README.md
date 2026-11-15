@@ -28,7 +28,7 @@ declared, with its default, in `api/env.ts`.
 
 Signing up made you a **Personal** org, and you own it. The switcher in the
 header lists your orgs; **New organisation** makes another and moves you into
-it. **Org** has its settings (name, custom domain, theme, brand colour) and
+it. **Org** has its settings (name, theme, brand colour) and
 **Members and invites**: create an invite link, open it in a private window,
 sign in as another number and accept. That person sees the orgs they belong
 to and nothing else.

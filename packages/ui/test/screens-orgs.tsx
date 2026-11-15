@@ -245,23 +245,14 @@ await t("OrgSettings", async () => {
   const saved: unknown[] = []
   render(
     <OrgSettings
-      org={{ name: "Acme Labs", domain: null, theme: null, brandColor: null }}
+      org={{ name: "Acme Labs", theme: null, brandColor: null }}
       onSave={(c) => {
         saved.push(c)
       }}
     />,
   )
   const form = screen.getByRole("form", { name: "Organisation settings" })
-  const domain = within(form).getByLabelText("Custom domain")
-  await userEvent.type(domain, "not a domain")
-  await userEvent.click(screen.getByRole("button", { name: "Save" }))
-  await tick()
-  ok(
-    "Settings: bad domain blocked",
-    saved.length === 0 && !!screen.getByText("Enter a host name like app.example.com"),
-  )
-  await userEvent.clear(domain)
-  await userEvent.type(domain, "app.acme.example")
+  ok("Settings: no domain field", !within(form).queryByLabelText("Custom domain"))
   const color = within(form).getByLabelText("Brand colour")
   await userEvent.type(color, "#12833c")
   await tick()
@@ -276,8 +267,7 @@ await t("OrgSettings", async () => {
   )
   ok(
     "Settings: only changes sent",
-    JSON.stringify(saved[0]) ===
-      JSON.stringify({ domain: "app.acme.example", theme: "cinematic", brandColor: "#12833c" }),
+    JSON.stringify(saved[0]) === JSON.stringify({ theme: "cinematic", brandColor: "#12833c" }),
     saved[0],
   )
 })
@@ -286,7 +276,7 @@ await t("OrgSettings: read-only and failure", async () => {
   const { unmount } = render(
     <OrgSettings
       readOnly
-      org={{ name: "Acme", domain: null, theme: null, brandColor: null }}
+      org={{ name: "Acme", theme: null, brandColor: null }}
       onSave={() => {}}
     />,
   )
@@ -294,18 +284,18 @@ await t("OrgSettings: read-only and failure", async () => {
   unmount()
   render(
     <OrgSettings
-      org={{ name: "Acme", domain: null, theme: null, brandColor: null }}
+      org={{ name: "Acme", theme: null, brandColor: null }}
       onSave={() => {
-        throw new Error("That domain is taken.")
+        throw new Error("That slug is taken.")
       }}
     />,
   )
-  await userEvent.type(screen.getByLabelText("Custom domain"), "app.example.com")
+  await userEvent.type(screen.getByLabelText("Name"), " Two")
   await userEvent.click(screen.getByRole("button", { name: "Save" }))
   await waitFor(() =>
     must(
       "Settings: failure said",
-      screen.getAllByRole("status").some((s) => s.textContent === "That domain is taken."),
+      screen.getAllByRole("status").some((s) => s.textContent === "That slug is taken."),
     ),
   )
 })
