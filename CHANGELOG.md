@@ -5,6 +5,33 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-ui: chart on recharts 3
+
+- `./components/chart` now targets recharts 3 (peer `>=3.8 <4`, the release that added the `useXAxisScale` / `useYAxisScale` hooks the bar shape uses), matching shadcn's current chart. Tooltip and legend content props are typed from recharts 3's `DefaultTooltipContentProps` and `DefaultLegendContentProps`; `ChartContainer` passes an `initialDimension` to `ResponsiveContainer`.
+- Charts look exactly as on recharts 2 (before/after screenshots identical to the pixel in every theme, light and dark). `ChartContainer` gives each plain `<Bar>` a shape that keeps recharts 2's whole-pixel bar widths (recharts 3 rounds where 2 floored) and its full-precision corners, and styles recharts 3's axis tick labels with the theme's muted ink. Bars with their own `shape`, and charts with `barSize` / `maxBarSize`, are left to recharts.
+- Migrating: upgrade the app's `recharts` to 3. Custom tooltip content that read `payload` or `label` from `TooltipProps` should take `TooltipContentProps`.
+
+### signet-ui: admin screen from the schema
+
+- New `@dapplelight/signet-ui/screens/admin-screens`: `AdminScreen`, an admin
+  panel generated from signet-db's `defineAdmin` metadata, served by
+  signet-server's `adminRoutes`. Table list; server-side sort, typed filters
+  (`{ column: { op: value } }` chips), text search and cursor pages; a
+  soft-deleted toggle; a record panel whose form is built from the column
+  types (enum, boolean, number, money, date, JSON, text) with server field
+  errors on the fields; create, bulk delete, row actions with confirmation,
+  and the audit trail from an `auditLog()` table.
+- `createAdminApi({ baseUrl, fetch, headers })` implements `AdminApi` over
+  fetch; failures become `AdminApiError` with `fieldErrors`.
+- Parts are exported (`AdminPanel`, `AdminNav`, `AdminHeader`,
+  `AdminToolbar`, `AdminFilterButton`, `AdminTable`, `AdminRowActions`,
+  `AdminPager`, `AdminRecordSheet`, `AdminRecordForm`, `AdminAuditTrail`)
+  with `useAdmin()`; every string is in `DEFAULT_ADMIN_LABELS` and the
+  `labels` prop; `className` on every part, `classNames` on the screen,
+  `render` swaps part elements, `renderCell` / `renderField` replace cells and
+  fields; the open table and record are controlled or uncontrolled.
+- signet-mcp indexes `screens/` exports for `compose_component`.
+
 ### signet-test: new package (private until published)
 
 - New `@dapplelight/signet-test`: fake providers with the real interfaces,
