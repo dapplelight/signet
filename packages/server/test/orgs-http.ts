@@ -281,6 +281,15 @@ const upd = await call(
   send("PATCH", { name: "Acme 2", junk: 1 }),
 )
 ok("admin changes settings", upd.status === 200 && (await j(upd)).org.name === "Acme 2")
+const dom = await call(
+  "/api/orgs/current",
+  { user: "dev", org: "acme" },
+  send("PATCH", { domain: "app.example" }),
+)
+ok(
+  "settings refuse domain: 400, not applied",
+  dom.status === 400 && orgsById.get("org_a")?.domain === "app.acme.example",
+)
 ok(
   "member cannot remove others: 403",
   (await call("/api/orgs/current/members/dev", { user: "mo", org: "acme" }, send("DELETE")))

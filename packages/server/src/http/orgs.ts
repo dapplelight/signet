@@ -277,7 +277,10 @@ const str = (v: unknown, name: string, max = 200) => {
  *   POST   /                         create one, me as owner: { name, slug? }
  *   POST   /switch                   { orgId }: sets the switch cookie (members only)
  *   GET    /current                  { org, role, permissions, roles }
- *   PATCH  /current                  settings (org:update): { name?, slug?, domain?, theme?, brandColor? }
+ *   PATCH  /current                  settings (org:update): { name?, slug?, theme?, brandColor? }
+ *                                    "domain" gets 400: whoever holds a host decides the tenant
+ *                                    for every request to it, so set it through an operator or
+ *                                    verified-DNS flow with `orgs.update`, never from a member.
  *   GET    /current/members          members:read
  *   PATCH  /current/members/:userId  { role } (members:manage, no escalation)
  *   DELETE /current/members/:userId  members:manage, or yourself to leave
@@ -350,8 +353,15 @@ export function orgRoutes<O extends TenantOrg>(opts: OrgRoutesOptions<O>) {
     })
     .patch("/current", guards.requirePermission("org:update"), async (c) => {
       const b = await body(c)
+      if (b.domain !== undefined)
+        throw new ApiException(
+          400,
+          "The custom domain cannot be changed here; ask an operator to set it.",
+          "VALIDATION_FAILED",
+          { formErrors: [], fieldErrors: { domain: ["Not editable here"] } },
+        )
       const pick = Object.fromEntries(
-        (["name", "slug", "domain", "theme", "brandColor"] as const)
+        (["name", "slug", "theme", "brandColor"] as const)
           .filter((k) => b[k] !== undefined)
           .map((k) => [k, b[k]]),
       )

@@ -2,7 +2,7 @@
 
 // Org screens on signet-db's orgs module and signet-server's `orgRoutes`: an
 // org switcher, the member list with roles, an invite dialog, the accept-invite
-// page and org settings (name, domain, theme, brand colour). Data comes in as
+// page and org settings (name, theme, brand colour). Data comes in as
 // props shaped like those routes' responses; actions go out as callbacks.
 // Recipe: popup + dismiss + live-region + field-wiring + controllable-state
 import { mergeProps } from "@base-ui/react/merge-props"
@@ -57,7 +57,6 @@ export type OrgInvitation = {
 
 export type OrgSettingsValue = {
   name: string
-  domain: string | null
   theme: string | null
   brandColor: string | null
 }
@@ -108,9 +107,6 @@ export const DEFAULT_ORG_LABELS = {
   // settings
   settingsTitle: "Organisation settings",
   name: "Name",
-  domain: "Custom domain",
-  domainHint: "Point a CNAME at this app, then enter the host, e.g. app.example.com.",
-  invalidDomain: "Enter a host name like app.example.com",
   theme: "Theme",
   brandColor: "Brand colour",
   invalidColor: "Use a colour like #12833c",
@@ -153,7 +149,6 @@ const CARD = "flex flex-col gap-4 rounded-xl bg-bg-surface p-5 ring-1 ring-borde
 const SELECT =
   "h-8 rounded-lg border border-input bg-transparent px-2 text-sm text-text-primary outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring disabled:opacity-50 dark:bg-input/30"
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const DOMAIN = /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i
 const COLOR = /^#[0-9a-f]{6}$/i
 
 function Status({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -637,7 +632,7 @@ export type OrgSettingsProps = Omit<PartProps<"form">, "onSubmit"> & {
   labels?: Partial<OrgLabels>
 }
 
-/** Name, custom domain, theme and brand colour, with a live preview of the colour. */
+/** Name, theme and brand colour, with a live preview of the colour. */
 export function OrgSettings({
   org,
   themes = ["editorial", "cinematic", "finance"],
@@ -671,14 +666,13 @@ export function OrgSettings({
     e.preventDefault()
     const next: typeof errors = {}
     if (!v.name.trim()) next.name = labels.name
-    if (v.domain && !DOMAIN.test(v.domain.trim())) next.domain = labels.invalidDomain
     if (v.brandColor && !COLOR.test(v.brandColor.trim())) next.brandColor = labels.invalidColor
     setErrors(next)
     if (Object.keys(next).length) return
     const norm = (s: string | null) => (s?.trim() ? s.trim() : null)
     const out: Partial<OrgSettingsValue> = {}
     if (v.name.trim() !== org.name) out.name = v.name.trim()
-    for (const k of ["domain", "theme", "brandColor"] as const)
+    for (const k of ["theme", "brandColor"] as const)
       if (norm(v[k]) !== (org[k] ?? null)) out[k] = norm(v[k])
     if (Object.keys(out).length === 0) return
     setState("pending")
@@ -705,19 +699,6 @@ export function OrgSettings({
             value={v.name}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("name", e.target.value)}
           />
-          <FieldError />
-        </Field>
-        <Field errors={errors.domain ? [errors.domain] : []} className="gap-1.5">
-          <FieldLabel>{labels.domain}</FieldLabel>
-          <FieldControl
-            inputMode="url"
-            autoCapitalize="none"
-            spellCheck={false}
-            placeholder="app.example.com"
-            value={v.domain ?? ""}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("domain", e.target.value)}
-          />
-          <FieldDescription>{labels.domainHint}</FieldDescription>
           <FieldError />
         </Field>
         <div className="grid gap-1.5">

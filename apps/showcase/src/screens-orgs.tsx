@@ -115,7 +115,6 @@ const SCREENS: Record<string, () => ReactNode> = {
       className="w-full max-w-xl"
       org={{
         name: "Acme Labs",
-        domain: "app.acme.example",
         theme: "editorial",
         brandColor: "#12833c",
       }}
