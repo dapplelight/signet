@@ -13,6 +13,7 @@
 import { existsSync } from "node:fs"
 import { cp, mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises"
 import { basename, join, resolve } from "node:path"
+import { createInterface } from "node:readline/promises"
 
 const THEMES = ["editorial", "cinematic"] as const
 type Theme = (typeof THEMES)[number]
@@ -22,13 +23,26 @@ const TARGETS = ["cloudflare", "bun", "node", "vercel"] as const
 type Target = (typeof TARGETS)[number]
 
 // The api template: a Hono Worker with Signet's request id, error envelope,
-// validation, exact Durable Object rate limiting and MCP already wired.
+// validation and exact Durable Object rate limiting already wired.
 const API_DEPS = {
   "@dapplelight/signet-server": "^0.4.0",
-  // MCP at /mcp, on by default (src/app.ts); signet-server's optional peer.
-  "@modelcontextprotocol/server": "^2.1.0",
   hono: "^4.13.8",
   zod: "^4.6.5",
+}
+
+// Added with MCP (--mcp, the default): signet-server's optional peer for /mcp.
+const MCP_DEPS = {
+  "@modelcontextprotocol/server": "^2.1.0",
+}
+
+/**
+ * The api template marks MCP-only lines with `// mcp:begin` / `// mcp:end`
+ * lines: with MCP the markers go, without it the blocks go.
+ */
+function applyMcp(text: string, mcp: boolean): string {
+  return mcp
+    ? text.replace(/^[ \t]*\/\/ mcp:(begin|end)\n/gm, "")
+    : text.replace(/^[ \t]*\/\/ mcp:begin\n[\s\S]*?^[ \t]*\/\/ mcp:end\n/gm, "")
 }
 
 const API_DEV_DEPS = {
@@ -110,6 +124,7 @@ function parseArgs(argv: string[]) {
   let theme: Theme = "editorial"
   let template: Template = "web"
   let target: Target | undefined
+  let mcp: boolean | undefined
 
   for (let i = 0; i < args.length; i++) {
     const a = args[i]
@@ -131,6 +146,8 @@ function parseArgs(argv: string[]) {
         throw new Error(`Unknown target "${v}". Available: ${TARGETS.join(", ")}`)
       }
       target = v as Target
+    } else if (a === "--mcp" || a === "--no-mcp") {
+      mcp = a === "--mcp"
     } else if (a === "--help" || a === "-h") {
       console.log(`
 create-signet-app <directory> [options]
@@ -145,6 +162,8 @@ Options:
                        bun: Bun.serve entry + Dockerfile
                        node: node:http entry (Node 22.18+)
                        vercel: Vercel entry + vercel.json
+  --mcp, --no-mcp      api only: serve the routes to agents at /mcp
+                       (default: asks when interactive, else --mcp)
   -t, --theme <name>   ${THEMES.join(" | ")}   (default: editorial; web only)
   -h, --help
 
@@ -163,7 +182,9 @@ Examples:
 
   if (!name) throw new Error("Missing target directory.\nUsage: create-signet-app <directory>")
   if (target && template !== "api") throw new Error("--target applies to --template api only.")
-  return { name, theme, template, target: target ?? "cloudflare" }
+  if (mcp !== undefined && template !== "api")
+    throw new Error("--mcp / --no-mcp apply to --template api only.")
+  return { name, theme, template, target: target ?? "cloudflare", mcp }
 }
 
 /** Replace placeholders in every text file under dir. */
@@ -186,8 +207,20 @@ async function substitute(dir: string, vars: Record<string, string>) {
   }
 }
 
+/** "Add MCP for agents?", default yes; only asked on a terminal. */
+async function askMcp(): Promise<boolean> {
+  if (!process.stdin.isTTY) return true
+  const rl = createInterface({ input: process.stdin, output: process.stdout })
+  try {
+    const answer = (await rl.question("  Add MCP for agents? (Y/n) ")).trim().toLowerCase()
+    return answer === "" || answer.startsWith("y")
+  } finally {
+    rl.close()
+  }
+}
+
 async function main() {
-  const { name, theme, template, target } = parseArgs(process.argv)
+  const { name, theme, template, target, ...flags } = parseArgs(process.argv)
   const dest = resolve(process.cwd(), name)
   const appName = basename(dest)
 
@@ -195,15 +228,27 @@ async function main() {
     throw new Error(`${dest} already exists and is not empty.`)
   }
 
+  const mcp = template === "api" && (flags.mcp ?? (await askMcp()))
   const templateDir = resolve(
     import.meta.dirname,
     template === "api" ? "../template-api" : "../template",
   )
   await mkdir(dest, { recursive: true })
   const targetsDir = join(templateDir, "_targets")
-  await cp(templateDir, dest, { recursive: true, filter: (src) => src !== targetsDir })
-  // Only the chosen runtime's files, laid over the shared ones.
-  if (template === "api") await cp(join(targetsDir, target), dest, { recursive: true })
+  const mcpDir = join(templateDir, "_mcp")
+  await cp(templateDir, dest, {
+    recursive: true,
+    filter: (src) => src !== targetsDir && src !== mcpDir,
+  })
+  // Only the chosen runtime's files, laid over the shared ones; MCP's tests with MCP.
+  if (template === "api") {
+    await cp(join(targetsDir, target), dest, { recursive: true })
+    if (mcp) await cp(mcpDir, dest, { recursive: true })
+    for (const f of ["src/app.ts", "src/env.ts"]) {
+      const path = join(dest, f)
+      await writeFile(path, applyMcp(await readFile(path, "utf8"), mcp))
+    }
+  }
 
   // npm strips a file literally named .gitignore from published packages, so
   // the template ships it as _gitignore and it is renamed on scaffold.
@@ -242,7 +287,7 @@ async function main() {
                 typecheck: "tsc -b --noEmit",
                 test: "bun test",
               },
-        dependencies: template === "api" ? API_DEPS : DEPS,
+        dependencies: template === "api" ? { ...API_DEPS, ...(mcp ? MCP_DEPS : {}) } : DEPS,
         devDependencies:
           template === "api" ? { ...API_DEV_DEPS, ...API_TARGETS[target].devDeps } : DEV_DEPS,
         ...(template === "api" && API_TARGETS[target].engines
@@ -257,7 +302,7 @@ async function main() {
   console.log(
     template === "api"
       ? `
-  Created ${appName}, an API for ${target}.
+  Created ${appName}, an API for ${target}${mcp ? ", with MCP at /mcp (MCP=off turns it off)" : ""}.
 
   cd ${name}
   bun install

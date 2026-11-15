@@ -1358,8 +1358,9 @@ mountMcp(app, "/mcp", { name, version, tools: appTools(app) })
 - **description**: `asTool({ description })`, else the schema's `.describe()`, else `GET /api/notes/:id`.
 - **input**: the json, query and param `z.object`s, merged. A route whose
   validators are not all objects on those targets (a form, header or cookie
-  validator), or with a path parameter no schema covers, is skipped: give it
-  `asTool({ input })`.
+  validator), a GET or DELETE with a json validator (its arguments go in the
+  query string), or with a path parameter no schema covers, is skipped: give
+  it `asTool({ input })`.
 - **read vs write**: GET is `readOnlyHint` and runs. Every other method is a
   write and goes through `requireApproval` first (`asTool({ approval: false })`
   per route, `appTools(app, { approval: false })` for all).
@@ -1427,6 +1428,11 @@ const approvals = kvApprovals(kv, {         // any KeyValue: memoryKv, Workers K
 })
 mountMcp(app, "/mcp", {
   name, version, approvals,
+  // Records belong to the principal: the token's `sub` behind oauth-rs
+  // requireToken, or say who it is. With no principal there is no one to
+  // decide a record, so anonymous calls get APPROVAL_REQUIRED instead.
+  middleware: [requireStoredSession(sessions)],
+  principal: ({ c }) => c?.get("session")?.payload.sub,
   tools: [...appTools(app), ...paymentTools(payments, { userId, approve: approvalGate })],
 })
 app.use("/api/approvals/*", requireStoredSession(sessions))

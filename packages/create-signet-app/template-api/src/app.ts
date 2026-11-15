@@ -1,8 +1,10 @@
 import { initRuntimeEnv } from "@dapplelight/signet-server/env"
 import { errorHandler } from "@dapplelight/signet-server/http"
 import { zValidator } from "@dapplelight/signet-server/http/validate"
+// mcp:begin
 import { appTools } from "@dapplelight/signet-server/mcp"
 import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
+// mcp:end
 import { csrfMiddleware } from "@dapplelight/signet-server/middleware/csrf"
 import { type RateLimitOptions, rateLimit } from "@dapplelight/signet-server/middleware/rate-limit"
 import { requestId } from "@dapplelight/signet-server/middleware/request-id"
@@ -38,8 +40,10 @@ export function createApp<B extends Record<string, unknown>>(
     .use("/api/*", csrfMiddleware())
     .use("/api/*", rateLimit<AppEnv<B>>({ ...limit, max: 60 }))
     .get("/api/health", (c) => c.json({ ok: true }))
+    // mcp:begin
     // Validated with zValidator, so it is also the MCP tool `post_api_echo`
     // (see below). Describe it for the model with .describe(...).
+    // mcp:end
     .post(
       "/api/echo",
       zValidator("json", z.object({ message: z.string().min(1) }).describe("Echo a message back")),
@@ -47,8 +51,9 @@ export function createApp<B extends Record<string, unknown>>(
     )
     .onError(errorHandler({ isProduction }))
 
-  // MCP, on by default: every route validated with zValidator is a tool at
-  // /mcp that runs the route as the caller (their auth header and cookie go
+  // mcp:begin
+  // MCP: every route validated with zValidator is a tool at /mcp
+  // that runs the route as the caller (their auth header and cookie go
   // with it). GET routes are read tools; anything else asks the person first.
   // asTool(false) on a route leaves it out. Turn it all off with MCP=off.
   mountMcp(app, "/mcp", {
@@ -57,6 +62,7 @@ export function createApp<B extends Record<string, unknown>>(
     middleware: [async (c, next) => (env.MCP === "off" ? c.notFound() : next())],
     tools: appTools(app),
   })
+  // mcp:end
   return app
 }
 

@@ -305,6 +305,9 @@ export function appTools(app: RoutableApp, options: AppToolsOptions = {}): McpTo
     if (options.optIn && !marks.length) continue
     let input = meta.input as ZodObjectLike | undefined
     if (!input) {
+      // GET and DELETE send every argument in the query string, so a json validator could never pass.
+      if (checks.some((v) => v.target === "json") && (method === "GET" || method === "DELETE"))
+        continue
       if (!checks.every((v) => ["json", "query", "param"].includes(v.target) && isObject(v.schema)))
         continue
       for (const v of checks)

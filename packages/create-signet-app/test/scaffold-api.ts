@@ -97,8 +97,13 @@ try {
   )
 
   ok(
-    "MCP on by default, with an off switch",
-    indexTs.includes('mountMcp(app, "/mcp"') && envTs.includes("MCP:"),
+    "MCP by default (no flag, no terminal): the dependency, the mount, the off switch, its tests",
+    !!pkg.dependencies["@modelcontextprotocol/server"] &&
+      indexTs.includes('mountMcp(app, "/mcp"') &&
+      envTs.includes("MCP:") &&
+      existsSync(join(DIR, "test/mcp.test.ts")) &&
+      !indexTs.includes("mcp:begin") &&
+      !existsSync(join(DIR, "_mcp")),
   )
 
   await installLocal(DIR)
@@ -266,7 +271,9 @@ for (const target of ["bun", "node", "vercel"]) {
   const dir = join("/tmp", `__scaffold_api_${target}__`)
   rmSync(dir, { recursive: true, force: true })
   try {
-    await $`bun run ${ROOT}/packages/create-signet-app/src/index.ts ${dir} --template api --target ${target}`
+    // bun is the --no-mcp app: it must still typecheck, lint, test and serve.
+    const mcp = target === "bun" ? "--no-mcp" : "--mcp"
+    await $`bun run ${ROOT}/packages/create-signet-app/src/index.ts ${dir} --template api --target ${target} ${mcp}`
       .cwd("/tmp")
       .quiet()
     const own = OWN_FILES[target] ?? []
@@ -277,6 +284,22 @@ for (const target of ["bun", "node", "vercel"]) {
         !existsSync(join(dir, "_targets")),
     )
     const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"))
+    const appTs = readFileSync(join(dir, "src/app.ts"), "utf8")
+    const envTs = readFileSync(join(dir, "src/env.ts"), "utf8")
+    if (mcp === "--no-mcp")
+      ok(
+        `${target} --no-mcp: no MCP dependency, file, import or mention`,
+        !pkg.dependencies["@modelcontextprotocol/server"] &&
+          !existsSync(join(dir, "test/mcp.test.ts")) &&
+          !existsSync(join(dir, "test/mcp-off.test.ts")) &&
+          !/mcp/i.test(appTs) &&
+          !/mcp/i.test(envTs),
+      )
+    else
+      ok(
+        `${target} --mcp: the dependency and the mount`,
+        !!pkg.dependencies["@modelcontextprotocol/server"] && appTs.includes("appTools(app)"),
+      )
     const ci = readFileSync(join(dir, CI), "utf8")
     const ciScripts = [...ci.matchAll(/bun run ([\w:-]+)/g)].map((m) => m[1])
     ok(

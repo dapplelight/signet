@@ -132,6 +132,9 @@ const app = new Hono()
     c.json({ user: userOf(c) ?? null }),
   )
   .get("/api/plain", (c) => c.json({}))
+  .delete("/api/notes", zValidator("json", z.object({ ids: z.array(z.string()) })), (c) =>
+    c.json({}),
+  )
   .post("/api/form", zValidator("form", z.object({ a: z.string() })), (c) => c.json({}))
   .route("/api/sub", sub)
   .onError(errorHandler({ isProduction: () => false }))
@@ -141,7 +144,7 @@ const byName = new Map(tools.map((t) => [t.name, t]))
 
 ok("routeToolName", routeToolName("GET", "/api/notes/:id") === "get_api_notes_by_id")
 ok(
-  "appTools: validated and marked routes, not opted-out, plain or form ones",
+  "appTools: validated and marked routes, not opted-out, plain, form or json-on-DELETE ones",
   [
     "get_api_notes",
     "get_api_notes_by_id",
@@ -153,6 +156,7 @@ ok(
     !byName.has("post_api_webhook") &&
     !byName.has("get_api_plain") &&
     !byName.has("post_api_form") &&
+    !byName.has("delete_api_notes") &&
     tools.length === 6,
   [...byName.keys()],
 )
@@ -337,6 +341,15 @@ mountMcp(served, "/mcp", { name: "app", version: "1", middleware: [fakeAuth], to
       method: "POST",
       headers: { authorization: `Bearer ${user}` },
     })
+
+  const anon = await connect(pendingApp)
+  const nobody = await anon.callTool({ name: "refund_payment", arguments: { id: "p0", amount: 1 } })
+  ok(
+    "pending: with no principal there is no one to decide, so APPROVAL_REQUIRED and no record",
+    structured(nobody)?.code === "APPROVAL_REQUIRED" && events.length === 0 && refunds === 0,
+    nobody,
+  )
+  await anon.close()
 
   const agent = await connect(pendingApp, "carol")
   const args = { id: "p1", amount: 40 }

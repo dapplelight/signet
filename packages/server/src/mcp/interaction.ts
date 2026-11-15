@@ -245,7 +245,10 @@ export async function requireApproval(
       { code: "APPROVAL_DECLINED", message: `Not approved: ${summary}. Nothing was changed.` },
       options,
     )
-  const store = ctx.approvals
+  // A pending record needs someone to decide it: approvalRoutes lets a person
+  // decide only their own, so with no principal nobody could, and the agent
+  // would wait until it expired. Anonymous calls ask or refuse instead.
+  const store = ctx.principal ? ctx.approvals : undefined
   const call = store && {
     tool: ctx.tool,
     principal: ctx.principal ?? null,
