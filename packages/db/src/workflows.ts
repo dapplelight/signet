@@ -378,6 +378,44 @@ export function createWorkflows(db: SignetDb<unknown>, options: WorkflowsOptions
     }
     const t = () => now().getTime()
 
+    /** The next event this run has not consumed yet under `name`. */
+    const findEvent = async (name: string) => {
+      // Events this run already consumed under the same name are skipped.
+      let after = ""
+      for (const x of steps.values())
+        if (x.kind === "event" && x.event === name && x.eventId && x.eventId > after)
+          after = x.eventId
+      const [found] = await o
+        .select()
+        .from(E)
+        .where(
+          and(
+            eq(e.name, name),
+            or(eq(e.runId, run.id), isNull(e.runId)),
+            gte(e.createdAt, run.createdAt),
+            ...(after ? [gt(e.id, after)] : []),
+          ),
+        )
+        .orderBy(asc(e.id))
+        .limit(1)
+      return found
+    }
+
+    /**
+     * An event or decision can land while this run is still 'running', where
+     * sendEvent and decide cannot wake it, and finish() then sets the full
+     * timeout. Look again once the waiting state is written.
+     */
+    const answered = async (on: Suspend["on"]) => {
+      if (on.kind === "event") return !!(await findEvent(on.event as string))
+      if (on.kind !== "approval") return false
+      const [row] = await o
+        .select({ status: s.status })
+        .from(S)
+        .where(and(eq(s.runId, run.id), eq(s.stepId, on.step as string)))
+      return row?.status === "completed"
+    }
+
     const sleepUntil = async (id: string, at: () => number) => {
       const prev = enter(id, "sleep")
       if (prev?.status === "completed") return
@@ -440,24 +478,7 @@ export function createWorkflows(db: SignetDb<unknown>, options: WorkflowsOptions
         const id = opts.id ?? name
         const prev = enter(id, "event")
         if (prev?.status === "completed") return prev.output as T | null
-        // Events this run already consumed under the same name are skipped.
-        let after = ""
-        for (const x of steps.values())
-          if (x.kind === "event" && x.event === name && x.eventId && x.eventId > after)
-            after = x.eventId
-        const [found] = await o
-          .select()
-          .from(E)
-          .where(
-            and(
-              eq(e.name, name),
-              or(eq(e.runId, run.id), isNull(e.runId)),
-              gte(e.createdAt, run.createdAt),
-              ...(after ? [gt(e.id, after)] : []),
-            ),
-          )
-          .orderBy(asc(e.id))
-          .limit(1)
+        const found = await findEvent(name)
         await hold()
         if (found) {
           await save(id, "event", {
@@ -586,6 +607,11 @@ export function createWorkflows(db: SignetDb<unknown>, options: WorkflowsOptions
           wakeAt: new Date(err.until),
           waitingOn: { ...err.on, until: new Date(err.until).toISOString() },
         })
+        if (held.length && err.status === "waiting" && (await answered(err.on)))
+          await o
+            .update(R)
+            .set({ wakeAt: now() })
+            .where(and(eq(r.id, run.id), eq(r.status, "waiting")))
         return held.length ? err.status : "lost"
       }
       const held = await finish({

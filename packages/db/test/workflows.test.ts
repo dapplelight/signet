@@ -224,6 +224,52 @@ for (const backend of backends) {
       expect((await engine.get(late.id))?.run.output).toEqual({ first: null, second: null })
     })
 
+    test("an event or decision that lands while the run is still running is not lost", async () => {
+      const make = await setup()
+      let engine: ReturnType<typeof make> | undefined
+      let runId = ""
+      // The webhook fires on the next clock read after the runner's event lookup
+      // came back empty, while the run is still 'running'.
+      let fire: (() => void) | undefined
+      let sent: Promise<unknown> | undefined
+      const now = () => {
+        const f = fire
+        fire = undefined
+        f?.()
+        return clock
+      }
+      const ev = defineWorkflow("race-ev", async (step) => {
+        await step.run("charge", () => 1)
+        fire = () => {
+          sent = engine?.sendEvent("pay:x", { ok: true }, { runId })
+        }
+        return step.waitForEvent("pay:x", { timeout: 7 * 24 * HOUR })
+      })
+      const ap = defineWorkflow("race-ap", async (step) => {
+        const d = await step.approval({ approvers: ["boss"], timeout: 7 * 24 * HOUR })
+        return d
+      })
+      let apId = ""
+      // The approver decides while the request and notify calls are still going out.
+      engine = make([ev, ap], { now, notify: () => engine?.approve(apId, "approval", "boss") })
+      runId = (await engine.start(ev, {})).id
+      apId = (await engine.start(ap, {})).id
+      await engine.tick()
+      await sent
+      // Woken at once, not left to sleep until the 7-day timeout.
+      for (const id of [runId, apId])
+        expect((await engine.get(id))?.run.wakeAt?.getTime()).toBe(clock.getTime())
+      await engine.tick()
+      expect((await engine.get(runId))?.run).toMatchObject({
+        status: "completed",
+        output: { ok: true },
+      })
+      expect((await engine.get(apId))?.run).toMatchObject({
+        status: "completed",
+        output: { approved: true, by: "boss" },
+      })
+    })
+
     test("approval: approve route, wrong approver, double decision, notify", async () => {
       const make = await setup()
       const notified: string[] = []
