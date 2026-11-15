@@ -8,3 +8,5 @@ apps/*
 BACKLOG.md
 docs/audits/
 packages/mcp/src/generated/
+
+graphify-out/
