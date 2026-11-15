@@ -12,6 +12,7 @@ import {
   UNPRICED_PROVIDER,
 } from "./errors.js"
 import type { BudgetOptions, Cache, ExtractResult, Provider } from "./types.js"
+import { type OnUsage, reportUsage } from "./usage.js"
 
 export type ExtractConfig = {
   /**
@@ -33,6 +34,12 @@ export type ExtractConfig = {
   /** Retries of the SAME provider before failing over. Default 1. */
   maxRetriesPerProvider?: number
   onEvent?: (event: string, data: Record<string, unknown>) => void
+  /**
+   * Token usage and cost of every provider call that returned, including one
+   * then refused by the per-call cap. Cache hits and fallbacks spend nothing and
+   * are not reported. Wrap an analytics sink with `analyticsUsage(sink)`.
+   */
+  onUsage?: OnUsage
   now?: () => number
 }
 
@@ -163,6 +170,15 @@ export function createExtractor(config: ExtractConfig) {
           // Per-call ceiling is enforced AFTER the spend, because the true cost
           // is only known from usage. It is recorded either way — the money is
           // already gone, and hiding it would corrupt the window ledger.
+          reportUsage(config.onUsage, {
+            operation: "extract",
+            provider: provider.name,
+            model: provider.model,
+            usage,
+            costUsd,
+            key: budgetKey,
+            durationMs: now() - started,
+          })
           const ledger = config.ledger
           if (ledger) await budgetStore(() => ledger.record(costUsd, now(), budgetKey))
           if (args.budget?.maxCostUsd !== undefined && costUsd > args.budget.maxCostUsd) {

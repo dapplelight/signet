@@ -1,11 +1,20 @@
 /**
  * Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`,
  * `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`,
- * `idempotencyKeys`, `entitlementTables` and `flagOverrides` tables.
+ * `idempotencyKeys`, `entitlementTables`, `flagOverrides`, `growthTables`,
+ * `privacyTables` and `sequences` tables.
  */
 
 import { sql } from "drizzle-orm"
-import { customType, index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core"
+import {
+  customType,
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core"
 import { assertCiphertext } from "../cipher.js"
 import { newId } from "../id.js"
 import { snake } from "./shared.js"
@@ -181,4 +190,142 @@ export const flagOverrides = (name = "flag_overrides") =>
     value: text("value", { mode: "json" }).notNull(),
     expiresAt: ms("expires_at"),
     updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
+  })
+
+/**
+ * The tables for `createGrowth` from `@dapplelight/signet-db/growth`:
+ * waitlist, invites, referral codes, referrals, per-subject marks (onboarding
+ * steps, changelog last seen) and feedback. Destructure into the schema:
+ * `export const { waitlist, invites, referralCodes, referrals, marks, feedback } = growthTables()`.
+ */
+export const growthTables = (prefix = "") => ({
+  waitlist: sqliteTable(`${prefix}waitlist`, {
+    /** Lower-cased and trimmed. */
+    email: text("email").primaryKey(),
+    source: text("source"),
+    /** The referral code the person arrived with. */
+    referralCode: text("referral_code"),
+    createdAt: stamp("created_at"),
+    invitedAt: ms("invited_at"),
+  }),
+  invites: sqliteTable(
+    `${prefix}invites`,
+    {
+      id: id(),
+      /** SHA-256 of the token, hex. The token itself is never stored. */
+      tokenHash: text("token_hash").notNull(),
+      /** Only this address may accept, when set. */
+      email: text("email"),
+      invitedBy: text("invited_by").notNull(),
+      /** What the invite is to, e.g. an org id. */
+      scope: text("scope"),
+      role: text("role"),
+      createdAt: stamp("created_at"),
+      expiresAt: ms("expires_at").notNull(),
+      acceptedAt: ms("accepted_at"),
+      acceptedBy: text("accepted_by"),
+      revokedAt: ms("revoked_at"),
+    },
+    (t) => [uniqueIndex(`${prefix}invites_token`).on(t.tokenHash)],
+  ),
+  referralCodes: sqliteTable(
+    `${prefix}referral_codes`,
+    {
+      subject: text("subject").primaryKey(),
+      code: text("code").notNull(),
+      createdAt: stamp("created_at"),
+    },
+    (t) => [uniqueIndex(`${prefix}referral_codes_code`).on(t.code)],
+  ),
+  referrals: sqliteTable(
+    `${prefix}referrals`,
+    {
+      /** One referrer per person. */
+      referee: text("referee").primaryKey(),
+      referrer: text("referrer").notNull(),
+      code: text("code").notNull(),
+      createdAt: stamp("created_at"),
+      convertedAt: ms("converted_at"),
+      rewardedAt: ms("rewarded_at"),
+    },
+    (t) => [index(`${prefix}referrals_referrer`).on(t.referrer)],
+  ),
+  marks: sqliteTable(
+    `${prefix}marks`,
+    {
+      subject: text("subject").notNull(),
+      /** e.g. "onboarding:profile", "changelog:seen". */
+      key: text("key").notNull(),
+      at: stamp("at"),
+    },
+    (t) => [primaryKey({ columns: [t.subject, t.key] })],
+  ),
+  feedback: sqliteTable(`${prefix}feedback`, {
+    id: id(),
+    /** Null for anonymous feedback. */
+    subject: text("subject"),
+    /** bug | idea | praise | other */
+    kind: text("kind").notNull(),
+    message: text("message").notNull(),
+    /** 1 to 5, optional. */
+    rating: integer("rating"),
+    /** Where it was sent from, e.g. a path. */
+    page: text("page"),
+    meta: text("meta", { mode: "json" }),
+    /** new | seen | done */
+    status: text("status").notNull().default("new"),
+    createdAt: stamp("created_at"),
+  }),
+})
+
+/**
+ * DPDP consent records and data-principal requests for `createPrivacy` from
+ * `@dapplelight/signet-db/privacy`. Destructure into the schema:
+ * `export const { consents, dataRequests } = privacyTables()`.
+ */
+export const privacyTables = (prefix = "") => ({
+  consents: sqliteTable(
+    `${prefix}consents`,
+    {
+      id: id(),
+      subject: text("subject").notNull(),
+      /** What the data is used for, e.g. "marketing-email". */
+      purpose: text("purpose").notNull(),
+      /** The notice the person saw when they agreed, e.g. "2026-11-01". */
+      noticeVersion: text("notice_version").notNull(),
+      /** How it was given, e.g. "signup-form", "settings". */
+      source: text("source"),
+      givenAt: ms("given_at").notNull(),
+      withdrawnAt: ms("withdrawn_at"),
+    },
+    (t) => [index(`${prefix}consents_subject`).on(t.subject, t.purpose)],
+  ),
+  dataRequests: sqliteTable(
+    `${prefix}data_requests`,
+    {
+      id: id(),
+      subject: text("subject").notNull(),
+      /** export | erasure */
+      kind: text("kind").notNull(),
+      /** pending | completed | rejected */
+      status: text("status").notNull().default("pending"),
+      requestedAt: ms("requested_at").notNull(),
+      dueAt: ms("due_at"),
+      closedAt: ms("closed_at"),
+      /** Who closed it. */
+      closedBy: text("closed_by"),
+      /** Why it was rejected, or a note. */
+      note: text("note"),
+      /** Erasure: row counts per table. Export data is returned, never stored. */
+      result: text("result", { mode: "json" }),
+    },
+    (t) => [index(`${prefix}data_requests_subject`).on(t.subject)],
+  ),
+})
+
+/** Named counters for `nextSequence`, e.g. invoice numbers per financial year. */
+export const sequences = (name = "sequences") =>
+  sqliteTable(name, {
+    key: text("key").primaryKey(),
+    value: integer("value").notNull(),
   })

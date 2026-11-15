@@ -61,3 +61,12 @@ Tools come from `paymentTools(payments, { userId, approve, maxRows })`.
 - `refund_payment` needs an `idempotencyKey`. Retry a call that timed out or
   lost its result with the same key and it does not refund twice. A different
   refund, even for the same amount, needs a new key and its own approval.
+
+## UPI and GST
+
+- `upiIntent` amounts are paise. A UPI link opening is not a payment; wait for
+  the gateway event.
+- `gstInvoice` throws `UNSUPPORTED` for reverse charge, exports, cess and
+  place of supply 97. Do not work around it; tell the person.
+- Invoice numbers: `invoiceNumber({ prefix, fy: financialYear(date), seq })`
+  with `seq` from signet-db's `nextSequence`, keyed by series and year.
