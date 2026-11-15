@@ -46,6 +46,10 @@ jobs:
       # The checks CLAUDE.md requires, before anything leaves. The scaffolder's
       # end-to-end tests (full installs + wrangler dev) stay local.
       - run: bun run lint
+      # The release commit can land before post-merge folds .changes/ and
+      # regenerates API.md. Do both here (not committed) so the signet-mcp
+      # index built below ships current docs.
+      - run: bun run changes && bun run gen:api
       # Packages import each other through their published `exports`, which
       # point at dist/ — ai's tests load @dapplelight/signet-lib/api from there.
       # Locally dist/ lingers from earlier builds; a fresh checkout has none.

@@ -61,6 +61,17 @@
         "ai",
       ],
     },
+    "packages/cli": {
+      "name": "@dapplelight/signet-cli",
+      "version": "0.1.0",
+      "bin": {
+        "signet": "./src/index.ts",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
+        "typescript": "^7.0.2",
+      },
+    },
     "packages/config": {
       "name": "@dapplelight/signet-config",
       "version": "0.2.2",
@@ -297,6 +308,8 @@
     "@biomejs/cli-win32-x64": ["@biomejs/cli-win32-x64@2.5.14", "", { "os": "win32", "cpu": "x64" }, "sha512-oJWmBhoHsnhUKIke+0gXDX0mltJrWHA1UyHsrTlXwX0TL64ilVZAo+TYZm97baecV0esBdpzy3k96q+09JaZUQ=="],
 
     "@dapplelight/signet-ai": ["@dapplelight/signet-ai@workspace:packages/ai"],
+
+    "@dapplelight/signet-cli": ["@dapplelight/signet-cli@workspace:packages/cli"],
 
     "@dapplelight/signet-config": ["@dapplelight/signet-config@workspace:packages/config"],
 

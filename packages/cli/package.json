@@ -1,0 +1,44 @@
+{
+  "name": "@dapplelight/signet-cli",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "signet add / upgrade: copy Signet UI components into an app as editable source, and merge upstream changes later.",
+  "keywords": [
+    "signet",
+    "cli",
+    "components",
+    "registry",
+    "copy-in"
+  ],
+  "homepage": "https://signet.dapplelight.in/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dapplelight/signet.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/dapplelight/signet/issues"
+  },
+  "type": "module",
+  "bin": {
+    "signet": "./src/index.ts"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src",
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun run src/build.ts",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "bun run build && bun run test/cli.ts",
+    "prepublishOnly": "bun run build"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "typescript": "^7.0.2"
+  }
+}

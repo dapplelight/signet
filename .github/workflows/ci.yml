@@ -27,11 +27,13 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun run lint
+      - run: bun run changes --check
+      - run: bun run scripts/changes.test.ts
       # Packages import each other through dist/ (see release.yml).
       - run: bun run build:all
       - name: test + typecheck
         run: |
-          for p in config tokens lib ui server ai db payments mcp; do
+          for p in config tokens lib ui server ai db payments mcp cli; do
             (cd packages/$p && bun run test && bun run typecheck)
           done
       - run: bun run typecheck
