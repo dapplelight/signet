@@ -34,7 +34,7 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "bun run test/scaffold.ts && bun run test/scaffold-api.ts"
+    "test": "bun run test/scaffold.ts && bun run test/scaffold-api.ts && bun run test/scaffold-full.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",

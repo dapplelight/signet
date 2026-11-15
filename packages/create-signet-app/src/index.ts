@@ -378,6 +378,14 @@ async function main() {
   await rename(join(dest, "_github"), join(dest, ".github"))
   if (template === "api" && target === "bun")
     await rename(join(dest, "_dockerignore"), join(dest, ".dockerignore"))
+  // pnpm (10+) refuses to install until build scripts are reviewed; esbuild's
+  // (vite, drizzle-kit, wrangler) and workerd's are the ones these templates
+  // pull in. allowBuilds is pnpm 11+, onlyBuiltDependencies pnpm 10.
+  if (pm === "pnpm")
+    await writeFile(
+      join(dest, "pnpm-workspace.yaml"),
+      "allowBuilds:\n  esbuild: true\n  workerd: true\nonlyBuiltDependencies:\n  - esbuild\n  - workerd\n",
+    )
   const ci = join(dest, ".github/workflows/ci.yml")
   await writeFile(ci, applyPm(await readFile(ci, "utf8"), pm))
 
