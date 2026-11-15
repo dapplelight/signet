@@ -266,8 +266,15 @@ const eve = { userId: "eve", orgId: "org_b", name: "Eve" }
       b.last("conflict").replaced.by === "alice" &&
       !a.last("conflict"),
   )
+  // carol writes twice before the first echo: both carry base 0, no conflict
   const c = fake(hub, { ...alice, userId: "carol" })
   await c.send({ type: "join", channel: "record:doc:3" })
+  await c.send({ type: "set", channel: "record:doc:3", key: "own", value: "x", base: 0 })
+  await c.send({ type: "set", channel: "record:doc:3", key: "own", value: "xy", base: 0 })
+  ok(
+    "a writer is not told it replaced its own write",
+    !c.last("conflict") && hub.state("org_a", "record:doc:3").own?.version === 2,
+  )
   ok("a late joiner gets the state", c.last("joined").state.status.value === "published")
   const capped = createRealtime({ now, authorize: allowRecords, limits: { maxStateKeys: 1 } })
   const k = fake(capped, alice)

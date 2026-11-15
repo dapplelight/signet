@@ -345,14 +345,21 @@ export function createRealtime(options: RealtimeOptions = {}): RealtimeHub {
         return error(c, "TOO_MANY_KEYS", `At most ${L.maxStateKeys} keys per channel.`, name)
       // Last writer wins: the hub's arrival order decides, and the version
       // says which write a client saw. A writer that based its write on an
-      // older version is told whose change it replaced.
+      // older version is told whose change it replaced. Not when the replaced
+      // write is the writer's own: two quick writes before the first echo both
+      // carry the same base, and that is not a conflict.
       const entry: StateEntry = {
         value: msg.value ?? null,
         version: (prev?.version ?? 0) + 1,
         by: c.who.userId,
       }
       ch.state.set(key, entry)
-      if (typeof msg.base === "number" && prev && msg.base < prev.version)
+      if (
+        typeof msg.base === "number" &&
+        prev &&
+        msg.base < prev.version &&
+        prev.by !== c.who.userId
+      )
         send(c, { type: "conflict", channel: name, key, replaced: { key, ...prev } })
       return broadcast(ch, { type: "state", channel: name, key, ...entry })
     }
