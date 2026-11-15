@@ -478,6 +478,21 @@ try {
     col.json?.id,
   )
 
+  const dat = await call("recipe", { task: "csv import into an editable data grid" })
+  ok(
+    "recipe: add-data-editing is cut from the ui, db and server READMEs and covers import, grid and editor",
+    dat.json?.id === "add-data-editing" &&
+      [
+        "CsvImport",
+        "bulkInsert",
+        "DataGrid",
+        "RichTextEditor",
+        "sanitizeMarkdown",
+        "@[Name](user:<id>)",
+      ].every((t) => JSON.stringify(dat.json).includes(t)),
+    dat.json?.id,
+  )
+
   const rtr = await call("recipe", {
     task: "realtime presence and typing indicator over websockets",
   })
