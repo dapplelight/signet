@@ -38,6 +38,9 @@ package ships all three rather than forcing them together.
 | `@dapplelight/signet-server/http/webhooks` | `hono`, `zod` (optional peers) | `webhookRoutes`: admin routes for signet-db's outbound webhooks. |
 | `@dapplelight/signet-server/http/orgs` | `hono` (optional peer) | `tenant`, `orgGuards` (`requireMember`, `requireRole`, `requirePermission`), `orgRoutes`: multi-tenant orgs on signet-db's `createOrgs`. See [Organisations](#organisations-and-tenants). |
 | `@dapplelight/signet-server/http/monetisation` | `hono` (optional peer) | `monetisationRoutes` (offerings, anonymous ids, merge, Customer Center) and `monetisationAdminRoutes` (offerings, placements, timelines, requests) on signet-db's `createOfferings` and `createCustomers`. See [Monetisation routes](#monetisation-routes). |
+| `@dapplelight/signet-server/abuse/captcha` | `hono` (optional peer) | `captchaVerifier` (Cloudflare Turnstile, hCaptcha, test mode) and `requireCaptcha` middleware. See [Bot checks](#bot-checks). |
+| `@dapplelight/signet-server/abuse/email` | `hono` (optional peer) | `isDisposableEmail`, `disposableEmailChecker`, `normalizeEmail`, `blockDisposableEmail` middleware, with a bundled CC0 domain list. See [Disposable email](#disposable-email). |
+| `@dapplelight/signet-server/http/ai-spend` | `hono` (optional peer) | `requireAiSpend` middleware and `aiSpendAdminRoutes` on signet-db's `createAiSpend`. See [AI spend routes](#ai-spend-routes). |
 | `@dapplelight/signet-server/mcp` | `@modelcontextprotocol/server` ^2.1, `zod` >=4.2 (optional peers; not `hono`) | `defineTool`, `createMcpServer`; stdio via the SDK's `serveStdio`. See [MCP servers](#mcp-servers). |
 | `@dapplelight/signet-server/jobs` | `zod` (optional peer) | `defineJob`, `createJobs`, retries, schedules, Cloudflare/QStash/Node runtimes. See [Jobs](#jobs). |
 | `@dapplelight/signet-server/http/workflows` | `hono` (optional peer) | `workflowRoutes` for signet-db's durable workflows: start, status, events, approve/reject, cancel, admin list. See [Workflow routes](#workflow-routes). |
@@ -730,6 +733,98 @@ app.get("/stats", (c) =>
   Workers), and `varyBy` (the user or org) is part of the key. Only 200s
   without `Set-Cookie` are stored. `X-Cache` says `HIT`, `STALE` or `MISS`.
 
+
+## Abuse: bot checks, disposable email, AI spend caps
+
+Three guards for the routes bots and freeloaders aim at. Pair them with
+`rateLimit` (see [Middleware](#middleware)) on the same routes: this kit
+does not count requests itself.
+
+### Bot checks
+
+`@dapplelight/signet-server/abuse/captcha` verifies a Cloudflare Turnstile
+or hCaptcha token with a plain `fetch` to the provider's siteverify
+endpoint, and `requireCaptcha` refuses a route without a valid one.
+
+```ts
+import { captchaVerifier, requireCaptcha } from "@dapplelight/signet-server/abuse/captcha"
+
+const captcha = (c) =>
+  env(c).APP_ENV === "local"
+    ? captchaVerifier({ provider: "test" })
+    : captchaVerifier({ provider: "turnstile", secret: env(c).TURNSTILE_SECRET, hostname: "app.example.com" })
+const bots = requireCaptcha({ verifier: captcha, trust: "cloudflare" })
+app.use("/api/auth/sign-up/*", bots)
+app.use("/api/auth/forget-password", bots)
+```
+
+The token is read from the `x-captcha-token` header, else the JSON or form
+body field `captchaToken`, `cf-turnstile-response` or `h-captcha-response`
+(from a clone, so Better Auth's handler still reads the body). Refusals use
+the error envelope: 400 `CAPTCHA_REQUIRED` (no token), 403 `CAPTCHA_FAILED`
+(refused, or the wrong `hostname` or Turnstile `action`), 503
+`CAPTCHA_UNAVAILABLE` (the provider could not be reached: it fails closed).
+
+Test mode (`provider: "test"`) passes `CAPTCHA_TEST_PASS` and refuses every
+other token, with no network; it throws when `appEnv` is production or
+staging. In the browser, `CaptchaWidget` from
+`@dapplelight/signet-ui/screens/abuse-screens` loads the provider's script
+and hands you the token; `provider="test"` reports the test token at once.
+
+### Disposable email
+
+`@dapplelight/signet-server/abuse/email` blocks sign-ups from throwaway
+inboxes and gives you one key per inbox.
+
+```ts
+import { blockDisposableEmail, normalizeEmail } from "@dapplelight/signet-server/abuse/email"
+
+app.use("/api/auth/sign-up/*", blockDisposableEmail({ add: ["burner.example"], allow: ["partner.example"] }))
+// Store and look up normalizeEmail(email) to catch me+1@ and m.e@gmail.com as the same person.
+```
+
+A blocked address is 400 `DISPOSABLE_EMAIL` with `details.fieldErrors.email`.
+A subdomain of a listed domain is blocked too; `allow` beats both the list
+and `add`. `isDisposableEmail(email, { add, allow })` is the same check for
+your own handler (build one `disposableEmailChecker(opts)` to reuse).
+`normalizeEmail` lowercases, drops `+tag`, and for Gmail drops dots and
+reads googlemail.com as gmail.com; send mail to what the person typed.
+
+The bundled list (about 10,000 domains) comes from
+[disposable-email-domains](https://github.com/disposable-email-domains/disposable-email-domains),
+dedicated to the public domain (CC0). Refresh it with
+`bun run scripts/disposable-domains.ts` in this package and commit the result.
+
+### AI spend routes
+
+`@dapplelight/signet-server/http/ai-spend` serves signet-db's
+`createAiSpend` (see signet-db's AI spend caps), typed by shape.
+
+```ts
+import { aiSpendAdminRoutes, requireAiSpend } from "@dapplelight/signet-server/http/ai-spend"
+
+app.use("/api/ai/*", requireAiSpend({ spend, subject: (c) => ({ userId: me(c), orgId: currentTenant(c).id }) }))
+app.route("/api/admin/ai-spend", aiSpendAdminRoutes({
+  spend,
+  authorize: (c) => c.get("session")?.role === "admin", // deny by default: anything but true is 403
+  actor: (c) => ({ type: "user", id: me(c) }),
+}))
+```
+
+Over a cap, `requireAiSpend` answers 429 `AI_SPEND_CAP_EXCEEDED` in the
+envelope, with `details.formErrors` naming the cap (`user:day`,
+`org:month`, `global:day`...) and `Retry-After` until the period rolls
+over. A store error is 503 `AI_SPEND_UNAVAILABLE`: it fails closed.
+
+| Route | What |
+|---|---|
+| `GET /usage` | Global spend and caps today and this month, and the top users and orgs this month. |
+| `GET /usage/:scope/:id` | One user's or org's spend and caps (`global/*` for the app). |
+| `GET /caps`, `PUT /caps` | Stored caps; `{ scope, subject?, period, units }` sets one (`units: null` is unlimited). |
+| `DELETE /caps/:scope/:subject/:period` | Back to the `*` row or the app's default. |
+
+`AiSpendAdmin` from `@dapplelight/signet-ui/screens/abuse-screens` is the
+admin screen for these routes.
 
 ## Env — Workers-safe configuration
 

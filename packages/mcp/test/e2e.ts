@@ -450,6 +450,21 @@ try {
     mon.json?.id,
   )
 
+  const abuse = await call("recipe", {
+    task: "captcha and disposable email on sign up, ai spend cap",
+  })
+  ok(
+    "recipe: add-abuse-protection is cut from the server and db READMEs and covers captcha, disposable email and spend caps",
+    abuse.json?.id === "add-abuse-protection" &&
+      JSON.stringify(abuse.json.steps.map((st: any) => st.title)) ===
+        JSON.stringify(["Bot checks", "Disposable email", "AI spend caps", "AI spend routes"]) &&
+      ["requireCaptcha(", "blockDisposableEmail(", "createAiSpend(db", "requireAiSpend("].every(
+        (t) => JSON.stringify(abuse.json).includes(t),
+      ) &&
+      !abuse.json.install.includes("@dapplelight/signet-db"),
+    abuse.json?.id,
+  )
+
   const exr = await call("recipe", {
     task: "a/b test experiment with a status page and maintenance mode",
   })
