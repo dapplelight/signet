@@ -59,7 +59,7 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   filters, search and cursor pages, deleted rows, a record form built from the
   column types, create, bulk delete, row actions and the audit trail. Every
   part is exported (`AdminPanel`, `AdminTable`, `AdminRecordSheet`…) with
-  `useAdmin()` for your own. Demo: `apps/showcase/screens-ops.html`.
+  `useAdmin()` for your own.
 
 ## Behaviours and recipes
 
