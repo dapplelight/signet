@@ -956,8 +956,7 @@ const RECIPES: RecipeSpec[] = [
       "scoped",
       "agent tools",
     ],
-    // signet-db is `private: true` (not on npm yet), so it is not in the install line.
-    install: ["drizzle-orm", "zod"],
+    install: ["@dapplelight/signet-db", "drizzle-orm", "zod"],
     refs: [
       ["db", "Quick start"],
       ["db", "Money"],

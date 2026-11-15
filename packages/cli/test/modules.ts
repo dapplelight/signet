@@ -83,7 +83,7 @@ try {
       reg.items.auth?.peers["@dapplelight/signet-server"] ===
         `^${JSON.parse(read(PACKAGES, "server/package.json")).version}` &&
       JSON.stringify(reg.items.admin?.deps) === JSON.stringify(["auth", "db"]) &&
-      reg.items.db?.private?.includes("@dapplelight/signet-db") === true &&
+      !reg.items.db?.private?.length &&
       !reg.items.payments?.private?.length,
     reg.items.admin,
   )
@@ -117,9 +117,9 @@ try {
       r1.out.includes(cmd) &&
         r1.out.includes("@dapplelight/signet-payments@^") &&
         r1.out.includes("drizzle-orm@") &&
-        !r1.out.includes("signet-db@") &&
+        r1.out.includes("@dapplelight/signet-db@^") &&
         !r1.out.includes("@dapplelight/signet-server@") &&
-        r1.out.includes("@dapplelight/signet-db: not on npm yet, link it from a Signet checkout"),
+        !r1.out.includes("not on npm yet"),
       r1.out,
     )
     ok(
