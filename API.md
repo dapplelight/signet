@@ -134,8 +134,8 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/http` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus, … | re-exports errors, validate |
 | `@dapplelight/signet-server/http/admin` | adminRoutes, AdminHttpRequest, AdminHandler, AdminRoutesOptions | Mount an admin API (signet-db's `defineAdmin`) as Hono routes |
 | `@dapplelight/signet-server/http/errors` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus | Server half of the error envelope |
-| `@dapplelight/signet-server/http/routes` | entitlementRoutes, flagRoutes, EntitlementRoutes, FlagRoutes | Read routes for signet-db's entitlements and flags, typed for `hc` |
-| `@dapplelight/signet-server/http/validate` | parseBody, parseQuery, parseParams, zValidator | Zod request validation |
+| `@dapplelight/signet-server/http/routes` | entitlementRoutes, flagRoutes, approvalRoutes, EntitlementRoutes, FlagRoutes | Read routes for signet-db's entitlements and flags, typed for `hc` |
+| `@dapplelight/signet-server/http/validate` | parseBody, parseQuery, parseParams, zValidator, VALIDATES | Zod request validation |
 | `@dapplelight/signet-server/jobs` | parseCron, cronMatches, defineSchedule, runDueSchedules, cloudflareScheduled, startScheduler, … | re-exports cron, jobs, runtimes, tools |
 | `@dapplelight/signet-server/mcp` | toolResult, toMcpTool, defineTool, createMcpServer, resolveMcpServer, ToolAnnotations, … | re-exports server |
 | `@dapplelight/signet-server/mcp/client` | McpClientError, createMcpClient, McpClientOptions, McpToolInfo, McpCallResult, McpClient | Call a remote MCP server's tools over streamable HTTP with a bearer token: list tools, call one, get a typed result |
