@@ -45,7 +45,8 @@ export type BillingPlan = {
   /** Feature keys from the plan definition; `labels.feature` names them. */
   features?: readonly string[]
   /** Limits from the plan definition; `Infinity` is unlimited. */
-  limits?: Readonly<Record<string, number>>
+  /** `null` (how JSON carries `Infinity`) is unlimited too. */
+  limits?: Readonly<Record<string, number | null>>
   prices?: Partial<Record<BillingInterval, BillingPrice>>
   /** A short tag on the card, like "Popular". */
   badge?: string
@@ -96,7 +97,7 @@ export type BillingInvoice = {
 
 type PlanDefLike = {
   readonly features?: readonly string[]
-  readonly limits?: Readonly<Record<string, number>>
+  readonly limits?: Readonly<Record<string, number | null>>
 }
 
 /**
@@ -144,8 +145,8 @@ export const DEFAULT_BILLING_LABELS = {
   save: (percent: number) => `Save ${percent}%`,
   free: "Free",
   feature: (key: string) => humanize(key),
-  limit: (key: string, n: number) =>
-    n === Number.POSITIVE_INFINITY
+  limit: (key: string, n: number | null) =>
+    n == null || n === Number.POSITIVE_INFINITY
       ? `Unlimited ${humanize(key).toLowerCase()}`
       : `${n.toLocaleString()} ${humanize(key).toLowerCase()}`,
   current: "Current",
@@ -178,8 +179,8 @@ export const DEFAULT_BILLING_LABELS = {
   restored: "Purchases restored",
   restoreFailed: "Nothing to restore",
   usage: "Usage",
-  usageOf: (used: number, limit: number) =>
-    limit === Number.POSITIVE_INFINITY
+  usageOf: (used: number, limit: number | null) =>
+    limit == null || limit === Number.POSITIVE_INFINITY
       ? `${used.toLocaleString()}`
       : `${used.toLocaleString()} / ${limit.toLocaleString()}`,
   unlimited: "Unlimited",
@@ -244,6 +245,10 @@ function usePart<T extends keyof React.JSX.IntrinsicElements>(
   })
 }
 
+/** No paid price for any interval: shown as Free in every interval. */
+const isFree = (p: BillingPlan) =>
+  !Object.values(p.prices ?? {}).some((price) => (price?.amount ?? 0) > 0)
+
 const isStore = (s: BillingSource | undefined | null) => s === "appstore" || s === "googleplay"
 
 function SourceIcon({ source, className }: { source: string; className?: string }) {
@@ -302,16 +307,22 @@ export function PlanPicker({
   })
   // Default selection: the first paid plan above the current one, else any paid plan that isn't current.
   const paid = (p: BillingPlan) => (p.prices?.[interval]?.amount ?? 0) > 0 && p.key !== currentPlan
-  const currentIndex = shown.findIndex((p) => p.key === currentPlan)
-  const firstPaid = shown.find((p, i) => i > currentIndex && paid(p)) ?? shown.find(paid)
+  // A plan sold for money but not for this interval is left out of it.
+  const visible = shown.filter((p) => isFree(p) || p.prices?.[interval])
+  const currentIndex = visible.findIndex((p) => p.key === currentPlan)
+  const firstPaid = visible.find((p, i) => i > currentIndex && paid(p)) ?? visible.find(paid)
   const [selected, setSelected] = useControllableState<string>({
     value,
-    defaultValue: defaultValue ?? firstPaid?.key ?? shown[0]?.key ?? "",
+    defaultValue: defaultValue ?? firstPaid?.key ?? visible[0]?.key ?? "",
     onChange: onValueChange,
   })
   const [pending, setPending] = React.useState(false)
   const groupLabel = React.useId()
-  const plan = shown.find((p) => p.key === selected)
+  // A selection the interval doesn't sell falls back to a plan it does.
+  const active = visible.some((p) => p.key === selected)
+    ? selected
+    : (firstPaid?.key ?? visible[0]?.key ?? "")
+  const plan = visible.find((p) => p.key === active)
 
   // The largest yearly saving over twelve monthly payments, for the switch.
   const saving = Math.max(
@@ -324,7 +335,7 @@ export function PlanPicker({
   )
 
   const subscribe = async () => {
-    if (!plan || !onSubscribe) return
+    if (!plan || !onSubscribe || !(isFree(plan) || plan.prices?.[interval])) return
     setPending(true)
     try {
       await onSubscribe(plan, interval)
@@ -367,14 +378,14 @@ export function PlanPicker({
       </span>
       <RadioGroup
         aria-labelledby={groupLabel}
-        value={selected}
+        value={active}
         onValueChange={(v: string | null) => v && setSelected(v)}
         className={cn(
           "grid gap-3 sm:grid-cols-[repeat(auto-fit,minmax(14rem,1fr))]",
           classNames.plans,
         )}
       >
-        {shown.map((p) => {
+        {visible.map((p) => {
           const price = p.prices?.[interval]
           const current = p.key === currentPlan
           return (
@@ -641,8 +652,10 @@ export function UsageMeters({ usage, labels: labelsProp, ...props }: UsageMeters
       </h2>
       <ul className="flex flex-col gap-4">
         {usage.map((u) => {
-          const unlimited = u.limit === Number.POSITIVE_INFINITY
-          const pct = unlimited ? 0 : u.limit > 0 ? Math.min(100, (u.used / u.limit) * 100) : 100
+          // JSON turns Infinity into null: both mean unlimited.
+          const limit = u.limit ?? Number.POSITIVE_INFINITY
+          const unlimited = limit === Number.POSITIVE_INFINITY
+          const pct = unlimited ? 0 : limit > 0 ? Math.min(100, (u.used / limit) * 100) : 100
           const level = unlimited ? "ok" : pct >= 90 ? "critical" : pct >= 75 ? "warning" : "ok"
           const name = labels.feature(u.key)
           return (
@@ -655,14 +668,14 @@ export function UsageMeters({ usage, labels: labelsProp, ...props }: UsageMeters
               <div className="flex items-baseline justify-between gap-2 text-sm">
                 <span className="font-medium text-text-primary">{name}</span>
                 <span className="text-text-muted tabular-nums">
-                  {labels.usageOf(u.used, u.limit)}
+                  {labels.usageOf(u.used, limit)}
                   {unlimited && <span className="ml-1">· {labels.unlimited}</span>}
                 </span>
               </div>
               <Progress
                 value={unlimited ? null : pct}
                 aria-label={name}
-                aria-valuetext={labels.usageOf(u.used, u.limit)}
+                aria-valuetext={labels.usageOf(u.used, limit)}
                 className="[&_[data-slot=progress-indicator]]:transition-all group-data-[level=critical]/meter:[&_[data-slot=progress-indicator]]:bg-accent-red group-data-[level=warning]/meter:[&_[data-slot=progress-indicator]]:bg-accent-amber [&_[data-slot=progress-track]]:h-1.5"
               />
             </li>

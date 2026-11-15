@@ -63,6 +63,7 @@ export const DEFAULT_GROWTH_LABELS = {
   accepting: "Accepting…",
   decline: "Decline",
   accepted: "You're in",
+  inviteFailed: "Couldn't accept. Try again.",
   inviteError: {
     not_found: "This invite link doesn't work",
     expired: "This invite has expired",
@@ -300,10 +301,20 @@ export function InviteAccept({
   const labels = useLabels(labelsProp)
   const [state, setState] = React.useState<"idle" | "pending" | "accepted">("idle")
   const [reason, setReason] = React.useState<string | undefined>(errorProp)
+  const [failed, setFailed] = React.useState(false)
   const headingId = React.useId()
   const accept = async () => {
     setState("pending")
-    const r = await onAccept()
+    setFailed(false)
+    let r: InviteAcceptResult
+    try {
+      r = await onAccept()
+    } catch {
+      // A network or server failure: say so and keep the buttons for a retry.
+      setState("idle")
+      setFailed(true)
+      return
+    }
     if (r.ok) {
       setState("accepted")
       onAccepted?.()
@@ -312,7 +323,7 @@ export function InviteAccept({
       setReason(r.reason)
     }
   }
-  const status = reason ? "error" : state
+  const status = reason || failed ? "error" : state
   const children = (
     <>
       <div className="flex flex-col items-center gap-3 text-center">
@@ -347,7 +358,7 @@ export function InviteAccept({
       <Status
         className={cn(
           "text-center text-sm empty:hidden",
-          reason
+          reason || failed
             ? "rounded-lg bg-accent-red-subtle px-3 py-2 text-accent-red"
             : "font-medium text-accent-green",
         )}
@@ -356,7 +367,9 @@ export function InviteAccept({
           ? (labels.inviteError[reason] ?? reason)
           : state === "accepted"
             ? labels.accepted
-            : ""}
+            : failed
+              ? labels.inviteFailed
+              : ""}
       </Status>
       {state !== "accepted" && !reason && (
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-center">

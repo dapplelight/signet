@@ -198,6 +198,99 @@ await t("CurrentPlanCard: cancelled web plan, no restore", () => {
   )
 })
 
+await t("PlanPicker: a plan not sold for the interval is not offered there", async () => {
+  const subs: string[] = []
+  const plans = plansFromEntitlements(
+    { free: {}, pro: {}, lifetime: {} },
+    {
+      free: { name: "Free", prices: { month: { amount: 0, currency: "INR" } } },
+      pro: {
+        name: "Pro",
+        prices: {
+          month: { amount: 49900, currency: "INR" },
+          year: { amount: 499000, currency: "INR" },
+        },
+      },
+      lifetime: { name: "Lifetime", prices: { once: { amount: 999900, currency: "INR" } } },
+    },
+  )
+  render(
+    <PlanPicker
+      plans={plans}
+      defaultValue="lifetime"
+      onSubscribe={async (p, i) => {
+        subs.push(`${p.key}:${i}`)
+      }}
+    />,
+  )
+  const group = screen.getByRole("radiogroup", { name: "Plans" })
+  ok(
+    "PlanPicker: a once-only plan is hidden in the monthly view",
+    !within(group).queryByText("Lifetime"),
+  )
+  ok(
+    "PlanPicker: free plan still shown",
+    within(group).getAllByRole("radio").length === 2 &&
+      within(group).getAllByText("Free").length > 0,
+  )
+  ok(
+    "PlanPicker: hidden default falls back to a visible plan",
+    !screen.queryByRole("button", { name: "Continue with Lifetime" }),
+  )
+  await userEvent.click(screen.getByRole("button", { name: "Continue with Pro" }))
+  await waitFor(() =>
+    must("PlanPicker: subscribes to a sold interval", subs[0] === "pro:month", subs),
+  )
+  const intervals = screen.getByRole("radiogroup", { name: "Billing period" })
+  await userEvent.click(within(intervals).getByText("One-time"))
+  await waitFor(() =>
+    must("PlanPicker: once view shows Lifetime", !!within(group).queryByText("Lifetime")),
+  )
+  ok("PlanPicker: once view hides monthly-only Pro", !within(group).queryByText("Pro"))
+  ok(
+    "PlanPicker: a paid plan is never labelled Free",
+    !within(group)
+      .getAllByRole("radio")
+      .find((r) => r.textContent?.includes("Lifetime"))
+      ?.textContent?.includes("Free"),
+  )
+})
+
+await t("UsageMeters: unlimited sent as null (JSON) does not crash", () => {
+  render(
+    <UsageMeters
+      usage={JSON.parse(
+        JSON.stringify([
+          {
+            key: "seats",
+            period: "total",
+            used: 4,
+            limit: Number.POSITIVE_INFINITY,
+            remaining: Number.POSITIVE_INFINITY,
+          },
+        ]),
+      )}
+    />,
+  )
+  const region = screen.getByRole("region", { name: "Usage" })
+  ok("Usage: null limit reads as unlimited", region.textContent?.includes("Unlimited") ?? false)
+  ok("Usage: null limit shows used only", region.textContent?.includes("4") ?? false)
+  ok("Usage: null limit level is ok", !!document.querySelector("[data-level=ok]"))
+})
+
+await t("PlanPicker: null plan limit (JSON) reads as unlimited", () => {
+  const plans = plansFromEntitlements(
+    JSON.parse(JSON.stringify({ team: { limits: { projects: Number.POSITIVE_INFINITY } } })),
+    { team: { name: "Team", prices: { month: { amount: 149900, currency: "INR" } } } },
+  )
+  render(<PlanPicker plans={plans} />)
+  ok(
+    "PlanPicker: null limit says Unlimited",
+    screen.getByRole("radiogroup", { name: "Plans" }).textContent?.includes("Unlimited projects") ??
+      false,
+  )
+})
+
 await t("UsageMeters", () => {
   render(
     <UsageMeters

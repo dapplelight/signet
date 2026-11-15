@@ -113,6 +113,38 @@ await t("InviteAccept: success and failure", async () => {
   ok("Invite: buttons gone after a failure", !screen.queryByRole("button", { name: "Accept" }))
 })
 
+await t("InviteAccept: a thrown accept can be retried", async () => {
+  let calls = 0
+  render(
+    <InviteAccept
+      invite={{}}
+      onAccept={async () => {
+        calls++
+        if (calls === 1) throw new Error("network down")
+        return { ok: true }
+      }}
+    />,
+  )
+  await userEvent.click(screen.getByRole("button", { name: "Accept" }))
+  await waitFor(() =>
+    must(
+      "Invite: a rejected onAccept says it failed",
+      screen.getAllByRole("status").some((s) => s.textContent === "Couldn't accept. Try again."),
+    ),
+  )
+  ok("Invite: thrown failure as data-status=error", !!document.querySelector("[data-status=error]"))
+  const retry = screen.getByRole("button", { name: "Accept" }) as HTMLButtonElement
+  ok("Invite: Accept is enabled again for a retry", !retry.disabled)
+  await userEvent.click(retry)
+  await waitFor(() =>
+    must(
+      "Invite: retry succeeds",
+      screen.getAllByRole("status").some((s) => s.textContent === "You're in"),
+    ),
+  )
+  ok("Invite: onAccept ran twice", calls === 2)
+})
+
 await t("ReferralCard", async () => {
   let shared = ""
   const writes: string[] = []
