@@ -383,7 +383,12 @@
     "remark-gfm": ">=4.0.0",
     "remark-parse": ">=11.0.0",
     "unified": ">=11.0.0",
-    "github-slugger": ">=2.0.0"
+    "github-slugger": ">=2.0.0",
+    "@tiptap/react": ">=3.34.0 <4",
+    "@tiptap/pm": ">=3.34.0 <4",
+    "@tiptap/starter-kit": ">=3.34.0 <4",
+    "@tiptap/extension-mention": ">=3.34.0 <4",
+    "@tiptap/extension-link": ">=3.34.0 <4"
   },
   "peerDependenciesMeta": {
     "recharts": {
@@ -406,6 +411,21 @@
     },
     "github-slugger": {
       "optional": true
+    },
+    "@tiptap/react": {
+      "optional": true
+    },
+    "@tiptap/pm": {
+      "optional": true
+    },
+    "@tiptap/starter-kit": {
+      "optional": true
+    },
+    "@tiptap/extension-mention": {
+      "optional": true
+    },
+    "@tiptap/extension-link": {
+      "optional": true
     }
   },
   "devDependencies": {
@@ -416,6 +436,11 @@
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",
+    "@tiptap/extension-link": "3.34.0",
+    "@tiptap/extension-mention": "3.34.0",
+    "@tiptap/pm": "3.34.0",
+    "@tiptap/react": "3.34.0",
+    "@tiptap/starter-kit": "3.34.0",
     "@types/mdast": "^4.0.4",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

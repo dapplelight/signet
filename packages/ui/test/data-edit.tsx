@@ -794,7 +794,9 @@ await t("RichTextEditor", async () => {
         getData: (t: string) =>
           t === "text/html"
             ? '<p><em>pasted</em><script>alert(1)</script><img src=x onerror="alert(1)"></p>'
-            : "pasted",
+            : t === "text/plain"
+              ? "pasted"
+              : "",
       },
     })
   })

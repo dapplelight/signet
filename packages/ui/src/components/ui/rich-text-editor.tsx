@@ -1,18 +1,21 @@
 "use client"
 
-// A small rich text editor on contenteditable, with no editor library: bold,
-// italic, inline code, links, headings, bulleted and numbered lists, code
-// blocks and @mentions. The value is markdown, written by walking the DOM
-// through an allowlist, so nothing outside that list (scripts, handlers,
-// styles, unsafe links) can get into it. Mentions are stored as
-// `@[Name](user:<id>)`, the token signet-db's collab comments parse, and the
-// picker takes the same search callback as `MentionTextarea`.
-// `richTextToHtml` turns the markdown back into HTML that is safe by
-// construction; on the server, run stored text through signet-server's
-// `sanitizeMarkdown` before saving.
+// A rich text editor on Tiptap: bold, italic, inline code, links, headings,
+// bulleted and numbered lists, code blocks and @mentions (Tiptap's suggestion
+// API with the same search callback as `MentionTextarea`). The value is
+// markdown, written by walking the editor's HTML through an allowlist, so
+// nothing outside that list (scripts, handlers, styles, unsafe links) can get
+// into it. Mentions are stored as `@[Name](user:<id>)`, the token signet-db's
+// collab comments parse. `richTextToHtml` turns the markdown back into HTML
+// that is safe by construction; on the server, run stored text through
+// signet-server's `sanitizeMarkdown` before saving.
 // Recipe: controllable-state + roving-focus (toolbar) + combobox (mention picker)
+import Link from "@tiptap/extension-link"
+import Mention from "@tiptap/extension-mention"
+import { EditorContent, useEditor, useEditorState } from "@tiptap/react"
+import StarterKit from "@tiptap/starter-kit"
 import type * as React from "react"
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { cn } from "../../lib/utils.js"
 
 // ------------------------------------------------------------------ markdown
@@ -493,53 +496,34 @@ const DEFAULT_ICONS: Record<RichTextFormat, React.ReactNode> = {
 }
 const SHORTCUTS: Record<string, RichTextFormat> = { b: "bold", i: "italic", e: "code", k: "link" }
 
-/** Which formats the selection is inside, from the DOM up to the editor root. */
-function activeFormats(root: HTMLElement): Set<RichTextFormat> {
-  const set = new Set<RichTextFormat>()
-  let n: Node | null = document.getSelection()?.anchorNode ?? null
-  if (!n || !root.contains(n)) return set
-  for (; n && n !== root; n = n.parentNode) {
-    const tag = n.nodeType === 1 ? (n as Element).tagName : ""
-    if (tag === "B" || tag === "STRONG") set.add("bold")
-    else if (tag === "I" || tag === "EM") set.add("italic")
-    else if (tag === "CODE") set.add("code")
-    else if (tag === "A") set.add("link")
-    else if (tag === "H1" || tag === "H2") set.add("h2")
-    else if (tag === "H3") set.add("h3")
-    else if (tag === "UL") set.add("ul")
-    else if (tag === "OL") set.add("ol")
-  }
-  return set
+/** The mention node, read from and written as the `span[data-mention]` richTextToHtml makes. */
+const SignetMention = Mention.extend({
+  parseHTML() {
+    return [{ tag: "span[data-mention]" }]
+  },
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      id: {
+        default: null,
+        parseHTML: (el: HTMLElement) => el.getAttribute("data-user-id"),
+        renderHTML: (a: Record<string, unknown>) => (a.id ? { "data-user-id": a.id } : {}),
+      },
+      label: {
+        default: null,
+        parseHTML: (el: HTMLElement) => (el.textContent ?? "").replace(/^@/, ""),
+        renderHTML: () => ({}),
+      },
+    }
+  },
+})
+
+type Suggestion = {
+  items: RichTextPerson[]
+  command: (person: { id: string; label: string }) => void
 }
 
-const exec = (command: string, arg?: string) =>
-  typeof document.execCommand === "function" && document.execCommand(command, false, arg)
-
-/** Insert safe HTML at the selection: execCommand where the browser has it, a Range otherwise. */
-function insertHtml(root: HTMLElement, html: string) {
-  if (exec("insertHTML", html)) return
-  const sel = document.getSelection()
-  const range =
-    sel?.rangeCount && root.contains(sel.getRangeAt(0).startContainer) ? sel.getRangeAt(0) : null
-  const t = document.createElement("template")
-  t.innerHTML = html
-  const frag = t.content
-  const last = frag.lastChild
-  if (!range) {
-    root.append(frag)
-    return
-  }
-  range.deleteContents()
-  range.insertNode(frag)
-  if (last) {
-    range.setStartAfter(last)
-    range.collapse(true)
-    sel?.removeAllRanges()
-    sel?.addRange(range)
-  }
-}
-
-/** A contenteditable editor whose value is markdown. Parts carry `data-slot="rich-text-*"`. */
+/** A Tiptap editor whose value is markdown. Parts carry `data-slot="rich-text-*"`. */
 export function RichTextEditor({
   value,
   defaultValue = "",
@@ -560,187 +544,211 @@ export function RichTextEditor({
   const uid = useId()
   const editorId = id ?? `${uid}-editor`
   const listId = `${uid}-mentions`
-  const ref = useRef<HTMLDivElement>(null)
-  const sent = useRef<string | null>(null)
-  const [empty, setEmpty] = useState(!(value ?? defaultValue))
-  const [active, setActive] = useState<Set<RichTextFormat>>(new Set())
-  const [query, setQuery] = useState<{ node: Text; start: number; text: string } | null>(null)
-  const [options, setOptions] = useState<RichTextPerson[]>([])
-  const [highlight, setHighlight] = useState(0)
+  const sent = useRef<string>(value ?? defaultValue)
+  const [empty, setEmpty] = useState(!sent.current.trim())
   const [focusIndex, setFocusIndex] = useState(0)
+  const [suggestion, setSuggestion] = useState<Suggestion | null>(null)
+  const [highlight, setHighlight] = useState(0)
 
-  // Write the DOM from the value on mount and whenever the app changes it.
-  const current = value ?? (sent.current === null ? defaultValue : null)
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el || current === null || current === sent.current) return
-    el.innerHTML = richTextToHtml(current)
-    sent.current = current
-    setEmpty(!current.trim())
-  }, [current])
+  // The editor is built once; callbacks it calls read the latest props through refs.
+  const live = useRef({ onValueChange, onMentionSearch, suggestion, highlight, formats })
+  live.current = { onValueChange, onMentionSearch, suggestion, highlight, formats }
+  const applyRef = useRef<(f: RichTextFormat) => void>(() => undefined)
 
-  const emit = useCallback(() => {
-    const el = ref.current
-    if (!el) return
-    const md = elementToRichText(el)
-    setEmpty(!md.trim() && !el.querySelector("li,pre"))
-    if (md === sent.current) return
-    sent.current = md
-    onValueChange?.(md)
-  }, [onValueChange])
-
-  useEffect(() => {
-    const update = () => ref.current && setActive(activeFormats(ref.current))
-    document.addEventListener("selectionchange", update)
-    return () => document.removeEventListener("selectionchange", update)
-  }, [])
-
-  useEffect(() => {
-    if (!query || !onMentionSearch) return
-    let live = true
-    Promise.resolve(onMentionSearch(query.text)).then(
-      (people) => {
-        if (!live) return
-        setOptions(people)
-        setHighlight(0)
+  const editor = useEditor({
+    editable: !disabled,
+    content: richTextToHtml(sent.current),
+    extensions: [
+      StarterKit.configure({
+        heading: { levels: [1, 2, 3] },
+        blockquote: false,
+        horizontalRule: false,
+        strike: false,
+        underline: false,
+        link: false,
+      }),
+      Link.configure({
+        openOnClick: false,
+        autolink: false,
+        protocols: ["mailto", "tel"],
+        isAllowedUri: (url) => isSafeUrl(url),
+        HTMLAttributes: { rel: "noopener noreferrer nofollow", target: null },
+      }),
+      SignetMention.configure({
+        HTMLAttributes: { "data-mention": "", contenteditable: "false" },
+        renderText: ({ node }) => `@${node.attrs.label ?? node.attrs.id}`,
+        renderHTML: ({ options, node }) => [
+          "span",
+          options.HTMLAttributes,
+          `@${node.attrs.label ?? node.attrs.id}`,
+        ],
+        suggestion: {
+          char: "@",
+          items: async ({ query }) => {
+            const search = live.current.onMentionSearch
+            if (!search) return []
+            try {
+              return await search(query)
+            } catch {
+              return []
+            }
+          },
+          allow: () => !!live.current.onMentionSearch,
+          render: () => ({
+            onStart: (p) => {
+              setSuggestion({ items: p.items as RichTextPerson[], command: p.command })
+              setHighlight(0)
+            },
+            onUpdate: (p) => {
+              setSuggestion({ items: p.items as RichTextPerson[], command: p.command })
+              setHighlight(0)
+            },
+            onKeyDown: ({ event }) => {
+              const s = live.current.suggestion
+              if (!s) return false
+              if (event.key === "Escape") {
+                setSuggestion(null)
+                return true
+              }
+              if (!s.items.length) return false
+              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                const step = event.key === "ArrowDown" ? 1 : -1
+                setHighlight((i) => (i + step + s.items.length) % s.items.length)
+                return true
+              }
+              if (event.key === "Enter" || event.key === "Tab") {
+                const p = s.items[live.current.highlight] ?? s.items[0]
+                if (p) s.command({ id: p.id, label: p.name.replace(/[[\]\n]/g, "") })
+                return true
+              }
+              return false
+            },
+            onExit: () => setSuggestion(null),
+          }),
+        },
+      }),
+    ],
+    editorProps: {
+      attributes: {
+        id: editorId,
+        role: "textbox",
+        "aria-multiline": "true",
+        "data-slot": "rich-text-content",
       },
-      () => live && setOptions([]),
-    )
-    return () => {
-      live = false
-    }
-  }, [query, onMentionSearch])
+      // Pasted HTML goes through the same allowlist as the value.
+      transformPastedHTML: (html) => richTextToHtml(htmlToRichText(html)),
+      handleKeyDown: (_view, event) => {
+        const f =
+          (event.metaKey || event.ctrlKey) && !event.altKey
+            ? SHORTCUTS[event.key.toLowerCase()]
+            : undefined
+        if (f !== "link" || !live.current.formats.includes("link")) return false
+        event.preventDefault()
+        applyRef.current("link")
+        return true
+      },
+    },
+    onUpdate: ({ editor: ed }) => {
+      const md = htmlToRichText(ed.getHTML())
+      setEmpty(ed.isEmpty)
+      if (md === sent.current) return
+      sent.current = md
+      live.current.onValueChange?.(md)
+    },
+  })
 
-  /** Look for `@query` right before the caret. */
-  const findQuery = () => {
-    if (!onMentionSearch) return
-    const sel = document.getSelection()
-    const node = sel?.anchorNode
-    if (!sel?.isCollapsed || !node || node.nodeType !== 3 || !ref.current?.contains(node)) {
-      setQuery(null)
-      return
-    }
-    const before = (node.nodeValue ?? "").slice(0, sel.anchorOffset)
-    const m = /(^|\s)@([^\s@]{0,30})$/.exec(before)
-    setQuery(
-      m
-        ? {
-            node: node as Text,
-            start: sel.anchorOffset - (m[2]?.length ?? 0) - 1,
-            text: m[2] ?? "",
-          }
-        : null,
-    )
-  }
+  // The app changed the value: rewrite the document.
+  useEffect(() => {
+    if (!editor || value === undefined || value === sent.current) return
+    sent.current = value
+    editor.commands.setContent(richTextToHtml(value), { emitUpdate: false })
+    setEmpty(editor.isEmpty)
+  }, [editor, value])
 
-  const choose = (p: RichTextPerson) => {
-    const el = ref.current
-    if (!query || !el) return
-    const sel = document.getSelection()
-    const range = document.createRange()
-    const end =
-      sel?.anchorNode === query.node ? sel.anchorOffset : query.start + query.text.length + 1
-    range.setStart(query.node, query.start)
-    range.setEnd(query.node, Math.min(end, query.node.length))
-    sel?.removeAllRanges()
-    sel?.addRange(range)
-    const name = p.name.replace(/[[\]\n]/g, "")
-    insertHtml(
-      el,
-      `<span data-mention="" data-user-id="${escapeHtml(p.id)}" contenteditable="false">@${escapeHtml(name)}</span>&nbsp;`,
-    )
-    setQuery(null)
-    emit()
-  }
+  useEffect(() => {
+    editor?.setEditable(!disabled)
+  }, [editor, disabled])
 
-  const toggleCode = () => {
-    const el = ref.current
-    const sel = document.getSelection()
-    if (!el || !sel?.rangeCount) return
-    const range = sel.getRangeAt(0)
-    if (!el.contains(range.commonAncestorContainer)) return
-    let n: Node | null = range.commonAncestorContainer
-    for (; n && n !== el; n = n.parentNode) {
-      if (n.nodeType === 1 && (n as Element).tagName === "CODE") {
-        const code = n as Element
-        code.replaceWith(...code.childNodes)
-        return
-      }
-    }
-    if (range.collapsed) return
-    const code = document.createElement("code")
-    code.textContent = range.toString()
-    range.deleteContents()
-    range.insertNode(code)
-  }
+  const active =
+    useEditorState({
+      editor,
+      selector: ({ editor: ed }) => {
+        const set = new Set<RichTextFormat>()
+        if (!ed) return set
+        if (ed.isActive("bold")) set.add("bold")
+        if (ed.isActive("italic")) set.add("italic")
+        if (ed.isActive("code")) set.add("code")
+        if (ed.isActive("link")) set.add("link")
+        if (ed.isActive("heading", { level: 1 }) || ed.isActive("heading", { level: 2 }))
+          set.add("h2")
+        if (ed.isActive("heading", { level: 3 })) set.add("h3")
+        if (ed.isActive("bulletList")) set.add("ul")
+        if (ed.isActive("orderedList")) set.add("ol")
+        return set
+      },
+      equalityFn: (a, b) => !!a && !!b && a.size === b.size && [...a].every((f) => b.has(f)),
+    }) ?? new Set<RichTextFormat>()
 
   const apply = async (f: RichTextFormat) => {
-    const el = ref.current
-    if (!el || disabled) return
-    el.focus()
-    if (f === "bold" || f === "italic") exec(f)
-    else if (f === "ul") exec("insertUnorderedList")
-    else if (f === "ol") exec("insertOrderedList")
-    else if (f === "h2" || f === "h3")
-      exec("formatBlock", activeFormats(el).has(f) ? "<p>" : `<${f}>`)
-    else if (f === "code") toggleCode()
+    if (!editor || disabled) return
+    const chain = editor.chain().focus()
+    if (f === "bold") chain.toggleBold().run()
+    else if (f === "italic") chain.toggleItalic().run()
+    else if (f === "code") chain.toggleCode().run()
+    else if (f === "h2") chain.toggleHeading({ level: 2 }).run()
+    else if (f === "h3") chain.toggleHeading({ level: 3 }).run()
+    else if (f === "ul") chain.toggleBulletList().run()
+    else if (f === "ol") chain.toggleOrderedList().run()
     else if (f === "link") {
-      const sel = document.getSelection()
-      const saved = sel?.rangeCount ? sel.getRangeAt(0).cloneRange() : null
+      const current = (editor.getAttributes("link").href as string | undefined) ?? ""
       const ask = onRequestLink ?? ((cur: string) => window.prompt(labels.linkPrompt, cur))
-      const url = (await ask(""))?.trim()
-      if (saved) {
-        sel?.removeAllRanges()
-        sel?.addRange(saved)
-      }
-      if (!url) {
-        if (url === "" && activeFormats(el).has("link")) exec("unlink")
-      } else if (isSafeUrl(url)) {
-        if (saved && !saved.collapsed) exec("createLink", url)
-        else insertHtml(el, `<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>`)
+      const url = (await ask(current))?.trim()
+      if (url === undefined) return
+      if (url === "") editor.chain().focus().extendMarkRange("link").unsetLink().run()
+      else if (isSafeUrl(url)) {
+        if (editor.state.selection.empty && !editor.isActive("link"))
+          editor
+            .chain()
+            .focus()
+            .insertContent({
+              type: "text",
+              text: url,
+              marks: [{ type: "link", attrs: { href: url } }],
+            })
+            .run()
+        else editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run()
       }
     }
-    emit()
-    setActive(activeFormats(el))
   }
+  applyRef.current = (f) => void apply(f)
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    const open = !!query && !!onMentionSearch
-    if (open && options.length) {
-      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-        e.preventDefault()
-        const step = e.key === "ArrowDown" ? 1 : -1
-        setHighlight((i) => (i + step + options.length) % options.length)
-        return
-      }
-      if (e.key === "Enter" || e.key === "Tab") {
-        e.preventDefault()
-        choose(options[highlight] as RichTextPerson)
-        return
-      }
-    }
-    if (open && e.key === "Escape") {
-      e.preventDefault()
-      setQuery(null)
-      return
-    }
-    const f = (e.metaKey || e.ctrlKey) && !e.altKey ? SHORTCUTS[e.key.toLowerCase()] : undefined
-    if (f && formats.includes(f)) {
-      e.preventDefault()
-      void apply(f)
-    }
-  }
-
-  const onPaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
-    const el = ref.current
-    if (!el) return
-    e.preventDefault()
-    const html = e.clipboardData?.getData("text/html")
-    const text = e.clipboardData?.getData("text/plain") ?? ""
-    if (html) insertHtml(el, richTextToHtml(htmlToRichText(html)))
-    else if (!exec("insertText", text)) insertHtml(el, escapeHtml(text).replace(/\r?\n/g, "<br>"))
-    emit()
-  }
+  // Attributes that follow React state, on the element Tiptap owns.
+  const open = !!suggestion && !!onMentionSearch
+  useEffect(() => {
+    const dom = editor?.view.dom
+    if (!dom) return
+    const set = (k: string, v: string | undefined) =>
+      v === undefined ? dom.removeAttribute(k) : dom.setAttribute(k, v)
+    set("aria-label", aria["aria-label"])
+    set("aria-labelledby", aria["aria-labelledby"])
+    set("aria-describedby", aria["aria-describedby"])
+    set("aria-placeholder", placeholder)
+    set("aria-disabled", disabled ? "true" : undefined)
+    set("aria-autocomplete", onMentionSearch ? "list" : undefined)
+    set("aria-controls", open ? listId : undefined)
+    set(
+      "aria-activedescendant",
+      open && suggestion?.items[highlight] ? `${listId}-${highlight}` : undefined,
+    )
+    set("data-placeholder", placeholder)
+    set("data-empty", empty ? "true" : undefined)
+    dom.className = cn(
+      RICH_TEXT_CLASSES,
+      "relative min-h-24 px-3 py-2 outline-none",
+      "data-empty:before:pointer-events-none data-empty:before:absolute data-empty:before:text-text-muted data-empty:before:content-[attr(data-placeholder)]",
+      classNames.content,
+    )
+  })
 
   // Toolbar: one tab stop, arrows move between buttons (WAI-ARIA toolbar).
   const onToolbarKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -761,7 +769,6 @@ export function RichTextEditor({
     e.currentTarget.querySelectorAll<HTMLButtonElement>("button")[next]?.focus()
   }
 
-  const open = !!query && !!onMentionSearch
   return (
     <div
       data-slot="rich-text-editor"
@@ -814,42 +821,7 @@ export function RichTextEditor({
           )
         })}
       </div>
-      {/* biome-ignore lint/a11y/useSemanticElements: a rich text field is a contenteditable textbox; textarea cannot hold formatting */}
-      <div
-        ref={ref}
-        id={editorId}
-        role="textbox"
-        tabIndex={disabled ? -1 : 0}
-        aria-multiline="true"
-        aria-disabled={disabled || undefined}
-        aria-autocomplete={onMentionSearch ? "list" : undefined}
-        aria-controls={open ? listId : undefined}
-        aria-activedescendant={open && options[highlight] ? `${listId}-${highlight}` : undefined}
-        aria-placeholder={placeholder}
-        {...aria}
-        contentEditable={!disabled}
-        suppressContentEditableWarning
-        data-slot="rich-text-content"
-        data-placeholder={placeholder}
-        data-empty={empty || undefined}
-        onInput={() => {
-          emit()
-          findQuery()
-        }}
-        onKeyDown={onKeyDown}
-        onKeyUp={(e) => {
-          if (e.key.startsWith("Arrow") || e.key === "Home" || e.key === "End") findQuery()
-        }}
-        onFocus={() => exec("defaultParagraphSeparator", "p")}
-        onBlur={() => setTimeout(() => setQuery(null), 150)}
-        onPaste={onPaste}
-        className={cn(
-          RICH_TEXT_CLASSES,
-          "relative min-h-24 px-3 py-2 outline-none",
-          "data-empty:before:pointer-events-none data-empty:before:absolute data-empty:before:text-text-muted data-empty:before:content-[attr(data-placeholder)]",
-          classNames.content,
-        )}
-      />
+      <EditorContent editor={editor} className="relative" />
       {open && (
         <div
           id={listId}
@@ -861,10 +833,10 @@ export function RichTextEditor({
             classNames.mentions,
           )}
         >
-          {options.length === 0 ? (
+          {suggestion.items.length === 0 ? (
             <div className="px-2 py-1.5 text-sm text-text-muted">{labels.noMatches}</div>
           ) : (
-            options.map((p, i) => (
+            suggestion.items.map((p, i) => (
               // biome-ignore lint/a11y/useFocusableInteractive: combobox pattern, focus stays in the editor and aria-activedescendant points here
               <div
                 key={p.id}
@@ -875,7 +847,7 @@ export function RichTextEditor({
                 data-highlighted={i === highlight ? "" : undefined}
                 onMouseDown={(e) => {
                   e.preventDefault()
-                  choose(p)
+                  suggestion.command({ id: p.id, label: p.name.replace(/[[\]\n]/g, "") })
                 }}
                 className={cn(
                   "flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-sm data-highlighted:bg-bg-elevated",
