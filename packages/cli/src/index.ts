@@ -6,24 +6,44 @@
  * (`signet upgrade`). Level 6 of customisation: own the code.
  */
 
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { fileURLToPath } from "node:url"
-import { add, CONFIG, DEFAULTS, diff, list, SignetCliError, upgrade } from "./core.js"
+import { runCodemods } from "./codemods.js"
+import {
+  add,
+  CONFIG,
+  DEFAULTS,
+  diff,
+  list,
+  loadConfig,
+  SignetCliError,
+  saveConfig,
+  unifiedDiff,
+  upgrade,
+} from "./core.js"
+import { addCommand, packageManager, type WireResult, wire } from "./modules.js"
 import type { Registry } from "./registry.js"
+import { theme } from "./theme.js"
 
 const HELP = `
 signet <command> [options]
 
 Commands:
-  add <name...>        Copy items and their dependencies into the app as source
-  upgrade [name...]    Merge upstream changes into added items (default: all)
+  add <name...>        Copy items and their dependencies into the app as source.
+                       Backend modules (auth, db, payments, notify, admin) go to
+                       src/server/ and are wired into src/app.ts, src/env.ts and
+                       .env.example; their npm packages are installed
+  upgrade [name...]    Merge upstream changes into added items (default: all),
+                       then run the codemods your installed Signet versions need
   diff <name>          Show what changed upstream since the item was copied
   list                 Every item, with what is added, edited or out of date
+  theme <hex>          A whole theme from one brand colour (signet theme --help)
 
 Options:
   --force              add: overwrite files you have edited
   --dry-run            upgrade: report what would change, write nothing
+  --no-install         add: print the install command instead of running it
   --dir <path>         add: where to copy (default: ${DEFAULTS.dir}); saved in ${CONFIG}
   --alias <prefix>     add: import prefix for that dir (default: ${DEFAULTS.alias}); "" keeps relative imports
   --cwd <path>         App root (default: current directory)
@@ -42,6 +62,7 @@ function parseArgs(argv: string[]) {
     names: [] as string[],
     force: false,
     dryRun: false,
+    install: true,
     json: false,
     cwd: process.cwd(),
     registry: fileURLToPath(new URL("../dist/registry.json", import.meta.url)),
@@ -58,6 +79,7 @@ function parseArgs(argv: string[]) {
     const a = args[i] as string
     if (a === "--force") o.force = true
     else if (a === "--dry-run") o.dryRun = true
+    else if (a === "--no-install") o.install = false
     else if (a === "--json") o.json = true
     else if (a === "--cwd") o.cwd = resolve(value(++i, a))
     else if (a === "--registry") o.registry = resolve(value(++i, a))
@@ -78,7 +100,67 @@ const peersLine = (peers: Record<string, string>) =>
         .join(" ")}\n`
     : ""
 
-function main(): number {
+/** Wire every backend module among `items`; their lines, merged. */
+function wireAll(root: string, reg: Registry, items: string[]): WireResult {
+  const res: WireResult = { added: [], manual: [] }
+  for (const n of items) {
+    const w = reg.items[n]?.wire
+    if (!w) continue
+    const r = wire(root, w)
+    res.added.push(...r.added)
+    res.manual.push(...r.manual)
+  }
+  return res
+}
+
+const wireLines = (w: WireResult) =>
+  `${w.added.map((l) => `    wired ${l}`).join("\n")}${
+    w.manual.length
+      ? `\n\n  Add these by hand (no anchor found):\n${w.manual.map((l) => `    ${l}`).join("\n")}`
+      : ""
+  }`
+
+/**
+ * Backend modules install their npm packages with the app's package manager.
+ * Packages not on npm yet are only named: link them from a Signet checkout.
+ */
+function install(
+  root: string,
+  reg: Registry,
+  items: string[],
+  peers: Record<string, string>,
+  run: boolean,
+): { command?: string; ran?: boolean; ok?: boolean; unpublished: string[] } {
+  const priv = new Set(items.flatMap((n) => reg.items[n]?.private ?? []))
+  const unpublished = Object.keys(peers).filter((n) => priv.has(n))
+  const specs = Object.entries(peers)
+    .filter(([n]) => !priv.has(n))
+    .map(([n, r]) => `${n}@${r}`)
+  if (!specs.length) return { unpublished }
+  const cmd = addCommand(packageManager(root), specs)
+  const command = cmd.map((a) => (a.includes(" ") || /[<>]/.test(a) ? `"${a}"` : a)).join(" ")
+  if (!run) return { command, ran: false, unpublished }
+  const r = Bun.spawnSync(cmd, { cwd: root, stdout: "inherit", stderr: "inherit" })
+  return { command, ran: true, ok: r.exitCode === 0, unpublished }
+}
+
+const installLines = (i: ReturnType<typeof install>) =>
+  `${
+    i.command
+      ? i.ran
+        ? i.ok
+          ? `\n  Installed: ${i.command}\n`
+          : `\n  Install failed; run it yourself: ${i.command}\n`
+        : `\n  Install the npm packages these need:\n  ${i.command}\n`
+      : ""
+  }${
+    i.unpublished.length
+      ? `\n  ${i.unpublished.join(", ")}: not on npm yet, link it from a Signet checkout.\n`
+      : ""
+  }`
+
+async function main(): Promise<number> {
+  if (process.argv[2] === "theme") return theme(process.argv.slice(3))
   const o = parseArgs(process.argv)
   if (!o.command || o.command === "help") {
     console.log(HELP)
@@ -107,17 +189,56 @@ function main(): number {
       )
       return 1
     }
+    const modules = r.items.filter((n) => reg.items[n]?.root === "app")
+    if (!modules.length) {
+      print(
+        r,
+        `\n  Added ${r.items.join(", ")} (signet-ui ${reg.version}).\n${r.written
+          .map((f) => `    wrote ${f}`)
+          .join("\n")}\n${peersLine(r.missingPeers)}`,
+      )
+      return 0
+    }
+    const wired = wireAll(o.cwd, reg, modules)
+    const inst = install(o.cwd, reg, r.items, r.missingPeers, o.install)
     print(
-      r,
-      `\n  Added ${r.items.join(", ")} (signet-ui ${reg.version}).\n${r.written
+      { ...r, wired, install: inst },
+      `\n  Added ${r.items.join(", ")} (signet ${reg.version}).\n${r.written
         .map((f) => `    wrote ${f}`)
-        .join("\n")}\n${peersLine(r.missingPeers)}`,
+        .join("\n")}\n${wireLines(wired)}\n${installLines(inst)}`,
     )
-    return 0
+    return inst.ran && !inst.ok ? 1 : 0
   }
 
   if (o.command === "upgrade") {
     const r = upgrade(o.cwd, reg, o.names, { dryRun: o.dryRun })
+    const modules = Object.keys(loadConfig(o.cwd).items).filter((n) => reg.items[n]?.root === "app")
+    const wired = o.dryRun ? { added: [], manual: [] } : wireAll(o.cwd, reg, modules)
+    const c = loadConfig(o.cwd)
+    const mods = await runCodemods(o.cwd, c.codemods ?? [])
+    if (!o.dryRun) {
+      for (const m of mods.results)
+        for (const e of m.edits) writeFileSync(resolve(o.cwd, e.path), e.after)
+      if (mods.results.length) {
+        c.codemods = [...(c.codemods ?? []), ...mods.results.map((m) => m.id)]
+        saveConfig(o.cwd, c)
+      }
+    }
+    const modText = mods.results
+      .map(
+        (m) =>
+          `\n\n  Codemod: ${m.title}${m.edits
+            .map((e) =>
+              o.dryRun ? `\n${unifiedDiff(e.before, e.after, e.path)}` : `\n    rewrote ${e.path}`,
+            )
+            .join("")}${m.notes.map((n) => `\n    ${n}`).join("")}${
+            !m.edits.length && !m.notes.length ? "\n    nothing to change" : ""
+          }`,
+      )
+      .join("")
+    const skipText = mods.skipped
+      ? `\n\n  Codemods not run (${mods.skipped.ids.join(", ")}): ${mods.skipped.reason}.`
+      : ""
     const changed = r.files.filter((f) => f.status !== "current")
     const lines = changed.map(
       (f) =>
@@ -125,7 +246,7 @@ function main(): number {
     )
     const bad = changed.filter((f) => f.status === "conflict" || f.status === "needs-merge")
     print(
-      r,
+      { ...r, wired, codemods: mods },
       `\n  ${o.dryRun ? "Would upgrade" : "Upgraded"} to signet-ui ${reg.version}.${
         changed.length ? `\n${lines.join("\n")}` : " Everything is current."
       }${r.added.length ? `\n  New dependencies: ${r.added.join(", ")}` : ""}${
@@ -136,7 +257,7 @@ function main(): number {
         bad.some((f) => f.status === "needs-merge")
           ? `\n\n  needs-merge: ${r.git ? "no recorded base" : "git is not installed"}; merge by hand (signet diff shows upstream changes).`
           : ""
-      }\n${peersLine(r.missingPeers)}`,
+      }${wired.added.length || wired.manual.length ? `\n${wireLines(wired)}` : ""}${modText}${skipText}\n${peersLine(r.missingPeers)}`,
     )
     return bad.length ? 1 : 0
   }
@@ -171,7 +292,7 @@ function main(): number {
 }
 
 try {
-  process.exit(main())
+  process.exit(await main())
 } catch (err) {
   if (!(err instanceof SignetCliError)) throw err
   console.error(`\n  ${err.message}\n`)

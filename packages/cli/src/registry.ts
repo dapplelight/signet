@@ -18,6 +18,8 @@ export type RegistryFile = {
   content: string
   /** Each relative import specifier in the file -> the registry path it resolves to. */
   imports: Record<string, string>
+  /** "app": a backend module file, copied to the app's src/ as is, not to `dir`. */
+  root?: "app"
 }
 export type RegistryItem = {
   /** Paths relative to signet-ui's src, e.g. components/ui/button.tsx. */
@@ -28,6 +30,23 @@ export type RegistryItem = {
   peers: Record<string, string>
   /** Changes whenever any of `files` changes. */
   hash: string
+  /** "app": a backend module (src/modules.ts); its files go under the app's src/. */
+  root?: "app"
+  /** Peers that are not on npm yet (`private: true` in the Signet repo). */
+  private?: string[]
+  /** Lines a backend module adds to src/app.ts, src/env.ts and .env.example. */
+  wire?: Wire
+}
+
+export type Wire = {
+  /** Import lines for src/app.ts, put after its last import. */
+  imports?: string[]
+  /** Route lines for the Hono chain in src/app.ts, put before `.onError(`. */
+  routes?: string[]
+  /** `KEY: zod schema,` lines for `envSchema` in src/env.ts. */
+  env?: string[]
+  /** Lines for .env.example; `#` lines are comments over the keys. */
+  example?: string[]
 }
 export type Registry = {
   /** signet-ui's version when the registry was built. */
