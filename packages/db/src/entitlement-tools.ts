@@ -59,6 +59,20 @@ const planView = (r: Resolved<Plans>) => ({
   storedPlan: r.storedPlan,
   status: r.status,
   graceUntil: r.graceUntil?.toISOString() ?? null,
+  currentPeriodEnd: r.currentPeriodEnd?.toISOString() ?? null,
+  source: r.source,
+  entitlements: r.entitlements.map((e) => ({
+    plan: e.plan,
+    active: e.active,
+    currentPeriodEnd: e.currentPeriodEnd?.toISOString() ?? null,
+    sources: e.sources.map((x) => ({
+      gateway: x.gateway,
+      subscriptionId: x.subscriptionId,
+      status: x.status,
+      active: x.active,
+      currentPeriodEnd: x.currentPeriodEnd?.toISOString() ?? null,
+    })),
+  })),
   features: r.features,
   limits: Object.fromEntries(Object.entries(r.limits).map(([k, v]) => [k, num(v)])),
   overrides: r.overrides.map((o) => ({
@@ -119,7 +133,7 @@ export function entitlementTools<P extends Plans, F extends Flags>(
     {
       name: "get_plan",
       description:
-        "The plan in effect now, the stored plan and subscription status (past_due keeps the plan until graceUntil), features, limits and active overrides.",
+        "The plan in effect now and when it is paid until (currentPeriodEnd), the source behind it, one entitlement per plan with its sources (App Store, Google Play, web gateway, manual; active if any source is), status (past_due keeps the plan until graceUntil), features, limits and active overrides.",
       annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: obj(subjectProp, subjectReq),
       run: async (input) => planView(await ent.get(who(input))),
@@ -234,7 +248,7 @@ export function entitlementTools<P extends Plans, F extends Flags>(
     },
     {
       name: "set_plan",
-      description: `Put the subject on a plan (${planKeys.join(", ")}). A later billing event replaces it. Always asks the person to approve first.`,
+      description: `Set the subject's manual plan (${planKeys.join(", ")}). An active subscription on a later-declared plan still wins. Always asks the person to approve first.`,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
       inputSchema: obj({ ...subjectProp, plan: { type: "string", enum: planKeys }, reason }, [
         ...subjectReq,

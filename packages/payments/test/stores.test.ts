@@ -958,3 +958,168 @@ describe("review fixes", () => {
     ).toBe("BAD_INPUT")
   })
 })
+
+describe("restorePurchases", () => {
+  const appleRoutes = (t = txn()) => ({
+    [`GET /inApps/v1/transactions/${t.transactionId}`]: { signedTransactionInfo: jws(t) },
+    "GET /inApps/v1/subscriptions/2000000001": {
+      data: [
+        {
+          lastTransactions: [
+            {
+              originalTransactionId: "2000000001",
+              status: 1,
+              signedTransactionInfo: jws(t),
+              signedRenewalInfo: jws({ autoRenewStatus: 1, signedDate: T0 }),
+            },
+          ],
+        },
+      ],
+    },
+  })
+
+  test("App Store: a signed transaction is re-verified live and claimed once", async () => {
+    const db = memoryStore()
+    const { f, g } = apple(appleRoutes())
+    const payments = createPayments({ gateways: [g], db })
+    const r = await payments.restorePurchases({
+      userId: "u1",
+      purchases: [{ gateway: "appstore", signedTransaction: jws(txn()) }],
+    })
+    expect(r.refused).toEqual([])
+    expect(r.restored).toHaveLength(1)
+    expect(r.restored[0]?.payment).toMatchObject({ gatewayId: "2000000002", orderId: "2000000001" })
+    expect(r.restored[0]?.subscription).toMatchObject({
+      gatewayId: "2000000001",
+      status: "active",
+      productId: "pro.monthly",
+      currentPeriodEnd: new Date(T0 + 30 * 864e5),
+    })
+    // The shape signet-db's storeStateOf reads: Apple's status, transaction and renewal info.
+    expect(r.restored[0]?.subscription?.raw).toMatchObject({
+      status: 1,
+      transaction: { expiresDate: T0 + 30 * 864e5 },
+    })
+    // Re-verified against Apple, not only trusted from the device.
+    expect(f.calls.map((c) => c.path)).toEqual([
+      "/inApps/v1/transactions/2000000002",
+      "/inApps/v1/subscriptions/2000000001",
+    ])
+    expect((await db.getPayment("appstore", "2000000002"))?.userId).toBe("u1")
+
+    // Another user restoring the same receipt is refused; a forged one too. Neither throws.
+    const forged = jws(txn(), { key: ec("prime256v1").privateKey })
+    const other = await payments.restorePurchases({
+      userId: "u2",
+      purchases: [
+        { gateway: "appstore", signedTransaction: jws(txn()) },
+        { gateway: "appstore", signedTransaction: forged },
+      ],
+    })
+    expect(other.restored).toEqual([])
+    expect(other.refused.map((x) => [x.index, x.code])).toEqual([
+      [0, "BAD_INPUT"],
+      [1, "BAD_SIGNATURE"],
+    ])
+    expect((await db.getPayment("appstore", "2000000002"))?.userId).toBe("u1")
+  })
+
+  test("App Store: a one-time purchase restores without a subscription", async () => {
+    const t = txn({
+      transactionId: "2000000050",
+      originalTransactionId: "2000000050",
+      type: "Non-Consumable",
+    })
+    const { g } = apple(appleRoutes(t))
+    const payments = createPayments({ gateways: [g], db: memoryStore() })
+    const r = await payments.restorePurchases({
+      userId: "u1",
+      purchases: [{ gateway: "appstore", signedTransaction: jws(t) }],
+    })
+    expect(r.restored[0]?.payment.gatewayId).toBe("2000000050")
+    expect(r.restored[0]?.subscription).toBeUndefined()
+  })
+
+  test("Google Play: subscription and product tokens; pending and owned ones refused; outages throw", async () => {
+    const db = memoryStore()
+    const { g } = play(
+      googleRoutes({
+        [`GET ${API}/purchases/productsv2/tokens/tok-2`]: { orderId: "GPA.9" },
+        [`GET ${API}/orders/GPA.9`]: order("GPA.9", { purchaseToken: "tok-2" }),
+        [`GET ${API}/purchases/subscriptionsv2/tokens/tok-3`]: sub("SUBSCRIPTION_STATE_PENDING", {
+          lineItems: [{ productId: "pro.monthly" }],
+        }),
+        [`GET ${API}/purchases/subscriptionsv2/tokens/tok-down`]: () => {
+          throw new TypeError("network down")
+        },
+      }),
+    )
+    const payments = createPayments({ gateways: [g], db })
+    const r = await payments.restorePurchases({
+      userId: "u1",
+      purchases: [
+        { gateway: "googleplay", purchaseToken: "tok-1", type: "subscription" },
+        { gateway: "googleplay", purchaseToken: "tok-2", type: "product" },
+        { gateway: "googleplay", purchaseToken: "tok-3", type: "subscription" },
+      ],
+    })
+    expect(r.restored.map((x) => [x.payment.gatewayId, x.subscription?.status])).toEqual([
+      ["GPA.1111-2222-3333-44444..1", "active"],
+      ["GPA.9", undefined],
+    ])
+    expect(r.restored[0]?.subscription?.raw).toMatchObject({
+      subscriptionState: "SUBSCRIPTION_STATE_ACTIVE",
+    })
+    expect(r.refused).toMatchObject([{ index: 2, code: "NOT_FOUND" }])
+    expect((await db.getPayment("googleplay", "GPA.9"))?.userId).toBe("u1")
+
+    const theirs = await payments.restorePurchases({
+      userId: "u2",
+      purchases: [{ gateway: "googleplay", purchaseToken: "tok-1", type: "subscription" }],
+    })
+    expect(theirs.refused).toMatchObject([{ code: "BAD_INPUT" }])
+    expect(
+      await code(
+        payments.restorePurchases({
+          userId: "u1",
+          purchases: [{ gateway: "googleplay", purchaseToken: "tok-down", type: "subscription" }],
+        }),
+      ),
+    ).toBe("GATEWAY_UNAVAILABLE")
+    expect(await code(payments.restorePurchases({ userId: "", purchases: [] }))).toBe("BAD_INPUT")
+  })
+
+  test("refresh_entitlement re-applies a subscription the user owns, only with entitlements", async () => {
+    const { g } = play()
+    const payments = createPayments({ gateways: [g], db: memoryStore() })
+    await payments.verifyPurchase({
+      gateway: "googleplay",
+      id: "GPA.1111-2222-3333-44444..1",
+      userId: "u1",
+    })
+    const applied: unknown[] = []
+    const entitlements = {
+      applySubscription: async (s: unknown, o: { subject: string }) => {
+        applied.push([s, o])
+        return { applied: true, subject: o.subject, plan: "pro" }
+      },
+    }
+    expect(
+      paymentTools(payments, { userId: "u1" }).some((t) => t.name === "refresh_entitlement"),
+    ).toBe(false)
+    const tool = paymentTools(payments, { userId: "u1", entitlements }).find(
+      (t) => t.name === "refresh_entitlement",
+    )!
+    expect(tool.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false })
+    expect(await tool.run({ gateway: "googleplay", id: "tok-1" })).toMatchObject({
+      subscription: { status: "active", id: "tok-1" },
+      result: { applied: true, subject: "u1" },
+    })
+    expect(applied).toHaveLength(1)
+    const otherTool = paymentTools(payments, { userId: "u2", entitlements }).find(
+      (t) => t.name === "refresh_entitlement",
+    )!
+    expect(await code(otherTool.run({ gateway: "googleplay", id: "tok-1" }))).toBe("NOT_FOUND")
+    expect(applied).toHaveLength(1)
+  })
+})
