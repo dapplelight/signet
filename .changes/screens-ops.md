@@ -17,5 +17,5 @@
   `DEFAULT_BILLING_LABELS` / `DEFAULT_GROWTH_LABELS`, `className` on every
   part and `classNames` on composites, state as `data-*`, `render` to swap
   a part's element, controlled or uncontrolled selection and open state.
-- Showcase: `screens-ops.html` demos every screen in every theme, linked from
-  the index and part of the build.
+- Showcase: `screens-ops.html` demos every screen in every theme, with a bar
+  to switch screen, theme and dark mode.

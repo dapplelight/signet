@@ -53,6 +53,14 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   `domain/upload` is a drag-and-drop uploader with per-file progress (XHR to
   a presigned URL), retry, and size/type hints; `getTarget` and `onUploaded`
   talk to your server.
+- `screens/` ready screens, out of the barrel: `auth-screens` (sign in / up
+  by email or phone code, OAuth, verify, session expired), `account-screens`
+  (profile, devices, API keys), `notification-screens` (inbox, preferences)
+  and `privacy-screens` (DPDP consents, export and erasure requests). Plain
+  data in, callbacks out, shaped like signet-server and signet-db; wire them
+  through `createRpcClient`. Strings come from `DEFAULT_*_LABELS` and the
+  `labels` prop; parts take `className`, composites `classNames`. Demo:
+  `screens-user.html` in the showcase (linked from its header).
 - `screens/admin-screens`: `AdminScreen`, an admin panel generated from
   signet-db's `defineAdmin` metadata over signet-server's `adminRoutes`
   (`createAdminApi({ baseUrl: "/admin" })`): table list, server sort,
@@ -68,9 +76,7 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
 - `screens/growth-screens`: `WaitlistJoin` (with the place in line),
   `InviteAccept`, `ReferralCard`, `OnboardingChecklist`, `FeedbackWidget` /
   `FeedbackForm` and `WhatsNew`, shaped like signet-db's growth results.
-- Every screen takes plain data and callbacks, so any client fits
-  (`createRpcClient`, fetch). Strings come from `DEFAULT_*_LABELS` and the
-  `labels` prop. Demo: `apps/showcase/screens-ops.html` (`?screen=`,
+  Demo for these three: `screens-ops.html` in the showcase (`?screen=`,
   `?theme=`, `?dark=1`).
 
 ## Behaviours and recipes

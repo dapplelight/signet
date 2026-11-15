@@ -159,15 +159,14 @@ export function App({ initial }: { initial: string }) {
             </Button>
           ))}
         </div>
-        <div className="flex items-center gap-3">
-          <a
-            href={`./screens-ops.html?theme=${theme}`}
-            className="text-sm font-medium text-text-secondary underline-offset-4 hover:text-text-primary hover:underline"
-          >
-            Ops screens
-          </a>
+        <nav aria-label="Screens" className="flex items-center gap-3 text-sm">
+          {__SCREEN_PAGES__.map((page) => (
+            <a key={page} href={`./${page}`} className="text-text-secondary underline">
+              {page.replace(/\.html$/, "").replace(/-/g, " ")}
+            </a>
+          ))}
           <ThemeToggle />
-        </div>
+        </nav>
       </header>
 
       <main className="mx-auto flex max-w-4xl flex-col gap-6 p-6">
