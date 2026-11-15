@@ -62,7 +62,7 @@ Signet client primitives. API client, the wire contract, and search.
 | Import | Exports | What |
 |---|---|---|
 | `@dapplelight/signet-lib/analytics` | beaconTransport, createAnalytics, noopAnalytics, EventProps, AnalyticsEvent, Transport, … | Client-side event tracking |
-| `@dapplelight/signet-lib/api` | qs, createApiClient, retryAfterSeconds, toApiError, ApiClientOptions, QueryValue, … | re-exports client, codes, contract, copy, errors |
+| `@dapplelight/signet-lib/api` | qs, createApiClient, createRpcClient, retryAfterSeconds, toApiError, ApiClientOptions, … | re-exports client, codes, contract, copy, errors |
 | `@dapplelight/signet-lib/api/query-client` | isRetryable, queryDefaults, onAuthErrorRedirect, QueryDefaultsOptions | TanStack Query defaults |
 | `@dapplelight/signet-lib/crypto` | decryptFields, DecryptFieldsOptions, DecryptFieldsResult | Fail-closed field decryption for apps that encrypt user data on the client (app-a's private mode) |
 | `@dapplelight/signet-lib/form` | errorMessages, firstError, applyServerErrors, clearServerErrors, submitWithServerErrors, FieldError, … | TanStack Form integration |
@@ -134,7 +134,8 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/http` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus, … | re-exports errors, validate |
 | `@dapplelight/signet-server/http/admin` | adminRoutes, AdminHttpRequest, AdminHandler, AdminRoutesOptions | Mount an admin API (signet-db's `defineAdmin`) as Hono routes |
 | `@dapplelight/signet-server/http/errors` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus | Server half of the error envelope |
-| `@dapplelight/signet-server/http/validate` | parseBody, parseQuery, parseParams | Zod request validation |
+| `@dapplelight/signet-server/http/routes` | entitlementRoutes, flagRoutes, EntitlementRoutes, FlagRoutes | Read routes for signet-db's entitlements and flags, typed for `hc` |
+| `@dapplelight/signet-server/http/validate` | parseBody, parseQuery, parseParams, zValidator | Zod request validation |
 | `@dapplelight/signet-server/jobs` | parseCron, cronMatches, defineSchedule, runDueSchedules, cloudflareScheduled, startScheduler, … | re-exports cron, jobs, runtimes, tools |
 | `@dapplelight/signet-server/mcp` | toolResult, toMcpTool, defineTool, createMcpServer, resolveMcpServer, ToolAnnotations, … | re-exports server |
 | `@dapplelight/signet-server/mcp/client` | McpClientError, createMcpClient, McpClientOptions, McpToolInfo, McpCallResult, McpClient | Call a remote MCP server's tools over streamable HTTP with a bearer token: list tools, call one, get a typed result |

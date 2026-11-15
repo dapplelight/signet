@@ -12,6 +12,7 @@
 
 import { isErrorEnvelope } from "./contract.js"
 import { ApiError, AuthError } from "./errors.js"
+import { isRetryable } from "./query-client.js"
 
 export type ApiClientOptions = {
   /** Prefix for every path, e.g. "/api" or "https://api.example.com". */
@@ -157,6 +158,72 @@ export function createApiClient(opts: ApiClientOptions = {}) {
 }
 
 export type ApiClient = ReturnType<typeof createApiClient>
+
+export type RpcClientOptions = ApiClientOptions & {
+  /**
+   * Retries for a GET or HEAD that fails transiently (network error, 5xx, 408,
+   * 429), waiting the server's Retry-After, else 0.5s, 1s, 2s. Default 0:
+   * TanStack Query's `queryDefaults` already retries, and the two multiply.
+   */
+  retries?: number
+  /** The fetch underneath. Default `globalThis.fetch`; a Worker can pass a service binding's. */
+  fetch?: typeof fetch
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+/**
+ * A typed client for a Hono app: pass `hc<AppType>` from `hono/client` and get
+ * its client back, with this module's fetch underneath. Request and response
+ * types come from the server's routes (`zValidator` for inputs); the fetch
+ * adds `headers()` and credentials, an `x-request-id` (kept across retries),
+ * optional retries, and throws instead of returning a failed response: a 401
+ * is `AuthError`, any other non-2xx an `ApiError` read from the envelope.
+ * So `await (await api.notes.$get()).json()` is the success type.
+ *
+ *   import { hc } from "hono/client"
+ *   import type { AppType } from "../../api/src/app"
+ *   export const api = createRpcClient(hc<AppType>, { baseUrl: "/" })
+ *
+ * `hc` is passed in so this package does not depend on hono.
+ */
+export function createRpcClient<C>(
+  hc: (baseUrl: string, options: { fetch: typeof fetch }) => C,
+  opts: RpcClientOptions = {},
+): C {
+  const base = opts.fetch ?? ((...a: Parameters<typeof fetch>) => globalThis.fetch(...a))
+  const retries = opts.retries ?? 0
+
+  const rpcFetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
+    const headers = mergeHeaders((await opts.headers?.()) ?? {}, init.headers)
+    if (!headers.has("x-request-id")) headers.set("x-request-id", crypto.randomUUID())
+    const method = (init.method ?? "GET").toUpperCase()
+    const idempotent = method === "GET" || method === "HEAD"
+    for (let attempt = 0; ; attempt++) {
+      let res: Response
+      try {
+        res = await base(input, { credentials: opts.credentials ?? "include", ...init, headers })
+      } catch (err) {
+        if (!idempotent || attempt >= retries || init.signal?.aborted) throw err
+        await sleep(500 * 2 ** attempt)
+        continue
+      }
+      if (res.status === 401) {
+        const err = await toAuthError(res)
+        opts.onAuthError?.(err)
+        throw err
+      }
+      if (res.ok) return res
+      const err = await toApiError(res)
+      if (!idempotent || attempt >= retries || !isRetryable(err)) throw err
+      await sleep(
+        err.retryAfter !== undefined ? Math.min(err.retryAfter * 1000, 30_000) : 500 * 2 ** attempt,
+      )
+    }
+  }
+
+  return hc((opts.baseUrl ?? "").replace(/\/$/, "") || "/", { fetch: rpcFetch as typeof fetch })
+}
 
 /**
  * Seconds until a retry can succeed, or undefined when the server did not say.
