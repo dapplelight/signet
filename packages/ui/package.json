@@ -254,6 +254,10 @@
       "types": "./dist/components/domain/amount.d.ts",
       "import": "./dist/components/domain/amount.js"
     },
+    "./domain/kanban": {
+      "types": "./dist/components/domain/kanban.d.ts",
+      "import": "./dist/components/domain/kanban.js"
+    },
     "./components/theme-provider": {
       "types": "./dist/components/ui/theme-provider.d.ts",
       "import": "./dist/components/ui/theme-provider.js"
