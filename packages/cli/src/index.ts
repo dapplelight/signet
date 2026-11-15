@@ -8,6 +8,7 @@
 
 import { existsSync, readFileSync } from "node:fs"
 import { resolve } from "node:path"
+import { fileURLToPath } from "node:url"
 import { add, CONFIG, DEFAULTS, diff, list, SignetCliError, upgrade } from "./core.js"
 import type { Registry } from "./registry.js"
 
@@ -43,7 +44,7 @@ function parseArgs(argv: string[]) {
     dryRun: false,
     json: false,
     cwd: process.cwd(),
-    registry: new URL("../dist/registry.json", import.meta.url).pathname,
+    registry: fileURLToPath(new URL("../dist/registry.json", import.meta.url)),
     dir: undefined as string | undefined,
     alias: undefined as string | undefined,
   }

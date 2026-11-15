@@ -1,9 +1,10 @@
 /** Writes dist/registry.json from packages/ui. Run by `bun run build`. */
 
 import { mkdirSync, writeFileSync } from "node:fs"
+import { fileURLToPath } from "node:url"
 import { buildRegistry } from "./registry.js"
 
-const reg = buildRegistry(new URL("../../ui", import.meta.url).pathname)
+const reg = buildRegistry(fileURLToPath(new URL("../../ui", import.meta.url)))
 mkdirSync(new URL("../dist", import.meta.url), { recursive: true })
 writeFileSync(new URL("../dist/registry.json", import.meta.url), JSON.stringify(reg))
 console.log(
