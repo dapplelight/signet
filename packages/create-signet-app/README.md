@@ -55,6 +55,13 @@ same-origin. In dev, Vite proxies `/api` to it. What a fresh app has:
   role). Billing and admin are interim pages marked `TODO(billing-screen)` /
   `TODO(admin-screen)` until signet-ui's billing and admin screens are
   published.
+- **Organisations.** Sign-up creates a personal org; an org switcher in the
+  header; `/org` (settings: name, custom domain, theme, brand colour) and
+  `/org/members` (roles, remove, invite links) on signet-ui's org screens;
+  `/invite/$token` to accept. signet-server's `tenant()` resolves the org from
+  the switch cookie or `x-org` header, and in production from a custom domain
+  or `ORG_ROOT_DOMAIN` subdomain. `/admin` stays the platform operator's view
+  across orgs.
 - **Env.** `api/env.ts` (`createEnv`), and a generated, gitignored env file
   with fresh `SESSION_SECRET` / `OTP_SECRET`.
 - **MCP** as in the api template (`--mcp` / `--no-mcp`).
@@ -62,8 +69,10 @@ same-origin. In dev, Vite proxies `/api` to it. What a fresh app has:
   consent and sign-out against an in-memory database; `src/router.test.ts`
   resolves every page; `e2e/smoke.spec.ts` (Playwright, `test:e2e`) starts the
   server with a throwaway database, reads the code from its console and goes
-  sign-in → admin → billing → inbox → account → privacy in headless Chromium.
-- **README.md**, a first-day guide: run, become admin, try billing, add a
+  sign-in → admin → billing → inbox → account → privacy in headless Chromium,
+  then a second org, an invite a second user accepts, and a 404 for an org
+  they are not in.
+- **README.md**, a first-day guide: run, orgs, become admin, try billing, add a
   table → route → page, check, deploy.
 
 The API runs on Bun whichever package manager installs it. signet-db and
