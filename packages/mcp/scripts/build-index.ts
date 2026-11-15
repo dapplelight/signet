@@ -830,6 +830,38 @@ const RECIPES: RecipeSpec[] = [
     ],
   },
   {
+    id: "add-collab",
+    title: "Add comments, @mentions, an activity timeline and version history to records",
+    keywords: [
+      "comments",
+      "comment",
+      "mention",
+      "mentions",
+      "@mention",
+      "activity",
+      "timeline",
+      "activity feed",
+      "version history",
+      "versions",
+      "undo",
+      "restore",
+      "diff",
+      "collaboration",
+    ],
+    // signet-db is `private: true`, so it is not in the install line.
+    install: ["@dapplelight/signet-server", "@dapplelight/signet-ui", "hono", "drizzle-orm"],
+    refs: [
+      ["db", "Comments, mentions, activity and version history"],
+      ["server", "Comments, mentions, activity and history routes"],
+    ],
+    verify: [
+      "bun run test",
+      "a member of another org gets 404 from GET /api/collab/tasks/:id/comments for your task",
+      "mention someone, edit the comment twice: they get one inbox item and one email",
+      "change a field, POST /undo with the version you saw: 200; again with the old version: 409",
+    ],
+  },
+  {
     id: "add-india",
     title: "Add India basics: UPI links, GST invoices, DPDP consent and data requests",
     keywords: [

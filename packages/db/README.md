@@ -913,6 +913,72 @@ step) and returns `nextWakeAt`.
 Run as many runners as you like; they share the database and the lease.
 `prune(olderThanMs)` deletes finished runs and old events (default 30 days).
 
+## Comments, mentions, activity and version history
+
+Record collaboration for org apps: comment threads on any record, @mentions
+that notify, an activity timeline per record, and version history with diff,
+restore and undo.
+
+```ts
+import { collabTables } from "@dapplelight/signet-db/columns/sqlite"   // or columns/pg
+import { createCollab } from "@dapplelight/signet-db/collab"
+
+export const { comments, recordVersions } = collabTables()
+// Version history is opt-in per table: writes through scoped()/audited() snapshot tracked rows.
+const db = createDb(env.DB, { audit, versions: { table: recordVersions, track: [tasks] } })
+
+const collab = createCollab(db, {
+  tables: { comments },
+  records: { tasks },                         // what can be commented on, by name; each needs orgId
+  orgs,                                       // createOrgs(...)
+  people: (ids) => namesById(ids),            // { [id]: { name, email?, image? } }
+  notify: notifyMentions(notifier),           // signet-server; or (to, m) => ...
+})
+const who = { orgId, userId }
+const ref = { table: "tasks", id: taskId }
+await collab.addComment(who, ref, { body: "Ready? @[Asha](user:u_1)" })   // mentions by id
+await collab.addComment(who, ref, { body: "Yes", parentId: commentId })  // a reply
+await collab.editComment(who, commentId, { body: "…" })                  // author only; edited marker
+await collab.deleteComment(who, commentId)                               // soft: text cleared
+await collab.comments(who, ref)                    // threads with replies
+await collab.mentionable(who, "as")                // the mention picker: org members only
+await collab.timeline(who, ref, { limit: 20 })     // { items: [{ summary: "Asha changed status to Done" }], nextCursor }
+await collab.versions(who, ref)                    // newest first, each with its field changes
+await collab.diff(who, ref, 2, 5)                  // { changes: [{ field, from, to }] }
+await collab.restore(who, ref, 2)                  // writes version N+1 and a "restore" audit entry
+await collab.undo(who, ref, { expected: 5 })       // 409 if the record moved on
+```
+
+- **Deny by default.** Only tables in `records` exist. A record of another
+  org, or any record for someone who is not a member, is 404 (`OrgError`).
+  Reading and commenting need membership; `restore` and `undo` need
+  `<record>:write` (`tasks:write`; owners hold `*`). `access` replaces that
+  rule. Editing is the author's; deleting is the author's or needs
+  `comments:moderate`. Someone who leaves the org loses access to their own
+  comments too.
+- **Mentions** are written into the text as `@[Name](user:<id>)`
+  (`mentionToken`, `parseMentions`), so a rename never breaks one. Only org
+  members are kept and nobody is told about their own comment. `notify`
+  gets `{ to, by, byName, table, rowId, commentId, excerpt, key }` once per
+  person per comment: the comment remembers who was notified, so editing,
+  or removing and re-adding a mention, never notifies twice.
+- **Timeline** merges the audit log's entries for the record with its
+  comments, newest first. Each item has structured `changes` and a
+  `summary` from `describeItem` (override with `describe`). Changes come
+  from writes made with `audited(...)`; encrypted fields show as changed with
+  no values.
+- **Versions** store the whole row after each write as stored (encrypted
+  fields stay ciphertext) in `recordVersions`, numbered per record. Only
+  writes through `scoped`/`audited` and `collab` itself are recorded.
+  `undo` puts the version before the latest back, and refuses with 409 when
+  `expected` is not the latest version or the record changed since its last
+  version. Restoring a soft-deleted record's earlier version brings it back.
+- Comment writes, restores and undos are audited (`comment.create`,
+  `comment.edit`, `comment.delete`, `restore`, `undo`) when the db has an
+  audit table.
+- signet-server's `collabRoutes` mounts all of this over HTTP; signet-ui's
+  `screens/collab-screens` renders it.
+
 ## Sequences
 
 ```ts

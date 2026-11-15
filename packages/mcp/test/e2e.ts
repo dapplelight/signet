@@ -442,6 +442,23 @@ try {
     wfr.json?.id,
   )
 
+  const col = await call("recipe", { task: "comments with @mentions and undo on records" })
+  ok(
+    "recipe: add-collab is cut from the db and server READMEs and covers comments, mentions, timeline, undo and routes",
+    col.json?.id === "add-collab" &&
+      [
+        "createCollab",
+        "collabTables",
+        "parseMentions",
+        "timeline(",
+        "undo(",
+        "collabRoutes",
+        "notifyMentions",
+      ].every((t) => JSON.stringify(col.json).includes(t)) &&
+      !col.json.install.includes("@dapplelight/signet-db"),
+    col.json?.id,
+  )
+
   const mg = await call("migration", { from: "0.3.0", to: "0.4.0", package: "server" })
   ok(
     "migration: server 0.3 -> 0.4 has breaking bullets",

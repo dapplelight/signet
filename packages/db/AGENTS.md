@@ -90,3 +90,13 @@ Tools come from `adminTools(admin, { db, ctx, approve })`.
 - Withdrawal must be as easy as giving: wire `withdraw` wherever `give` is.
 - `privacyTools(...)` only opens requests and withdraws consent, always with
   approval. Do not call `fulfil` from an agent.
+
+## Comments, mentions and history
+
+- Go through `createCollab(...)`; never read the `comments` or
+  `recordVersions` tables directly for a person. A 404 is final: the record
+  is another org's or not theirs to see.
+- Write mentions as `mentionToken(id, name)`, never a bare `@name`; take the
+  id from `mentionable(who, query)`.
+- Call `undo` with `expected` set to the version the person saw; on 409,
+  show the message and reload instead of retrying.

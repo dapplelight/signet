@@ -414,6 +414,43 @@ app.route("/admin", adminRoutes(admin, { db, ctx: (c) => ({ actor: { type: "user
   membership in the tenant, and signet-db refuses role escalation and
   removing the last owner. `OrgError` becomes the envelope.
 
+### Comments, mentions, activity and history routes
+
+`@dapplelight/signet-server/http/collab` mounts signet-db's `createCollab`
+(comments, mentions, timeline, versions) over HTTP, typed by shape. Mount it
+after `tenant()`; every route acts in the request's org.
+
+```ts
+import { collabRoutes, mentionTemplates, notifyMentions } from "@dapplelight/signet-server/http/collab"
+
+const templates = { ...appTemplates, ...mentionTemplates({ url: (m) => `https://app.example/${m.table}/${m.rowId}` }) }
+const notifier = createNotifier({ templates, /* channels, store, recipients… */ })
+const collab = createCollab(db, { tables: { comments }, records: { tasks }, orgs, notify: notifyMentions(notifier) })
+app.use("/api/*", tenant({ orgs, rootDomain: "app.example" }))
+app.route("/api/collab", collabRoutes({ collab, userId: (c) => c.get("session")?.sub }))
+```
+
+| Route | Who |
+|---|---|
+| `GET /mentions?q=` | members: org members to mention |
+| `GET /:table/:id/comments` | members who can read the record |
+| `POST /:table/:id/comments` `{ body, parentId? }` | the same |
+| `PATCH /comments/:commentId` `{ body }` | its author |
+| `DELETE /comments/:commentId` | its author, or `comments:moderate` |
+| `GET /:table/:id/timeline?before&limit` | readers: `{ items, nextCursor }` |
+| `GET /:table/:id/versions?before&limit` | readers |
+| `GET /:table/:id/versions/diff?from&to` | readers |
+| `POST /:table/:id/versions/:n/restore` | `<table>:write` |
+| `POST /:table/:id/undo` `{ expected? }` | `<table>:write`; 409 when the record moved on |
+
+Signed out is 401. Another org's record, a table not in `records`, or a
+caller who is not a member is 404, whatever header or cookie names the org.
+`mentionTemplates()` is a `comment.mention` template for email and the
+in-app inbox in the `mentions` category, so people can turn it off per
+channel in their preferences. `notifyMentions(notifier)` sends it with the
+mention's `key` as the idempotency key, so a person is told once.
+`hc<CollabRoutes>` types a client.
+
 ## Public API: OpenAPI, docs, webhooks, caching
 
 Three modules for an API other developers call: the spec and docs come from
