@@ -58,7 +58,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "test": "bun test test/*.test.ts && bun run test/overlay.tsx",
-    "test:e2e": "playwright test -c test/e2e/playwright.config.ts",
+    "test:e2e": "playwright test -c test/e2e --update-snapshots=all --grep @baseline && playwright test -c test/e2e --grep-invert @baseline",
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "prepublishOnly": "bun run build"
   },
