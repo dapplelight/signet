@@ -5,6 +5,11 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-server: org settings no longer take a custom domain
+
+- `PATCH /current` in `orgRoutes` now answers 400 when the body has `domain`, instead of dropping it and returning 200. `tenant()` matches the custom domain first, so a member who could set any host would decide the tenant for every request to it. Set it with `orgs.update` from an operator or verified-DNS flow.
+- signet-ui `OrgSettings`: the custom domain field is gone, along with `domain` in `OrgSettingsValue` and the `domain`, `domainHint` and `invalidDomain` labels. Migration: stop passing those labels and stop sending `domain` from `onSave`.
+
 ### signet-db: audit trail for org writes
 
 - `createOrgs` writes an `auditLog()` entry for org create and settings changes, member add, role change, remove and leave, custom role create, change and delete, and invite create, accept and revoke: actor, action, and before/after snapshots carrying the `orgId`. Never the invite token or its hash. Skipped when the db has no audit table.
