@@ -337,6 +337,14 @@ try {
     push.json?.id === "add-web-push" && push.json.steps[0].markdown.includes("webCryptoPushSender"),
     push.json?.id,
   )
+  const own = await call("recipe", { task: "copy a component into my app and own the code" })
+  ok(
+    "recipe: add-component-source is cut from the cli README and runs signet add / upgrade",
+    own.json?.id === "add-component-source" &&
+      own.json.steps.some((st: any) => st.markdown.includes("signet add dialog")) &&
+      own.json.steps.some((st: any) => st.markdown.includes("signet upgrade")),
+    own.json?.id,
+  )
   const dbr = await call("recipe", { task: "add a database" })
   ok(
     "recipe: add-db is cut from the db README headings and does not install the private signet-db",

@@ -24,11 +24,10 @@ bun run typecheck                     # tsc --noEmit (src and tests)
 `bun run typecheck` at the root runs every workspace's typecheck. Suppress a
 Biome rule only with a written reason.
 
-If you change a package's `exports`, regenerate the reference page:
-
-```bash
-bun run gen:api                       # rewrites API.md
-```
+Never edit or commit generated files in a PR: API.md is regenerated on main
+after each merge, and packages/mcp's `src/generated/` is gitignored and built
+by its own scripts. To read API.md with your change locally,
+`bun run gen:api`, then discard it before committing.
 
 ## Add a theme
 
@@ -37,7 +36,7 @@ bun run gen:api                       # rewrites API.md
 2. Define every required variable in [CONTRACT.md](packages/tokens/CONTRACT.md)
    (inside `@theme inline { ... }`). Do not add product vocabulary such as
    category colours; those belong in an overlay like `finance.css`.
-3. Add it to `exports` in `packages/tokens/package.json`, then `bun run gen:api`.
+3. Add it to `exports` in `packages/tokens/package.json`.
 4. Add it to the theme list in `packages/tokens/test/themes.ts` and run
    `bun run test` there. The test compiles the theme against the real
    components and checks the utilities resolve to different values.
@@ -52,5 +51,8 @@ vocabulary.
 
 ## Releases
 
-Maintainers publish; see [PUBLISHING.md](PUBLISHING.md). Add a line to
-[CHANGELOG.md](CHANGELOG.md) under "Unreleased" for any user-visible change.
+Maintainers publish; see [PUBLISHING.md](PUBLISHING.md). For any
+user-visible change, add one file `.changes/<short-name>.md` written like a
+[CHANGELOG.md](CHANGELOG.md) entry (starting with `### package: title`). Do
+not edit CHANGELOG.md: the `post-merge` workflow folds fragments into
+"Unreleased" on main. See [.changes/README.md](.changes/README.md).

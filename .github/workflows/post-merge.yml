@@ -1,0 +1,46 @@
+# After each push to main: fold .changes/*.md into CHANGELOG.md and regenerate
+# API.md, so PRs never edit either file and never conflict on them. Commits only
+# when something changed.
+#
+# It cannot loop or release: the push uses GITHUB_TOKEN, whose pushes trigger no
+# workflows, the message carries [skip ci] as well, and it touches only
+# CHANGELOG.md, API.md and .changes/, never packages/*/package.json (the paths
+# release.yml listens on).
+name: post-merge
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: post-merge
+  cancel-in-progress: false
+
+jobs:
+  fold:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: oven-sh/setup-bun@v2
+      # Both scripts use node: builtins only, so no install. A merge can land
+      # while this runs; on a rejected push, redo the work on the new main.
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            git fetch -q origin main
+            git reset -q --hard origin/main
+            bun run changes
+            bun run gen:api
+            git add -A CHANGELOG.md API.md .changes
+            git diff --cached --quiet && { echo "nothing to commit"; exit 0; }
+            git commit -q -m "chore: fold changelog fragments, regenerate API.md [skip ci]"
+            git push -q origin HEAD:main && exit 0
+            sleep $((attempt * 5))
+          done
+          exit 1

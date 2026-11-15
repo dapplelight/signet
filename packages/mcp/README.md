@@ -152,10 +152,10 @@ The server is built with Signet's own toolkit (`defineTool`,
   `packages/server/src/doctor/check.ts` and `packages/tokens/test/contrast.ts`,
   so `check_app` and `check_theme` run the repo's own logic.
 
-`bun run test` fails if any of these differ from what the repo would generate
-now. After changing a doc, an export or a component, run `bun run gen` in this
-package and commit the result. A recipe whose doc heading was renamed fails
-the generator.
+`src/generated/` is gitignored. `build`, `test` and `typecheck` regenerate it
+first, so it always matches the repo and never shows up in a diff; the
+published tarball carries it compiled into `dist/`. A recipe whose doc heading
+was renamed fails the generator.
 
 ## Test
 
