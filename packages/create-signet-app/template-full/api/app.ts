@@ -1,7 +1,9 @@
 import { sessionRoutes } from "@dapplelight/signet-server/auth/hono"
+import { maskPhone } from "@dapplelight/signet-server/auth/otp"
 import { errorHandler } from "@dapplelight/signet-server/http"
 import { adminRoutes } from "@dapplelight/signet-server/http/admin"
 import { ApiException } from "@dapplelight/signet-server/http/errors"
+import { orgRoutes, tenant } from "@dapplelight/signet-server/http/orgs"
 // mcp:begin
 import { appTools } from "@dapplelight/signet-server/mcp"
 import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
@@ -9,8 +11,9 @@ import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
 import { csrfMiddleware } from "@dapplelight/signet-server/middleware/csrf"
 import { memoryStore, rateLimit } from "@dapplelight/signet-server/middleware/rate-limit"
 import { requestId } from "@dapplelight/signet-server/middleware/request-id"
+import { inArray } from "drizzle-orm"
 import { Hono } from "hono"
-import type { User } from "./db/schema.ts"
+import { type User, users } from "./db/schema.ts"
 import { env } from "./env.ts"
 import { accountRoutes } from "./routes/account.ts"
 import { authRoutes, requireUser } from "./routes/auth.ts"
@@ -30,6 +33,9 @@ const SIGNED_IN = [
   "/api/admin",
 ]
 
+/** An invite link can be looked at before signing in; everything else under /api/orgs needs a user. */
+const INVITE_PREVIEW = /^\/api\/orgs\/invites\/[^/]+$/
+
 /**
  * The API. server.ts serves it (and the built web app) under Bun; tests call
  * `createApp(deps).request(...)` with an in-memory database.
@@ -43,6 +49,14 @@ export function createApp(deps: Deps) {
     .use("/api/*", csrfMiddleware())
     .use("/api/*", rateLimit<AppEnv>({ store: memoryStore(), trust: TRUST, max: 300 }))
   for (const path of SIGNED_IN) base.use(`${path}/*`, requireUser(s))
+  const gate = requireUser(s)
+  base.use("/api/orgs/*", (c, next) =>
+    c.req.method === "GET" && INVITE_PREVIEW.test(c.req.path) ? next() : gate(c, next),
+  )
+  // Which org a request is for: the custom domain, a subdomain of
+  // ORG_ROOT_DOMAIN, the x-org header, or the cookie the switcher sets. It
+  // grants nothing: /api/orgs checks membership on every call.
+  base.use("/api/*", tenant({ orgs: s.orgs, rootDomain: env.ORG_ROOT_DOMAIN }))
 
   const app = base
     .get("/api/health", (c) => c.json({ ok: true }))
@@ -53,8 +67,30 @@ export function createApp(deps: Deps) {
     .route("/api/privacy", privacyRoutes(s))
     .route("/api/billing", billingRoutes(s))
     .route("/api/webhooks", billingWebhooks(s))
-    // The admin API from the schema (signet-db defineAdmin, config in
-    // services.ts): readonly, staff and admin roles; everyone else gets 403.
+    // Orgs: switch, settings, members, invites (signet-server orgRoutes).
+    // Guard your own org routes the same way: orgGuards({ orgs: s.orgs, userId })
+    // .requirePermission("projects:write"), then scoped(s.db, { orgId: currentTenant(c).id }).
+    .route(
+      "/api/orgs",
+      orgRoutes({
+        orgs: s.orgs,
+        userId: (c) => (c.get("user" as never) as User | undefined)?.id,
+        cookieOptions: s.orgCookie,
+        // Members are shown by name, else a masked phone.
+        users: async (ids) =>
+          Object.fromEntries(
+            s.orm
+              .select()
+              .from(users)
+              .where(inArray(users.id, ids))
+              .all()
+              .map((u) => [u.id, { name: u.name ?? maskPhone(u.phone) }]),
+          ),
+      }),
+    )
+    // The operator's admin API over every org (signet-db defineAdmin, config
+    // in services.ts): platform roles readonly, staff and admin (ADMIN_PHONES)
+    // only; everyone else gets 403. Org owners manage their org under /org.
     .route(
       "/api/admin",
       adminRoutes(s.admin, {

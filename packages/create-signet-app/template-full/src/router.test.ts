@@ -12,6 +12,10 @@ test.each([
   ["/privacy", "/_app/privacy"],
   ["/billing", "/_app/billing"],
   ["/admin", "/_app/admin"],
+  ["/org", "/_app/org/"],
+  ["/org/members", "/_app/org/members"],
+  ["/org/new", "/_app/org/new"],
+  ["/invite/abc", "/invite/$token"],
 ])("%s resolves to %s", async (path, id) => {
   const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }))
   await router.load()

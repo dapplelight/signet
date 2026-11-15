@@ -1,9 +1,15 @@
 /**
- * Per-user reads and writes, soft delete, and an opt-in audit trail.
+ * Per-user and per-org reads and writes, soft delete, and an opt-in audit trail.
  *
  * `scoped(db, { userId })` returns table operations that add
  * `where user_id = ?` to every read, update and delete, and set `userId` on
- * every insert, for tables with a `userId` column. Rows with a `deletedAt`
+ * every insert, for tables with a `userId` column.
+ *
+ * `scoped(db, { orgId })` does the same with `org_id` for tables with an
+ * `orgId` column, and `scoped(db, { userId, orgId })` with both. An org scope
+ * is deny-by-default: a table it cannot filter (no `orgId` column, and no
+ * `userId` column the scope also fixes) throws `NOT_TENANT_TABLE` instead of
+ * reading or writing every org's rows. Rows with a `deletedAt`
  * are hidden unless a call passes `{ withDeleted: true }`, and `delete` on
  * such a table sets `deletedAt` unless it passes `{ hard: true }`.
  *
@@ -28,14 +34,24 @@ import { columnsOf, type SignetDb } from "./db.js"
 import { SignetDbError } from "./errors.js"
 
 type Row<T extends Table> = InferSelectModel<T>
-type HasUser<T extends Table> = "userId" extends keyof InferInsertModel<T> ? true : false
+/**
+ * What a scope fixes: `true` the user, `"org"` the org, `"member"` both (a
+ * user inside an org), `false` nothing (`audited(db)`).
+ */
+export type Scope = boolean | "org" | "member"
+type ScopedKeys<S extends Scope> = S extends true
+  ? "userId"
+  : S extends "org"
+    ? "orgId"
+    : S extends "member"
+      ? "userId" | "orgId"
+      : never
 
-/** What an insert takes: the table's insert type, minus `userId` when scoped. */
-export type NewRow<T extends Table, S extends boolean = true> = S extends true
-  ? HasUser<T> extends true
-    ? Omit<InferInsertModel<T>, "userId">
-    : InferInsertModel<T>
-  : InferInsertModel<T>
+/** What an insert takes: the table's insert type, minus the keys the scope sets. */
+export type NewRow<T extends Table, S extends Scope = true> = Omit<
+  InferInsertModel<T>,
+  ScopedKeys<S> & keyof InferInsertModel<T>
+>
 
 export type ReadOptions = { withDeleted?: boolean }
 export type SelectOptions = ReadOptions & {
@@ -45,9 +61,11 @@ export type SelectOptions = ReadOptions & {
 }
 export type DeleteOptions = ReadOptions & { hard?: boolean }
 
-export type Ops<S extends boolean = true> = {
+export type Ops<S extends Scope = true> = {
   /** The user this scope is bound to; undefined for unscoped `audited(db)`. */
-  readonly userId: S extends true ? string : undefined
+  readonly userId: S extends true | "member" ? string : undefined
+  /** The org this scope is bound to, if any. */
+  readonly orgId: S extends "org" | "member" ? string : undefined
   /** The scope's filter for `table`, combined with `where`, for hand-built queries on `db.orm`. */
   where(table: Table, where?: SQL, options?: ReadOptions): SQL | undefined
   select<T extends Table>(table: T, where?: SQL, options?: SelectOptions): Promise<Row<T>[]>
@@ -64,21 +82,43 @@ export type Ops<S extends boolean = true> = {
 /** Who made a change. Agent writes are recorded as `{ type: "agent", id }`. */
 export type Actor = { type: "user" | "agent" | "system"; id: string }
 
-type State = { db: SignetDb<unknown>; userId?: string; actor?: Actor }
+type State = { db: SignetDb<unknown>; userId?: string; orgId?: string; actor?: Actor }
 const states = new WeakMap<object, State>()
 
 // biome-ignore lint/suspicious/noExplicitAny: structural call into a Drizzle db of any dialect
 type AnyOrm = any
 type Rec = Record<string, unknown>
 
-/** Operations on `db` restricted to one user's rows. */
-export function scoped<TOrm>(db: SignetDb<TOrm>, { userId }: { userId: string }): Ops<true> {
-  if (!userId)
+/** Operations on `db` restricted to one user's rows, one org's rows, or one user's rows in one org. */
+export function scoped<TOrm>(
+  db: SignetDb<TOrm>,
+  scope: { userId: string; orgId?: undefined },
+): Ops<true>
+export function scoped<TOrm>(
+  db: SignetDb<TOrm>,
+  scope: { orgId: string; userId?: undefined },
+): Ops<"org">
+export function scoped<TOrm>(
+  db: SignetDb<TOrm>,
+  scope: { userId: string; orgId: string },
+): Ops<"member">
+export function scoped<TOrm>(
+  db: SignetDb<TOrm>,
+  { userId, orgId }: { userId?: string; orgId?: string },
+): Ops<Scope> {
+  if (orgId !== undefined && !orgId)
     throw new SignetDbError(
-      "NO_USER_ID",
-      "scoped() got an empty userId. Pass the signed-in user's id from the session.",
+      "NO_ORG_ID",
+      "scoped() got an empty orgId. Pass the request's org id from the tenant middleware.",
     )
-  return make({ db, userId }) as Ops<true>
+  if (orgId === undefined || userId !== undefined) {
+    if (!userId)
+      throw new SignetDbError(
+        "NO_USER_ID",
+        "scoped() got an empty userId. Pass the signed-in user's id from the session.",
+      )
+  }
+  return make({ db, userId, orgId })
 }
 
 /**
@@ -86,12 +126,12 @@ export function scoped<TOrm>(db: SignetDb<TOrm>, { userId }: { userId: string })
  * insert, update and delete also writes an audit entry. `actor` defaults to
  * `{ type: "user", id: userId }` of the scope.
  */
-export function audited<S extends boolean>(target: Ops<S>, options?: { actor?: Actor }): Ops<S>
+export function audited<S extends Scope>(target: Ops<S>, options?: { actor?: Actor }): Ops<S>
 export function audited<TOrm>(target: SignetDb<TOrm>, options: { actor: Actor }): Ops<false>
 export function audited(
-  target: Ops<boolean> | SignetDb<unknown>,
+  target: Ops<Scope> | SignetDb<unknown>,
   options: { actor?: Actor } = {},
-): Ops<boolean> {
+): Ops<Scope> {
   const base = states.get(target) ?? { db: target as SignetDb<unknown> }
   if (!base.db.audit)
     throw new SignetDbError(
@@ -113,13 +153,21 @@ function primaryKey(table: Table): string | undefined {
   return Object.keys(cols).find((k) => cols[k]?.primary) ?? ("id" in cols ? "id" : undefined)
 }
 
-function make(state: State): Ops<boolean> {
-  const { db, userId, actor } = state
+function make(state: State): Ops<Scope> {
+  const { db, userId, orgId, actor } = state
   const o = db.orm as AnyOrm
 
   const where = (table: Table, extra?: SQL, options: ReadOptions = {}) => {
     const cols = columnsOf(table)
     const conds: SQL[] = []
+    if (orgId !== undefined) {
+      if (!cols.orgId && !(userId !== undefined && cols.userId))
+        throw new SignetDbError(
+          "NOT_TENANT_TABLE",
+          `An org scope cannot filter ${getTableName(table)}: it has no orgId column. Add one, or read it through an unscoped db on purpose.`,
+        )
+      if (cols.orgId) conds.push(eq(cols.orgId, orgId))
+    }
     if (userId !== undefined && cols.userId) conds.push(eq(cols.userId, userId))
     if (cols.deletedAt && !options.withDeleted) conds.push(isNull(cols.deletedAt))
     if (extra) conds.push(extra)
@@ -160,8 +208,14 @@ function make(state: State): Ops<boolean> {
         "A scoped update cannot change userId. Remove userId from the values; moving rows between users needs an unscoped audited(db).",
       )
     }
+    if (orgId !== undefined && "orgId" in set) {
+      throw new SignetDbError(
+        "CROSS_ORG_WRITE",
+        "An org-scoped update cannot change orgId. Remove orgId from the values; moving rows between orgs needs an unscoped audited(db).",
+      )
+    }
     const cond = where(table, extra, options)
-    if (userId === undefined && !extra) {
+    if (userId === undefined && orgId === undefined && !extra) {
       throw new SignetDbError(
         "UNSCOPED_WRITE",
         "An unscoped update or delete needs a where clause, or it would touch every row. Pass one, or use scoped(db, { userId }).",
@@ -177,8 +231,9 @@ function make(state: State): Ops<boolean> {
     return decryptRows(db, table, raw)
   }
 
-  const ops: Ops<boolean> = {
+  const ops: Ops<Scope> = {
     userId,
+    orgId,
     where,
 
     async select(table, extra, options = {}) {
@@ -197,7 +252,9 @@ function make(state: State): Ops<boolean> {
     async insert(table, values) {
       const list = (Array.isArray(values) ? values : [values]) as Rec[]
       if (list.length === 0) return []
+      where(table) // throws for a table an org scope cannot filter
       const owned = userId !== undefined && columnsOf(table).userId !== undefined
+      const tenant = orgId !== undefined && columnsOf(table).orgId !== undefined
       const prepared = await Promise.all(
         list.map((v) => {
           if (owned && v.userId !== undefined && v.userId !== userId) {
@@ -206,7 +263,17 @@ function make(state: State): Ops<boolean> {
               "A scoped insert got a userId that is not the scope's. Leave userId out; scoped() sets it.",
             )
           }
-          return encryptValues(db, table, owned ? { ...v, userId } : v)
+          if (tenant && v.orgId !== undefined && v.orgId !== orgId) {
+            throw new SignetDbError(
+              "CROSS_ORG_WRITE",
+              "An org-scoped insert got an orgId that is not the scope's. Leave orgId out; scoped() sets it.",
+            )
+          }
+          return encryptValues(db, table, {
+            ...v,
+            ...(owned ? { userId } : {}),
+            ...(tenant ? { orgId } : {}),
+          })
         }),
       )
       const raw: Rec[] = await o.insert(table).values(prepared).returning()
@@ -221,7 +288,7 @@ function make(state: State): Ops<boolean> {
       if (columnsOf(table).deletedAt && !options.hard) {
         return update(table, { deletedAt: new Date() }, extra, options, "delete")
       }
-      if (userId === undefined && !extra) {
+      if (userId === undefined && orgId === undefined && !extra) {
         throw new SignetDbError(
           "UNSCOPED_WRITE",
           "An unscoped update or delete needs a where clause, or it would touch every row. Pass one, or use scoped(db, { userId }).",
@@ -234,7 +301,7 @@ function make(state: State): Ops<boolean> {
       await audit(table, "delete", raw, [])
       return decryptRows(db, table, raw)
     },
-  } as Ops<boolean>
+  } as Ops<Scope>
   states.set(ops, state)
   return ops
 }

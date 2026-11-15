@@ -94,6 +94,11 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   signet-db's `wf.get(id)` and `wf.pendingApprovals(user)`.
   Demo for these four: `screens-ops.html` in the showcase (`?screen=`,
   `?theme=`, `?dark=1`).
+- `screens/org-screens`: `OrgSwitcher`, `MembersList` (roles, remove, leave,
+  pending invites), `InviteDialog` (one-time link with Copy),
+  `AcceptInvitePage` (a page around `InviteAccept`) and `OrgSettings` (name,
+  custom domain, theme, brand colour with a `buildTheme` preview), shaped like
+  signet-server's `orgRoutes` responses. Demo: `screens-orgs.html`.
 
 ## Behaviours and recipes
 
@@ -119,6 +124,7 @@ without an app changing. Each component's source starts with its recipe:
 | `screens/billing-screens` | selection + roving-focus + controllable-state + live-region |
 | `screens/growth-screens` | selection + roving-focus + controllable-state + popup + dismiss + live-region + field-wiring |
 | `screens/workflow-screens` | roving-focus (timeline) + live-region + field-wiring |
+| `screens/org-screens` | popup + dismiss + live-region + field-wiring + controllable-state |
 | `domain/amount` | money-format + tone (colour from the `--money-*` slots) |
 | `domain/kanban` | controllable-state + live-region + drag + keyboard-move |
 | `screens/admin-screens` | selection + controllable-state + popup + focus-trap + dismiss + roving-focus (tabs) + field-wiring |

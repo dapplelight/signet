@@ -2,7 +2,7 @@
  * Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`,
  * `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`,
  * `idempotencyKeys`, `aiCache`, `entitlementTables`, `flagOverrides`, `growthTables`,
- * `privacyTables`, `analyticsEvents`, `sequences` and `workflowTables` tables.
+ * `orgTables`, `privacyTables`, `analyticsEvents`, `sequences` and `workflowTables` tables.
  */
 
 import { sql } from "drizzle-orm"
@@ -363,6 +363,84 @@ export const sequences = (name = "sequences") =>
     key: text("key").primaryKey(),
     value: integer("value").notNull(),
   })
+
+/**
+ * Organisations, memberships, invitations and per-org custom roles for
+ * `createOrgs` from `@dapplelight/signet-db/orgs`. Destructure into the schema:
+ * `export const { organizations, memberships, invitations, orgRoles } = orgTables()`.
+ * Give an app's own tenant tables an `orgId: text("org_id").notNull()` column
+ * and `scoped(db, { orgId })` keeps each org to its own rows.
+ */
+export const orgTables = (prefix = "") => ({
+  organizations: sqliteTable(
+    `${prefix}organizations`,
+    {
+      id: id(),
+      name: text("name").notNull(),
+      /** Lower-case letters, digits and dashes; the subdomain or path segment. */
+      slug: text("slug").notNull(),
+      /** A custom domain, lower-cased, e.g. "app.example.com". */
+      domain: text("domain"),
+      /** A shipped theme name, e.g. "editorial". */
+      theme: text("theme"),
+      /** A brand colour as #rrggbb, for signet-tokens' `buildTheme`. */
+      brandColor: text("brand_color"),
+      /** True for the org made at sign-up for one person. */
+      personal: integer("personal", { mode: "boolean" }).notNull().default(false),
+      ...timestamps(),
+    },
+    (t) => [
+      uniqueIndex(`${prefix}organizations_slug`).on(t.slug),
+      uniqueIndex(`${prefix}organizations_domain`).on(t.domain),
+    ],
+  ),
+  memberships: sqliteTable(
+    `${prefix}memberships`,
+    {
+      orgId: text("org_id").notNull(),
+      userId: text("user_id").notNull(),
+      role: text("role").notNull(),
+      createdAt: stamp("created_at"),
+    },
+    (t) => [
+      primaryKey({ columns: [t.orgId, t.userId] }),
+      index(`${prefix}memberships_user`).on(t.userId),
+    ],
+  ),
+  invitations: sqliteTable(
+    `${prefix}invitations`,
+    {
+      id: id(),
+      orgId: text("org_id").notNull(),
+      /** SHA-256 of the token, hex. The token itself is never stored. */
+      tokenHash: text("token_hash").notNull(),
+      /** Only this address may accept, when set. */
+      email: text("email"),
+      role: text("role").notNull(),
+      invitedBy: text("invited_by").notNull(),
+      createdAt: stamp("created_at"),
+      expiresAt: ms("expires_at").notNull(),
+      acceptedAt: ms("accepted_at"),
+      acceptedBy: text("accepted_by"),
+      revokedAt: ms("revoked_at"),
+    },
+    (t) => [
+      uniqueIndex(`${prefix}invitations_token`).on(t.tokenHash),
+      index(`${prefix}invitations_org`).on(t.orgId),
+    ],
+  ),
+  orgRoles: sqliteTable(
+    `${prefix}org_roles`,
+    {
+      orgId: text("org_id").notNull(),
+      name: text("name").notNull(),
+      /** The permission strings this custom role grants. */
+      permissions: text("permissions", { mode: "json" }).notNull(),
+      updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
+    },
+    (t) => [primaryKey({ columns: [t.orgId, t.name] })],
+  ),
+})
 
 /**
  * Runs, steps and events for `createWorkflows` from
