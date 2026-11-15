@@ -1,18 +1,24 @@
-import type { Cache, CacheEntry, KeyValueLike } from "./types.js"
+import type { Cache, CacheEntry, KeyValueLike, KvNamespaceLike } from "./types.js"
 
 /**
- * Cache key: a hash of the schema shape, the instructions and the input.
+ * Cache key: a SHA-256 of the schema shape, the instructions, the input and,
+ * when given, the model.
  *
  * The schema must be part of the key — the same prompt against a changed schema
  * is a different question, and reusing the old answer returns data that no
- * longer validates.
+ * longer validates. So must the model: switching to a better one should not
+ * keep serving the old one's answers. `createExtractor` passes its provider
+ * chain (`name/model` of each, in order).
  */
 export async function cacheKey(
   schemaFingerprint: string,
   instructions: string,
   input: string,
+  model?: string,
 ): Promise<string> {
-  const data = new TextEncoder().encode(`${schemaFingerprint}\u0000${instructions}\u0000${input}`)
+  const parts = [schemaFingerprint, instructions, input]
+  if (model) parts.push(model)
+  const data = new TextEncoder().encode(parts.join("\u0000"))
   const digest = await crypto.subtle.digest("SHA-256", data)
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("")
 }
@@ -63,12 +69,22 @@ export function memoryCache(maxEntries = 500): Cache {
 }
 
 /**
- * Cache over a shared key-value store (Upstash, Workers KV), so every isolate
- * or process sees the same entries. Entries are JSON with their own expiry,
- * checked on read, because a store may keep a key past the TTL asked for
- * (Workers KV's minimum is 60s). An unreadable entry is a miss.
+ * Cache over a shared key-value store, so every isolate or process sees the
+ * same entries. Takes a `KeyValueLike` (`upstashKv`, `cloudflareKv` from
+ * signet-server's adapters) or a Workers KV namespace directly (`env.AI_CACHE`).
+ * Entries are JSON with their own expiry, checked on read, because a store may
+ * keep a key past the TTL asked for (Workers KV's minimum is 60s, so a shorter
+ * TTL is stored for 60s and still expires on time). An unreadable entry is a miss.
  */
-export function kvCache(kv: KeyValueLike, prefix = "signet-ai-cache"): Cache {
+export function kvCache(store: KeyValueLike | KvNamespaceLike, prefix = "signet-ai-cache"): Cache {
+  const kv: KeyValueLike =
+    "put" in store
+      ? {
+          get: (k) => store.get(k),
+          set: (k, v, o) =>
+            store.put(k, v, { expirationTtl: Math.max(60, Math.ceil(o?.ttlSeconds ?? 60)) }),
+        }
+      : store
   return {
     async get(key) {
       const raw = await kv.get(`${prefix}:${key}`)
