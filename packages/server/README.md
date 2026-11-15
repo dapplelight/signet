@@ -41,6 +41,7 @@ package ships all three rather than forcing them together.
 | `@dapplelight/signet-server/mcp` | `@modelcontextprotocol/server` ^2.1, `zod` >=4.2 (optional peers; not `hono`) | `defineTool`, `createMcpServer`; stdio via the SDK's `serveStdio`. See [MCP servers](#mcp-servers). |
 | `@dapplelight/signet-server/jobs` | `zod` (optional peer) | `defineJob`, `createJobs`, retries, schedules, Cloudflare/QStash/Node runtimes. See [Jobs](#jobs). |
 | `@dapplelight/signet-server/http/workflows` | `hono` (optional peer) | `workflowRoutes` for signet-db's durable workflows: start, status, events, approve/reject, cancel, admin list. See [Workflow routes](#workflow-routes). |
+| `@dapplelight/signet-server/realtime` | none | `createRealtime` hub: channels per resource scoped to the tenant, presence, live updates, shared state; `sessionAuth`, `realtimeOutbox`. `/bun`, `/node` (no dependency) and `/cloudflare` (Durable Object) connect sockets. See [Real-time](#real-time-presence-live-updates-shared-state). |
 | `@dapplelight/signet-server/storage` | none | `createUploads`: checked presigned or streamed uploads. See [Storage](#storage). |
 | `@dapplelight/signet-server/mcp/hono` | the above, plus `hono` | `mountMcp`, `mcpHandler`: streamable HTTP through the SDK's `createMcpHandler`, 2026-07-28 and 2025 clients, per request. |
 
@@ -488,6 +489,89 @@ app.route("/api/admin/billing", monetisationAdminRoutes({
 signet-db errors become the envelope (`BAD_VALUE` is 400 `VALIDATION_FAILED`,
 `NOT_FOUND` 404). These are cookie-authenticated writes: put
 `csrfMiddleware` in front when the session cookie is `SameSite=None`.
+
+## Real-time: presence, live updates, shared state
+
+One hub, the same protocol on every runtime. The hub owns channels,
+presence and state; an adapter connects real WebSockets to it.
+
+```ts
+import { createRealtime, sessionAuth, realtimeOutbox, REALTIME_TOPIC } from "@dapplelight/signet-server/realtime"
+import { verifySession } from "@dapplelight/signet-server/auth/session"
+import { grants } from "@dapplelight/signet-server/http/orgs"
+
+const hub = createRealtime({
+  // Deny by default: without authorize, every join is refused.
+  authorize: (who, channel) => channel.startsWith("record:") && grants(who.permissions ?? [], "records:read"),
+})
+const authenticate = sessionAuth({ verify: (t) => verifySession(t, sessionOpts), cookieName: "app_session", orgs })
+
+// Bun
+import { bunRealtime } from "@dapplelight/signet-server/realtime/bun"
+const live = bunRealtime(hub, { authenticate })
+Bun.serve({ fetch: (req, srv) => (new URL(req.url).pathname === "/realtime" ? live.upgrade(req, srv) : app.fetch(req)), websocket: live.websocket })
+
+// Node: http.Server, or @hono/node-server's
+import { attachRealtime } from "@dapplelight/signet-server/realtime/node"
+attachRealtime(server, hub, { path: "/realtime", authenticate })
+
+// Cloudflare: one Durable Object per org
+import { realtimeRoom, connectRoom, roomPublisher } from "@dapplelight/signet-server/realtime/cloudflare"
+export const RealtimeRoom = realtimeRoom({ authorize })      // export from the worker entry; bind as REALTIME
+app.get("/realtime", (c) => connectRoom(c.env.REALTIME, c.req.raw, { authenticate }))
+```
+
+- **Tenancy.** A connection's org comes from `authenticate`, never from
+  the client, and channels live under it: org A's `record:docs:1` and org
+  B's are different channels, and no message names an org. `sessionAuth`
+  takes the org from `?org=` or the `signet_org` cookie and refuses a user
+  who is not a member. `hub.disconnect(orgId, userId)` closes a removed
+  member's sockets; a session's `exp` closes them when it passes.
+- **Origins.** Browsers send cookies on cross-site WebSocket handshakes, so
+  `admit` (every adapter calls it) refuses an `Origin` other than the
+  request's host unless it is in `origins`.
+- **Live updates.** `hub.publish(orgId, channel, event, data)` after a
+  write, or in the same atomic write through signet-db's outbox:
+
+  ```ts
+  await db.batch([(tx) => tx.update(docs).set(patch).where(eq(docs.id, id)),
+    enqueue(db, REALTIME_TOPIC, { orgId, channel: `record:docs:${id}`, event: "updated", data: { id, by: userId } })])
+  const live = realtimeOutbox(hub)                 // or realtimeOutbox(roomPublisher(env.REALTIME))
+  await drainOutbox(db, { send: (m) => (m.topic === REALTIME_TOPIC ? live.send(m) : queue.send(m)) })
+  ```
+
+  The outbox row id becomes the event id, and the client drops a redelivered
+  one.
+- **Resume.** Each channel keeps its last `history` (100) events with a
+  sequence number and an epoch. A client rejoins with `since` and gets
+  exactly what it missed, or `reset` when the gap is older than the history
+  or the channel was recreated: reload the record.
+- **Presence.** Members per channel, one entry per user with a tab count,
+  `joined` / `left` on change, `typing` (clears itself after `typingMs`, 6 s)
+  and `editing` (a field name, until cleared). A connection silent for
+  `timeoutMs` (45 s) is closed and leaves; clients ping every `heartbeatMs`
+  (15 s).
+- **Shared state.** `{ type: "set", key, value, base }` on a joined channel:
+  last writer wins in the hub's arrival order, each write bumps the key's
+  version, everyone receives `{ key, value, version, by }`, and a writer
+  whose `base` was older is sent `conflict` with the write it replaced.
+  State is in memory and dropped with the channel after `idleMs` (5 min)
+  empty; persist what matters in the database.
+- **Limits.** `maxMessageBytes` (16 KiB, closes 1009), `messagesPerSecond`
+  (20, burst 40, closes 1008), `maxChannels` (20 per connection),
+  `maxStateKeys` (100), and `maxBufferedBytes` (1 MiB): a slow consumer is
+  closed 1013 and resumes on reconnect instead of buffering without bound.
+- **Runtimes.** Bun uses `Bun.serve`'s WebSockets (with its own
+  backpressure limit). Node ships only a WebSocket client, so `/node` is a
+  small RFC 6455 server over the `upgrade` event: text frames,
+  fragmentation, ping/pong, close, no compression. On Cloudflare the worker
+  authenticates and hands the socket to the org's Durable Object; each
+  instance holds one org. Bun and Node hubs live in one process: run one
+  instance; fan-out across instances (a pub/sub between hubs) is not
+  included.
+
+The React side is signet-ui's `hooks/use-channel` and
+`screens/realtime-screens`.
 
 ## Public API: OpenAPI, docs, webhooks, caching
 

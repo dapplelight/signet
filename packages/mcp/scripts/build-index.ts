@@ -801,6 +801,34 @@ const RECIPES: RecipeSpec[] = [
     verify: ["bun run test", "accept the same invite twice: the second gets already: true or used"],
   },
   {
+    id: "add-realtime",
+    title: "Add real-time: presence, live updates and shared state per record",
+    keywords: [
+      "realtime",
+      "real-time",
+      "websocket",
+      "websockets",
+      "presence",
+      "live updates",
+      "typing indicator",
+      "who is viewing",
+      "durable object",
+      "shared state",
+      "collaboration",
+      "avatar stack",
+    ],
+    install: ["@dapplelight/signet-server", "@dapplelight/signet-ui"],
+    refs: [
+      ["server", "Real-time: presence, live updates, shared state"],
+      ["ui", "Real-time"],
+    ],
+    verify: [
+      "two browser tabs on one record: each shows the other in the AvatarStack, and typing shows in the other",
+      "a user of another org joining the same channel name sees neither tab nor their events",
+      "bun run test",
+    ],
+  },
+  {
     id: "add-workflows",
     title: "Add durable workflows with human approval steps",
     keywords: [

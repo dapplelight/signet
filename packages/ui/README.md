@@ -117,6 +117,39 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   Load more) and `VersionHistory` (versions, a field diff, Restore, Undo with
   the server's conflict message), shaped like signet-db's `createCollab` and
   signet-server's `collabRoutes`. Demo: `screens-collab.html`.
+- Real-time: `hooks/use-channel` and `screens/realtime-screens`, see
+  [Real-time](#real-time). Demo: `screens-realtime.html`.
+
+### Real-time
+
+On signet-server's realtime hub (`@dapplelight/signet-server/realtime`).
+`hooks/use-channel` has `createRealtimeClient` (reconnects with backoff,
+rejoins resuming from the last event, pings on the hub's heartbeat, drops
+duplicate events, applies shared state by version), `useChannel(client,
+channel, { onEvent })` (presence, shared state, `set`, `setTyping`,
+`setEditing`, and `stale` / `conflict` flags with `acknowledge`),
+`usePresence` and `useRecordChanges`. `screens/realtime-screens` has
+`AvatarStack`, `EditingBadge`, `TypingIndicator` (a polite live region) and
+`RecordChangedBanner` ("this record changed, reload?"); strings come from
+`DEFAULT_REALTIME_LABELS` and the `labels` prop.
+
+```tsx
+const live = createRealtimeClient({ url: `/realtime?org=${orgId}` })
+function Doc({ id, me }) {
+  const ch = useChannel(live, `record:docs:${id}`)
+  const { changed, change, dismiss } = useRecordChanges(live, `record:docs:${id}`, { selfId: me })
+  return (<>
+    <RecordChangedBanner changed={changed} by={change?.data?.name} onReload={() => { refetch(); dismiss() }} />
+    <AvatarStack members={ch.members} selfId={me} />
+    <EditingBadge members={ch.members} selfId={me} field="title" />
+    <input onFocus={() => ch.setEditing("title")} onBlur={() => ch.setEditing(null)} onInput={() => ch.setTyping(true)} />
+    <TypingIndicator members={ch.members} selfId={me} />
+  </>)
+}
+```
+
+A user removed from the org or whose session expired is not reconnected
+(close codes 4003 and 4001); anything else reconnects with backoff.
 
 ## Behaviours and recipes
 

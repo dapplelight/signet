@@ -176,6 +176,10 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/oauth-rs/verify` | TokenError, scopesOf, createTokenVerifier, Claims, VerifiedToken, VerifierOptions, … | OAuth 2.1 access token verification for a RESOURCE SERVER |
 | `@dapplelight/signet-server/observability/logger` | LEVELS, createLogger, redactFields, LevelName, LevelSetting, LogFields, … | Structured JSON logger with pino's call shape and redaction by default |
 | `@dapplelight/signet-server/observability/sentry` | redactSecrets, parseStack, createSentry, SentryConfig, StackFrame, SentryRequest, … | Sentry reporting over the Envelope HTTP API |
+| `@dapplelight/signet-server/realtime` | REALTIME_TOPIC, CLOSE, createRealtime, realtimeOutbox, admit, sessionAuth, … | Real-time channels: presence, live updates and a small shared state per channel, with one hub for every runtime |
+| `@dapplelight/signet-server/realtime/bun` | bunRealtime, BunSocket, BunServer | The realtime hub on Bun's built-in WebSocket server |
+| `@dapplelight/signet-server/realtime/cloudflare` | realtimeRoom, connectRoom, roomPublisher, RealtimeNamespace, WorkerSocket | The realtime hub in a Cloudflare Durable Object: one object per org, so every connection and channel of a tenant meets in one place and two orgs never |
+| `@dapplelight/signet-server/realtime/node` | attachRealtime, NodeRealtimeOptions | The realtime hub on a Node `http.Server`, with no dependency |
 | `@dapplelight/signet-server/storage` | sniffType, stripMetadata, UploadError, assertContentMatches, createUploads, abandonedUploadsJob, … | re-exports metadata, uploads |
 
 ## @dapplelight/signet-test
@@ -223,6 +227,7 @@ Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"
 | `@dapplelight/signet-ui/domain/kanban` | — |  |
 | `@dapplelight/signet-ui/domain/trend-chip` | — |  |
 | `@dapplelight/signet-ui/domain/upload` | xhrUpload, UploadTarget, UploadTransport |  |
+| `@dapplelight/signet-ui/hooks/use-channel` | createRealtimeClient, useChannel, usePresence, useRecordChanges, PresenceMember, StateEntry, … |  |
 | `@dapplelight/signet-ui/hooks/use-copy` | useCopy |  |
 | `@dapplelight/signet-ui/hooks/use-debounce` | useDebounce |  |
 | `@dapplelight/signet-ui/hooks/use-intersection` | useIntersection |  |
@@ -238,6 +243,7 @@ Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"
 | `@dapplelight/signet-ui/screens/notification-screens` | DEFAULT_NOTIFICATION_LABELS, NotifyChannel, InboxEntry, InboxFilter, ChannelPrefs, PreferenceCategory, … |  |
 | `@dapplelight/signet-ui/screens/org-screens` | DEFAULT_ORG_LABELS, OrgSwitcher, MembersList, InviteDialog, AcceptInvitePage, OrgSettings, … |  |
 | `@dapplelight/signet-ui/screens/privacy-screens` | DEFAULT_PRIVACY_LABELS, ConsentRecord, DataRequestRow, ConsentPurpose, PrivacyLabels |  |
+| `@dapplelight/signet-ui/screens/realtime-screens` | DEFAULT_REALTIME_LABELS, PresenceMemberView, RealtimeLabels, AvatarStackProps, EditingBadgeProps, TypingIndicatorProps, … |  |
 | `@dapplelight/signet-ui/screens/workflow-screens` | DEFAULT_WORKFLOW_LABELS, waitingText, WorkflowRunTimeline, ApprovalInboxCard, RunStatus, WorkflowRunView, … |  |
 | `@dapplelight/signet-ui/utils` | TYPE_RAMP, cn |  |
 

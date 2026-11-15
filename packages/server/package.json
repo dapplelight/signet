@@ -282,11 +282,27 @@
     "./storage": {
       "types": "./dist/storage/index.d.ts",
       "import": "./dist/storage/index.js"
+    },
+    "./realtime": {
+      "types": "./dist/realtime/index.d.ts",
+      "import": "./dist/realtime/index.js"
+    },
+    "./realtime/bun": {
+      "types": "./dist/realtime/bun.d.ts",
+      "import": "./dist/realtime/bun.js"
+    },
+    "./realtime/node": {
+      "types": "./dist/realtime/node.d.ts",
+      "import": "./dist/realtime/node.js"
+    },
+    "./realtime/cloudflare": {
+      "types": "./dist/realtime/cloudflare.d.ts",
+      "import": "./dist/realtime/cloudflare.js"
     }
   },
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "bun run test/smoke.ts && bun run test/env-middleware.ts && bun run test/auth-http.ts && bun run test/auth-sessions.ts && bun run test/admin-http.ts && bun run test/orgs-http.ts && bun run test/collab-http.ts && bun run test/monetisation-http.ts && bun run test/notify.ts && bun run test/web-push.ts && bun run test/notifications.ts && bun run test/analytics.ts && bun run test/oauth-rs.ts && bun run test/rate-limit.ts && bun run test/doctor.ts && bun run test/mcp.ts && bun run test/mcp-primitives.ts && bun run test/mcp-interaction.ts && bun run test/mcp-agentic.ts && bun run test/mcp-default.ts && bun run test/logger.ts && bun run test/adapters.ts && bun run test/jobs.ts && bun run test/jobs-workflows.ts && bun run test/storage.ts && bun run test/storage-extras.ts && bun run test/rpc.ts && bun run test/public-api.ts",
+    "test": "bun run test/smoke.ts && bun run test/env-middleware.ts && bun run test/auth-http.ts && bun run test/auth-sessions.ts && bun run test/admin-http.ts && bun run test/orgs-http.ts && bun run test/collab-http.ts && bun run test/monetisation-http.ts && bun run test/notify.ts && bun run test/web-push.ts && bun run test/notifications.ts && bun run test/analytics.ts && bun run test/oauth-rs.ts && bun run test/rate-limit.ts && bun run test/doctor.ts && bun run test/mcp.ts && bun run test/mcp-primitives.ts && bun run test/mcp-interaction.ts && bun run test/mcp-agentic.ts && bun run test/mcp-default.ts && bun run test/logger.ts && bun run test/adapters.ts && bun run test/jobs.ts && bun run test/jobs-workflows.ts && bun run test/storage.ts && bun run test/storage-extras.ts && bun run test/rpc.ts && bun run test/public-api.ts && bun run test/realtime.ts",
     "build": "tsc -p tsconfig.build.json && chmod +x dist/doctor/cli.js",
     "prepublishOnly": "bun run build"
   },
