@@ -5,6 +5,49 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-ui: admin screen from the schema
+
+- New `@dapplelight/signet-ui/screens/admin-screens`: `AdminScreen`, an admin
+  panel generated from signet-db's `defineAdmin` metadata, served by
+  signet-server's `adminRoutes`. Table list; server-side sort, typed filters
+  (`{ column: { op: value } }` chips), text search and cursor pages; a
+  soft-deleted toggle; a record panel whose form is built from the column
+  types (enum, boolean, number, money, date, JSON, text) with server field
+  errors on the fields; create, bulk delete, row actions with confirmation,
+  and the audit trail from an `auditLog()` table.
+- `createAdminApi({ baseUrl, fetch, headers })` implements `AdminApi` over
+  fetch; failures become `AdminApiError` with `fieldErrors`.
+- Parts are exported (`AdminPanel`, `AdminNav`, `AdminHeader`,
+  `AdminToolbar`, `AdminFilterButton`, `AdminTable`, `AdminRowActions`,
+  `AdminPager`, `AdminRecordSheet`, `AdminRecordForm`, `AdminAuditTrail`)
+  with `useAdmin()`; every string is in `DEFAULT_ADMIN_LABELS` and the
+  `labels` prop; `className` on every part, `classNames` on the screen,
+  `render` swaps part elements, `renderCell` / `renderField` replace cells and
+  fields; the open table and record are controlled or uncontrolled.
+- signet-mcp indexes `screens/` exports for `compose_component`.
+
+### signet-ui: billing and growth screens
+
+- New `@dapplelight/signet-ui/screens/billing-screens`: `BillingScreen` and
+  `Paywall`, plus `PlanPicker` (plan cards as one radio group, monthly /
+  yearly with the saving, store builds hide web-only plans), `CurrentPlanCard`
+  (status, `currentPeriodEnd`, source: App Store, Google Play or web),
+  `RestorePurchasesButton`, `UsageMeters` (signet-db `Usage`, amber at 75%,
+  red at 90%), `InvoiceList` (links to the GST HTML invoice) and `WalletCard`.
+  `plansFromEntitlements` turns a `definePlans` object plus names and prices
+  into the plan list; `formatMoney` formats minor units.
+- New `@dapplelight/signet-ui/screens/growth-screens`: `WaitlistJoin` (place
+  in line), `InviteAccept` (`acceptInvite` reasons in plain words),
+  `ReferralCard` (code, copy, Web Share, stats), `OnboardingChecklist`
+  (progress ring, next step), `FeedbackWidget` / `FeedbackForm` (kinds,
+  optional stars) and `WhatsNew` (unseen count; opening marks seen).
+- Same contract as the admin screen: theme tokens only, every string in
+  `DEFAULT_BILLING_LABELS` / `DEFAULT_GROWTH_LABELS`, `className` on every
+  part and `classNames` on composites, state as `data-*`, `render` to swap
+  a part's element, controlled or uncontrolled selection and open state.
+- Showcase: `screens-ops.html` demos every screen in every theme, with a bar
+  to switch screen, theme and dark mode.
+
 ### create-signet-app: full-stack template, `--pm`, finance theme
 
 - `--template full`: a web app and its Bun + Hono API in one project. Typed
