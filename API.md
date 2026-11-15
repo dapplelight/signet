@@ -176,6 +176,7 @@ Signet design tokens. One theme file per design system; all themes satisfy CONTR
 | `@dapplelight/signet-tokens/cinematic.css` | — | stylesheet |
 | `@dapplelight/signet-tokens/editorial.css` | — | stylesheet |
 | `@dapplelight/signet-tokens/finance.css` | — | stylesheet |
+| `@dapplelight/signet-tokens/theme` | DENSITY, DENSITY_SLOTS, normalizeHex, hexToOklch, oklchToHex, contrast, … | Theme builder: one brand colour in, every colour token of a Signet theme out, light and dark, derived in OKLCH |
 
 ## @dapplelight/signet-ui
 
