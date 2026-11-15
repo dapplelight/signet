@@ -77,3 +77,44 @@ body {
     color: black !important;
   }
 }
+
+/* Density (CONTRACT.md, "Density"). The theme's --spacing is multiplied by
+   --density (a region or one instance: data-density="compact") and by
+   --density-component (a component everywhere: --density-button: 0.8 on
+   :root). Both default to 1, so nothing changes until one is set. */
+[data-density="compact"] {
+  --density: 0.8;
+}
+[data-density="comfortable"] {
+  --density: 1;
+}
+[data-density="spacious"] {
+  --density: 1.25;
+}
+:where([data-slot="button"]) {
+  --density-component: var(--density-button, 1);
+}
+:where([data-slot="input"]) {
+  --density-component: var(--density-input, 1);
+}
+:where([data-slot="textarea"]) {
+  --density-component: var(--density-textarea, 1);
+}
+:where([data-slot="select-trigger"]) {
+  --density-component: var(--density-select-trigger, 1);
+}
+:where([data-slot="badge"]) {
+  --density-component: var(--density-badge, 1);
+}
+:where([data-slot="card"]) {
+  --density-component: var(--density-card, 1);
+}
+:where([data-slot="tabs-list"]) {
+  --density-component: var(--density-tabs-list, 1);
+}
+:where([data-slot="dialog-content"]) {
+  --density-component: var(--density-dialog-content, 1);
+}
+:where([data-slot="sidebar"]) {
+  --density-component: var(--density-sidebar, 1);
+}
