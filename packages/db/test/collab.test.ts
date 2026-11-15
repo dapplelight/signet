@@ -196,7 +196,42 @@ describe.each(backends)("collab on $name", (backend) => {
     })
     expect(rest.items.map((i) => i.summary)).toEqual(["Alice commented", "Alice created this"])
     expect(rest.nextCursor).toBeNull()
-    expect((await fails(collab.timeline(alice, ref, { before: "nope" }))).status).toBe(400)
+    expect((await fails(collab.timeline(alice, ref, { before: "not a cursor!" }))).status).toBe(400)
+  })
+
+  test("timeline pages stay full with deleted comments, and never skip or repeat", async () => {
+    const { collab, alice, mo, ref, asAlice, tasks } = await setup()
+    // Many writes inside the same millisecond: on Postgres the audit `at` has
+    // microseconds, which a millisecond cursor would lose.
+    const made = []
+    for (let i = 0; i < 5; i++)
+      made.push(await collab.addComment(i % 2 ? mo : alice, ref, { body: `c${i}` }))
+    await collab.deleteComment(mo, made[1]?.id as string)
+    await collab.deleteComment(mo, made[3]?.id as string)
+    for (const status of ["A", "B", "C"])
+      await asAlice.update(tasks, { status }, eq(tasks.id, ref.id))
+    const all = await collab.timeline(alice, ref, { limit: 100 })
+    expect(all.items.length).toBe(1 + 3 + 3) // created, 3 live comments, 3 changes
+    expect(all.nextCursor).toBeNull()
+    for (const size of [1, 2, 3]) {
+      const seen: string[] = []
+      let before: string | undefined
+      for (;;) {
+        const page = await collab.timeline(alice, ref, {
+          limit: size,
+          ...(before ? { before } : {}),
+        })
+        seen.push(...page.items.map((i) => i.id))
+        if (!page.nextCursor) {
+          expect(page.items.length).toBeLessThanOrEqual(size)
+          break
+        }
+        expect(page.items.length).toBe(size) // never short while more remain
+        before = page.nextCursor
+      }
+      expect(seen).toEqual(all.items.map((i) => i.id))
+    }
+    expect(all.items.map((i) => i.summary).filter((x) => x.endsWith("commented")).length).toBe(3)
   })
 
   test("versions: snapshot on write, list, diff, restore", async () => {

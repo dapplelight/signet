@@ -33,7 +33,7 @@
  * - Comment writes, restores and undos are audited when the db has an audit table.
  */
 
-import { and, asc, desc, eq, getTableName, lt, or, type SQL, type Table } from "drizzle-orm"
+import { and, asc, desc, eq, getTableName, isNull, lt, type SQL, type Table } from "drizzle-orm"
 import { decryptRows } from "./crypt.js"
 import { columnsOf, encryptedKeys, type SignetDb } from "./db.js"
 import { SignetDbError } from "./errors.js"
@@ -522,7 +522,7 @@ export function createCollab(db: SignetDb<unknown>, options: CollabOptions) {
       }
       const mentions = await mentionsFor(who, body)
       const row = {
-        id: newId(),
+        id: newId(now().getTime()),
         orgId: who.orgId,
         tableName: rec.sqlName,
         rowId: ref.id,
@@ -609,27 +609,23 @@ export function createCollab(db: SignetDb<unknown>, options: CollabOptions) {
     ): Promise<{ items: TimelineItem[]; nextCursor: string | null }> {
       const rec = await resolve(who, ref, "read")
       const limit = Math.max(1, Math.min(opts.limit ?? 20, 100))
-      let cursor: { at: Date; id: string } | null = null
-      if (opts.before) {
-        const [ms, id] = [
-          opts.before.slice(0, opts.before.indexOf("_")),
-          opts.before.slice(opts.before.indexOf("_") + 1),
-        ]
-        if (!/^\d+$/.test(ms) || !id) throw bad("before is not a cursor from this timeline.")
-        cursor = { at: new Date(Number(ms)), id }
-      }
-      const older = (at: AnyOrm, id: AnyOrm) =>
-        cursor ? or(lt(at, cursor.at), and(eq(at, cursor.at), lt(id, cursor.id))) : undefined
+      // Both sources are ordered by their ids, which are newId()s: time-ordered
+      // strings, so the cursor is one exact id with no clock precision to lose.
+      const cursor = opts.before
+      if (cursor !== undefined && !/^[0-9A-Za-z]{1,64}$/.test(cursor))
+        throw bad("before is not a cursor from this timeline.")
+      const older = (id: AnyOrm) => (cursor ? lt(id, cursor) : undefined)
 
       const A = db.audit as unknown as Cols | undefined
       const changes = A
         ? ((await o
             .select()
             .from(db.audit)
-            .where(and(eq(A.tableName, rec.sqlName), eq(A.rowId, ref.id), older(A.at, A.id)))
-            .orderBy(desc(A.at), desc(A.id))
+            .where(and(eq(A.tableName, rec.sqlName), eq(A.rowId, ref.id), older(A.id)))
+            .orderBy(desc(A.id))
             .limit(limit + 1)) as Cols[])
         : []
+      // Deleted comments are left out here, not after, so a page is never short.
       const notes = (await o
         .select()
         .from(commentsTable)
@@ -638,18 +634,17 @@ export function createCollab(db: SignetDb<unknown>, options: CollabOptions) {
             eq(C.orgId, who.orgId),
             eq(C.tableName, rec.sqlName),
             eq(C.rowId, ref.id),
-            older(C.createdAt, C.id),
+            isNull(C.deletedAt),
+            older(C.id),
           ),
         )
-        .orderBy(desc(C.createdAt), desc(C.id))
+        .orderBy(desc(C.id))
         .limit(limit + 1)) as Cols[]
 
       const merged: { at: Date; id: string; change?: Cols; note?: Cols }[] = [
         ...changes.map((r) => ({ at: r.at as Date, id: r.id as string, change: r })),
-        ...notes
-          .filter((r) => !r.deletedAt)
-          .map((r) => ({ at: r.createdAt as Date, id: r.id as string, note: r })),
-      ].sort((a, b) => b.at.getTime() - a.at.getTime() || (a.id < b.id ? 1 : -1))
+        ...notes.map((r) => ({ at: r.createdAt as Date, id: r.id as string, note: r })),
+      ].sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
       const page = merged.slice(0, limit)
       const names = await people([
         ...changes.filter((r) => r.actorType === "user").map((r) => r.actorId),
@@ -686,7 +681,7 @@ export function createCollab(db: SignetDb<unknown>, options: CollabOptions) {
       const last = page[page.length - 1]
       return {
         items,
-        nextCursor: merged.length > limit && last ? `${last.at.getTime()}_${last.id}` : null,
+        nextCursor: merged.length > limit && last ? last.id : null,
       }
     },
 
