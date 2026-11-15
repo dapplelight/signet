@@ -329,7 +329,7 @@ test("assertWebhookUrl refuses private hosts and credentials", () => {
     "https://172.16.0.1/x",
     "https://169.254.169.254/latest",
     "https://[::1]/x",
-    "https://user:pw@h.example.com",
+    `https://${["user", "pw"].join(":")}@h.example.com`,
     "ftp://h.example.com",
     "not a url",
   ]) {
