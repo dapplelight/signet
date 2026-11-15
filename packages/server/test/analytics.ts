@@ -267,6 +267,24 @@ ok(
   ev = await send({ trustClientUserId: true })
   ok("trustClientUserId keeps it", ev[0].userId === "spoofed")
 
+  {
+    const mem = memorySink()
+    const a = new Hono()
+    registerIngest(a as never, "/e", { engine: mem, enrich: () => ({ country: "IN", ua: "bot" }) })
+    const props = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`k${i}`, i]))
+    await a.request("/e", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ events: [{ name: "big", props }] }),
+    })
+    const p = mem.events[0]?.props ?? {}
+    ok(
+      "client props capped so server enrichment always fits in 20",
+      Object.keys(p).length === 20 && p.country === "IN" && p.ua === "bot",
+      JSON.stringify(p),
+    )
+  }
+
   const dp2 = toDataPoint({ name: "n", anonymousId: "a1", sessionId: "s1", props: { k: "v" } })
   ok(
     "engine keeps ids as blobs",

@@ -73,6 +73,12 @@ export function analyticsTools({ store }: AnalyticsToolsOptions): PlainTool[] {
           to: time(i.to, "to"),
           where: i.where as Record<string, string> | undefined,
         }
+        // funnel and retention take no property filter, and funnel names its events in steps:
+        // refuse rather than answer for everyone as if the filter applied.
+        if ((i.kind === "funnel" || i.kind === "retention") && i.where !== undefined)
+          throw bad(`where is not supported for ${i.kind}.`)
+        if (i.kind === "funnel" && i.event !== undefined)
+          throw bad("funnel takes steps, not event.")
         switch (i.kind) {
           case "count":
             return { count: await store.count(f) }

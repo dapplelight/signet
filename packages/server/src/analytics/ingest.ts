@@ -15,6 +15,8 @@ export type IngestOptions = {
   engine: AnalyticsSink
   /** Max events accepted per request. Default 50. */
   maxEvents?: number
+  /** Max props per event, server enrichment included. Default 20. */
+  maxProps?: number
   /** Max event-name length. Default 64. */
   maxNameLength?: number
   /**
@@ -39,6 +41,7 @@ export const cleanId = (v: unknown): string | undefined =>
 export function registerIngest(app: Hono<never>, path: string, opts: IngestOptions): void {
   const maxEvents = opts.maxEvents ?? 50
   const maxNameLength = opts.maxNameLength ?? 64
+  const maxProps = opts.maxProps ?? 20
 
   app.post(path, async (c) => {
     const body = (await c.req.json().catch(() => null)) as Body | null
@@ -50,6 +53,9 @@ export function registerIngest(app: Hono<never>, path: string, opts: IngestOptio
     }
 
     const enriched = opts.enrich?.(c as never) ?? {}
+    // Client props get what room the server's values leave, so a long client
+    // list can never push out (or let a sink's own cap drop) a trusted value.
+    const room = Math.max(0, maxProps - Object.keys(enriched).length)
     const serverUser = opts.userId ? cleanId(await opts.userId(c as never)) : undefined
     const events: TrackedEvent[] = []
 
@@ -64,7 +70,9 @@ export function registerIngest(app: Hono<never>, path: string, opts: IngestOptio
         sessionId: cleanId(e.sessionId),
         userId: opts.userId ? serverUser : opts.trustClientUserId ? cleanId(e.userId) : undefined,
         props: {
-          ...(typeof e.props === "object" && e.props ? (e.props as TrackedEvent["props"]) : {}),
+          ...(typeof e.props === "object" && e.props && !Array.isArray(e.props)
+            ? (Object.fromEntries(Object.entries(e.props).slice(0, room)) as TrackedEvent["props"])
+            : {}),
           // Server values last so a client cannot spoof them.
           ...enriched,
         },

@@ -120,6 +120,18 @@ const ms = (t: Time) => (t instanceof Date ? t.getTime() : t)
 const PROP = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/
 const MAX_PROPS = 20
 const MAX_PROP_CHARS = 256
+
+/**
+ * Valid Unicode: a cut can split an emoji, and a client can send a lone
+ * surrogate; Postgres jsonb rejects both, failing the whole insert.
+ */
+const wellFormed = (s: string): string => {
+  const cut = /[\uD800-\uDBFF]$/.test(s) ? s.slice(0, -1) : s
+  return (
+    (cut as string & { toWellFormed?: () => string }).toWellFormed?.() ??
+    cut.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "\uFFFD")
+  )
+}
 const BUCKETS: Record<Bucket, number> = { hour: HOUR, day: DAY, week: WEEK }
 
 /** Bucket start for `ts`; the same formula runs in SQL. */
@@ -175,13 +187,13 @@ export function createAnalyticsStore(db: SignetDb<unknown>, options: AnalyticsSt
     for (const [k, v] of Object.entries(e.props ?? {})) {
       if (Object.keys(props).length >= MAX_PROPS) break
       if (!PROP.test(k)) continue
-      if (typeof v === "string") props[k] = v.slice(0, MAX_PROP_CHARS)
+      if (typeof v === "string") props[k] = wellFormed(v.slice(0, MAX_PROP_CHARS))
       else if (typeof v === "number" && Number.isFinite(v)) props[k] = v
       // Booleans as text, so filters compare the same way in every dialect.
       else if (typeof v === "boolean") props[k] = String(v)
     }
     return {
-      name: e.name,
+      name: wellFormed(e.name),
       ts: typeof e.ts === "number" && Number.isFinite(e.ts) ? Math.trunc(e.ts) : now().getTime(),
       anonymousId: e.anonymousId ?? null,
       sessionId: e.sessionId ?? null,

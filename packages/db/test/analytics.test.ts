@@ -164,6 +164,19 @@ for (const backend of backends) {
       expect(saved.ok).toBe(1)
     })
 
+    test("a cut emoji or a lone surrogate is stored as valid Unicode", async () => {
+      const { store } = await make()
+      const cut = `${"x".repeat(255)}😀` // the 256-char cut lands between the surrogates
+      const written = await store.write([
+        ev("e", NOW - 1000, { props: { cut, lone: "a\uD800b", tail: "\uDC00" } }),
+        ev("name\uD83D", NOW - 1000),
+      ])
+      expect(written).toBe(2)
+      expect(await store.count({ where: { cut: "x".repeat(255) } })).toBe(1)
+      expect(await store.count({ where: { lone: "a\uFFFDb" } })).toBe(1)
+      expect(await store.count({ event: "name" })).toBe(1)
+    })
+
     test("injection: values are bound, property names are checked", async () => {
       const { store } = await make()
       await store.write([
