@@ -24,7 +24,7 @@ import { $ } from "bun"
 
 const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "")
 const TMP = "/tmp/signet-verify-publish"
-const PKGS = ["config", "lib", "tokens", "server", "db", "payments", "ai", "ui"]
+const PKGS = ["config", "lib", "tokens", "server", "ai", "ui"]
 
 rmSync(TMP, { recursive: true, force: true })
 mkdirSync(TMP, { recursive: true })

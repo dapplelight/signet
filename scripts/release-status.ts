@@ -13,7 +13,11 @@
  *   bun run release:status    # exit 0 only if every tarball is fetchable
  */
 
-const PKGS = ["config", "tokens", "lib", "ui", "server", "db", "payments", "ai", "create-signet-app"] as const
+<<<<<<< HEAD
+const PKGS = ["config", "tokens", "lib", "ui", "server", "ai", "create-signet-app"] as const
+=======
+const PKGS = ["config", "tokens", "lib", "ui", "server", "ai", "create-signet-app"] as const
+>>>>>>> 3b74f945f5113a331b3905966677e92e275fe9dc
 const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "")
 const REGISTRY = "https://registry.npmjs.org"
 
