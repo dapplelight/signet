@@ -159,7 +159,14 @@ export function App({ initial }: { initial: string }) {
             </Button>
           ))}
         </div>
-        <ThemeToggle />
+        <nav aria-label="Screens" className="flex items-center gap-3 text-sm">
+          {__SCREEN_PAGES__.map((page) => (
+            <a key={page} href={`./${page}`} className="text-text-secondary underline">
+              {page.replace(/\.html$/, "").replace(/-/g, " ")}
+            </a>
+          ))}
+          <ThemeToggle />
+        </nav>
       </header>
 
       <main className="mx-auto flex max-w-4xl flex-col gap-6 p-6">
