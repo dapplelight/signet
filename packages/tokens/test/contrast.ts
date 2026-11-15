@@ -110,7 +110,7 @@ type Tinted = {
   on: string[]
 }
 // Called from check() only: signet-mcp copies this file and must not read ui/.
-const tinted = (): Tinted[] => [
+export const tinted = (): Tinted[] => [
   {
     name: "inactive TabsTrigger",
     light: alphaOf(ui("tabs.tsx"), /\stext-text-primary\/(\d+)\s/, "tabs"),
