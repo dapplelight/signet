@@ -33,11 +33,34 @@ jobs:
       - run: bun run build:all
       - name: test + typecheck
         run: |
-          for p in config tokens lib ui server ai db payments mcp cli; do
+          for p in config tokens lib ui server ai db payments test mcp cli; do
             (cd packages/$p && bun run test && bun run typecheck)
           done
       - run: bun run typecheck
         working-directory: packages/create-signet-app
+
+  # signet-test's Playwright self-test in real Chromium. Screenshot baselines
+  # are stored for Linux in packages/test/test/e2e/__screenshots__/linux; a
+  # missing or changed one fails here and the rendered images are uploaded.
+  playwright:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run build:all
+      - run: npx playwright install --with-deps chromium
+        working-directory: packages/test
+      - run: bun run test:e2e
+        working-directory: packages/test
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: signet-test-screenshots
+          path: |
+            packages/test/test/e2e/__screenshots__
+            packages/test/test-results
+          if-no-files-found: ignore
 
   # The suites above run under Bun. This loads signet-server's built dist with
   # plain node, through the package's own exports map: adapters, sinks, jobs.

@@ -194,6 +194,45 @@
         "zod",
       ],
     },
+    "packages/test": {
+      "name": "@dapplelight/signet-test",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@dapplelight/signet-db": "^0.1.0",
+        "@dapplelight/signet-payments": "^0.1.0",
+        "@dapplelight/signet-server": "^0.4.0",
+        "@dapplelight/signet-ui": "^0.2.2",
+        "@happy-dom/global-registrator": "^20.14.5",
+        "@playwright/test": "1.65.1",
+        "@testing-library/react": "^16.3.3",
+        "@types/bun": "^1.4.2",
+        "@types/node": "^26.6.2",
+        "@types/react": "^19.3.0",
+        "@types/react-dom": "^19.3.0",
+        "ai": "^7.0.109",
+        "drizzle-orm": "^0.45.4",
+        "react": "^19.3.0",
+        "react-dom": "^19.3.0",
+        "typescript": "^7.0.2",
+        "zod": "^4.6.5",
+      },
+      "peerDependencies": {
+        "@dapplelight/signet-payments": "^0.1.0",
+        "@dapplelight/signet-server": "^0.4.0",
+        "@dapplelight/signet-ui": "^0.2.2",
+        "@playwright/test": ">=1.50.0",
+        "ai": ">=7.0.0",
+        "react": ">=19.0.0",
+      },
+      "optionalPeers": [
+        "@dapplelight/signet-payments",
+        "@dapplelight/signet-server",
+        "@dapplelight/signet-ui",
+        "@playwright/test",
+        "ai",
+        "react",
+      ],
+    },
     "packages/tokens": {
       "name": "@dapplelight/signet-tokens",
       "version": "0.2.2",
@@ -323,6 +362,8 @@
 
     "@dapplelight/signet-server": ["@dapplelight/signet-server@workspace:packages/server"],
 
+    "@dapplelight/signet-test": ["@dapplelight/signet-test@workspace:packages/test"],
+
     "@dapplelight/signet-tokens": ["@dapplelight/signet-tokens@workspace:packages/tokens"],
 
     "@dapplelight/signet-ui": ["@dapplelight/signet-ui@workspace:packages/ui"],
@@ -386,6 +427,8 @@
     "@parcel/watcher-win32-ia32": ["@parcel/watcher-win32-ia32@2.5.1", "", { "os": "win32", "cpu": "ia32" }, "sha512-c2KkcVN+NJmuA7CGlaGD1qJh1cLfDnQsHjE89E60vUEMlqduHGCdCLJCID5geFVM0dOtA3ZiIO8BoEQmzQVfpQ=="],
 
     "@parcel/watcher-win32-x64": ["@parcel/watcher-win32-x64@2.5.1", "", { "os": "win32", "cpu": "x64" }, "sha512-9lHBdJITeNR++EvSQVUcaZoWupyHfXe1jZvGZ06O/5MflPcuPLtEphScIBL+AiCWBO46tDSHzWyD0uDmmZqsgA=="],
+
+    "@playwright/test": ["@playwright/test@1.65.1", "", { "dependencies": { "playwright": "1.65.1" }, "bin": { "playwright": "cli.js" } }, "sha512-y+NCIRm2LvY4slUVWvGh1nujJ8RF/hEisIsq2mtUPgdQC4L701bq5hZGMhrpeXjACvwvO9tj5dJqhvM6TP9lbw=="],
 
     "@radix-ui/primitive": ["@radix-ui/primitive@1.1.7", "", {}, "sha512-rqWnm76nYT8HoNNqEjpgJ7Pw/DrBj5iBTrmEPo6HTX5+VJyBNOqTdv4g89G63HuR5g0AaENoAcH7Is5fF2kZ8Q=="],
 
@@ -946,6 +989,10 @@
     "picomatch": ["picomatch@4.0.7", "", {}, "sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA=="],
 
     "pkce-challenge": ["pkce-challenge@5.0.1", "", {}, "sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ=="],
+
+    "playwright": ["playwright@1.65.1", "", { "dependencies": { "playwright-core": "1.65.1" }, "bin": { "playwright": "cli.js" } }, "sha512-vJ1FuoOrNwOKHUIVEvSt3jT1L+wjjDpwhwIstKtfvTh8XIG4FG4bIFuvNdMxi81LGfAhUgUZleVFaOLY4RIUUw=="],
+
+    "playwright-core": ["playwright-core@1.65.1", "", { "bin": { "playwright-core": "cli.js" } }, "sha512-hqPpz7blSMPxWVdoeE1yiBSzXsKiVOd2k+kjCvmUywD2GPO2Dd9HfcWnq9NN0GHbNZDFgZ9JfBFr+X5/BLo0qw=="],
 
     "postcss": ["postcss@8.5.32", "", { "dependencies": { "nanoid": "^3.3.20", "picocolors": "^1.1.1", "source-map-js": "^1.2.2" } }, "sha512-LJlKCCAUFKOuZxipUdYw1NzIITEsPcgyOG9LkvRJvuKj/bRzbuRY0ARXvL0pWGpsZvn8jku+LMep2eU0seHp8g=="],
 
