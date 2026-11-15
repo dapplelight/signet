@@ -282,3 +282,13 @@ describe("fakeModel", () => {
     expect(parts2).toEqual(["hi ", "there ", "friend"])
   })
 })
+
+describe("fakeClock guards", () => {
+  test("set and advance refuse a non-time instead of going NaN", () => {
+    const clock = fakeClock(0)
+    expect(() => clock.set("not a date")).toThrow("not a time")
+    expect(() => clock.advance(Number.NaN)).toThrow("not a time")
+    expect(clock.now()).toBe(0)
+    expect(clock.advance(-1000)).toBe(-1000)
+  })
+})

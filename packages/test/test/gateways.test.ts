@@ -321,10 +321,11 @@ describe("subscriptions: renewals, failures and cancels, with entitlements", () 
 
     test(`${shape}: payouts, processed and failed, verified webhooks, idempotent create`, async () => {
       const gw = fakeGateway(shape)
+      const destination = shape === "razorpay" ? "fa_FAKE" : "ba_FAKE"
       const p = await gw.createPayout({
         amount: 10000,
         currency: shape === "razorpay" ? "INR" : "USD",
-        destination: shape === "razorpay" ? "fa_FAKE" : "ba_FAKE",
+        destination,
         idempotencyKey: "payout-key-1",
       })
       expect(p.status).toBe(shape === "razorpay" ? "processing" : "pending")
@@ -332,7 +333,7 @@ describe("subscriptions: renewals, failures and cancels, with entitlements", () 
       const again = await gw.createPayout({
         amount: 10000,
         currency: shape === "razorpay" ? "INR" : "USD",
-        destination: "fa_FAKE",
+        destination,
         idempotencyKey: "payout-key-1",
       })
       expect(again.gatewayId).toBe(p.gatewayId)
@@ -342,7 +343,7 @@ describe("subscriptions: renewals, failures and cancels, with entitlements", () 
       const q = await gw.createPayout({
         amount: 500,
         currency: shape === "razorpay" ? "INR" : "USD",
-        destination: "fa_FAKE",
+        destination,
         idempotencyKey: "payout-key-2",
       })
       expect((await gw.verifyWebhook(await gw.settlePayout(q.gatewayId, "failed"))).type).toBe(
@@ -362,4 +363,63 @@ describe("subscriptions: renewals, failures and cancels, with entitlements", () 
       }
     })
   }
+})
+
+describe("concurrency and idempotency keys", () => {
+  for (const shape of SHAPES) {
+    test(`${shape}: the same webhook delivered concurrently books once`, async () => {
+      const b = gwBooks(shape)
+      const c = await b.payments.checkout({ ...CHECKOUT[shape], idempotencyKey: "k", userId: "u1" })
+      const hook = await b.gw.complete(c.gatewayId)
+      const out = await Promise.all(
+        Array.from({ length: 5 }, () => b.payments.handleWebhook(shape, hook.clone())),
+      )
+      expect(out.every((r) => r.status === 200)).toBe(true)
+      expect(await b.bal("revenue", CUR[shape])).toBe(-CHECKOUT[shape].amount)
+    })
+
+    test(`${shape}: concurrent refunds with one key refund once`, async () => {
+      const { gw, paymentId } = await paid(shape)
+      const rs = await Promise.all(
+        Array.from({ length: 4 }, () =>
+          gw.refund(paymentId, { amount: 100, idempotencyKey: "refund-key-1" }),
+        ),
+      )
+      expect(new Set(rs.map((r) => r.gatewayId)).size).toBe(1)
+      expect(gw.state.refunds.size).toBe(1)
+    })
+  }
+
+  for (const shape of ["razorpay", "stripe"] as const) {
+    test(`${shape}: a key reused with another body is rejected, as the gateway does`, async () => {
+      const { gw, paymentId } = await paid(shape)
+      await gw.refund(paymentId, { amount: 100, idempotencyKey: "refund-key-1" })
+      expect(
+        await code(gw.refund(paymentId, { amount: 200, idempotencyKey: "refund-key-1" })),
+      ).toBe("GATEWAY_ERROR")
+      expect(gw.state.refunds.size).toBe(1)
+    })
+
+    test(`${shape}: one key on two endpoints is two requests`, async () => {
+      const { gw, paymentId } = await paid(shape)
+      await gw.refund(paymentId, { amount: 100, idempotencyKey: "same-key-1" })
+      await gw.createPayout({
+        amount: 100,
+        currency: CUR[shape],
+        destination: shape === "razorpay" ? "fa_FAKE" : "ba_FAKE",
+        idempotencyKey: "same-key-1",
+      })
+      expect(gw.state.refunds.size).toBe(1)
+      expect(gw.state.payouts.size).toBe(1)
+    })
+  }
+
+  test("an unavailable reply is not stored: the retry with the same key runs", async () => {
+    const gw = fakeGateway("stripe")
+    gw.fail("unavailable", { on: "payouts", times: 10 })
+    const input = { amount: 100, currency: "USD", destination: "ba_FAKE", idempotencyKey: "p" }
+    expect(await code(gw.createPayout(input))).toBe("GATEWAY_UNAVAILABLE")
+    gw.reset() // also clears faults
+    expect((await gw.createPayout(input)).status).toBe("pending")
+  })
 })

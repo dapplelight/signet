@@ -25,11 +25,14 @@ export type FakeClock = {
   advance: (ms: number) => number
 }
 
-const toMs = (t: number | string | Date) => (typeof t === "number" ? t : new Date(t).getTime())
+const toMs = (t: number | string | Date) => {
+  const ms = typeof t === "number" ? t : new Date(t).getTime()
+  if (!Number.isFinite(ms)) throw new Error(`fakeClock: not a time: ${String(t)}`)
+  return ms
+}
 
 export function fakeClock(start: number | string | Date = "2026-01-01T00:00:00Z"): FakeClock {
   let t = toMs(start)
-  if (!Number.isFinite(t)) throw new Error(`fakeClock: not a time: ${String(start)}`)
   return {
     now: () => t,
     date: () => new Date(t),
@@ -37,7 +40,7 @@ export function fakeClock(start: number | string | Date = "2026-01-01T00:00:00Z"
       t = toMs(to)
     },
     advance: (ms) => {
-      t += ms
+      t = toMs(t + ms)
       return t
     },
   }

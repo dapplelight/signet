@@ -150,7 +150,8 @@ export function fakeGateway(
   const calls: GatewayCall[] = []
   const requests: FetchCall[] = []
   const faults: { fault: Fault; on?: string | RegExp; left: number }[] = []
-  const replays = new Map<string, Reply>()
+  /** Idempotency keys: "METHOD path key" -> the request body and its (possibly in-flight) reply. */
+  const replays = new Map<string, { body: string; reply: Promise<Reply> }>()
   /** PayU checkouts waiting for the buyer: txnid -> form fields. */
   const pending = new Map<string, Record<string, string>>()
   let queued: Promise<Request>[] = []
@@ -770,17 +771,41 @@ export function fakeGateway(
       headers["x-refund-idempotency"] ??
       headers["x-payout-idempotency"] ??
       (form.get("command") === "cancel_refund_transaction" ? `payu:${form.get("var2")}` : undefined)
-    let reply = key && method === "POST" ? replays.get(key) : undefined
-    if (!reply) {
-      reply =
+    const route = async (): Promise<Reply> => {
+      const r =
         shape === "razorpay"
           ? razorpayRoute(method, u.pathname, body ? JSON.parse(body) : {})
           : shape === "stripe"
             ? stripeRoute(method, u.pathname, form)
             : await payuRoute(form, u.pathname)
-      reply = { status: reply.status, body: structuredClone(reply.body) }
-      if (key && method === "POST" && reply.status < 500) replays.set(key, reply)
+      return { status: r.status, body: structuredClone(r.body) }
     }
+    let reply: Reply
+    if (key && method === "POST") {
+      // Scoped to the endpoint like the gateways; the same key with another
+      // body is the caller's bug, which the real gateways reject.
+      const slot = `${method} ${u.pathname} ${key}`
+      const seen = replays.get(slot)
+      if (seen && seen.body !== (body ?? "")) {
+        reply = {
+          status: 400,
+          body: {
+            error: {
+              code: "idempotency_error",
+              description: "Idempotency key reused with a different request body",
+            },
+          },
+        }
+      } else if (seen) {
+        reply = structuredClone(await seen.reply)
+      } else {
+        // Stored before it settles, so a concurrent repeat waits for this one.
+        const pending = route()
+        replays.set(slot, { body: body ?? "", reply: pending })
+        reply = await pending
+        if (reply.status >= 500) replays.delete(slot)
+      }
+    } else reply = await route()
     if (fault?.fault === "timeout")
       throw new DOMException("signet-test: response lost (injected timeout)", "TimeoutError")
     return Response.json(reply.body, { status: reply.status })
