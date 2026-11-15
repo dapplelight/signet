@@ -87,7 +87,8 @@ export function bucket(salt: string, id: string): number {
   return h % 10_000
 }
 
-const matches = (rule: FlagRule, s: FlagSubject): boolean => {
+/** Whether a subject meets a rule's `when`: every condition given holds. */
+export const matchesRule = (rule: Pick<FlagRule, "when">, s: FlagSubject): boolean => {
   const { plan, attributes } = rule.when
   if (plan && !(s.plan !== undefined && plan.includes(s.plan))) return false
   for (const [k, want] of Object.entries(attributes ?? {})) {
@@ -110,7 +111,7 @@ export function evaluateFlag<V extends FlagValue>(
   const rules = def.rules ?? []
   for (let i = 0; i < rules.length; i++) {
     const r = rules[i] as FlagRule
-    if (matches(r, subject)) return { value: r.value as V, reason: "rule", rule: i }
+    if (matchesRule(r, subject)) return { value: r.value as V, reason: "rule", rule: i }
   }
   const ro = def.rollout
   if (ro && bucket(ro.salt ?? key, subject.id) < Math.round(ro.percent * 100))

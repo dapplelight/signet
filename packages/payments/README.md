@@ -403,6 +403,10 @@ sqlStore({ query: (s, p) => sqlite.query(s).all(...p) }, { dialect: "sqlite" }) 
 sqlStore({ query: (s, p) => sql.unsafe(s, p) }, { dialect: "pg" })              // postgres-js
 ```
 
+`store.reassignUser(from, to)` moves every payment of one user to another
+(an anonymous app user signing in); signet-db's `customers.merge` calls it.
+It is optional on the `PaymentsStore` type, so a custom store still fits.
+
 Idempotency is a structural hook too. With signet-db:
 
 ```ts

@@ -37,6 +37,7 @@ package ships all three rather than forcing them together.
 | `@dapplelight/signet-server/http/cache` | `hono` (optional peer) | `httpCache` (Cache-Control, ETag, 304, Vary), `cachedResponse` (stale-while-revalidate on a `KeyValue`). |
 | `@dapplelight/signet-server/http/webhooks` | `hono`, `zod` (optional peers) | `webhookRoutes`: admin routes for signet-db's outbound webhooks. |
 | `@dapplelight/signet-server/http/orgs` | `hono` (optional peer) | `tenant`, `orgGuards` (`requireMember`, `requireRole`, `requirePermission`), `orgRoutes`: multi-tenant orgs on signet-db's `createOrgs`. See [Organisations](#organisations-and-tenants). |
+| `@dapplelight/signet-server/http/monetisation` | `hono` (optional peer) | `monetisationRoutes` (offerings, anonymous ids, merge, Customer Center) and `monetisationAdminRoutes` (offerings, placements, timelines, requests) on signet-db's `createOfferings` and `createCustomers`. See [Monetisation routes](#monetisation-routes). |
 | `@dapplelight/signet-server/mcp` | `@modelcontextprotocol/server` ^2.1, `zod` >=4.2 (optional peers; not `hono`) | `defineTool`, `createMcpServer`; stdio via the SDK's `serveStdio`. See [MCP servers](#mcp-servers). |
 | `@dapplelight/signet-server/jobs` | `zod` (optional peer) | `defineJob`, `createJobs`, retries, schedules, Cloudflare/QStash/Node runtimes. See [Jobs](#jobs). |
 | `@dapplelight/signet-server/http/workflows` | `hono` (optional peer) | `workflowRoutes` for signet-db's durable workflows: start, status, events, approve/reject, cancel, admin list. See [Workflow routes](#workflow-routes). |
@@ -414,6 +415,43 @@ app.route("/admin", adminRoutes(admin, { db, ctx: (c) => ({ actor: { type: "user
   (create, list, revoke, preview, accept). Every `/current` route checks
   membership in the tenant, and signet-db refuses role escalation and
   removing the last owner. `OrgError` becomes the envelope.
+
+### Monetisation routes
+
+`@dapplelight/signet-server/http/monetisation` serves signet-db's
+`createOfferings` and `createCustomers`, typed by shape.
+
+```ts
+import { monetisationAdminRoutes, monetisationRoutes } from "@dapplelight/signet-server/http/monetisation"
+
+const me = (c) => c.get("session")?.sub
+app.route("/api/billing", monetisationRoutes({
+  offerings, customers,
+  subject: (c) => me(c) ?? c.req.header("x-app-user"), // signed in, or the device's anonymous id
+  userId: me,                                         // merge targets only a signed-in user
+  orgId: (c) => currentTenant(c).id,                  // multi-tenant apps
+}))
+app.route("/api/admin/billing", monetisationAdminRoutes({
+  offerings, customers,
+  authorize: (c) => c.get("session")?.role === "admin", // deny by default: anything but true is 403
+  actor: (c) => ({ type: "user", id: me(c) }),
+}))
+```
+
+| Route | What |
+|---|---|
+| `GET /offerings/:placement` | The offering and paywall for this audience (404 none). Country from `cf-ipcountry`, else `?country`; platform from `?platform`. Attributes come only from your `audience(c)`, never the query. |
+| `POST /anonymous` | `{ anonymousId }` for a device before sign-in. |
+| `POST /merge` | `{ anonymousId }` into the signed-in user; refused is 409 `MERGE_REFUSED` with the reason. |
+| `GET /customer`, `GET /customer/timeline` | The Customer Center overview; the customer's own history. |
+| `POST /customer/cancel` | Web: cancelled at the gateway. Store: `{ cancelled: false, reason: "store", manageUrl }`. |
+| `POST /customer/retention` | Accept the retention offer. |
+| `POST /customer/refund`, `POST /customer/support` | Recorded and sent to the team through `notify`. A refund for a payment that is not the caller's is 404. |
+| Admin: `GET/POST /offerings/:key`, `GET /placements`, `PUT /placements/:placement`, `GET /customers/:subject[/timeline]`, `GET /requests`, `PATCH /requests/:id` | Publish versions, point placements, read any customer's timeline, close requests. |
+
+signet-db errors become the envelope (`BAD_VALUE` is 400 `VALIDATION_FAILED`,
+`NOT_FOUND` 404). These are cookie-authenticated writes: put
+`csrfMiddleware` in front when the session cookie is `SameSite=None`.
 
 ## Real-time: presence, live updates, shared state
 

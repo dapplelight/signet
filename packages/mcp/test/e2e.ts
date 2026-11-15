@@ -431,6 +431,25 @@ try {
     dbr.json,
   )
 
+  const mon = await call("recipe", { task: "remote paywall offerings and customer center" })
+  ok(
+    "recipe: add-monetisation is cut from the db and server READMEs and covers offerings, merge, Customer Center and routes",
+    mon.json?.id === "add-monetisation" &&
+      JSON.stringify(mon.json.steps.map((st: any) => st.title)) ===
+        JSON.stringify([
+          "Offerings and remote paywalls",
+          "Customer timeline",
+          "Identity merge",
+          "Customer Center",
+          "Monetisation routes",
+        ]) &&
+      ["createOfferings(db", "customers.merge(", "requestRefund(", "monetisationRoutes("].every(
+        (t) => JSON.stringify(mon.json).includes(t),
+      ) &&
+      !mon.json.install.includes("@dapplelight/signet-db"),
+    mon.json?.id,
+  )
+
   const wfr = await call("recipe", { task: "durable workflow with an approval step" })
   ok(
     "recipe: add-workflows is cut from the db and server READMEs and covers steps, runners and routes",

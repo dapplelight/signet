@@ -1069,6 +1069,41 @@ const RECIPES: RecipeSpec[] = [
     ],
   },
   {
+    id: "add-monetisation",
+    title:
+      "Add offerings, remote paywalls, the Customer Center and identity merge (RevenueCat-style)",
+    keywords: [
+      "offerings",
+      "offering",
+      "paywall",
+      "remote paywall",
+      "placement",
+      "customer center",
+      "cancel subscription",
+      "refund request",
+      "retention offer",
+      "identity merge",
+      "anonymous user",
+      "customer timeline",
+      "monetisation",
+      "monetization",
+    ],
+    // signet-db is `private: true`, so it is not in the install line.
+    install: ["@dapplelight/signet-server", "hono", "drizzle-orm"],
+    refs: [
+      ["db", "Offerings and remote paywalls"],
+      ["db", "Customer timeline"],
+      ["db", "Identity merge"],
+      ["db", "Customer Center"],
+      ["server", "Monetisation routes"],
+    ],
+    verify: [
+      "bun run test; GET /offerings/:placement returns the paywall, and publishing a new version changes it with no app release",
+      "merge the same anonymous id twice and into two accounts at once: one account gets the plan, once; the other merge is refused",
+      "deliver a store notification twice: the customer timeline gains one entry",
+    ],
+  },
+  {
     id: "add-mcp-tools",
     title: "Add MCP tools to an app",
     keywords: ["mcp", "tools", "model context protocol", "agent", "defineTool", "stdio"],
