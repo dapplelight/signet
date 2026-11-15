@@ -98,6 +98,32 @@ ok(
   new Date(demo.clock.now()).toISOString() === "2026-11-01T10:00:00.000Z",
 )
 
+// A full reset: gateways, payments store, notify store and clock start over.
+demo.clock.advance(3_600_000)
+await demo.notifyStore.addInbox("user_1", {
+  id: "i1",
+  event: "e",
+  category: "c",
+  title: "t",
+  body: "b",
+  createdAt: "",
+})
+await demo.handle(new Request("http://app.test/__signet/reset", { method: "POST" }))
+ok(
+  "demo: reset empties gateways, payments, notify store and rewinds the clock",
+  demo.gateways.razorpay.state.payments.size === 0 &&
+    (await demo.paymentsStore.balance("revenue", "INR")) === 0 &&
+    demo.notifyStore.inboxes.size === 0 &&
+    new Date(demo.clock.now()).toISOString() === "2026-11-01T10:00:00.000Z",
+)
+const again = await demo.payments.checkout({
+  amount: 49900,
+  currency: "INR",
+  idempotencyKey: "k1",
+  userId: "user_1",
+})
+ok("demo: the same idempotency key is fresh after reset", again.gatewayId !== c.gatewayId)
+
 let refused = false
 try {
   await createDemo({ appEnv: "production" })

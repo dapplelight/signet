@@ -10,6 +10,11 @@
  */
 import type {
   Channel,
+  Delivery,
+  InboxItem,
+  NotifyStore,
+  OptIn,
+  Prefs,
   Rendered,
   Sender,
   SendResult,
@@ -78,7 +83,14 @@ export function createOutbox(options: { now?: () => number } = {}): Outbox {
       if (fail) throw Object.assign(new Error(`fake ${m.channel} failure`), fail)
       const stored = { ...m, at: now() } as OutboxMessage
       messages.push(stored)
-      for (const l of listeners) l(stored)
+      // A throwing listener must not fail the send: the notifier would retry
+      // and the message would be stored twice.
+      for (const l of listeners)
+        try {
+          l(stored)
+        } catch (err) {
+          console.error("signet-test: outbox listener threw", err)
+        }
     },
   }
 }
@@ -86,7 +98,8 @@ export function createOutbox(options: { now?: () => number } = {}): Outbox {
 /**
  * One fake sender. Failures queued with `outbox.failNext` throw an error
  * shaped like `NotifyError` (`code`, `permanent`), so the notifier's retry
- * logic runs as it would against a real provider.
+ * logic runs as it would against a real provider. A repeated idempotency key
+ * returns the first message's id and stores nothing, as providers do.
  */
 export function fakeSender<C extends SendChannel>(
   channel: C,
@@ -97,6 +110,11 @@ export function fakeSender<C extends SendChannel>(
   return {
     provider: options.provider ?? "fake",
     async send(to, rendered, ctx): Promise<SendResult> {
+      // Providers dedupe on the idempotency key: a retry gets the first answer.
+      const seen = outbox.messages.find(
+        (m) => m.channel === channel && m.idempotencyKey === ctx.idempotencyKey,
+      )
+      if (seen) return { id: seen.id, status: "sent" }
       const id = `fake-${channel}-${++n}`
       outbox.record({ id, channel, to, rendered, idempotencyKey: ctx.idempotencyKey })
       return { id, status: "sent" }
@@ -117,6 +135,108 @@ export function fakeSenders(outbox: Outbox = createOutbox()): {
       whatsapp: fakeSender("whatsapp", outbox),
       push: fakeSender("push", outbox),
       telegram: fakeSender("telegram", outbox),
+    },
+  }
+}
+
+// ---------------------------------------------------------------- store
+
+export type FakeNotifyStore = NotifyStore & {
+  /** Every delivery record, by id. */
+  readonly deliveries: Map<string, Delivery>
+  /** Inbox items by user, newest first. */
+  readonly inboxes: Map<string, InboxItem[]>
+  readonly prefs: Map<string, Prefs>
+  /** Suppressed addresses as "channel:address" (lower-cased). */
+  readonly suppressed: Map<string, string>
+  /** Empty everything. */
+  reset(): void
+}
+
+/**
+ * An in-memory `NotifyStore` (the store `createNotifier` takes), with its
+ * contents open for assertions. TTLs follow `now`, so a fake clock expires
+ * queued payloads and WhatsApp service windows.
+ *
+ *   const store = fakeNotifyStore()
+ *   const notifier = createNotifier({ channels: senders, store, templates, recipients })
+ *   expect(store.inboxes.get("u1")?.[0]?.title).toBe("Shipped")
+ */
+export function fakeNotifyStore(options: { now?: () => number } = {}): FakeNotifyStore {
+  const now = options.now ?? Date.now
+  const deliveries = new Map<string, Delivery>()
+  const inboxes = new Map<string, InboxItem[]>()
+  const prefs = new Map<string, Prefs>()
+  const suppressed = new Map<string, string>()
+  const payloads = new Map<string, { value: unknown; until: number }>()
+  const providers = new Map<string, string>()
+  const optIns = new Map<string, OptIn>()
+  const windows = new Map<string, number>()
+  const live = <T>(m: Map<string, { value: T; until: number }>, k: string) => {
+    const e = m.get(k)
+    if (e && e.until <= now()) m.delete(k)
+    return m.get(k)?.value ?? null
+  }
+  const copy = <T>(v: T): T => structuredClone(v)
+  return {
+    deliveries,
+    inboxes,
+    prefs,
+    suppressed,
+    getPrefs: async (u) => copy(prefs.get(u) ?? null),
+    setPrefs: async (u, p) => void prefs.set(u, copy(p)),
+    async createDelivery(d) {
+      if (deliveries.has(d.id)) return false
+      deliveries.set(d.id, copy(d))
+      return true
+    },
+    getDelivery: async (id) => copy(deliveries.get(id) ?? null),
+    async updateDelivery(id, patch) {
+      const d = deliveries.get(id)
+      if (d) deliveries.set(id, { ...d, ...copy(patch) })
+    },
+    listDeliveries: async (u) =>
+      copy([...deliveries.values()].filter((d) => d.userId === u).reverse()),
+    putPayload: async (id, value, ttl) =>
+      void payloads.set(id, { value: copy(value), until: now() + ttl * 1000 }),
+    getPayload: async (id) => copy(live(payloads, id)),
+    deletePayload: async (id) => void payloads.delete(id),
+    linkProvider: async (p, pid, id) => void providers.set(`${p}:${pid}`, id),
+    findByProvider: async (p, pid) => providers.get(`${p}:${pid}`) ?? null,
+    suppress: async (ch, a, reason) => void suppressed.set(`${ch}:${a.toLowerCase()}`, reason),
+    isSuppressed: async (ch, a) => suppressed.has(`${ch}:${a.toLowerCase()}`),
+    async setOptIn(u, o, ch) {
+      if (o) optIns.set(`${u}:${ch}`, copy(o))
+      else optIns.delete(`${u}:${ch}`)
+    },
+    getOptIn: async (u, ch) => copy(optIns.get(`${u}:${ch}`) ?? null),
+    openWindow: async (phone, s) => void windows.set(phone, now() + s * 1000),
+    isWindowOpen: async (phone) => (windows.get(phone) ?? 0) > now(),
+    addInbox: async (u, item) => void inboxes.set(u, [copy(item), ...(inboxes.get(u) ?? [])]),
+    listInbox: async (u) => copy(inboxes.get(u) ?? []),
+    saveInbox: async (u, items) => void inboxes.set(u, copy(items)),
+    async deleteUser(u) {
+      for (const [id, d] of deliveries)
+        if (d.userId === u) {
+          deliveries.delete(id)
+          payloads.delete(id)
+        }
+      inboxes.delete(u)
+      prefs.delete(u)
+      for (const k of optIns.keys()) if (k.startsWith(`${u}:`)) optIns.delete(k)
+    },
+    reset() {
+      for (const m of [
+        deliveries,
+        inboxes,
+        prefs,
+        suppressed,
+        payloads,
+        providers,
+        optIns,
+        windows,
+      ])
+        m.clear()
     },
   }
 }

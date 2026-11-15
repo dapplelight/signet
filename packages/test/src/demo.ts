@@ -5,19 +5,36 @@
  *   // worker.ts
  *   const demo = isDemo(env) ? await createDemo({ seed: SEED, user: SEED.users[0] }) : null
  *   const payments = demo?.payments ?? createPayments({ gateways: [razorpay(...)], db })
- *   const notifier = createNotifier({ channels: demo?.senders ?? realSenders, ... })
+ *   const notifier = createNotifier({
+ *     channels: demo?.senders ?? realSenders,
+ *     store: demo?.notifyStore ?? kvNotifyStore(kv),
+ *     ...
+ *   })
  *   app.all("/__signet/*", async (c) => (await demo?.handle(c.req.raw)) ?? c.notFound())
  *
  * `handle` serves what the dev overlay and the Playwright helpers call:
  *   GET  /__signet/dev    user, plan, entitlements, flags, outbox (JSON)
  *   POST /__signet/seed   replace the data with the body
- *   POST /__signet/reset  back to the seed, outbox emptied
+ *   POST /__signet/reset  back to the seed: outbox, notify store, gateways,
+ *                         payments store and clock all start over
  *   POST /__signet/pay    { gateway, checkoutId, status? }: finish a fake checkout
  *                         and deliver its signed webhook to `payments`
  */
-import { createPayments, memoryStore, type Payments } from "@dapplelight/signet-payments"
+import {
+  createPayments,
+  memoryStore,
+  type Payments,
+  type PaymentsStore,
+} from "@dapplelight/signet-payments"
 import { type FakeClock, fakeClock } from "./clock.js"
-import { createOutbox, fakeSenders, type Outbox, type OutboxMessage } from "./notify.js"
+import {
+  createOutbox,
+  type FakeNotifyStore,
+  fakeNotifyStore,
+  fakeSenders,
+  type Outbox,
+  type OutboxMessage,
+} from "./notify.js"
 import { type FakeGateway, fakeGateway } from "./payments.js"
 
 /** What the dev overlay shows. Every field is optional. */
@@ -57,9 +74,13 @@ export type Demo<D> = {
   clock: FakeClock
   outbox: Outbox
   senders: ReturnType<typeof fakeSenders>["senders"]
+  /** The notify store for `createNotifier`: deliveries, inbox, prefs, opt-ins. */
+  notifyStore: FakeNotifyStore
   gateways: { razorpay: FakeGateway; stripe: FakeGateway; payu: FakeGateway }
-  /** `createPayments` over the fake gateways with an in-memory store. */
+  /** `createPayments` over the fake gateways with an in-memory store (emptied by `reset`). */
   payments: Payments
+  /** The payments store behind `payments`: records, inbox, ledger. */
+  paymentsStore: PaymentsStore
   /** The fake AI model, when `ai` replies were given. */
   model?: import("./ai.js").FakeModel
   /** The live data. */
@@ -82,7 +103,17 @@ export async function createDemo<D = unknown>(options: DemoOptions<D> = {}): Pro
     stripe: fakeGateway("stripe", { now: clock.now }),
     payu: fakeGateway("payu", { now: clock.now }),
   }
-  const payments = createPayments({ gateways: Object.values(gateways), db: memoryStore() })
+  const notifyStore = fakeNotifyStore({ now: clock.now })
+  // One store object for the app to hold; reset swaps what is behind it.
+  let inner = memoryStore()
+  const paymentsStore = new Proxy({} as PaymentsStore, {
+    get: (_, k) => {
+      const v = inner[k as keyof PaymentsStore]
+      return typeof v === "function" ? v.bind(inner) : v
+    },
+  })
+  const payments = createPayments({ gateways: Object.values(gateways), db: paymentsStore })
+  const startAt = clock.now()
   const model =
     options.ai === undefined ? undefined : (await import("./ai.js")).fakeModel(options.ai)
   const copy = () => structuredClone(options.seed) as D
@@ -98,14 +129,20 @@ export async function createDemo<D = unknown>(options: DemoOptions<D> = {}): Pro
     clock,
     outbox,
     senders,
+    notifyStore,
     gateways,
     payments,
+    paymentsStore,
     model,
     data: copy(),
     state,
     async reset() {
       demo.data = copy()
       outbox.clear()
+      notifyStore.reset()
+      for (const g of Object.values(gateways)) g.reset()
+      inner = memoryStore()
+      clock.set(startAt)
       await options.onSeed?.(demo.data)
     },
     async handle(request) {
