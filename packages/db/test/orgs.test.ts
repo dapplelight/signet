@@ -314,7 +314,11 @@ describe.each(backends)("$name", (backend) => {
 
     const rows = (await db.orm.select().from(S.audit)) as Record<string, any>[]
     const parse = (v: unknown) => (typeof v === "string" ? JSON.parse(v) : v)
-    const entries = rows.map((r) => ({ ...r, before: parse(r.before), after: parse(r.after) }))
+    const entries: Record<string, any>[] = rows.map((r) => ({
+      ...r,
+      before: parse(r.before),
+      after: parse(r.after),
+    }))
     const forA = entries.filter((e) => (e.after ?? e.before)?.orgId === a.id)
     expect(forA.map((e) => e.action)).toEqual([
       "org.create",
