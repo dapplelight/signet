@@ -2,7 +2,7 @@
   "name": "@dapplelight/signet-ui",
   "version": "0.2.2",
   "license": "MIT",
-  "description": "Signet component kit \u2014 token-driven React primitives.",
+  "description": "Signet component kit — token-driven React primitives.",
   "keywords": [
     "signet",
     "react",
@@ -53,6 +53,10 @@
     "./hooks/use-intersection": {
       "types": "./dist/hooks/use-intersection.d.ts",
       "import": "./dist/hooks/use-intersection.js"
+    },
+    "./hooks/use-channel": {
+      "types": "./dist/hooks/use-channel.d.ts",
+      "import": "./dist/hooks/use-channel.js"
     },
     "./components/alert": {
       "types": "./dist/components/ui/alert.d.ts",
@@ -325,11 +329,15 @@
     "./screens/workflow-screens": {
       "types": "./dist/components/screens/workflow-screens.d.ts",
       "import": "./dist/components/screens/workflow-screens.js"
+    },
+    "./screens/realtime-screens": {
+      "types": "./dist/components/screens/realtime-screens.d.ts",
+      "import": "./dist/components/screens/realtime-screens.js"
     }
   },
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "bun run test/ui.tsx && bun run test/dom.tsx && bun run test/data-table.tsx && bun run test/shortcuts.tsx && bun run test/markdown.tsx && bun run test/dom2.tsx && bun run test/domain.tsx && bun run test/basics.tsx && bun run test/behaviors.tsx && bun run test/screens-user.tsx && bun run test/screens-admin.tsx && bun run test/screens-billing.tsx && bun run test/screens-growth.tsx && bun run test/screens-api.tsx && bun run test/screens-orgs.tsx && bun run test/screens-workflow.tsx && bun run test/ui-domain.tsx && bun run test/metric-headline.tsx",
+    "test": "bun run test/ui.tsx && bun run test/dom.tsx && bun run test/data-table.tsx && bun run test/shortcuts.tsx && bun run test/markdown.tsx && bun run test/dom2.tsx && bun run test/domain.tsx && bun run test/basics.tsx && bun run test/behaviors.tsx && bun run test/screens-user.tsx && bun run test/screens-admin.tsx && bun run test/screens-billing.tsx && bun run test/screens-growth.tsx && bun run test/screens-api.tsx && bun run test/screens-orgs.tsx && bun run test/screens-workflow.tsx && bun run test/ui-domain.tsx && bun run test/metric-headline.tsx && bun run test/realtime.tsx",
     "build": "tsc -p tsconfig.build.json",
     "prepublishOnly": "bun run build"
   },
