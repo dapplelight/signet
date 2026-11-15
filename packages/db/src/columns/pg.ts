@@ -1,12 +1,13 @@
 /**
  * Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`,
  * `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotencyKeys`,
- * `aiCache`, `entitlementTables`, `flagOverrides`, `growthTables`, `privacyTables`,
+ * `aiCache`, `entitlementTables`, `flagOverrides`, `growthTables`, `orgTables`, `privacyTables`,
  * `analyticsEvents` and `sequences` tables.
  */
 
 import {
   bigint,
+  boolean,
   customType,
   index,
   integer,
@@ -366,3 +367,81 @@ export const sequences = (name = "sequences") =>
     key: text("key").primaryKey(),
     value: bigint("value", { mode: "number" }).notNull(),
   })
+
+/**
+ * Organisations, memberships, invitations and per-org custom roles for
+ * `createOrgs` from `@dapplelight/signet-db/orgs`. Destructure into the schema:
+ * `export const { organizations, memberships, invitations, orgRoles } = orgTables()`.
+ * Give an app's own tenant tables an `orgId: text("org_id").notNull()` column
+ * and `scoped(db, { orgId })` keeps each org to its own rows.
+ */
+export const orgTables = (prefix = "") => ({
+  organizations: pgTable(
+    `${prefix}organizations`,
+    {
+      id: id(),
+      name: text("name").notNull(),
+      /** Lower-case letters, digits and dashes; the subdomain or path segment. */
+      slug: text("slug").notNull(),
+      /** A custom domain, lower-cased, e.g. "app.example.com". */
+      domain: text("domain"),
+      /** A shipped theme name, e.g. "editorial". */
+      theme: text("theme"),
+      /** A brand colour as #rrggbb, for signet-tokens' `buildTheme`. */
+      brandColor: text("brand_color"),
+      /** True for the org made at sign-up for one person. */
+      personal: boolean("personal").notNull().default(false),
+      ...timestamps(),
+    },
+    (t) => [
+      uniqueIndex(`${prefix}organizations_slug`).on(t.slug),
+      uniqueIndex(`${prefix}organizations_domain`).on(t.domain),
+    ],
+  ),
+  memberships: pgTable(
+    `${prefix}memberships`,
+    {
+      orgId: text("org_id").notNull(),
+      userId: text("user_id").notNull(),
+      role: text("role").notNull(),
+      createdAt: stamp("created_at"),
+    },
+    (t) => [
+      primaryKey({ columns: [t.orgId, t.userId] }),
+      index(`${prefix}memberships_user`).on(t.userId),
+    ],
+  ),
+  invitations: pgTable(
+    `${prefix}invitations`,
+    {
+      id: id(),
+      orgId: text("org_id").notNull(),
+      /** SHA-256 of the token, hex. The token itself is never stored. */
+      tokenHash: text("token_hash").notNull(),
+      /** Only this address may accept, when set. */
+      email: text("email"),
+      role: text("role").notNull(),
+      invitedBy: text("invited_by").notNull(),
+      createdAt: stamp("created_at"),
+      expiresAt: tz("expires_at").notNull(),
+      acceptedAt: tz("accepted_at"),
+      acceptedBy: text("accepted_by"),
+      revokedAt: tz("revoked_at"),
+    },
+    (t) => [
+      uniqueIndex(`${prefix}invitations_token`).on(t.tokenHash),
+      index(`${prefix}invitations_org`).on(t.orgId),
+    ],
+  ),
+  orgRoles: pgTable(
+    `${prefix}org_roles`,
+    {
+      orgId: text("org_id").notNull(),
+      name: text("name").notNull(),
+      /** The permission strings this custom role grants. */
+      permissions: jsonb("permissions").notNull(),
+      updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
+    },
+    (t) => [primaryKey({ columns: [t.orgId, t.name] })],
+  ),
+})
