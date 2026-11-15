@@ -231,6 +231,27 @@ export type OrgRoutesOptions<O extends TenantOrg = TenantOrg> = OrgGuardOptions 
   cookieOptions?: { secure?: boolean; sameSite?: "Strict" | "Lax" | "None"; domain?: string }
 }
 
+export type OrgCookieOptions = NonNullable<OrgRoutesOptions["cookieOptions"]> & {
+  /** Default "signet_org", which `tenant()` reads. */
+  name?: string | undefined
+}
+
+/**
+ * The switch cookie's Set-Cookie value, e.g. to pick the user's org at
+ * sign-in: `c.header("Set-Cookie", orgCookie(org.id), { append: true })`.
+ */
+export function orgCookie(orgId: string, o: OrgCookieOptions = {}): string {
+  return [
+    `${o.name ?? "signet_org"}=${encodeURIComponent(orgId)}`,
+    "Path=/",
+    "HttpOnly",
+    `SameSite=${o.sameSite ?? "Lax"}`,
+    `Max-Age=${60 * 60 * 24 * 365}`,
+    ...(o.secure === false ? [] : ["Secure"]),
+    ...(o.domain ? [`Domain=${o.domain}`] : []),
+  ].join("; ")
+}
+
 /** Write signet-db's OrgError (by shape) as the error envelope. */
 const isStatusError = (e: unknown): e is Error & { status: ApiErrorStatus; code: string } =>
   e instanceof Error &&
@@ -264,7 +285,9 @@ const str = (v: unknown, name: string, max = 200) => {
  *   POST   /current/invites          { email?, role } (members:invite): { invitation, token }
  *   DELETE /current/invites/:id      revoke (members:invite)
  *   GET    /invites/:token           what the invite is for, to show before accepting
- *   POST   /invites/:token/accept    join; sets the switch cookie
+ *   POST   /invites/:token/accept    join; sets the switch cookie. A refusal is 400 with
+ *                                    code INVITE_EXPIRED, INVITE_USED, INVITE_REVOKED,
+ *                                    INVITE_NOT_FOUND or INVITE_EMAIL_MISMATCH
  *
  * These are cookie-authenticated writes: put `csrfMiddleware` in front when
  * the session cookie is `SameSite=None`.
@@ -272,20 +295,10 @@ const str = (v: unknown, name: string, max = 200) => {
 export function orgRoutes<O extends TenantOrg>(opts: OrgRoutesOptions<O>) {
   const { orgs } = opts
   const guards = orgGuards(opts)
-  const cookieName = opts.cookie ?? "signet_org"
-  const setOrgCookie = (c: Context, orgId: string) => {
-    const o = opts.cookieOptions ?? {}
-    const attrs = [
-      `${cookieName}=${encodeURIComponent(orgId)}`,
-      "Path=/",
-      "HttpOnly",
-      `SameSite=${o.sameSite ?? "Lax"}`,
-      `Max-Age=${60 * 60 * 24 * 365}`,
-      ...(o.secure === false ? [] : ["Secure"]),
-      ...(o.domain ? [`Domain=${o.domain}`] : []),
-    ]
-    c.header("Set-Cookie", attrs.join("; "), { append: true })
-  }
+  const setOrgCookie = (c: Context, orgId: string) =>
+    c.header("Set-Cookie", orgCookie(orgId, { ...opts.cookieOptions, name: opts.cookie }), {
+      append: true,
+    })
   const me = async (c: Context) => {
     const id = await opts.userId(c)
     if (!id) throw new ApiException(401, "Sign in first.", "UNAUTHORIZED")
@@ -409,7 +422,13 @@ export function orgRoutes<O extends TenantOrg>(opts: OrgRoutesOptions<O>) {
         userId,
         ...(email ? { email } : {}),
       })
-      if (!r.ok) return c.json({ ok: false as const, reason: r.reason }, 400)
+      // The envelope's code is INVITE_<REASON>, e.g. INVITE_EXPIRED, for the screen to word.
+      if (!r.ok)
+        throw new ApiException(
+          400,
+          "This invite can't be accepted.",
+          `INVITE_${r.reason.toUpperCase()}`,
+        )
       setOrgCookie(c, r.org.id)
       return c.json({ ok: true as const, org: r.org, role: r.membership.role, already: r.already })
     })

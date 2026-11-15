@@ -331,7 +331,7 @@ const wrong = await call(
 )
 ok(
   "email mismatch: 400 with reason",
-  wrong.status === 400 && (await j(wrong)).reason === "email_mismatch",
+  wrong.status === 400 && (await j(wrong)).code === "INVITE_EMAIL_MISMATCH",
 )
 const acc = await call(
   `/api/orgs/invites/${token}/accept`,

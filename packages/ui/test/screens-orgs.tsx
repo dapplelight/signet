@@ -205,6 +205,20 @@ await t("InviteDialog: link without email", async () => {
   ok("Invite: email optional", sent.length === 1 && !("email" in (sent[0] ?? {})))
 })
 
+await t("InviteDialog: no email field", async () => {
+  render(
+    <InviteDialog
+      open
+      askEmail={false}
+      onOpenChange={() => {}}
+      roles={["member"]}
+      onInvite={async () => ({ link: "x" })}
+    />,
+  )
+  await tick()
+  ok("Invite: askEmail={false} hides the email", !screen.queryByLabelText("Email"))
+})
+
 await t("AcceptInvitePage", async () => {
   let accepted = 0
   render(

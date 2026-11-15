@@ -20,9 +20,24 @@
  *   stored. They expire (default 7 days), work once and can be revoked.
  * - Lookups by id are bound to the org: a member, invite or role of another
  *   org reads as not found.
+ * - With an audit table (`createDb(..., { audit })`), every write leaves an
+ *   entry: the actor (`by`, else the system), the action (`org.create`,
+ *   `member.role`, `invite.accept`...), and before/after snapshots that carry
+ *   the `orgId`. Invite tokens and their hashes are never logged.
  */
 
-import { and, asc, count, desc, eq, gt, inArray, isNull, type Table } from "drizzle-orm"
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  getTableName,
+  gt,
+  inArray,
+  isNull,
+  type Table,
+} from "drizzle-orm"
 import type { SignetDb } from "./db.js"
 import { SignetDbError, type SignetDbErrorCode } from "./errors.js"
 import { normalizeEmail } from "./growth.js"
@@ -257,6 +272,29 @@ export function createOrgs(db: SignetDb<unknown>, options: OrgsOptions) {
     if (typeof v !== "string" || !v) throw bad(`${name} is required.`)
   }
 
+  /** One audit entry, when the db has an audit table. Snapshots are tagged with the org. */
+  const log = async (
+    action: string,
+    table: Table,
+    rowId: string,
+    orgId: string,
+    actorId: string | undefined,
+    before: object | null,
+    after: object | null,
+  ) => {
+    if (!db.audit) return
+    await o.insert(db.audit).values({
+      actorType: actorId === undefined ? "system" : "user",
+      actorId: actorId ?? "orgs",
+      action,
+      tableName: getTableName(table),
+      rowId,
+      before: before && { orgId, ...before },
+      after: after && { orgId, ...after },
+    })
+  }
+  const memberKey = (orgId: string, userId: string) => `${orgId}|${userId}`
+
   const first = async (table: Table, where: unknown): Promise<Cols | undefined> =>
     (await o.select().from(table).where(where).limit(1))[0]
 
@@ -400,7 +438,9 @@ export function createOrgs(db: SignetDb<unknown>, options: OrgsOptions) {
             .insert(T.memberships)
             .values({ orgId: row.id, userId: input.ownerId, role: owner, createdAt: at }),
       ])
-      return toOrg(row)
+      const org = toOrg(row)
+      await log("org.create", T.organizations, org.id, org.id, input.ownerId, null, org)
+      return org
     },
     get,
     async bySlug(slug: string): Promise<Org | null> {
@@ -425,8 +465,11 @@ export function createOrgs(db: SignetDb<unknown>, options: OrgsOptions) {
       const values = cleanSettings(settings)
       if (Object.keys(values).length === 0) throw bad("Nothing to change.")
       await assertFree(values, orgId)
+      const before = await mustGet(orgId)
       const [row] = await o.update(T.organizations).set(values).where(eq(O.id, orgId)).returning()
-      return toOrg(row)
+      const after = toOrg(row)
+      await log("org.update", T.organizations, orgId, orgId, opts.by, before, after)
+      return after
     },
     /** Every org the user belongs to, with their role, oldest membership first. */
     async listForUser(userId: string): Promise<{ org: Org; role: string }[]> {
@@ -485,7 +528,9 @@ export function createOrgs(db: SignetDb<unknown>, options: OrgsOptions) {
         .insert(T.memberships)
         .values({ orgId, userId, role, createdAt: now() })
         .returning()
-      return toMember(row)
+      const added = toMember(row)
+      await log("member.add", T.memberships, memberKey(orgId, userId), orgId, opts.by, null, added)
+      return added
     },
     /** Change a member's role. `by` needs `members:manage` and may not grant or remove more than they hold. */
     async setRole(orgId: string, userId: string, role: string, opts: By = {}): Promise<Membership> {
@@ -501,7 +546,18 @@ export function createOrgs(db: SignetDb<unknown>, options: OrgsOptions) {
         .set({ role })
         .where(and(eq(M.orgId, orgId), eq(M.userId, userId)))
         .returning()
-      return toMember(row)
+      const after = toMember(row)
+      const { permissions: _p, ...before } = target
+      await log(
+        "member.role",
+        T.memberships,
+        memberKey(orgId, userId),
+        orgId,
+        opts.by,
+        before,
+        after,
+      )
+      return after
     },
     /** Remove a member, or leave (`by` is the member). Others need `members:manage` and to outrank them. */
     async removeMember(orgId: string, userId: string, opts: By = {}): Promise<void> {
@@ -512,6 +568,9 @@ export function createOrgs(db: SignetDb<unknown>, options: OrgsOptions) {
       if (target.role === owner && (await owners(orgId)) <= 1)
         throw new OrgError(409, "CONFLICT", "An organisation needs at least one owner.")
       await o.delete(T.memberships).where(and(eq(M.orgId, orgId), eq(M.userId, userId)))
+      const { permissions: _p, ...before } = target
+      const action = opts.by === userId ? "member.leave" : "member.remove"
+      await log(action, T.memberships, memberKey(orgId, userId), orgId, opts.by, before, null)
     },
 
     // --------------------------------------------------- custom roles
@@ -538,9 +597,15 @@ export function createOrgs(db: SignetDb<unknown>, options: OrgsOptions) {
         throw bad("permissions must be non-empty strings.")
       await mayGrant(orgId, opts.by, permissions, ORG_PERMISSIONS.manageRoles)
       const where = and(eq(R.orgId, orgId), eq(R.name, name))
-      if (await first(T.orgRoles as Table, where))
-        await o.update(T.orgRoles).set({ permissions }).where(where)
+      const old = await first(T.orgRoles as Table, where)
+      if (old) await o.update(T.orgRoles).set({ permissions }).where(where)
       else await o.insert(T.orgRoles).values({ orgId, name, permissions })
+      const before = old ? { name, permissions: old.permissions } : null
+      const action = old ? "role.update" : "role.create"
+      await log(action, T.orgRoles as Table, `${orgId}|${name}`, orgId, opts.by, before, {
+        name,
+        permissions,
+      })
     },
     /** Delete a custom role nobody holds. */
     async deleteRole(orgId: string, name: string, opts: By = {}): Promise<boolean> {
@@ -551,6 +616,16 @@ export function createOrgs(db: SignetDb<unknown>, options: OrgsOptions) {
       const held = await first(T.memberships, and(eq(M.orgId, orgId), eq(M.role, name)))
       if (held) throw new OrgError(409, "CONFLICT", "Move members off this role first.")
       await o.delete(T.orgRoles).where(and(eq(R.orgId, orgId), eq(R.name, name)))
+      const before = { name, permissions: perms }
+      await log(
+        "role.delete",
+        T.orgRoles as Table,
+        `${orgId}|${name}`,
+        orgId,
+        opts.by,
+        before,
+        null,
+      )
       return true
     },
 
@@ -584,7 +659,17 @@ export function createOrgs(db: SignetDb<unknown>, options: OrgsOptions) {
           expiresAt: new Date(at.getTime() + life),
         })
         .returning()
-      return { invitation: toInvite(row), token }
+      const invitation = toInvite(row)
+      await log(
+        "invite.create",
+        T.invitations,
+        invitation.id,
+        input.orgId,
+        input.invitedBy,
+        null,
+        invitation,
+      )
+      return { invitation, token }
     },
     /** The invite a token is for, with its org, to show before accepting. Null if unknown. */
     async previewInvite(token: string): Promise<{ invitation: Invitation; org: Org } | null> {
@@ -644,6 +729,15 @@ export function createOrgs(db: SignetDb<unknown>, options: OrgsOptions) {
         await o
           .insert(T.memberships)
           .values({ orgId: won.orgId, userId: who.userId, role: won.role, createdAt: now() })
+      await log(
+        "invite.accept",
+        T.invitations,
+        won.id,
+        won.orgId,
+        who.userId,
+        toInvite(row),
+        toInvite(won),
+      )
       return done(won, !!existing)
     },
     /** Revoke a pending invite of this org. `by` needs `members:invite`. Returns whether one was revoked. */
@@ -658,6 +752,11 @@ export function createOrgs(db: SignetDb<unknown>, options: OrgsOptions) {
         .set({ revokedAt: now() })
         .where(and(eq(I.id, id), eq(I.orgId, orgId), isNull(I.acceptedAt), isNull(I.revokedAt)))
         .returning()
+      if (rows[0]) {
+        const after = toInvite(rows[0])
+        const before = { ...after, revokedAt: null, status: "pending" }
+        await log("invite.revoke", T.invitations, id, orgId, opts.by, before, after)
+      }
       return rows.length > 0
     },
     /** This org's invites, newest first. `pending: true` leaves out used, revoked and expired ones. */

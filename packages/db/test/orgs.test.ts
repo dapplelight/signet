@@ -291,4 +291,83 @@ describe.each(backends)("$name", (backend) => {
       "revoked",
     ])
   })
+
+  test("audit: every org write is logged with actor, org and before/after; no tokens", async () => {
+    const { db, S, orgs, a } = await setup()
+    await orgs.update(a.id, { name: "Acme 2" }, { by: "alice" })
+    await orgs.addMember(a.id, "dev", "admin", { by: "alice" })
+    await orgs.addMember(a.id, "mo", "member", { by: "alice" })
+    await orgs.setRole(a.id, "mo", "admin", { by: "alice" })
+    await orgs.removeMember(a.id, "mo", { by: "alice" })
+    await orgs.removeMember(a.id, "dev", { by: "dev" })
+    await orgs.saveRole(a.id, "billing", ["billing:read"], { by: "alice" })
+    await orgs.saveRole(a.id, "billing", ["billing:read", "billing:write"], { by: "alice" })
+    await orgs.deleteRole(a.id, "billing", { by: "alice" })
+    const { token, invitation } = await orgs.invite({
+      orgId: a.id,
+      role: "member",
+      invitedBy: "alice",
+    })
+    await orgs.acceptInvite(token, { userId: "zed" })
+    const second = await orgs.invite({ orgId: a.id, role: "member", invitedBy: "alice" })
+    await orgs.revokeInvite(a.id, second.invitation.id, { by: "alice" })
+
+    const rows = (await db.orm.select().from(S.audit)) as Record<string, any>[]
+    const parse = (v: unknown) => (typeof v === "string" ? JSON.parse(v) : v)
+    const entries = rows.map((r) => ({ ...r, before: parse(r.before), after: parse(r.after) }))
+    const forA = entries.filter((e) => (e.after ?? e.before)?.orgId === a.id)
+    expect(forA.map((e) => e.action)).toEqual([
+      "org.create",
+      "org.update",
+      "member.add",
+      "member.add",
+      "member.role",
+      "member.remove",
+      "member.leave",
+      "role.create",
+      "role.update",
+      "role.delete",
+      "invite.create",
+      "invite.accept",
+      "invite.create",
+      "invite.revoke",
+    ])
+    const by = (action: string) => forA.filter((e) => e.action === action)
+    expect(by("org.update")[0]).toMatchObject({
+      actorType: "user",
+      actorId: "alice",
+      tableName: "organizations",
+      before: { name: "Acme Labs" },
+      after: { name: "Acme 2" },
+    })
+    expect(by("member.role")[0]).toMatchObject({
+      before: { role: "member" },
+      after: { role: "admin" },
+    })
+    expect(by("member.leave")[0]).toMatchObject({ actorId: "dev", after: null })
+    expect(by("role.update")[0]?.before.permissions).toEqual(["billing:read"])
+    expect(by("invite.accept")[0]).toMatchObject({
+      actorId: "zed",
+      rowId: invitation.id,
+      before: { status: "pending" },
+      after: { status: "accepted", acceptedBy: "zed" },
+    })
+    expect(by("invite.revoke")[0]?.after.status).toBe("revoked")
+    const text = JSON.stringify(entries)
+    expect(text.includes(token)).toBe(false)
+    expect(text.includes(second.token)).toBe(false)
+    expect(/tokenHash|token_hash/.test(text)).toBe(false)
+  })
+
+  test("audit: skipped quietly without an audit table", async () => {
+    open = await backend.make({})
+    const pg = backend.name.startsWith("postgres")
+    const t = pg ? pgc.orgTables() : sqc.orgTables()
+    for (const table of Object.values(t)) await open.exec(ddl(table))
+    const orgs = createOrgs(open.db, { tables: t })
+    const org = await orgs.create({ name: "Quiet", ownerId: "q" })
+    const { token } = await orgs.invite({ orgId: org.id, role: "member", invitedBy: "q" })
+    expect((await orgs.acceptInvite(token, { userId: "r" })).ok).toBe(true)
+    expect(await open.db.orm.select().from(open.S.audit)).toEqual([])
+  })
 })

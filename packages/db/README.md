@@ -641,6 +641,12 @@ const mine = scoped(db, { userId, orgId: org.id })    // both
   another org throw `CROSS_ORG_WRITE`.
 - `defineAdmin` with `ctx.orgId` shows only tables with `orgId`, limits every
   op to that org and puts creates in it; `tenant: true` requires an org.
+- With an audit table, every write is logged: `org.create`, `org.update`,
+  `member.add`, `member.role`, `member.remove`, `member.leave`,
+  `role.create`, `role.update`, `role.delete`, `invite.create`,
+  `invite.accept`, `invite.revoke`. Each entry has the actor (`by`, else the
+  system), and before/after snapshots carrying `orgId`. Invite tokens and
+  hashes are never logged. Without an audit table nothing is written.
 - Failures are `OrgError` (a `SignetDbError` with an HTTP `status`).
 
 ## Growth: waitlist, invites, referrals, onboarding, changelog, feedback

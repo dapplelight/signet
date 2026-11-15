@@ -453,6 +453,11 @@ export type InviteDialogProps = {
   /** Roles the inviter may hand out. The first is the default. */
   roles: string[]
   defaultRole?: string
+  /**
+   * Ask for an email the invite is bound to. Default true. Turn it off when
+   * the app has no verified email to match it against (phone sign-in).
+   */
+  askEmail?: boolean
   /** `POST /api/orgs/current/invites`; return the link to share. */
   onInvite: (input: { email?: string; role: string }) => Promise<{ link: string }>
   className?: string
@@ -465,6 +470,7 @@ export function InviteDialog({
   onOpenChange,
   roles,
   defaultRole,
+  askEmail = true,
   onInvite,
   className,
   labels: labelsProp,
@@ -543,18 +549,20 @@ export function InviteDialog({
               <DialogTitle>{labels.inviteTitle}</DialogTitle>
               <DialogDescription>{labels.inviteBody}</DialogDescription>
             </DialogHeader>
-            <Field errors={error === labels.invalidEmail ? [error] : []} className="gap-1.5">
-              <FieldLabel>{labels.email}</FieldLabel>
-              <FieldControl
-                type="email"
-                autoComplete="off"
-                placeholder={labels.emailPlaceholder}
-                value={email}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
-              />
-              <FieldDescription>{labels.emailOptional}</FieldDescription>
-              <FieldError />
-            </Field>
+            {askEmail && (
+              <Field errors={error === labels.invalidEmail ? [error] : []} className="gap-1.5">
+                <FieldLabel>{labels.email}</FieldLabel>
+                <FieldControl
+                  type="email"
+                  autoComplete="off"
+                  placeholder={labels.emailPlaceholder}
+                  value={email}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+                />
+                <FieldDescription>{labels.emailOptional}</FieldDescription>
+                <FieldError />
+              </Field>
+            )}
             <div className="grid gap-1.5">
               <label htmlFor={roleId} className="text-sm font-medium text-text-primary">
                 {labels.role}
