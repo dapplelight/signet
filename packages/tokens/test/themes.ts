@@ -92,6 +92,8 @@ for (const marker of [
   "data-complete", // timeline, stepper
   "data-checked", // radio-group
   "data-collapsible", // sidebar
+  "data-lifted", // kanban
+  "--money-credit", // amount
 ]) {
   ok(
     `scans UI SDK-based component classes (${marker})`,
