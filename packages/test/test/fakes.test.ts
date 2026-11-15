@@ -193,6 +193,23 @@ describe("fakeNotifyStore", () => {
     expect(await notifier.inbox.unreadCount("u1")).toBe(0)
   })
 
+  test("failNext: a permanent failure is final, a transient one is retried", async () => {
+    const { store, outbox, notifier, settle } = await setup()
+    outbox.failNext("email", { code: "BOUNCED", permanent: true })
+    await notifier.notify("u1", "shipped", { id: "o1" })
+    await settle()
+    const email = () => [...store.deliveries.values()].filter((d) => d.channel === "email")
+    expect(email()[0]).toMatchObject({ status: "failed", reason: "BOUNCED", attempts: 1 })
+    expect(outbox.messages).toHaveLength(0)
+
+    outbox.failNext("email", { code: "RATE_LIMITED" })
+    await notifier.notify("u1", "shipped", { id: "o2" })
+    await settle()
+    const retried = email().find((d) => d.status !== "failed")
+    expect(retried).toMatchObject({ status: "sent", attempts: 2 })
+    expect(outbox.last("email")?.rendered.subject).toBe("Order o2")
+  })
+
   test("returned values are copies; deleteUser and reset clear it", async () => {
     const { store, notifier, settle } = await setup()
     await notifier.notify("u1", "shipped", { id: "o1" })

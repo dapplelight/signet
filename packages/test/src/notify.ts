@@ -8,16 +8,17 @@
  *   await notify.send(...)
  *   expect(outbox.last("email")?.rendered.subject).toBe("Welcome")
  */
-import type {
-  Channel,
-  Delivery,
-  InboxItem,
-  NotifyStore,
-  OptIn,
-  Prefs,
-  Rendered,
-  Sender,
-  SendResult,
+import {
+  type Channel,
+  type Delivery,
+  type InboxItem,
+  NotifyError,
+  type NotifyStore,
+  type OptIn,
+  type Prefs,
+  type Rendered,
+  type Sender,
+  type SendResult,
 } from "@dapplelight/signet-server/notify/notifier"
 
 export type SendChannel = Exclude<Channel, "inApp">
@@ -80,7 +81,8 @@ export function createOutbox(options: { now?: () => number } = {}): Outbox {
     },
     record(m) {
       const fail = failures.get(m.channel)?.shift()
-      if (fail) throw Object.assign(new Error(`fake ${m.channel} failure`), fail)
+      // A real NotifyError: the notifier only treats `permanent` as final on one.
+      if (fail) throw new NotifyError(fail.code, `fake ${m.channel} failure`, fail.permanent)
       const stored = { ...m, at: now() } as OutboxMessage
       messages.push(stored)
       // A throwing listener must not fail the send: the notifier would retry
