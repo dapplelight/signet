@@ -232,33 +232,43 @@ for (const backend of backends) {
     })
 
     test("SSRF: a host resolving to a private address is refused before connecting", async () => {
-      for (const [addrs, shown] of [
+      // One instance for every case (PGlite is slow to start); one attempt per
+      // delivery, so each drain only sees the case just queued.
+      let addrs: readonly string[] = []
+      const r = receiver([200])
+      const { webhooks } = await setup({
+        fetch: r.fetch,
+        maxAttempts: 1,
+        resolveHost: async () => [...addrs],
+      })
+      const cases = [
         [["127.0.0.1"], "127.0.0.1"],
         [["93.184.216.34", "10.1.2.3"], "10.1.2.3"],
         [["::1"], "::1"],
         [["::ffff:127.0.0.1"], "::ffff:127.0.0.1"],
         [["100.64.0.9"], "100.64.0.9"],
         [["fd00::1"], "fd00::1"],
-      ] as const) {
-        if (shown !== "127.0.0.1") await i.close() // afterEach closes the last one
-        const r = receiver([200])
-        const { webhooks } = await setup({ fetch: r.fetch, resolveHost: async () => [...addrs] })
+      ] as const
+      for (const [n, [list, shown]] of cases.entries()) {
+        addrs = list
+        const owner = `o${n}`
         const { endpoint } = await webhooks.register({
-          owner: "o",
+          owner,
           url: "https://rebind.example.com/in",
           events: ["*"],
         })
-        await webhooks.emit({ owner: "o", type: "t", data: 1 })
-        expect(await drain(i, webhooks)).toEqual({ sent: 0, failed: 1, dead: 0 })
-        expect(r.hits.length).toBe(0)
-        const [log] = await webhooks.deliveries("o")
-        expect(log?.status).toBe("retrying")
+        await webhooks.emit({ owner, type: "t", data: 1 })
+        expect(await drain(i, webhooks, 1)).toEqual({ sent: 0, failed: 0, dead: 1 })
+        const [log] = await webhooks.deliveries(owner)
+        expect(log?.status).toBe("failed")
         expect(log?.error).toBe(
           `Refused: rebind.example.com resolves to a private address (${shown})`,
         )
-        const ep = await webhooks.get("o", endpoint.id)
+        // A failed attempt like any other: counted, not an immediate disable.
+        const ep = await webhooks.get(owner, endpoint.id)
         expect([ep?.failures, ep?.disabledAt]).toEqual([1, null])
       }
+      expect(r.hits.length).toBe(0)
     })
 
     test("SSRF: an unresolvable host is a failed attempt", async () => {
