@@ -16,10 +16,9 @@ import { createWorkflows, defineWorkflow } from "../src/workflows"
 import { ddl } from "./harness"
 
 test("workflowRoutes end to end", async () => {
-  let pass = 0,
-    fail = 0
+  const failed: string[] = []
   const ok = (n: string, c: boolean, d: unknown = "") => {
-    c ? (pass++, console.log("  PASS", n)) : (fail++, console.log("  FAIL", n, d))
+    if (!c) failed.push(`${n}: ${JSON.stringify(d)}`)
   }
 
   let clock = new Date("2026-11-01T00:00:00Z")
@@ -72,7 +71,6 @@ test("workflowRoutes end to end", async () => {
     return { status: res.status, json: (await res.json()) as any }
   }
 
-  console.log("start, visibility, approve")
   {
     ok(
       "canStart refuses",
@@ -141,7 +139,6 @@ test("workflowRoutes end to end", async () => {
     ok("cancel ended run 409", (await call("ann", "POST", `/wf/runs/${id}/cancel`)).status === 409)
   }
 
-  console.log("decided in the approval inbox, cancel, admin list")
   {
     const started = await call("bob", "POST", "/wf/runs", {
       workflow: "expense",
@@ -186,5 +183,5 @@ test("workflowRoutes end to end", async () => {
     )
   }
 
-  expect(fail).toBe(0)
+  expect(failed).toEqual([])
 })
