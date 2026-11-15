@@ -53,6 +53,7 @@ Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit 
 | `@dapplelight/signet-db/d1` | createDb | Cloudflare D1 driver: `createDb(env.DB, config)` |
 | `@dapplelight/signet-db/entitlements` | PROMOTIONAL, definePlans, defaultStatusOf, storeStateOf, defaultPeriodEndOf, defaultPlanIdOf, … | Plans, entitlements and usage limits, on the tables from `entitlementTables()` |
 | `@dapplelight/signet-db/flags` | defineFlags, bucket, matchesRule, evaluateFlag, createFlags, FlagValue, … | Feature flags defined in code, with stored overrides in `flagOverrides()` |
+| `@dapplelight/signet-db/funnels` | FUNNEL_TAIL_STEPS, funnelEventName, funnelSteps, periodEnd, createFunnels, FunnelQuestion, … | Web-to-app funnels, on the tables from `funnelTables()` plus `customerEvents` from `monetisationTables()` |
 | `@dapplelight/signet-db/growth` | DEFAULT_FEEDBACK_KINDS, normalizeEmail, createGrowth, GrowthTables, GrowthOptions, WaitlistEntry, … | Growth basics every app rebuilds, on the tables from `growthTables()`: waitlist, invites, referrals, onboarding progress, changelog "what's new" and f |
 | `@dapplelight/signet-db/migrations` | checkMigrationSql, formatIssues, MigrationIssueKind, MigrationIssue | Scan SQL migrations for changes that lose data or break running code: dropped tables or columns, renames, and NOT NULL added without a default |
 | `@dapplelight/signet-db/offerings` | createOfferings, plansFromProducts, offerEligible, ProductStore, ProductInterval, OfferingProduct, … | Offerings and remote paywalls, on the tables from `monetisationTables()` |
@@ -150,6 +151,7 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/http/cache` | cacheControlValue, mergeVary, etagMatches, httpCache, cachedResponse, CacheControlOptions, … | HTTP caching for GET routes |
 | `@dapplelight/signet-server/http/collab` | collabRoutes, mentionTemplates, notifyMentions, CollabStore, CollabRoutesOptions, CollabRoutes, … | HTTP routes for signet-db's record collaboration (`createCollab`): comments with @mentions, the mention picker, the activity timeline, and version his |
 | `@dapplelight/signet-server/http/errors` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus | Server half of the error envelope |
+| `@dapplelight/signet-server/http/funnels` | redemptionToken, readRedemptionToken, redemptionLink, DEFAULT_FUNNEL_PAGE_LABELS, funnelRoutes, funnelPageCsp, … | Web-to-app funnels on signet-db's `createFunnels` (typed structurally, so this package does not depend on signet-db): a public hosted checkout page (q |
 | `@dapplelight/signet-server/http/monetisation` | monetisationRoutes, monetisationAdminRoutes, OfferingStore, CustomerStore, ChartStore, MonetisationRoutesOptions, … | Monetisation routes on signet-db's `createOfferings` and `createCustomers` (typed structurally, so this package does not depend on signet-db): offerin |
 | `@dapplelight/signet-server/http/openapi` | apiDoc, ERROR_ENVELOPE_SCHEMA, openApiSpec, serveOpenApi, apiDocsHtml, SecuritySchemeName, … | OpenAPI 3.1 from the app's own routes |
 | `@dapplelight/signet-server/http/orgs` | currentTenant, currentMembership, grants, tenant, orgGuards, orgCookie, … | Multi-tenant Hono pieces on signet-db's `createOrgs` (typed structurally, so this package does not depend on signet-db): resolve the tenant from the r |
@@ -247,6 +249,7 @@ Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"
 | `@dapplelight/signet-ui/screens/auth-screens` | DEFAULT_AUTH_LABELS, AuthMode, AuthChannel, OAuthProvider, AuthLabels, CodeRequest |  |
 | `@dapplelight/signet-ui/screens/billing-screens` | plansFromEntitlements, DEFAULT_BILLING_LABELS, formatMoney, PlanPicker, RestorePurchasesButton, CurrentPlanCard, … |  |
 | `@dapplelight/signet-ui/screens/collab-screens` | DEFAULT_COLLAB_LABELS, mentionsToText, textToMentions, CommentBody, MentionTextarea, CommentThreads, … |  |
+| `@dapplelight/signet-ui/screens/funnel-screens` | DEFAULT_FUNNEL_LABELS, discountedOffering, FunnelQuestion, WebFunnel, loadScript, STRIPE_JS_URL, … |  |
 | `@dapplelight/signet-ui/screens/growth-screens` | DEFAULT_GROWTH_LABELS, WaitlistJoin, InviteAccept, ReferralCard, OnboardingChecklist, FeedbackForm, … |  |
 | `@dapplelight/signet-ui/screens/monetisation-screens` | DEFAULT_MONETISATION_LABELS, plansFromOffering, RemotePaywall, CustomerCenter, CustomerTimeline, PromotionalGrantForm, … |  |
 | `@dapplelight/signet-ui/screens/notification-screens` | DEFAULT_NOTIFICATION_LABELS, NotifyChannel, InboxEntry, InboxFilter, ChannelPrefs, PreferenceCategory, … |  |
