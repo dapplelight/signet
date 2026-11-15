@@ -18,6 +18,7 @@ const { ApiKeysManager, ProfileCard, SessionsList } = await import(
 const { NotificationInbox, NotificationPreferences } = await import(
   "../src/components/screens/notification-screens"
 )
+const { ConsentList, DataRequests } = await import("../src/components/screens/privacy-screens")
 
 let pass = 0,
   fail = 0
@@ -389,6 +390,96 @@ await t("NotificationPreferences: failed save rolls back", async () => {
   await tick()
   ok("Prefs: rolls back on error", sw.getAttribute("aria-checked") === "true")
   ok("Prefs: error is an alert", screen.getByRole("alert").textContent === "Offline")
+})
+
+// --- Privacy ---
+await t("ConsentList", async () => {
+  const given: string[] = []
+  const withdrawn: string[] = []
+  render(
+    <ConsentList
+      purposes={[
+        { id: "marketing-email", label: "Offers by email" },
+        { id: "analytics", label: "Usage analytics" },
+      ]}
+      consents={[
+        { purpose: "marketing-email", noticeVersion: "2026-11-01", givenAt: "2026-11-02" },
+        {
+          purpose: "analytics",
+          givenAt: "2026-10-01",
+          withdrawnAt: "2026-10-05",
+        },
+      ]}
+      onGive={(p) => void given.push(p)}
+      onWithdraw={(p) => void withdrawn.push(p)}
+    />,
+  )
+  await tick()
+  const mail = screen.getByRole("switch", { name: "Offers by email" })
+  ok("Consent: given shows on", mail.getAttribute("aria-checked") === "true")
+  ok("Consent: described by its notice", !!mail.getAttribute("aria-describedby"))
+  ok("Consent: notice version visible", !!screen.getByText(/Notice 2026-11-01/))
+  mail.focus()
+  await userEvent.keyboard(" ")
+  await tick()
+  ok("Consent: Space withdraws, no confirm", withdrawn[0] === "marketing-email")
+  await userEvent.click(screen.getByRole("switch", { name: "Usage analytics" }))
+  await tick()
+  ok("Consent: switching on gives", given[0] === "analytics")
+  ok(
+    "Consent: state as data-state",
+    document.querySelectorAll("[data-slot=consent-item][data-state]").length === 2,
+  )
+})
+
+await t("DataRequests", async () => {
+  let exports = 0
+  let erasures = 0
+  const downloads: string[] = []
+  render(
+    <DataRequests
+      requests={[
+        { id: "r1", kind: "export", status: "completed", requestedAt: "2026-11-01" },
+        {
+          id: "r2",
+          kind: "erasure",
+          status: "rejected",
+          requestedAt: "2026-10-01",
+          note: "Open invoice",
+        },
+      ]}
+      onRequestExport={() => void exports++}
+      onRequestErasure={() => void erasures++}
+      onDownload={(r) => void downloads.push(r.id)}
+    />,
+  )
+  ok("Data: region named Your data", !!screen.getByRole("region", { name: "Your data" }))
+  await userEvent.click(screen.getByRole("button", { name: /Export/ }))
+  ok("Data: export requests at once", exports === 1)
+  const del = screen.getByRole("button", { name: /Delete/ })
+  await userEvent.click(del)
+  ok("Data: erasure confirms first", erasures === 0 && !!screen.getByRole("alertdialog"))
+  ok("Data: focus on Cancel", document.activeElement?.textContent === "Cancel")
+  await userEvent.click(screen.getByRole("button", { name: "Delete everything" }))
+  await waitFor(() => ok("Data: confirm requests erasure", erasures === 1))
+  await userEvent.click(screen.getByRole("button", { name: "Download" }))
+  ok("Data: completed export downloads", downloads[0] === "r1")
+  ok("Data: status badge", !!screen.getByText("Declined"))
+  ok("Data: rejection note shown", !!screen.getByText(/Open invoice/))
+})
+
+await t("DataRequests: pending blocks a duplicate", async () => {
+  render(
+    <DataRequests
+      requests={[{ id: "r1", kind: "export", status: "pending", requestedAt: "2026-11-01" }]}
+      onRequestExport={() => {}}
+    />,
+  )
+  ok(
+    "Data: export disabled while one is pending",
+    (screen.getByRole("button", { name: /Export/ }) as HTMLButtonElement).disabled,
+  )
+  ok("Data: pending badge", !!screen.getByText("In progress"))
 })
 
 console.log(`\n${pass} passed, ${fail} failed`)

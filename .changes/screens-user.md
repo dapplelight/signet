@@ -17,6 +17,11 @@ so an app wires them through `createRpcClient`:
   `renderItem` turns rows into links) and `NotificationPreferences` (a switch
   per category and channel, required categories locked on, a failed save
   rolls back). Shapes match the notifier's `InboxItem` and `Prefs`.
+- `screens/privacy-screens` (DPDP): `ConsentList` (one switch per purpose;
+  withdrawing is as easy as giving, no confirm; shows the notice version and
+  date) and `DataRequests` (export and erasure requests with status, erasure
+  confirms, a pending request blocks a duplicate, completed exports
+  download). Shapes match signet-db's `Consent` and `DataRequest`.
 
 Every string is a prop (`labels`, spread from `DEFAULT_*_LABELS`), every part
 takes `className` (composites also `classNames`) with state as `data-*`,

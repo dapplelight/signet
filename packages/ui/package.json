@@ -269,6 +269,10 @@
     "./screens/notification-screens": {
       "types": "./dist/components/screens/notification-screens.d.ts",
       "import": "./dist/components/screens/notification-screens.js"
+    },
+    "./screens/privacy-screens": {
+      "types": "./dist/components/screens/privacy-screens.d.ts",
+      "import": "./dist/components/screens/privacy-screens.js"
     }
   },
   "scripts": {
