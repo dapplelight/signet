@@ -266,6 +266,16 @@ const upd = await call(
   send("PATCH", { name: "Acme 2", junk: 1 }),
 )
 ok("admin changes settings", upd.status === 200 && (await j(upd)).org.name === "Acme 2")
+const hijack = await call(
+  "/api/orgs/current",
+  { user: "dev", org: "acme" },
+  send("PATCH", { name: "Acme 2", domain: "app.example" }),
+)
+ok(
+  "PATCH /current ignores domain",
+  hijack.status === 200 && (await j(hijack)).org.domain === orgsById.get("org_a")?.domain,
+)
+ok("no org claimed the host", ![...orgsById.values()].some((o) => o.domain === "app.example"))
 ok(
   "member cannot remove others: 403",
   (await call("/api/orgs/current/members/dev", { user: "mo", org: "acme" }, send("DELETE")))
