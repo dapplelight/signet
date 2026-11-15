@@ -129,6 +129,11 @@
       "import": "./dist/customers.js",
       "default": "./dist/customers.js"
     },
+    "./ai-spend": {
+      "types": "./dist/ai-spend.d.ts",
+      "import": "./dist/ai-spend.js",
+      "default": "./dist/ai-spend.js"
+    },
     "./funnels": {
       "types": "./dist/funnels.d.ts",
       "import": "./dist/funnels.js",

@@ -43,6 +43,7 @@ Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit 
 | `@dapplelight/signet-db` | dbCache, pruneAiCache, DbCache, isCiphertext, assertCiphertext, generateKey, … | re-exports ai-cache, cipher, db, describe, errors, id, idempotency, money, outbox, query, scoped, seed, sequence, user-data |
 | `@dapplelight/signet-db/admin` | ADMIN_OPS, AdminError, defineAdmin, DEFAULT_ROLES, roles, adminTools, … | An admin API from the schema: `defineAdmin(schema, { authorize })` gives list (cursor pages, sort, typed filters, text search), get, create, update, d |
 | `@dapplelight/signet-db/agent` | jsonSchema, agentTools, AgentTool, AgentToolsOptions | Database tools for AI agents, safe by construction: `agentTools(db, { tables, userId })` returns plain tool definitions (list, get, search per table,  |
+| `@dapplelight/signet-db/ai-spend` | SPEND_KEY, UNITS_PER_USD, usdToUnits, spendKey, parseSpendKey, periodEnd, … | AI spend caps: per user, per org and global, per UTC day and month, in cost units (1 unit = one millionth of a US dollar, so spend stays an integer) |
 | `@dapplelight/signet-db/analytics` | createAnalyticsStore, StoredEventInput, AnalyticsStoreOptions, Bucket, Period, Range, … | Analytics events stored in your own database (any signet-db dialect), and typed questions over them: counts, unique people, time series, breakdowns, f |
 | `@dapplelight/signet-db/collab` | MENTION_PATTERN, parseMentions, mentionToken, fieldLabel, describeItem, diffRows, … | Record collaboration for org apps: comment threads with @mentions on any record, a per-record activity timeline (audit log plus comments), and version |
 | `@dapplelight/signet-db/columns/pg` | id, timestamps, softDelete, money, encrypted, auditLog, … | Column helpers for Postgres tables: `id`, `timestamps`, `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`, `idempotencyKeys`, `aiCache` |
@@ -114,6 +115,8 @@ Signet backend primitives. Auth first.
 
 | Import | Exports | What |
 |---|---|---|
+| `@dapplelight/signet-server/abuse/captcha` | CAPTCHA_TEST_PASS, SITEVERIFY_URLS, captchaVerifier, CAPTCHA_HEADER, captchaToken, requireCaptcha, … | Bot checks: verify a Cloudflare Turnstile or hCaptcha token on the server, and a middleware that requires one on chosen routes (sign-up, password rese |
+| `@dapplelight/signet-server/abuse/email` | emailDomain, normalizeEmail, disposableEmailChecker, isDisposableEmail, blockDisposableEmail, DisposableEmailOptions, … | Disposable-email blocking for sign-up, and email normalisation so one inbox cannot sign up many times as `me+1@`, `me+2@`, `m.e@gmail.com` |
 | `@dapplelight/signet-server/adapters` | memoryKv, memoryQueue, processDefer, waitUntilDefer, kvRateLimitStore, assertBlobKey, … | Small plug interfaces so server code runs off Cloudflare too, plus in-memory and Node/Bun versions |
 | `@dapplelight/signet-server/adapters/cloudflare` | cloudflareKv, r2BlobStore, QUEUE_BATCH_MAX, cloudflareQueue, KvNamespaceLike, R2BucketLike, … | Cloudflare bindings as Signet adapters: Workers KV, R2 and a Queues producer |
 | `@dapplelight/signet-server/adapters/node` | fsBlobStore | Filesystem `BlobStore` for Node, Bun and Docker (mount a volume at `dir`) |
@@ -142,6 +145,7 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/env/schema` | createEnv, CreateEnvOptions | Validate environment once, lazily, against a Zod schema |
 | `@dapplelight/signet-server/http` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus, … | re-exports errors, validate |
 | `@dapplelight/signet-server/http/admin` | adminRoutes, AdminHttpRequest, AdminHandler, AdminRoutesOptions | Mount an admin API (signet-db's `defineAdmin`) as Hono routes |
+| `@dapplelight/signet-server/http/ai-spend` | requireAiSpend, aiSpendAdminRoutes, AiSpendStore, RequireAiSpendOptions, AiSpendAdminOptions | AI spend caps over HTTP, on signet-db's `createAiSpend` (typed structurally, so this package does not depend on signet-db): a middleware that refuses  |
 | `@dapplelight/signet-server/http/cache` | cacheControlValue, mergeVary, etagMatches, httpCache, cachedResponse, CacheControlOptions, … | HTTP caching for GET routes |
 | `@dapplelight/signet-server/http/collab` | collabRoutes, mentionTemplates, notifyMentions, CollabStore, CollabRoutesOptions, CollabRoutes, … | HTTP routes for signet-db's record collaboration (`createCollab`): comments with @mentions, the mention picker, the activity timeline, and version his |
 | `@dapplelight/signet-server/http/errors` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus | Server half of the error envelope |
@@ -235,6 +239,7 @@ Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"
 | `@dapplelight/signet-ui/hooks/use-intersection` | useIntersection |  |
 | `@dapplelight/signet-ui/hooks/use-local-storage` | useLocalStorage |  |
 | `@dapplelight/signet-ui/hooks/use-media-query` | DESKTOP_QUERY, useMediaQuery |  |
+| `@dapplelight/signet-ui/screens/abuse-screens` | CAPTCHA_TEST_PASS, CAPTCHA_SCRIPTS, DEFAULT_CAPTCHA_LABELS, CaptchaWidget, UNITS_PER_USD, formatUnits, … |  |
 | `@dapplelight/signet-ui/screens/account-screens` | DEFAULT_ACCOUNT_LABELS, When, SessionRow, ApiKeyRow, Profile, AccountLabels |  |
 | `@dapplelight/signet-ui/screens/admin-screens` | AdminApiError, createAdminApi, DEFAULT_ADMIN_LABELS, useAdmin, AdminPanel, AdminNav, … |  |
 | `@dapplelight/signet-ui/screens/api-screens` | DEFAULT_API_LABELS, ApiReference, WebhookDeliveryLog, ApiParameter, ApiOperation, ApiSpec, … |  |
