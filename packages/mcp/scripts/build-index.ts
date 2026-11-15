@@ -971,6 +971,31 @@ const RECIPES: RecipeSpec[] = [
     verify: ["call tools/list from an MCP client; bun run test"],
   },
   {
+    id: "mcp-by-default",
+    title: "Expose an app to agents: routes as tools, per-user tools, approvals",
+    keywords: [
+      "mcp",
+      "routes as tools",
+      "appTools",
+      "asTool",
+      "approval",
+      "approve",
+      "pending approval",
+      "per-user tools",
+      "visible",
+      "agent",
+    ],
+    install: ["@dapplelight/signet-server", "@modelcontextprotocol/server", "hono", "zod"],
+    refs: [
+      ["server", "Apps inside agents"],
+      ["create-signet-app", "`--template api`: a Hono API on the runtime you pick"],
+    ],
+    verify: [
+      "tools/list shows each zValidator route; a write answers APPROVAL_PENDING or APPROVAL_REQUIRED until approved",
+      "bun run test && bun run typecheck",
+    ],
+  },
+  {
     id: "add-oauth",
     title: "Protect an API or MCP endpoint with OAuth 2.1 (resource server)",
     keywords: ["oauth", "token", "jwt", "jwks", "bearer", "scope", "resource server"],
@@ -1076,6 +1101,10 @@ function apiTarget(field: "scripts" | "devDeps"): Record<string, string> {
   )
 }
 /** What create-signet-app copies: the tracked template files, renamed as it renames them. */
+// As create-signet-app's applyMcp with MCP chosen (its non-interactive default):
+// the `_mcp/` overlay is laid on and the `// mcp:begin` / `// mcp:end` markers go.
+const dropMcpMarkers = (text: string) => text.replace(/^[ \t]*\/\/ mcp:(begin|end)\n/gm, "")
+
 function templateFiles(dir: string, target?: string): TemplateFile[] {
   const files = execFileSync("git", ["ls-files", dir], { cwd: ROOT, encoding: "utf8" })
     .split("\n")
@@ -1083,17 +1112,22 @@ function templateFiles(dir: string, target?: string): TemplateFile[] {
   // Shared files, then the chosen target's laid over them, as the scaffolder copies.
   const byPath = new Map<string, string>()
   const overlay = `${dir}/_targets/${target}/`
-  for (const f of files.filter((f) => !f.startsWith(`${dir}/_targets/`)))
+  const mcp = `${dir}/_mcp/`
+  for (const f of files.filter((f) => !f.startsWith(`${dir}/_targets/`) && !f.startsWith(mcp)))
     byPath.set(f.slice(dir.length + 1), f)
-  if (target)
+  if (target) {
     for (const f of files.filter((f) => f.startsWith(overlay)))
       byPath.set(f.slice(overlay.length), f)
+    for (const f of files.filter((f) => f.startsWith(mcp))) byPath.set(f.slice(mcp.length), f)
+  }
   return [...byPath.keys()].sort().map((path) => ({
     path: path
       .replace(/^_gitignore$/, ".gitignore")
       .replace(/^_dockerignore$/, ".dockerignore")
       .replace(/^_github\//, ".github/"),
-    content: read(byPath.get(path) as string),
+    content: target
+      ? dropMcpMarkers(read(byPath.get(path) as string))
+      : read(byPath.get(path) as string),
   }))
 }
 const themeNames = /const THEMES = \[([^\]]*)\]/.exec(CSA)?.[1]?.match(/[\w-]+/g) ?? []
@@ -1108,7 +1142,7 @@ const scaffold: SignetIndex["scaffold"] = {
   api: {
     files: templateFiles("packages/create-signet-app/template-api", "cloudflare"),
     scripts: scripts("api"),
-    dependencies: objectConst("API_DEPS"),
+    dependencies: { ...objectConst("API_DEPS"), ...objectConst("MCP_DEPS") },
     devDependencies: { ...objectConst("API_DEV_DEPS"), ...apiTarget("devDeps") },
   } satisfies ScaffoldTemplate,
 }

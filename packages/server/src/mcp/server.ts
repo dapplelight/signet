@@ -33,6 +33,7 @@ import type { Context } from "hono"
 import type { z } from "zod"
 import { memoryStore, type RateLimitStore } from "../middleware/rate-limit.js"
 import type { VerifiedToken } from "../oauth-rs/verify.js"
+import type { Approvals } from "./approvals.js"
 import {
   callHook,
   describeToolError,
@@ -94,6 +95,10 @@ export type ToolContext = {
     getClientCapabilities: () => ClientCapabilities | undefined
     mint?: (payload: ConfirmPayload) => Promise<string>
   }
+  /** Who the agent acts for: `createMcpServer`'s `principal`, by default the token's `sub`. */
+  principal?: string
+  /** `createMcpServer`'s `approvals` store, for `requireApproval`. */
+  approvals?: Approvals
 }
 
 /** An MCP `CallToolResult`, returned as-is. Build one with `toolResult`. */
@@ -159,6 +164,12 @@ export type ToolDefinition<
    * still call, which new clients and the model should not see. Default true.
    */
   listed?: boolean
+  /**
+   * Whether this caller gets the tool at all: their role, plan or feature
+   * (`entitlements.can(sub, feature)`). A hidden tool is neither listed nor callable.
+   * Checked by `resolveMcpServer` / `mcpHandler` per request.
+   */
+  visible?: (caller: McpCaller) => boolean | Promise<boolean>
   /** Calls allowed per principal per window, counted in `createMcpServer`'s `rateLimit.store`. */
   rateLimit?: ToolRateLimit
   /** Stop waiting after this many ms: the call answers `TIMEOUT` and `ctx.signal` aborts. Overrides `createMcpServer`'s `timeoutMs`. */
@@ -182,6 +193,7 @@ export type McpTool = {
   readonly output?: ObjectSchema
   readonly scopes?: readonly string[]
   readonly listed?: boolean
+  readonly visible?: (caller: McpCaller) => boolean | Promise<boolean>
   readonly rateLimit?: ToolRateLimit
   readonly timeoutMs?: number
   readonly handler: (input: never, ctx: ToolContext) => unknown
@@ -204,6 +216,7 @@ export type PlainTool = {
   readonly outputSchema?: JsonSchemaType | StandardSchemaV1
   readonly scopes?: readonly string[]
   readonly listed?: boolean
+  readonly visible?: (caller: McpCaller) => boolean | Promise<boolean>
   readonly rateLimit?: ToolRateLimit
   readonly timeoutMs?: number
   // Method syntax on purpose: any `run(input: X, ctx)` is assignable, whatever X is.
@@ -350,6 +363,12 @@ export type CreateMcpServerOptions = ToolErrorOptions & {
     /** How long a pending confirmation stays answerable, in seconds. Default 600. */
     ttlSeconds?: number
   }
+  /**
+   * Pending approvals (`kvApprovals(kv)`): `requireApproval` in a client that
+   * cannot ask opens a record the person decides in the app, instead of
+   * refusing. Also records elicited answers for the audit trail.
+   */
+  approvals?: Approvals
 }
 
 type ErasedCallback = (...args: unknown[]) => Promise<CallToolResult>
@@ -372,6 +391,13 @@ type ErasedRegister = (
  */
 export function createMcpServer(options: CreateMcpServerOptions): McpServer {
   const tools = options.tools.map(toMcpTool)
+  // `visible` needs the caller, which only resolveMcpServer has: listing a
+  // role-gated tool to everyone would be worse than failing here.
+  const gated = tools.find((t) => t.visible)
+  if (gated)
+    throw new Error(
+      `signet mcp: tool "${gated.name}" has \`visible\`; serve it through resolveMcpServer or mcpHandler, which check it per caller`,
+    )
   const unlisted = new Set(tools.filter((t) => t.listed === false).map((t) => t.name))
   // A fixed tool list says so: a client then opens no `subscriptions/listen`
   // stream (2026-07-28) to wait for a change that cannot come, and a Worker
@@ -475,6 +501,8 @@ export function createMcpServer(options: CreateMcpServerOptions): McpServer {
         },
         ...(c ? { c } : {}),
         ...(token ? { token } : {}),
+        ...(principal !== undefined ? { principal } : {}),
+        ...(options.approvals ? { approvals: options.approvals } : {}),
       }
       if (tool.scopes?.length) {
         const missing = tool.scopes.filter((s) => !token?.scopes.includes(s))
@@ -597,10 +625,17 @@ export async function resolveMcpServer(options: ResolveMcpServerOptions): Promis
   const dynamic = [options.tools, options.resources, options.prompts].some(
     (l) => typeof l === "function",
   )
+  const shown = await Promise.all(
+    (tools ?? []).map(async (t) => (!t.visible || (await t.visible(caller)) ? t : undefined)),
+  )
   const { tools: _t, resources: _r, prompts: _p, ...rest } = options
   return createMcpServer({
     ...rest,
-    tools: tools ?? [],
+    tools: shown.flatMap((t) => {
+      if (!t) return []
+      const { visible: _v, ...checked } = t
+      return [checked as AnyTool]
+    }),
     ...(resources ? { resources } : {}),
     ...(prompts ? { prompts } : {}),
     listChanged: options.listChanged ?? dynamic,

@@ -583,7 +583,7 @@ looked up. Overrides can expire and are audited. Every result says why.
 
 ```ts
 import { entitlementTools } from "@dapplelight/signet-db/entitlements"
-import { requireApproval } from "@dapplelight/signet-server/mcp"
+import { approvalGate } from "@dapplelight/signet-server/mcp"
 
 const tools = entitlementTools({
   entitlements: ent,
@@ -591,13 +591,16 @@ const tools = entitlementTools({
   subject: orgId,       // or allSubjects: true for an operator agent; tools then take `subject`
   allowWrites: true,    // default false: read tools only
   actor: { type: "agent", id: "support-agent" },
-  approve: (ctx, r) => requireApproval(ctx as never, r),
+  approve: approvalGate,
 })
 ```
 
 Read: `get_plan`, `check_entitlement`, `usage`, `list_flags`. Write (with
 `allowWrites`): `grant_feature`, `set_plan`, `set_flag`. Writes always call
 `approve`; without one they change nothing and return `APPROVAL_REQUIRED`.
+`approvalGate` is signet-server's one approval step: it asks in the client,
+or, with `createMcpServer({ approvals })`, opens a pending approval the
+person decides in the app (see signet-server's "Approvals").
 They are audited as `actor`. Give writes only to agents run by staff: on a
 per-user agent the person approving is the user who benefits.
 

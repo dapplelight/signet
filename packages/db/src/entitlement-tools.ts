@@ -46,7 +46,7 @@ export type EntitlementToolsOptions<P extends Plans = Plans, F extends Flags = F
   allowWrites?: boolean
   /** Recorded in the audit log. Default `{ type: "agent", id: "agent" }`. */
   actor?: Actor
-  /** Undefined = approved; anything else is returned as the tool result. e.g. `(ctx, r) => requireApproval(ctx, r)`. */
+  /** Undefined = approved; anything else is returned as the tool result. Pass signet-server's `approvalGate`. */
   approve?: Approve
 }
 

@@ -1299,6 +1299,16 @@ mountMcp(app, "/mcp", {
 A tool left out of a caller's list is not callable by them either: the server
 is built from that list. For stdio, `serveStdio(() => resolveMcpServer({...}))`.
 
+Or gate single tools with `visible(caller)`: their role, plan or feature. A
+hidden tool is neither listed nor callable. `resolveMcpServer` / `mcpHandler`
+check it per request; `createMcpServer` throws on a tool with `visible`,
+since it has no caller to check.
+
+```ts
+const proOnly = ({ token }: McpCaller) => entitlements.can(token?.claims.sub ?? "", "export") // signet-db
+defineTool({ name: "export_all", visible: proOnly, ... })
+```
+
 **list_changed.** Create one notifier at module scope and pass it as `changes`;
 call it when someone's tools change:
 
@@ -1331,8 +1341,39 @@ const add = {
 createMcpServer({ name, version, tools: [add, ...agentTools(db), getOrder] })
 ```
 
-**Routes as tools.** Expose chosen routes — never all of them — as tools that
-call the route in-process with the caller's `authorization` and `cookie`, so
+**Routes as tools, automatically.** `appTools(app)` turns every route
+validated with `zValidator` into a tool. Call it after the routes are
+registered:
+
+```ts
+const app = new Hono()
+  .get("/api/notes", zValidator("query", z.object({ q: z.string().optional() }).describe("Search my notes")), list)
+  .post("/api/notes", asTool({ description: "Save a note" }), zValidator("json", Note), save)
+  .post("/api/webhook", asTool(false), zValidator("json", Event), hook)   // never a tool
+  .get("/api/me", asTool({ name: "whoami", description: "Who is signed in" }), me) // no validator: opt in
+mountMcp(app, "/mcp", { name, version, tools: appTools(app) })
+```
+
+- **name**: `asTool({ name })`, else method + path (`get_api_notes_by_id`).
+- **description**: `asTool({ description })`, else the schema's `.describe()`, else `GET /api/notes/:id`.
+- **input**: the json, query and param `z.object`s, merged. A route whose
+  validators are not all objects on those targets (a form, header or cookie
+  validator), a GET or DELETE with a json validator (its arguments go in the
+  query string), or with a path parameter no schema covers, is skipped: give
+  it `asTool({ input })`.
+- **read vs write**: GET is `readOnlyHint` and runs. Every other method is a
+  write and goes through `requireApproval` first (`asTool({ approval: false })`
+  per route, `appTools(app, { approval: false })` for all).
+- `appTools(app, { optIn: true })` takes only routes marked `asTool(...)`.
+- `asTool` also takes `title`, `annotations`, `scopes`, `rateLimit`,
+  `timeoutMs` and `visible`.
+
+Each call runs the route in-process with the caller's `authorization` and
+`cookie`, so it runs as the signed-in user (session or API key) and sees only
+what the route would show them.
+
+**Routes as tools, spelled out.** `routesAsTools` exposes the routes you list,
+calling each in-process with the caller's `authorization` and `cookie`, so
 the route's own auth and validation decide:
 
 ```ts
@@ -1345,10 +1386,11 @@ const tools = routesAsTools(app, [
 ```
 
 Path parameters come from the input; the rest is the query string (GET,
-DELETE) or a JSON body. The route's JSON is the result; a non-2xx is an error
-result with the envelope's `code`. GET defaults to `readOnlyHint`, PUT to
+DELETE) or a JSON body (`query: ["dry"]` sends those in the query string for
+any method). The route's JSON is the result; a non-2xx is an error result with
+the envelope's `code`. GET defaults to `readOnlyHint`, PUT to
 `idempotentHint`, DELETE to `destructiveHint` + `idempotentHint`; `annotations`
-overrides.
+overrides. `approval: true` asks through `requireApproval` before the call.
 
 **Approval for risky actions.** `requireApproval` is `confirm` shaped for a
 gate: undefined means approved, anything else is returned as-is.
@@ -1367,6 +1409,53 @@ With elicitation the person is asked (and with `confirm.key` the answer is
 bound to `args`). A no is `APPROVAL_DECLINED`. A client without elicitation
 gets `APPROVAL_REQUIRED` with `structuredContent.approval: { summary, details }`
 and nothing is done: the tool never acts on an approval it could not ask for.
+
+It is the one approval step for every write tool: `appTools` writes,
+`authTools`, `jobTools`, and signet-db's and signet-payments' tool factories,
+which take it as `approve: approvalGate`.
+
+**Approvals: pending, approve or deny, expiry, audit.** Most agents cannot
+ask the person mid-call. Give the server an approvals store and they get a
+pending record the person decides in the app, instead of a refusal:
+
+```ts
+import { approvalGate, appTools, kvApprovals } from "@dapplelight/signet-server/mcp"
+import { approvalRoutes } from "@dapplelight/signet-server/http/routes"
+
+const approvals = kvApprovals(kv, {         // any KeyValue: memoryKv, Workers KV, Upstash
+  ttlSeconds: 86_400,                       // how long it can be approved, then used (default a day)
+  onEvent: ({ type, record }) => audit.write({ type, ...record }), // requested, approved, denied, used
+})
+mountMcp(app, "/mcp", {
+  name, version, approvals,
+  // Records belong to the principal: the token's `sub` behind oauth-rs
+  // requireToken, or say who it is. With no principal there is no one to
+  // decide a record, so anonymous calls get APPROVAL_REQUIRED instead.
+  middleware: [requireStoredSession(sessions)],
+  principal: ({ c }) => c?.get("session")?.payload.sub,
+  tools: [...appTools(app), ...paymentTools(payments, { userId, approve: approvalGate })],
+})
+app.use("/api/approvals/*", requireStoredSession(sessions))
+app.route("/api/approvals", approvalRoutes({ approvals, subject: (c) => c.get("session").payload.sub }))
+```
+
+1. The agent calls a write tool. A client that can ask still asks
+   (elicitation), and the answer is recorded (`via: "elicitation"`).
+2. Otherwise the result is `APPROVAL_PENDING` with
+   `structuredContent.approval: { id, summary, details, status, expiresAt }`,
+   and nothing changed.
+3. The person sees it at `GET /api/approvals` and posts
+   `/api/approvals/:id/approve` or `/deny`. They can only decide their own;
+   another user's id is a 404, a decided or expired one a 409.
+4. The agent calls the same tool with the same arguments. Approved: it runs,
+   once (the record becomes `used`). Denied: `APPROVAL_DECLINED`. Different
+   arguments never match an approval: it is bound to the tool, the principal
+   and a SHA-256 of the arguments.
+
+Records past `expiresAt` read as `expired` and are kept `keepSeconds` (default
+7 days) for the person's history. `kvApprovals` is read-modify-write: two
+retries racing on one approval could both run on a store without
+transactions; implement `Approvals` over SQL for a strict once-only.
 
 **Annotations.** `readOnlyHint`, `destructiveHint`, `idempotentHint` and
 `openWorldHint` are hints to the client, not enforcement. Set them honestly —
@@ -1419,8 +1508,10 @@ never asked for input.
   `requireApproval`. Return the gate result unchanged.
 - Throw `ApiException(status, message, CODE)` for errors the model should see;
   anything else is `INTERNAL_ERROR` and goes to `onError`.
-- Prefer `routesAsTools` over re-implementing a route's logic in a tool: the
-  route's auth stays the single check.
+- Prefer `appTools` / `routesAsTools` over re-implementing a route's logic in
+  a tool: the route's auth stays the single check.
+- Give the server `approvals` so agents without elicitation get a pending
+  approval instead of a refusal, and mount `approvalRoutes` for the person.
 - Plain tool objects need no import from this package; match `PlainTool`.
 - Never read env at module scope; take keys (`confirm.key`, stores) from `c.env`
   in a factory or from config.
