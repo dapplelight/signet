@@ -30,7 +30,13 @@ import type {
   PaymentGateway,
   PaymentStatus,
   Refund,
+  Subscription,
 } from "./types.js"
+
+/** One purchase a device holds, for `restorePurchases`. */
+export type StorePurchase =
+  | { gateway: "appstore" /** A StoreKit `jwsRepresentation`. */; signedTransaction: string }
+  | { gateway: "googleplay"; purchaseToken: string; type: "subscription" | "product" }
 
 /** What a router sees about a charge. */
 export type Intent = { amount: number; currency: string; country?: string; method?: Method }
@@ -214,7 +220,11 @@ export function createPayments(config: PaymentsConfig) {
     userId: string
   }): Promise<Payment> {
     const g = gateway(input.gateway)
-    const p = await g.getPayment(input.id)
+    return claim(g, await g.getPayment(input.id), input.userId)
+  }
+
+  /** Store a verified store payment as `userId`'s; refused when it or its subscription is another user's. */
+  async function claim(g: PaymentGateway, p: Payment, userId: string): Promise<Payment> {
     if (!db) return p
     const existing = await db.getPayment(g.name, p.gatewayId)
     // ponytail: reads up to 500 payments of one subscription; page if a subscription outgrows that.
@@ -223,14 +233,14 @@ export function createPayments(config: PaymentsConfig) {
           (r) => r.orderId === p.orderId,
         )
       : []
-    if ([existing, ...linked].some((r) => r?.userId && r.userId !== input.userId))
+    if ([existing, ...linked].some((r) => r?.userId && r.userId !== userId))
       throw new PaymentsError("BAD_INPUT", "This purchase already belongs to another user.", {
         gateway: g.name,
       })
     const now = new Date()
     for (const r of linked)
       if (!r.userId && r.gatewayId !== p.gatewayId)
-        await db.savePayment({ ...r, userId: input.userId, updatedAt: now })
+        await db.savePayment({ ...r, userId: userId, updatedAt: now })
     await db.savePayment({
       ...existing,
       gateway: g.name,
@@ -239,13 +249,79 @@ export function createPayments(config: PaymentsConfig) {
       amount: p.amount,
       currency: p.currency,
       amountRefunded: p.amountRefunded ?? existing?.amountRefunded ?? 0,
-      userId: input.userId,
+      userId: userId,
       ...(p.orderId ? { orderId: p.orderId } : {}),
       ...(p.customerId ? { customerId: p.customerId } : {}),
       createdAt: existing?.createdAt ?? p.createdAt,
       updatedAt: now,
     })
     return p
+  }
+
+  /**
+   * Restore purchases: re-verify what the device holds and re-attach it to
+   * `userId`. App Store: signed transactions (StoreKit `jwsRepresentation`),
+   * verified, then read live (Get Transaction Info, and Get All Subscription
+   * Statuses for a subscription). Google Play: purchase tokens, read live
+   * (subscriptionsv2 and the latest order, or productsv2). Each purchase is
+   * claimed as `verifyPurchase` does, so one already another user's is
+   * refused. Hand each `subscription` to signet-db's `applySubscription`.
+   * An outage throws (retry the whole call); anything else refuses only that
+   * purchase.
+   */
+  async function restorePurchases(input: {
+    userId: string
+    purchases: readonly StorePurchase[]
+  }): Promise<{
+    restored: { gateway: string; payment: Payment; subscription?: Subscription }[]
+    refused: { gateway: string; index: number; code: string; message: string }[]
+  }> {
+    if (!input.userId) throw new PaymentsError("BAD_INPUT", "restorePurchases needs a userId.")
+    const out: Awaited<ReturnType<typeof restorePurchases>> = { restored: [], refused: [] }
+    for (const [index, item] of input.purchases.entries()) {
+      try {
+        const g = gateway(item.gateway)
+        if (item.gateway === "appstore") {
+          const decode = (g as { decodeTransaction?: (jws: string) => Promise<Payment> })
+            .decodeTransaction
+          if (!decode) throw new PaymentsError("BAD_INPUT", "appstore is not an App Store adapter.")
+          const signed = await decode(item.signedTransaction)
+          const p = await claim(g, await g.getPayment(signed.gatewayId), input.userId)
+          const isSub = (signed.raw as { type?: string }).type === "Auto-Renewable Subscription"
+          out.restored.push({
+            gateway: g.name,
+            payment: p,
+            ...(isSub && p.orderId ? { subscription: await g.getSubscription(p.orderId) } : {}),
+          })
+        } else if (item.type === "subscription") {
+          const s = await g.getSubscription(item.purchaseToken)
+          const order = (s.raw as { lineItems?: { latestSuccessfulOrderId?: string }[] })
+            .lineItems?.[0]?.latestSuccessfulOrderId
+          if (!order)
+            throw new PaymentsError("NOT_FOUND", "This subscription has no paid order yet.", {
+              gateway: g.name,
+            })
+          const p = await claim(g, await g.getPayment(order), input.userId)
+          out.restored.push({ gateway: g.name, payment: p, subscription: s })
+        } else {
+          const read = (g as { getProductPurchase?: (t: string) => Promise<Payment> })
+            .getProductPurchase
+          if (!read)
+            throw new PaymentsError("BAD_INPUT", "googleplay is not a Google Play adapter.")
+          const p = await claim(g, await read(item.purchaseToken), input.userId)
+          out.restored.push({ gateway: g.name, payment: p })
+        }
+      } catch (err) {
+        if (isPaymentsError(err, "GATEWAY_UNAVAILABLE")) throw err
+        out.refused.push({
+          gateway: item.gateway,
+          index,
+          code: isPaymentsError(err) ? err.code : "INTERNAL_ERROR",
+          message: isPaymentsError(err) ? err.message : "Could not verify this purchase.",
+        })
+      }
+    }
+    return out
   }
 
   // ------------------------------------------------------------ inbox
@@ -510,6 +586,7 @@ export function createPayments(config: PaymentsConfig) {
     capture,
     refund,
     verifyPurchase,
+    restorePurchases,
     receive,
     handleWebhook,
     processInbox,

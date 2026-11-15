@@ -921,11 +921,17 @@ const RECIPES: RecipeSpec[] = [
       "feature flags",
       "flags",
       "rollout",
+      "app store",
+      "google play",
+      "in-app purchase",
+      "restore purchases",
+      "revenuecat",
     ],
     // signet-db is `private: true` (not on npm yet), so it is not in the install line.
     install: ["drizzle-orm"],
     refs: [
       ["db", "Plans and entitlements"],
+      ["db", "App Store, Google Play and restore"],
       ["db", "Feature flags"],
     ],
     verify: [

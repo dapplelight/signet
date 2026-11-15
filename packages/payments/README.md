@@ -125,11 +125,41 @@ app.post("/webhooks/:gateway", (c) => payments.handleWebhook(c.req.param("gatewa
   from the API. The service account needs the Orders API (financial data)
   permission, because amounts come from `orders.get`.
 
+### Restore purchases
+
+```ts
+const { restored, refused } = await payments.restorePurchases({
+  userId,
+  purchases: [
+    { gateway: "appstore", signedTransaction: jwsRepresentation },
+    { gateway: "googleplay", purchaseToken, type: "subscription" }, // or "product"
+  ],
+})
+for (const r of restored)
+  if (r.subscription) await ent.applySubscription(r.subscription, { subject: userId }) // signet-db
+```
+
+Each purchase is verified (App Store: the JWS chain and signature), read live
+from the store (Get Transaction Info and Get All Subscription Statuses;
+subscriptionsv2 and orders.get, or productsv2) and claimed like
+`verifyPurchase`: one that is already another user's is refused, in
+`refused` with its index and code (`BAD_INPUT`), as is a forged JWS
+(`BAD_SIGNATURE`) or a subscription with no paid order yet (`NOT_FOUND`). An
+outage throws, so retry the call. signet-db turns the subscriptions into one
+entitlement per plan across stores and web gateways; see its "App Store,
+Google Play and restore" section.
+
 ### Notes on gaps
 
 A feature is supported only where the official API spec or docs and an official
 SDK (or two official doc pages) agree. What is left out, and why:
 
+- **Store purchases to plans, left out:** one-time (non-subscription)
+  store products do not map to plans (grant a feature with signet-db's
+  `grant` instead); a Google Play voided purchase without a revoke does not
+  change the entitlement (Google sends `SUBSCRIPTION_REVOKED` when access
+  ends); App Store offer codes, family sharing as a separate seat, and
+  restore by bare transaction id (only signed transactions are accepted).
 - **App Store refunds and cancellation**: customers ask Apple for refunds and
   cancel in their account settings, so the API has no refund or cancel call
   for this package to make. Checked:
@@ -466,7 +496,8 @@ your turnover requires, digital signatures, and PDF output (print the HTML).
 
 `paymentTools(payments, { userId, approve })` returns plain MCP tools
 (`find_payment`, `list_payments`, `payment_timeline`, `find_subscription`,
-`refund_payment`) that
+`refund_payment`, and `refresh_entitlement` when you pass signet-db's
+`entitlements`) that
 signet-server's `createMcpServer({ tools })` takes. Refunds always go through
 `approve`; pass signet-server's `requireApproval`. Without it, the tool
 returns `APPROVAL_REQUIRED` and refunds nothing. See `AGENTS.md`.
