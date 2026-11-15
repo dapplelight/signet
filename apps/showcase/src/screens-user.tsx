@@ -26,7 +26,9 @@ import { createRoot } from "react-dom/client"
 import { applyTheme, initialTheme } from "./themes"
 
 const params = new URLSearchParams(location.search)
-document.documentElement.classList.toggle("dark", params.get("dark") === "1")
+// Without ?dark, keep the stored light/dark choice (index.html's inline script).
+if (params.has("dark"))
+  document.documentElement.classList.toggle("dark", params.get("dark") === "1")
 await applyTheme(initialTheme())
 
 const wait = (ms = 600) => new Promise((r) => setTimeout(r, ms))
@@ -268,6 +270,9 @@ function Page() {
   return (
     <main className="flex min-h-dvh flex-col items-center gap-10 bg-background p-8 text-foreground">
       <h1 className="sr-only">Signet screens</h1>
+      <a href="./" className="self-start text-sm text-text-secondary underline">
+        Showcase
+      </a>
       {names.map((n) => (
         <div key={n} data-screen={n} className="flex w-full justify-center">
           {SCREENS[n]?.()}
