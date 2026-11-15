@@ -490,6 +490,55 @@ signet-db errors become the envelope (`BAD_VALUE` is 400 `VALIDATION_FAILED`,
 `NOT_FOUND` 404). These are cookie-authenticated writes: put
 `csrfMiddleware` in front when the session cookie is `SameSite=None`.
 
+### Funnel routes
+
+`@dapplelight/signet-server/http/funnels` serves signet-db's `createFunnels`
+as a public hosted checkout and the redemption the app calls after install.
+
+```ts
+import { funnelRoutes, redemptionLink } from "@dapplelight/signet-server/http/funnels"
+
+app.route("/f", funnelRoutes({
+  funnels,
+  secret: env.FUNNEL_SECRET,                     // 32+ characters
+  redeemUrl: "https://app.example.com/redeem",   // a universal / app link, or example://redeem
+  userId: (c) => c.get("session")?.sub,
+  page: { stripePublishableKey: env.STRIPE_PUBLISHABLE_KEY, razorpayKeyId: env.RAZORPAY_KEY_ID },
+}))
+app.post("/webhooks/:gateway", (c) => payments.handleWebhook(c.req.param("gateway"), c.req.raw))
+```
+
+| Route | What |
+|---|---|
+| `GET /:key` | The hosted page: questions, plan picker, email and code, then the gateway. Plain HTML with one nonce'd script and a strict CSP. |
+| `GET /:key/config?code=` | Funnel, priced web products, the code priced per product. |
+| `POST /:key/events` | `{ step }`: a step view (only that funnel's steps). |
+| `POST /:key/checkout` | `{ productId, answers?, code?, email? }`: `{ session, checkout }`; a refused code is 400. |
+| `GET /sessions/:id` | Status; once paid, `{ redemption: { link, token, expiresAt } }`. |
+| `POST /redeem` | `{ token }` as the signed-in user. 400 `BAD_TOKEN` (forged, expired), 409 `REDEEM_REFUSED` with the reason. |
+
+The page finishes the checkout the way the gateway answers: Stripe's
+**Express Checkout Element** (Apple Pay, Google Pay) and Payment Element,
+with Stripe.js loaded from Stripe at runtime; Razorpay Checkout for an
+order; a redirect `url`; or a POSTed `form` (PayU). Back from the gateway it
+waits for the webhook, then shows "Open the app" and the code to paste.
+
+**Redemption tokens** (`redemptionToken`, `readRedemptionToken`,
+`redemptionLink`): HMAC-signed with `secret`, expiring (`ttlSeconds`, default
+7 days), bound to their purpose so a session cookie signed with the same
+secret never passes as one. `previousSecrets` rotates keys. A token works
+once because redeeming claims its session for one account; `GET
+/sessions/:id` stops issuing them after that.
+
+**Apple Pay domain verification.** Stripe needs no file: register the page's
+domain once with `stripe.raw("POST", "/payment_method_domains", { domain_name })`.
+Razorpay, PayPal and Dodo Payments hand you a file; serve it with
+signet-payments' `applePayDomainAssociation(file)` in front of the app:
+`applePayDomainAssociation(file)(request) ?? app.fetch(request)`.
+
+Put `rateLimit` in front of `/:key/checkout` and `/redeem`. Nothing is
+granted until signet-payments verifies the gateway's webhook signature.
+
 ## Real-time: presence, live updates, shared state
 
 One hub, the same protocol on every runtime. The hub owns channels,

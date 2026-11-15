@@ -450,6 +450,29 @@ try {
     mon.json?.id,
   )
 
+  const fun = await call("recipe", { task: "web-to-app funnel redemption link and discount code" })
+  ok(
+    "recipe: add-funnels is cut from the db and server READMEs and covers checkout, discounts, redemption, analytics and routes",
+    fun.json?.id === "add-funnels" &&
+      JSON.stringify(fun.json.steps.map((st: any) => st.title)) ===
+        JSON.stringify([
+          "Funnels and checkout",
+          "URL discounts",
+          "Redemption",
+          "Funnel analytics",
+          "Funnel routes",
+        ]) &&
+      [
+        "createFunnels(db",
+        "funnels.applyEvent(",
+        "funnels.redeem(",
+        "funnelRoutes(",
+        "payment_method_domains",
+      ].every((t) => JSON.stringify(fun.json).includes(t)) &&
+      !fun.json.install.includes("@dapplelight/signet-db"),
+    fun.json?.id,
+  )
+
   const wfr = await call("recipe", { task: "durable workflow with an approval step" })
   ok(
     "recipe: add-workflows is cut from the db and server READMEs and covers steps, runners and routes",

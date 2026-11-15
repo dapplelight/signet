@@ -64,6 +64,10 @@ Tools come from `agentTools(db, { tables, userId, allowWrites, maxRows })`.
   the merged account, and call `customers.record(event)` after
   `applyBillingEvent`. `merge` refusals (`already_merged`, `other_org`,
   `not_anonymous`) are final: tell the user, never retry under another id.
+- Funnels (`createFunnels`): never compute a price or apply a discount in the
+  client; `start` prices it. Grant web purchases only from `applyEvent` fed by
+  verified webhooks. A `redeem` refusal (`already_redeemed`, `refunded`) is
+  final: tell the user, never retry under another account.
 - Tools from `entitlementTools(...)`: `get_plan`, `check_entitlement`,
   `usage`, `list_flags` read. `grant_feature`, `set_plan` and `set_flag`
   exist only with `allowWrites`, always ask a person to approve, and return

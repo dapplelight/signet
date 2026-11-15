@@ -1133,6 +1133,40 @@ const RECIPES: RecipeSpec[] = [
     ],
   },
   {
+    id: "add-funnels",
+    title:
+      "Add web-to-app funnels: hosted checkout, Apple Pay / Google Pay, URL discounts and app redemption",
+    keywords: [
+      "funnel",
+      "funnels",
+      "web to app",
+      "web-to-app",
+      "hosted checkout",
+      "checkout page",
+      "redemption link",
+      "redeem",
+      "discount code",
+      "coupon",
+      "apple pay",
+      "google pay",
+      "express checkout",
+    ],
+    // signet-db is `private: true`, so it is not in the install line.
+    install: ["@dapplelight/signet-server", "@dapplelight/signet-payments", "hono", "drizzle-orm"],
+    refs: [
+      ["db", "Funnels and checkout"],
+      ["db", "URL discounts"],
+      ["db", "Redemption"],
+      ["db", "Funnel analytics"],
+      ["server", "Funnel routes"],
+    ],
+    verify: [
+      "bun run test; complete a fake Stripe checkout and deliver its webhook twice: the anonymous buyer gets the plan once, and a forged webhook grants nothing",
+      "redeem the same link as two accounts at once: one gets the plan, the other is 409 REDEEM_REFUSED; an expired token is 400 BAD_TOKEN",
+      "start checkouts past a code's maxRedemptions concurrently: exactly that many succeed",
+    ],
+  },
+  {
     id: "add-mcp-tools",
     title: "Add MCP tools to an app",
     keywords: ["mcp", "tools", "model context protocol", "agent", "defineTool", "stdio"],

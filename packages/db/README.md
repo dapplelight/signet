@@ -753,6 +753,86 @@ await customers.requests({ status: "open" }); await customers.setRequestStatus(i
 - signet-ui's `CustomerCenter` renders it; signet-server's
   `monetisationRoutes` serves it.
 
+## Web-to-app funnels
+
+`@dapplelight/signet-db/funnels`: a hosted web checkout that sells an
+offering's web products, then unlocks the purchase in the app. Tables:
+`funnelTables()` (in `./columns/sqlite` and `./columns/pg`) plus
+`customerEvents` from `monetisationTables()`.
+
+### Funnels and checkout
+
+```ts
+import { createFunnels, funnelSteps } from "@dapplelight/signet-db/funnels"
+
+const funnels = createFunnels(db, {
+  tables: { ...funnelTables(), customerEvents },
+  funnels: [{
+    key: "spring", placement: "web", title: "Sleep better",
+    questions: [{ id: "goal", title: "Your goal?", options: [{ value: "sleep", label: "Sleep" }] }],
+  }],
+  discounts: [{ code: "SPRING25", percentOff: 25, expiresAt: "2027-04-01", maxRedemptions: 500, plans: ["pro"] }],
+  offerings, customers, entitlements,          // entitlements' billing.plans from plansFromProducts
+  checkout: (input) => payments.checkout(input), // signet-payments
+  track: (e) => sink.write([e]),               // any signet-server AnalyticsSink
+  onPaid: async (s) => s.email && sendMail(s.email, (await redemptionLink(opts, s.id)).link),
+})
+createPayments({ ..., onEvent: async (e) => {
+  await entitlements.applyBillingEvent(e); await customers.record(e); await funnels.applyEvent(e)
+} })
+```
+
+- `page(key, { code })` is what the hosted page shows: the funnel, the
+  placement's priced web products, and the URL's code priced per product.
+- `start(key, { productId, answers, code, email, visitor })` checks the
+  product is a priced web product of the offering and the answers fit the
+  questions, prices the discount and takes one use, creates a new anonymous
+  customer (`customers.anonymousId`), and asks the gateway for exactly that
+  amount under the session id (`fs_<uuid>`) as idempotency key and reference.
+  The client never sends a price.
+- `applyEvent(e)`: a verified `payment.captured` for a funnel checkout, for
+  the amount and currency priced, grants the plan to the anonymous customer
+  (one interval from the capture; lifetime for `once`) through
+  `entitlements.applySubscription`, puts the discount on the customer
+  timeline (kind `discount`) and marks the session `paid`, once. A different
+  amount is `amount_mismatch` and grants nothing. `refund.processed` ends the
+  access, on whichever account it was merged into. Pass `grant` to start a
+  renewing gateway subscription instead.
+
+### URL discounts
+
+A code arrives in the funnel URL (`/f/spring?code=SPRING25`) and is priced on
+the server only: it must exist (case-insensitive), be unexpired, cover the
+plan (`plans`) and the currency (`amountOff`), have uses left, and leave
+something to charge. It is charged as a price override, so it works on every
+gateway. `maxRedemptions` is held by one conditional UPDATE, so concurrent
+checkouts never pass it; a checkout the gateway refused gives its use back.
+An abandoned checkout keeps its use.
+
+### Redemption
+
+```ts
+const r = await funnels.redeem(sessionId, userId, { orgId })
+// { redeemed: true, already: false, session } | { redeemed: false, reason }
+```
+
+The session is claimed for one account with a conditional UPDATE, then
+`customers.merge` moves the anonymous buyer's plan, payments and timeline to
+it. Repeating it for the same account returns `already: true` and finishes a
+merge a crash left half done; another account gets `already_redeemed`; of
+two accounts racing, exactly one wins. A refused merge (`other_org`,
+`not_member`) frees the claim. Before payment it is `not_paid`; after a
+refund, `refunded`. The redemption token (signed, expiring) is
+signet-server's: `funnelRoutes` checks it before calling this.
+
+### Funnel analytics
+
+Every step is an event named `funnel:<key>:<step>`: one per question, then
+`plans`, `checkout`, `purchased`, `redeemed`, with the browser's analytics
+id so the purchase joins the visit. Drop-off:
+`analytics.funnel({ steps: funnelSteps(def) })`. Analytics never fails a
+purchase.
+
 ## Feature flags
 
 ```ts
