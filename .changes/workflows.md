@@ -11,3 +11,7 @@
 ### signet-ui: workflow screens
 
 - New `./screens/workflow-screens`: `WorkflowRunTimeline` (status, what the run waits on, steps in order with retries and approval decisions, cancel) and `ApprovalInboxCard` (approve or reject with an optional reason), shaped like signet-db's workflow results. Demo: `screens-ops.html?screen=workflows` in the showcase.
+
+### signet-mcp: workflows recipe
+
+- New `add-workflows` recipe, cut from signet-db's "Workflows" and signet-server's "Workflow routes" sections.
