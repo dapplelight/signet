@@ -72,15 +72,9 @@ signet upgrade dialog       # or no name: every added item
 
 Per file: a copy you never edited is replaced; one only you changed is kept; one
 both sides changed gets `git merge-file` (base, upstream, yours). Where the same
-lines changed on both sides, the file keeps conflict markers:
-
-```
-<<<<<<< app
-your line
-=======
-signet-ui's line
->>>>>>> signet-ui 0.3.0
-```
+lines changed on both sides, the file keeps git conflict markers: your lines
+under a seven-`<` line labelled `app`, signet-ui's under a seven-`=` line, closed
+by a seven-`>` line labelled `signet-ui <version>`.
 
 Resolve them and run your checks. The command exits 1 when any file has
 conflicts or could not be merged. Without git on the machine, edited files
