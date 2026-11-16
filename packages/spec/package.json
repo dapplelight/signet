@@ -27,6 +27,16 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./analytics": {
+      "types": "./dist/analytics.d.ts",
+      "import": "./dist/analytics.js",
+      "default": "./dist/analytics.js"
+    },
+    "./webhooks": {
+      "types": "./dist/webhooks.d.ts",
+      "import": "./dist/webhooks.js",
+      "default": "./dist/webhooks.js"
+    },
     "./error": {
       "types": "./dist/error.d.ts",
       "import": "./dist/error.js",

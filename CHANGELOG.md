@@ -5,6 +5,12 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### spec: analytics ingest and webhook delivery schemas
+
+- New `./analytics`: `analyticsIngestRequestSchema`, `analyticsIngestResponseSchema`, `analyticsIngestErrorSchema` and `trackedEventSchema`, with the limits of the ingest route (50 events, 64-character names, 20 props, id pattern `^[A-Za-z0-9_.:-]{1,64}$`).
+- New `./webhooks`: `webhookBodySchema`, `webhookHeadersSchema`, `webhookOutboxMessageSchema` and `webhookDeliverySchema`.
+- New generated files under `schemas/` and `/spec/v1/`: `analytics-ingest-request.schema.json`, `analytics-ingest-response.schema.json`, `tracked-event.schema.json` and `webhook-delivery.schema.json`. Existing files are unchanged.
+
 ### signet-spec: new package with the error envelope and error-code schemas
 
 - New `@dapplelight/signet-spec` (peer: `zod`). `./error` has `errorEnvelopeSchema`, `ERROR_CODE_STATUS` (every `ERROR_CODES` entry from signet-lib mapped to its default HTTP status), `ErrorCode` and `errorCodeSchema`. `./schemas/*.json` ships `error-envelope.schema.json` (JSON Schema 2020-12) and `error-codes.json`, both generated from the Zod source with `"specVersion": "v1"` and served at `/spec/v1/` on the docs site.

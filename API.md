@@ -213,9 +213,11 @@ Signet's wire contract as Zod: the error envelope and every error code with its 
 
 | Import | Exports | What |
 |---|---|---|
-| `@dapplelight/signet-spec` | SPEC_VERSION, errorEnvelopeSchema, ERROR_CODE_STATUS, ERROR_CODES, errorCodeSchema, ErrorEnvelope, … | re-exports error |
+| `@dapplelight/signet-spec` | MAX_EVENTS, MAX_PROPS, MAX_NAME_LENGTH, trackedEventSchema, analyticsIngestRequestSchema, analyticsIngestResponseSchema, … | re-exports analytics, error, webhooks |
+| `@dapplelight/signet-spec/analytics` | MAX_EVENTS, MAX_PROPS, MAX_NAME_LENGTH, trackedEventSchema, analyticsIngestRequestSchema, analyticsIngestResponseSchema, … |  |
 | `@dapplelight/signet-spec/error` | SPEC_VERSION, errorEnvelopeSchema, ERROR_CODE_STATUS, ERROR_CODES, errorCodeSchema, ErrorEnvelope, … |  |
 | `@dapplelight/signet-spec/schemas/*.json` | — |  |
+| `@dapplelight/signet-spec/webhooks` | WEBHOOK_TOPIC, webhookBodySchema, webhookHeadersSchema, webhookOutboxMessageSchema, webhookDeliverySchema, WebhookBody, … |  |
 
 ## @dapplelight/signet-test
 
