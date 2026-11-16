@@ -9,6 +9,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import { check } from "./check.js"
 import { runCodemods } from "./codemods.js"
 import { conformance } from "./conformance.js"
 import {
@@ -44,6 +45,7 @@ Commands:
   list                 Every item, with what is added, edited or out of date
   theme <hex>          A whole theme from one brand colour (signet theme --help)
   conformance <url>    Check a backend against the Signet wire contract
+  check                Typecheck, lint and check Signet conventions in this app
 
 Options:
   --force              add: overwrite files you have edited
@@ -58,6 +60,9 @@ Options:
   --ingest <path>      conformance: the analytics ingest route (default: /api/analytics)
   --sessions <path>    conformance: where session routes are mounted (default: /api/sessions)
   --json-path <path>   conformance: a route that parses a JSON body (needed for invalid-json-400)
+  --api <url>          check: also run the conformance suite against this backend
+  --pages <path...>    check: screenshots and axe for these pages
+  --web <url>          check: the dev server that serves --pages paths (default: http://localhost:5173)
   -h, --help
 
 Examples:
@@ -171,6 +176,7 @@ const installLines = (i: ReturnType<typeof install>) =>
 async function main(): Promise<number> {
   if (process.argv[2] === "theme") return theme(process.argv.slice(3))
   if (process.argv[2] === "conformance") return conformance(process.argv.slice(3))
+  if (process.argv[2] === "check") return check(process.argv.slice(3))
   const o = parseArgs(process.argv)
   if (!o.command || o.command === "help") {
     console.log(HELP)
