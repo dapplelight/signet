@@ -58,9 +58,10 @@ Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit 
 | `@dapplelight/signet-db/growth` | DEFAULT_FEEDBACK_KINDS, normalizeEmail, createGrowth, GrowthTables, GrowthOptions, WaitlistEntry, … | Growth basics every app rebuilds, on the tables from `growthTables()`: waitlist, invites, referrals, onboarding progress, changelog "what's new" and f |
 | `@dapplelight/signet-db/import` | bulkInsert, BulkInsertError, BulkInsertReport, BulkInsertSchema, BulkInsertOptions | Bulk insert for imports (CSV, spreadsheets, another system's export): validated, chunked, idempotent, with a report per row instead of one error for t |
 | `@dapplelight/signet-db/migrations` | checkMigrationSql, formatIssues, MigrationIssueKind, MigrationIssue | Scan SQL migrations for changes that lose data or break running code: dropped tables or columns, renames, and NOT NULL added without a default |
-| `@dapplelight/signet-db/offerings` | createOfferings, plansFromProducts, offerEligible, ProductStore, ProductInterval, OfferingProduct, … | Offerings and remote paywalls, on the tables from `monetisationTables()` |
+| `@dapplelight/signet-db/offerings` | variantOffering, createOfferings, plansFromProducts, offerEligible, ProductStore, ProductInterval, … | Offerings and remote paywalls, on the tables from `monetisationTables()` |
 | `@dapplelight/signet-db/orgs` | ORG_PERMISSIONS, DEFAULT_ORG_ROLES, defineRoles, hasPermission, canGrant, OrgError, … | Organisations for multi-tenant apps: orgs with a slug, a custom domain and a theme; memberships with a role; roles that map to permission sets, with c |
 | `@dapplelight/signet-db/postgres` | createDb | Postgres driver on postgres-js (Supabase, Neon, RDS, a local server): `createDb(databaseUrl, config)`, or pass a `postgres()` client |
+| `@dapplelight/signet-db/pricing` | pricingReadout, createPricing, PerCurrency, PricingExposure, PricingEvent, PricingVariantReadout, … | Pricing experiments: a placement (`createOfferings`) runs an experiment (`createExperiments`) whose variants serve different offerings, and this modul |
 | `@dapplelight/signet-db/privacy` | createPrivacy, PrivacyTables, PrivacyOptions, Consent, DataRequestKind, DataRequestStatus, … | DPDP building blocks (India's Digital Personal Data Protection Act, 2023) on the tables from `privacyTables()`: consent records per purpose and notice |
 | `@dapplelight/signet-db/sqlite` | createDb | SQLite driver on bun:sqlite (Bun runtime, e.g |
 | `@dapplelight/signet-db/status` | COMPONENT_STATUSES, INCIDENT_STATUSES, INCIDENT_IMPACTS, worst, createStatus, ComponentStatus, … | A status page and the maintenance switch, on the tables from `statusTables()` |
@@ -156,7 +157,7 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/http/errors` | defaultRequestId, ApiException, STATUS_CODES, errorHandler, ErrorHandlerOptions, ApiErrorStatus | Server half of the error envelope |
 | `@dapplelight/signet-server/http/experiments` | experimentRoutes, experimentAdminRoutes, ExperimentStore, ExperimentRoutesOptions, ExperimentAdminOptions, ExperimentRoutes | Experiment routes on signet-db's `createExperiments` (typed by shape, so this package does not depend on signet-db): the app reads its variant and rec |
 | `@dapplelight/signet-server/http/funnels` | redemptionToken, readRedemptionToken, redemptionLink, DEFAULT_FUNNEL_PAGE_LABELS, funnelRoutes, funnelPageCsp, … | Web-to-app funnels on signet-db's `createFunnels` (typed structurally, so this package does not depend on signet-db): a public hosted checkout page (q |
-| `@dapplelight/signet-server/http/monetisation` | monetisationRoutes, monetisationAdminRoutes, OfferingStore, CustomerStore, ChartStore, MonetisationRoutesOptions, … | Monetisation routes on signet-db's `createOfferings` and `createCustomers` (typed structurally, so this package does not depend on signet-db): offerin |
+| `@dapplelight/signet-server/http/monetisation` | monetisationRoutes, monetisationAdminRoutes, OfferingStore, PricingStore, CustomerStore, ChartStore, … | Monetisation routes on signet-db's `createOfferings` and `createCustomers` (typed structurally, so this package does not depend on signet-db): offerin |
 | `@dapplelight/signet-server/http/openapi` | apiDoc, ERROR_ENVELOPE_SCHEMA, openApiSpec, serveOpenApi, apiDocsHtml, SecuritySchemeName, … | OpenAPI 3.1 from the app's own routes |
 | `@dapplelight/signet-server/http/orgs` | currentTenant, currentMembership, grants, tenant, orgGuards, orgCookie, … | Multi-tenant Hono pieces on signet-db's `createOrgs` (typed structurally, so this package does not depend on signet-db): resolve the tenant from the r |
 | `@dapplelight/signet-server/http/routes` | entitlementRoutes, flagRoutes, approvalRoutes, EntitlementRoutes, FlagRoutes | Read routes for signet-db's entitlements and flags, typed for `hc` |
@@ -257,7 +258,7 @@ Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"
 | `@dapplelight/signet-ui/screens/auth-screens` | DEFAULT_AUTH_LABELS, AuthMode, AuthChannel, OAuthProvider, AuthLabels, CodeRequest |  |
 | `@dapplelight/signet-ui/screens/billing-screens` | plansFromEntitlements, DEFAULT_BILLING_LABELS, formatMoney, PlanPicker, RestorePurchasesButton, CurrentPlanCard, … |  |
 | `@dapplelight/signet-ui/screens/collab-screens` | DEFAULT_COLLAB_LABELS, mentionsToText, textToMentions, CommentBody, MentionTextarea, CommentThreads, … |  |
-| `@dapplelight/signet-ui/screens/experiment-screens` | DEFAULT_EXPERIMENT_LABELS, ExperimentStatusBadge, ExperimentList, ExperimentResults, ExperimentStatus, ExperimentView, … |  |
+| `@dapplelight/signet-ui/screens/experiment-screens` | DEFAULT_EXPERIMENT_LABELS, ExperimentStatusBadge, ExperimentList, ExperimentResults, ExperimentForm, PricingExperimentResults, … |  |
 | `@dapplelight/signet-ui/screens/funnel-screens` | DEFAULT_FUNNEL_LABELS, discountedOffering, FunnelQuestion, WebFunnel, loadScript, STRIPE_JS_URL, … |  |
 | `@dapplelight/signet-ui/screens/growth-screens` | DEFAULT_GROWTH_LABELS, WaitlistJoin, InviteAccept, ReferralCard, OnboardingChecklist, FeedbackForm, … |  |
 | `@dapplelight/signet-ui/screens/monetisation-screens` | DEFAULT_MONETISATION_LABELS, plansFromOffering, RemotePaywall, CustomerCenter, CustomerTimeline, PromotionalGrantForm, … |  |
@@ -265,7 +266,7 @@ Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"
 | `@dapplelight/signet-ui/screens/org-screens` | DEFAULT_ORG_LABELS, OrgSwitcher, MembersList, InviteDialog, AcceptInvitePage, OrgSettings, … |  |
 | `@dapplelight/signet-ui/screens/privacy-screens` | DEFAULT_PRIVACY_LABELS, ConsentRecord, DataRequestRow, ConsentPurpose, PrivacyLabels |  |
 | `@dapplelight/signet-ui/screens/realtime-screens` | DEFAULT_REALTIME_LABELS, PresenceMemberView, RealtimeLabels, AvatarStackProps, EditingBadgeProps, TypingIndicatorProps, … |  |
-| `@dapplelight/signet-ui/screens/status-screens` | DEFAULT_STATUS_LABELS, StatusPage, ComponentStatus, StatusIncidentView, StatusSummaryView, StatusLabels, … |  |
+| `@dapplelight/signet-ui/screens/status-screens` | DEFAULT_STATUS_LABELS, StatusPage, DEFAULT_STATUS_ADMIN_LABELS, MaintenanceForm, ComponentStatusList, IncidentForm, … |  |
 | `@dapplelight/signet-ui/screens/subscription-charts` | DEFAULT_CHART_LABELS, SubscriptionCharts, ChartDayView, ChartResultView, ChartFilterView, ChartAudienceView, … |  |
 | `@dapplelight/signet-ui/screens/workflow-screens` | DEFAULT_WORKFLOW_LABELS, waitingText, WorkflowRunTimeline, ApprovalInboxCard, RunStatus, WorkflowRunView, … |  |
 | `@dapplelight/signet-ui/utils` | TYPE_RAMP, cn |  |
