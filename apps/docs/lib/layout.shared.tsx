@@ -12,6 +12,11 @@ export function baseOptions(): BaseLayoutProps {
         </span>
       ),
     },
+    links: [
+      { text: "Docs", url: "/docs" },
+      { text: "Components", url: "/docs/components/button" },
+      { text: "Packages", url: "/docs/packages/create-signet-app" },
+    ],
     githubUrl: `https://github.com/${gitConfig.user}/${gitConfig.repo}`,
   }
 }
