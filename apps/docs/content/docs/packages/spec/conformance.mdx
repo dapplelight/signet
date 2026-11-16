@@ -55,7 +55,7 @@ The envelope is described at [Error](/docs/packages/spec/error).
 | `authPrefix` | Where the client-login routes are mounted, such as `/api/auth`. |
 | `ingestPath` | The analytics ingest route. |
 | `sessionsPrefix` | Where the session routes are mounted. Default `/api/sessions`. |
-| `jsonPath` | A route that parses a JSON body. Without it `invalid-json-400` is skipped and counts as passed. |
+| `jsonPath` | A route that parses a JSON body. Needed for `invalid-json-400`. Without it that case fails with `not run: set the jsonPath option`. |
 | `fetch` | A `(Request) => Response` function. Default: the global `fetch`. |
 
 It resolves to this result. A network error becomes a failed result with the error message as `reason`. It does not throw.

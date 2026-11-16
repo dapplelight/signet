@@ -70,11 +70,16 @@ describe("the reference app", () => {
     expect(report.failed).toBe(0)
   })
 
-  test("skips the INVALID_JSON case without a jsonPath", async () => {
+  test("fails the INVALID_JSON case without a jsonPath, not passes it", async () => {
     const report = await run(referenceApp(), { jsonPath: undefined })
-    const skipped = report.results.find((r) => r.id === "invalid-json-400")
-    expect(skipped?.reason).toBe("skipped: set the jsonPath option to run it")
-    expect(report.failed).toBe(0)
+    const notRun = report.results.find((r) => r.id === "invalid-json-400")
+    expect(notRun).toEqual({
+      id: "invalid-json-400",
+      ok: false,
+      reason: "not run: set the jsonPath option",
+    })
+    expect(report.failed).toBe(1)
+    expect(report.passed).toBe(CASES.length - 1)
   })
 })
 

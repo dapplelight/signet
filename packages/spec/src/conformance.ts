@@ -16,7 +16,7 @@ export type ConformanceOptions = {
   ingestPath: string
   /** Where the session routes are mounted. Default `/api/sessions`. */
   sessionsPrefix?: string
-  /** A route that parses a JSON body, for the INVALID_JSON case. Without it that case is skipped. */
+  /** A route that parses a JSON body, for the INVALID_JSON case. Without it that case fails as "not run". */
   jsonPath?: string
   /** Default: the global `fetch`. */
   fetch?: (req: Request) => Response | Promise<Response>
@@ -95,7 +95,8 @@ export async function runConformance(opts: ConformanceOptions): Promise<Conforma
   for (const c of CASES) {
     const missing = Object.keys(values).find((k) => c.request.path.includes(`{${k}}`) && !values[k])
     if (missing) {
-      results.push({ id: c.id, ok: true, reason: `skipped: set the ${missing} option to run it` })
+      // A case that did not run is not a pass: the report must not read as clean.
+      results.push({ id: c.id, ok: false, reason: `not run: set the ${missing} option` })
       continue
     }
     try {
