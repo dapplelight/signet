@@ -1,0 +1,96 @@
+---
+title: "Usage to spans and spend"
+description: "Put AI token usage and cost on the active OpenTelemetry span, and record spend per user or org."
+---
+
+## Usage
+```ts
+import { createExtractor } from "@dapplelight/signet-ai"
+import { onUsageAll, otelUsage, spendUsage } from "@dapplelight/signet-ai/otel"
+import { createAiSpend } from "@dapplelight/signet-db/ai-spend"
+
+// Build where env exists (a request handler), not at module scope.
+const spend = createAiSpend(db, { tables: { usageCounters, aiSpendCaps } })
+
+const ai = createExtractor({
+  providers,
+  onUsage: onUsageAll(
+    otelUsage(),
+    spendUsage({ spend, subject: (r) => ({ userId: r.key, orgId: "org_1" }) }),
+  ),
+})
+await ai.extract({ schema, input, instructions, budget: { key: "user_1" } })
+```
+
+## API
+| Export | What it does |
+| --- | --- |
+| `otelUsage(cfg?)` | `onUsage` that sets usage attributes on the active span |
+| `onUsageAll(...hooks)` | One `onUsage` that runs each hook, isolated from the others |
+| `spendUsage(cfg)` | `onUsage` that records each call's cost per subject |
+| `OtelUsageConfig`, `SpendUsageConfig` | Config types |
+| `SpendRecorder`, `SpendSubject` | Types: what `spendUsage` needs from `createAiSpend` |
+
+### Attributes set by otelUsage
+| Attribute | From | Notes |
+| --- | --- | --- |
+| `gen_ai.system` | `provider` | |
+| `gen_ai.request.model` | `model` | |
+| `gen_ai.usage.input_tokens` | `usage` | Left out when usage is missing |
+| `gen_ai.usage.output_tokens` | `usage` | Left out when usage is missing |
+| `signet.cost_usd` | `costUsd` | 0 when unpriced or a cache hit |
+| `signet.cache_hit` | `cacheHit` | `true` or `false` |
+| `signet.saved_usd` | `savedUsd` | Only on a cache hit |
+| `signet.key` | `key` | Only with `includeKey` |
+
+When usage is missing, the token attributes are left out and the cost is still set. With no active span, nothing happens and nothing throws.
+
+### otelUsage(cfg)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `attributes(report)` | `(UsageReport) => Record<string, string \| number \| boolean>` | none | Extra attributes per report |
+| `includeKey` | `boolean` | `false` | Also set `signet.key` |
+
+### spendUsage(cfg)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `spend.record` | `(subject, units) => unknown` | required | Pass `createAiSpend(...)`; any object with `record` works |
+| `subject(report)` | `(UsageReport) => { userId?, orgId? }` | required | Who to charge |
+
+Cost is converted to units, rounded up. An unpriced call or a cache hit records 0 units, which the ledger ignores.
+
+<Callout type="info">
+`@opentelemetry/api` is an optional peer. Without an SDK registered, `otelUsage` does nothing. Signet ships no exporter.
+</Callout>
+
+<Callout type="warn">
+`includeKey` puts the budget key (often a user id) on the span. Prompts and outputs are never added.
+</Callout>
+
+<Callout type="warn">
+Do not pass `spendUsage` to an extractor that also has `ledger`, or spend counts twice.
+</Callout>
+
+## Examples
+### Adding your own attributes
+```ts
+import { otelUsage } from "@dapplelight/signet-ai/otel"
+
+const onUsage = otelUsage({
+  attributes: (r) => ({ "app.operation": r.operation, "app.duration_ms": r.durationMs }),
+})
+```
+
+### One hook throws, the others still run
+```ts
+import { onUsageAll } from "@dapplelight/signet-ai/otel"
+
+const onUsage = onUsageAll(
+  () => {
+    throw new Error("broken hook")
+  },
+  (r) => console.log(r.model), // still runs
+)
+```
+
+Each hook is isolated: a throwing hook never stops the others or fails the call.
