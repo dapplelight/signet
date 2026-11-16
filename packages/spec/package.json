@@ -42,6 +42,12 @@
       "import": "./dist/error.js",
       "default": "./dist/error.js"
     },
+    "./conformance": {
+      "types": "./dist/conformance.d.ts",
+      "import": "./dist/conformance.js",
+      "default": "./dist/conformance.js"
+    },
+    "./conformance/cases.json": "./conformance/cases.json",
     "./schemas/*.json": "./schemas/*.json",
     "./openapi/*.json": "./openapi/*.json"
   },
@@ -67,6 +73,7 @@
   "files": [
     "dist",
     "schemas",
-    "openapi"
+    "openapi",
+    "conformance"
   ]
 }

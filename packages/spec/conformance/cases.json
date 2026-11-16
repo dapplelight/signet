@@ -1,0 +1,183 @@
+{
+  "specVersion": "v1",
+  "cases": [
+    {
+      "id": "unknown-route-404",
+      "spec": "error envelope",
+      "request": {
+        "method": "GET",
+        "path": "{authPrefix}/conformance-no-such-route"
+      },
+      "expect": {
+        "status": 404,
+        "bodySchema": "error-envelope.schema.json",
+        "body": {
+          "success": false,
+          "code": "NOT_FOUND"
+        },
+        "bodyRequired": [
+          "requestId"
+        ]
+      }
+    },
+    {
+      "id": "invalid-json-400",
+      "spec": "error envelope: INVALID_JSON",
+      "request": {
+        "method": "POST",
+        "path": "{jsonPath}",
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{not json"
+      },
+      "expect": {
+        "status": 400,
+        "bodySchema": "error-envelope.schema.json",
+        "body": {
+          "success": false,
+          "code": "INVALID_JSON"
+        }
+      }
+    },
+    {
+      "id": "ingest-invalid-payload-400",
+      "spec": "analytics ingest",
+      "request": {
+        "method": "POST",
+        "path": "{ingestPath}",
+        "body": {
+          "events": "not-an-array"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "bodySchema": "error-envelope.schema.json",
+        "body": {
+          "success": false,
+          "code": "INVALID_PAYLOAD"
+        }
+      }
+    },
+    {
+      "id": "ingest-accepted-202",
+      "spec": "analytics ingest",
+      "request": {
+        "method": "POST",
+        "path": "{ingestPath}",
+        "body": {
+          "events": [
+            {
+              "name": "conformance_a"
+            },
+            {
+              "name": "conformance_b"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "status": 202,
+        "bodySchema": "analytics-ingest-response.schema.json",
+        "body": {
+          "success": true,
+          "written": 2
+        }
+      }
+    },
+    {
+      "id": "token-bad-grant",
+      "spec": "client login: POST /token",
+      "request": {
+        "method": "POST",
+        "path": "{authPrefix}/token",
+        "headers": {
+          "content-type": "application/x-www-form-urlencoded"
+        },
+        "body": "grant_type=conformance-bad-grant&client_id=conformance-unknown-client"
+      },
+      "expect": {
+        "status": [
+          400,
+          401
+        ],
+        "headers": {
+          "cache-control": "no-store"
+        },
+        "bodySchema": {
+          "type": "object",
+          "required": [
+            "error"
+          ],
+          "properties": {
+            "error": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "revoke-any-token-200",
+      "spec": "client login: POST /revoke",
+      "request": {
+        "method": "POST",
+        "path": "{authPrefix}/revoke",
+        "headers": {
+          "content-type": "application/x-www-form-urlencoded"
+        },
+        "body": "token=conformance-unknown-token"
+      },
+      "expect": {
+        "status": 200
+      }
+    },
+    {
+      "id": "authorize-without-session",
+      "spec": "client login: GET /authorize",
+      "request": {
+        "method": "GET",
+        "path": "{authPrefix}/authorize?client_id=conformance-unknown-client&redirect_uri=https%3A%2F%2Fexample.test%2F&code_challenge=x&code_challenge_method=S256&state=x"
+      },
+      "expect": {
+        "status": [
+          401,
+          302
+        ],
+        "bodySchema": "error-envelope.schema.json"
+      }
+    },
+    {
+      "id": "sessions-list-without-cookie-401",
+      "spec": "session routes: GET /",
+      "request": {
+        "method": "GET",
+        "path": "{sessionsPrefix}"
+      },
+      "expect": {
+        "status": 401,
+        "bodySchema": "error-envelope.schema.json",
+        "body": {
+          "success": false,
+          "code": "UNAUTHORIZED"
+        }
+      }
+    },
+    {
+      "id": "sessions-revoke-others-without-cookie-401",
+      "spec": "session routes: POST /revoke-others",
+      "request": {
+        "method": "POST",
+        "path": "{sessionsPrefix}/revoke-others"
+      },
+      "expect": {
+        "status": 401,
+        "bodySchema": "error-envelope.schema.json",
+        "body": {
+          "success": false,
+          "code": "UNAUTHORIZED"
+        }
+      }
+    }
+  ]
+}
