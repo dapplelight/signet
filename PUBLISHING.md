@@ -160,7 +160,9 @@ from CI like every other. No hand publish.
    `npm trust github @dapplelight/<name> --repository dapplelight/signet --file release.yml --allow-publish -y`
 3. Add it to `ORDER` in `scripts/release.ts` (after its dependencies), `PKGS`
    in `scripts/release-status.ts` and `PKGS` in `scripts/verify-publish.ts`.
-   The next push to main publishes it.
+4. Run the release workflow (`gh workflow run release.yml`, or Actions →
+   release → Run workflow). It only runs by itself when a push to main changes
+   a `packages/*/package.json`, which a scripts-only change does not.
 
 ## Versioning: bump only what changed
 
