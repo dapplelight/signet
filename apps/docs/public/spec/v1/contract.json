@@ -1,0 +1,383 @@
+{
+  "version": "v1",
+  "required": [
+    {
+      "name": "--color-background",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-foreground",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-card",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-card-foreground",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-popover",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-popover-foreground",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-bg-base",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-bg-surface",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-bg-elevated",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-text-primary",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-text-secondary",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-text-muted",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-text-hint",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-text-disabled",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-text-inverse",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-primary",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-primary-foreground",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-secondary",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-secondary-foreground",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-muted",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-muted-foreground",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-accent",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-accent-foreground",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-destructive",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-border",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-border-default",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-border-subtle",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-border-strong",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-input",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-ring",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-accent-green",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-accent-green-subtle",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-accent-red",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-accent-red-subtle",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-accent-amber",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-accent-amber-subtle",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-accent-blue",
+      "group": "Required — color"
+    },
+    {
+      "name": "--color-accent-blue-subtle",
+      "group": "Required — color"
+    },
+    {
+      "name": "--text-xs",
+      "group": "The size scale the components actually use"
+    },
+    {
+      "name": "--text-sm",
+      "group": "The size scale the components actually use"
+    },
+    {
+      "name": "--text-base",
+      "group": "The size scale the components actually use"
+    },
+    {
+      "name": "--text-lg",
+      "group": "The size scale the components actually use"
+    },
+    {
+      "name": "--text-xl",
+      "group": "The size scale the components actually use"
+    },
+    {
+      "name": "--radius",
+      "group": "The size scale the components actually use"
+    },
+    {
+      "name": "--radius-sm",
+      "group": "The size scale the components actually use"
+    },
+    {
+      "name": "--radius-md",
+      "group": "The size scale the components actually use"
+    },
+    {
+      "name": "--radius-lg",
+      "group": "The size scale the components actually use"
+    },
+    {
+      "name": "--radius-xl",
+      "group": "The size scale the components actually use"
+    },
+    {
+      "name": "--radius-2xl",
+      "group": "The size scale the components actually use"
+    },
+    {
+      "name": "--radius-4xl",
+      "group": "The size scale the components actually use"
+    },
+    {
+      "name": "--radius-full",
+      "group": "The size scale the components actually use"
+    },
+    {
+      "name": "--spacing",
+      "group": "The size scale the components actually use"
+    },
+    {
+      "name": "--text-caption",
+      "group": "Semantic scale — for app-level use"
+    },
+    {
+      "name": "--text-label",
+      "group": "Semantic scale — for app-level use"
+    },
+    {
+      "name": "--text-body",
+      "group": "Semantic scale — for app-level use"
+    },
+    {
+      "name": "--text-callout",
+      "group": "Semantic scale — for app-level use"
+    },
+    {
+      "name": "--text-subhead",
+      "group": "Semantic scale — for app-level use"
+    },
+    {
+      "name": "--text-headline",
+      "group": "Semantic scale — for app-level use"
+    },
+    {
+      "name": "--text-title",
+      "group": "Semantic scale — for app-level use"
+    },
+    {
+      "name": "--text-display",
+      "group": "Semantic scale — for app-level use"
+    },
+    {
+      "name": "--text-hero",
+      "group": "Semantic scale — for app-level use"
+    },
+    {
+      "name": "--text-stat",
+      "group": "Semantic scale — for app-level use"
+    },
+    {
+      "name": "--font-sans",
+      "group": "Type and motion"
+    },
+    {
+      "name": "--font-display",
+      "group": "Type and motion"
+    },
+    {
+      "name": "--font-mono",
+      "group": "Type and motion"
+    },
+    {
+      "name": "--font-weight-normal",
+      "group": "Type and motion"
+    },
+    {
+      "name": "--font-weight-medium",
+      "group": "Type and motion"
+    },
+    {
+      "name": "--font-weight-semibold",
+      "group": "Type and motion"
+    },
+    {
+      "name": "--font-weight-bold",
+      "group": "Type and motion"
+    },
+    {
+      "name": "--shadow-xs",
+      "group": "Type and motion"
+    },
+    {
+      "name": "--shadow-sm",
+      "group": "Type and motion"
+    },
+    {
+      "name": "--shadow-md",
+      "group": "Type and motion"
+    },
+    {
+      "name": "--shadow-lg",
+      "group": "Type and motion"
+    },
+    {
+      "name": "--shadow-xl",
+      "group": "Type and motion"
+    },
+    {
+      "name": "--ease-default",
+      "group": "Type and motion"
+    },
+    {
+      "name": "--ease-in",
+      "group": "Type and motion"
+    },
+    {
+      "name": "--ease-out",
+      "group": "Type and motion"
+    },
+    {
+      "name": "--ease-spring",
+      "group": "Type and motion"
+    }
+  ],
+  "optional": [
+    {
+      "name": "--color-chart-1",
+      "group": "Optional — named slots, never required"
+    },
+    {
+      "name": "--color-chart-2",
+      "group": "Optional — named slots, never required"
+    },
+    {
+      "name": "--color-chart-3",
+      "group": "Optional — named slots, never required"
+    },
+    {
+      "name": "--color-chart-4",
+      "group": "Optional — named slots, never required"
+    },
+    {
+      "name": "--color-chart-5",
+      "group": "Optional — named slots, never required"
+    },
+    {
+      "name": "--color-chart-6",
+      "group": "Optional — named slots, never required"
+    },
+    {
+      "name": "--color-focus-ring",
+      "group": "Optional — named slots, never required"
+    },
+    {
+      "name": "--color-focus-ring-offset",
+      "group": "Optional — named slots, never required"
+    },
+    {
+      "name": "--color-accent-primary",
+      "group": "Optional — named slots, never required"
+    },
+    {
+      "name": "--color-accent-primary-fg",
+      "group": "Optional — named slots, never required"
+    },
+    {
+      "name": "--color-accent-primary-subtle",
+      "group": "Optional — named slots, never required"
+    },
+    {
+      "name": "--color-accent-red-fg",
+      "group": "Optional — named slots, never required"
+    },
+    {
+      "name": "--leading-display",
+      "group": "Optional — named slots, never required"
+    },
+    {
+      "name": "--color-money-credit",
+      "group": "Optional — named slots, never required"
+    },
+    {
+      "name": "--color-money-debit",
+      "group": "Optional — named slots, never required"
+    },
+    {
+      "name": "--color-money-transfer",
+      "group": "Optional — named slots, never required"
+    }
+  ]
+}
