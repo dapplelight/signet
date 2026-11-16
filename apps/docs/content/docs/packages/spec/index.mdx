@@ -1,0 +1,103 @@
+---
+title: "Spec"
+description: "The wire contract as Zod: the error envelope and every error code with its HTTP status, plus versioned JSON Schema files."
+---
+
+```bash
+bun add @dapplelight/signet-spec
+```
+
+`zod` (4.2 or later) is a peer dependency.
+
+## Quick start
+
+```ts
+import { errorEnvelopeSchema } from "@dapplelight/signet-spec/error"
+
+const res = await fetch("/api/orders", { method: "POST", body: "{}" })
+if (!res.ok) {
+  const parsed = errorEnvelopeSchema.safeParse(await res.json())
+  if (parsed.success) console.log(parsed.data.code, parsed.data.error)
+}
+```
+
+The Zod schemas in `src/error.ts` are the source of truth. The JSON files are generated from them, and a test fails when they drift.
+
+## Files
+
+| File | What it is |
+| --- | --- |
+| [error-envelope.schema.json](/spec/v1/error-envelope.schema.json) | JSON Schema 2020-12 for the body of every failed response. |
+| [error-codes.json](/spec/v1/error-codes.json) | Every error code and its default HTTP status. |
+
+Files under /spec/v1/ never change shape. A breaking change ships as v2 alongside.
+
+Both files carry `"specVersion": "v1"`. The same files ship in the package under `@dapplelight/signet-spec/schemas/`.
+
+## Error codes
+
+Every code in `ERROR_CODES` from `@dapplelight/signet-lib/api`, in the same order, with the status it is sent with. The ten codes `@dapplelight/signet-server` gives a bare `HTTPException` keep the status they are named for. Codes thrown at start-up rather than shown to a person are 500.
+
+| Code | Status |
+| --- | --- |
+| `VALIDATION_FAILED` | 400 |
+| `INVALID_JSON` | 400 |
+| `RATE_LIMITED` | 429 |
+| `RATE_LIMIT_UNAVAILABLE` | 503 |
+| `MAINTENANCE` | 503 |
+| `INTERNAL_ERROR` | 500 |
+| `BAD_REQUEST` | 400 |
+| `UNAUTHORIZED` | 401 |
+| `FORBIDDEN` | 403 |
+| `NOT_FOUND` | 404 |
+| `METHOD_NOT_ALLOWED` | 405 |
+| `CONFLICT` | 409 |
+| `GONE` | 410 |
+| `PAYLOAD_TOO_LARGE` | 413 |
+| `UNPROCESSABLE` | 422 |
+| `HTTP_ERROR` | 500 |
+| `INVALID_PAYLOAD` | 400 |
+| `TIMEOUT` | 408 |
+| `APPROVAL_REQUIRED` | 403 |
+| `APPROVAL_DECLINED` | 403 |
+| `APPROVAL_PENDING` | 409 |
+| `BAD_INPUT` | 400 |
+| `JOB_FAILED` | 500 |
+| `UNKNOWN_JOB` | 404 |
+| `CANCELLED` | 409 |
+| `BUDGET_EXCEEDED` | 429 |
+| `JOBS_NOT_CREATED` | 500 |
+| `DUPLICATE_JOB` | 500 |
+| `NO_BUDGET_STORE` | 500 |
+| `TOO_LARGE` | 413 |
+| `EMPTY` | 400 |
+| `TYPE_NOT_ALLOWED` | 415 |
+| `TYPE_MISMATCH` | 415 |
+| `BAD_KEY` | 400 |
+| `QUOTA_EXCEEDED` | 413 |
+| `PRESIGN_UNSUPPORTED` | 501 |
+| `RESUMABLE_UNSUPPORTED` | 501 |
+| `INVALID_PHONE` | 400 |
+| `INVALID_CODE` | 400 |
+| `CODE_EXPIRED` | 400 |
+| `TOO_MANY_ATTEMPTS` | 429 |
+| `CAPTCHA_REQUIRED` | 400 |
+| `CAPTCHA_FAILED` | 403 |
+| `CAPTCHA_UNAVAILABLE` | 503 |
+| `DISPOSABLE_EMAIL` | 400 |
+| `AI_SPEND_CAP_EXCEEDED` | 429 |
+| `AI_SPEND_UNAVAILABLE` | 503 |
+| `OFFER_REFUSED` | 409 |
+| `BAD_TOKEN` | 400 |
+| `REDEEM_REFUSED` | 409 |
+| `invalid_token` | 401 |
+| `insufficient_scope` | 403 |
+
+`invalid_token` and `insufficient_scope` are lowercase because RFC 6750 fixes their spelling.
+
+## Modules
+
+<Cards>
+  <Card title="Error" href="/docs/packages/spec/error" description="Envelope schema, error-code table and their types." />
+  <Card title="Schemas" href="/docs/packages/spec/schemas" description="The generated JSON files, as package exports." />
+</Cards>

@@ -2,8 +2,10 @@
  * Public API toolkit: OpenAPI from zValidator routes, the HTML docs page,
  * HTTP caching helpers and the webhook admin routes.
  */
+import { isDeepStrictEqual } from "node:util"
 import { Hono } from "hono"
 import { z } from "zod"
+import specEnvelope from "../../spec/schemas/error-envelope.schema.json"
 import { memoryKv } from "../src/adapters"
 import {
   cacheControlValue,
@@ -13,7 +15,13 @@ import {
   mergeVary,
 } from "../src/http/cache"
 import { errorHandler } from "../src/http/errors"
-import { apiDoc, apiDocsHtml, openApiSpec, serveOpenApi } from "../src/http/openapi"
+import {
+  apiDoc,
+  apiDocsHtml,
+  ERROR_ENVELOPE_SCHEMA,
+  openApiSpec,
+  serveOpenApi,
+} from "../src/http/openapi"
 import { zValidator } from "../src/http/validate"
 import { type WebhookStore, webhookRoutes } from "../src/http/webhooks"
 
@@ -494,6 +502,38 @@ ok(
   Object.keys(wspec.paths),
 )
 ok("and are tagged", (wspec.paths["/api/webhooks/endpoints"]?.post as any)?.tags[0] === "Webhooks")
+
+// --- ERROR_ENVELOPE_SCHEMA agrees with @dapplelight/signet-spec's schema ---
+// The spec file is generated from Zod and so adds ids, `type: "boolean"` next
+// to `const`, `propertyNames` and a title. Compare what a client can rely on.
+{
+  const shape = (v: unknown): unknown =>
+    Array.isArray(v)
+      ? v.map(shape)
+      : v && typeof v === "object"
+        ? Object.fromEntries(
+            Object.entries(v)
+              .filter(
+                ([k]) =>
+                  ![
+                    "$schema",
+                    "$id",
+                    "specVersion",
+                    "title",
+                    "description",
+                    "propertyNames",
+                  ].includes(k),
+              )
+              .filter(([k, x]) => !(k === "type" && x === "boolean" && "const" in v))
+              .map(([k, x]) => [k, shape(x)]),
+          )
+        : v
+  ok(
+    "ERROR_ENVELOPE_SCHEMA equals the spec package's error-envelope schema",
+    isDeepStrictEqual(shape(ERROR_ENVELOPE_SCHEMA), shape(specEnvelope)),
+    shape(specEnvelope),
+  )
+}
 
 console.log(`\npublic-api: ${pass} passed, ${fail} failed`)
 if (fail) process.exit(1)

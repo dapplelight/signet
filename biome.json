@@ -18,7 +18,9 @@
       "!packages/create-signet-app/template-extension",
       "!packages/create-signet-app/template-desktop",
       "!.claude",
-      "!packages/mcp/src/generated"
+      "!packages/mcp/src/generated",
+      "!packages/spec/schemas",
+      "!apps/docs/public/spec"
     ]
   },
   "overrides": [
