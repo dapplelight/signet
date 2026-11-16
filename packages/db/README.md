@@ -1511,6 +1511,38 @@ await nextSequence(db, schema.sequences, "invoice:INV:2026-27") // 1, 2, 3, ...
 One upsert per call, so concurrent callers never get the same value. A value
 taken by a request that then fails is skipped, not reused.
 
+## Bulk import
+
+`bulkInsert(ops, table, rows, { key })` from `./import` puts many rows in at
+once (a CSV import, another system's export) and reports per row instead of
+failing the whole file.
+
+```ts
+import { bulkInsert } from "@dapplelight/signet-db/import"
+
+app.post("/customers/import", async (c) => {
+  const { rows } = await c.req.json()
+  const ops = audited(scoped(db, { orgId: c.get("orgId") }))
+  return c.json(await bulkInsert(ops, customers, rows, { key: "externalId" }))
+  // { inserted: 41, skipped: 7, errors: [{ row: 3, field: "email", message: "Invalid email" }] }
+})
+```
+
+- Each row is validated first, by default with `toZod(table, { mode: "insert" })`
+  (keeping `key` when it is a managed column like `id`), or with your own
+  `schema`. Invalid rows are reported by index and field; the rest go in.
+- `key` is a unique column. A row whose key is already in the table (soft
+  deleted ones included), or earlier in the same import, is skipped, so
+  running the same file twice inserts nothing new. Without a unique index on
+  it, two imports running at once can both insert a key.
+- Rows go through the `ops` you pass, so the scope's owner and org columns,
+  encryption, the audit trail and version history apply.
+- Chunks fit D1's 100 bound parameters by default (500 rows on Postgres);
+  `chunkSize` overrides. A chunk the database refuses is retried row by row,
+  and each refused row is reported with the database's message.
+- `row` in the report is the index into `rows`, which is what signet-ui's
+  `CsvImport` expects back from `onImport`.
+
 ## Errors
 
 Everything thrown is a `SignetDbError` with a stable `code` (`NO_CIPHER`,

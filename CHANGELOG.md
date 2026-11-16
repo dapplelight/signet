@@ -5,6 +5,21 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-ui: RichTextEditor on Tiptap
+
+- `./components/rich-text-editor` is now built on Tiptap v3 instead of `document.execCommand`. New optional peer dependencies (all MIT): `@tiptap/react`, `@tiptap/pm`, `@tiptap/starter-kit`, `@tiptap/extension-mention`, `@tiptap/extension-link` (`>=3.34.0 <4`). Install them to use the editor.
+- The props, the markdown value, the `@[Name](user:<id>)` mention tokens, the toolbar's ARIA, `labels`, `icons`, `className`/`classNames` and the `data-slot` parts are unchanged. Mentions now use Tiptap's suggestion API; pasted HTML is cleaned by the same allowlist as the value.
+- `RichTextEditor` and its helpers leave the main barrel (like `chart`, an optional-peer component): import them from `@dapplelight/signet-ui/components/rich-text-editor`.
+
+### signet-ui, signet-db, signet-server: data editing
+
+- signet-ui `./domain/csv-import`: `CsvImport`, a CSV import flow (file or paste, RFC 4180 parsing with quotes, escaped quotes, CRLF and BOM, column mapping with auto-match, zod validation per row, errors per cell, import of the valid rows, server errors per row from the import report). Exports `parseCsv`, `toCsv`, `autoMatch` and `validateRows`.
+- signet-ui `./components/data-grid`: `DataGrid`, an editable grid on react-table and the Table parts: text, number, select, date and checkbox cells, keyboard navigation with one tab stop, range copy and paste as TSV, row selection, sort and resize, optimistic saves with an error per cell, virtualised rows. Also in the barrel.
+- signet-ui `./components/rich-text-editor`: `RichTextEditor`, a contenteditable editor with no editor library (bold, italic, code, links, headings, lists, @mentions stored as signet-db mention tokens), whose value is allowlisted markdown; `RichTextContent` and `richTextToHtml` render it safely. Also in the barrel.
+- signet-db `./import`: `bulkInsert(ops, table, rows, { key })`, chunked and idempotent bulk insert through a scope, with a per-row error report.
+- signet-server `./http/sanitize`: `sanitizeMarkdown` and `isSafeLinkTarget`, a server-side sanitiser for stored rich text (raw HTML escaped, unsafe link targets removed).
+- signet-mcp: an `add-data-editing` recipe.
+
 ### signet-db, signet-server, signet-ui: experiments, status page and maintenance mode
 
 - signet-db `./experiments`: `createExperiments` runs A/B/n tests on top of

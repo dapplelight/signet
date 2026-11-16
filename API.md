@@ -56,6 +56,7 @@ Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit 
 | `@dapplelight/signet-db/flags` | defineFlags, bucket, matchesRule, evaluateFlag, createFlags, FlagValue, … | Feature flags defined in code, with stored overrides in `flagOverrides()` |
 | `@dapplelight/signet-db/funnels` | FUNNEL_TAIL_STEPS, funnelEventName, funnelSteps, periodEnd, createFunnels, FunnelQuestion, … | Web-to-app funnels, on the tables from `funnelTables()` plus `customerEvents` from `monetisationTables()` |
 | `@dapplelight/signet-db/growth` | DEFAULT_FEEDBACK_KINDS, normalizeEmail, createGrowth, GrowthTables, GrowthOptions, WaitlistEntry, … | Growth basics every app rebuilds, on the tables from `growthTables()`: waitlist, invites, referrals, onboarding progress, changelog "what's new" and f |
+| `@dapplelight/signet-db/import` | bulkInsert, BulkInsertError, BulkInsertReport, BulkInsertSchema, BulkInsertOptions | Bulk insert for imports (CSV, spreadsheets, another system's export): validated, chunked, idempotent, with a report per row instead of one error for t |
 | `@dapplelight/signet-db/migrations` | checkMigrationSql, formatIssues, MigrationIssueKind, MigrationIssue | Scan SQL migrations for changes that lose data or break running code: dropped tables or columns, renames, and NOT NULL added without a default |
 | `@dapplelight/signet-db/offerings` | createOfferings, plansFromProducts, offerEligible, ProductStore, ProductInterval, OfferingProduct, … | Offerings and remote paywalls, on the tables from `monetisationTables()` |
 | `@dapplelight/signet-db/orgs` | ORG_PERMISSIONS, DEFAULT_ORG_ROLES, defineRoles, hasPermission, canGrant, OrgError, … | Organisations for multi-tenant apps: orgs with a slug, a custom domain and a theme; memberships with a role; roles that map to permission sets, with c |
@@ -159,6 +160,7 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/http/openapi` | apiDoc, ERROR_ENVELOPE_SCHEMA, openApiSpec, serveOpenApi, apiDocsHtml, SecuritySchemeName, … | OpenAPI 3.1 from the app's own routes |
 | `@dapplelight/signet-server/http/orgs` | currentTenant, currentMembership, grants, tenant, orgGuards, orgCookie, … | Multi-tenant Hono pieces on signet-db's `createOrgs` (typed structurally, so this package does not depend on signet-db): resolve the tenant from the r |
 | `@dapplelight/signet-server/http/routes` | entitlementRoutes, flagRoutes, approvalRoutes, EntitlementRoutes, FlagRoutes | Read routes for signet-db's entitlements and flags, typed for `hc` |
+| `@dapplelight/signet-server/http/sanitize` | isSafeLinkTarget, sanitizeMarkdown | Server-side cleaning for rich text stored as markdown (signet-ui's `RichTextEditor` value, comment bodies, notes) |
 | `@dapplelight/signet-server/http/status` | statusRoutes, statusAdminRoutes, StatusStore, StatusAdminOptions | Status page routes on signet-db's `createStatus` (typed by shape): a public summary for the status page, and admin routes for components, incidents an |
 | `@dapplelight/signet-server/http/validate` | parseBody, parseQuery, parseParams, zValidator, VALIDATES | Zod request validation |
 | `@dapplelight/signet-server/http/webhooks` | WebhookEndpointInput, WebhookEndpointPatch, WebhookDeliveryQuery, webhookRoutes, WebhookDeliveryStatus, WebhookStore, … | Admin routes for outbound webhooks (signet-db's `createWebhooks`) |
@@ -226,9 +228,9 @@ Signet design tokens. One theme file per design system; all themes satisfy CONTR
 
 Signet component kit — token-driven React primitives.
 
-`import { X } from "@dapplelight/signet-ui/components/<name>"` — 53 components:
+`import { X } from "@dapplelight/signet-ui/components/<name>"` — 55 components:
 
-`alert` · `alert-dialog` · `answer-headline` · `avatar` · `badge` · `breadcrumb` · `button` · `calendar` · `card` · `chart` · `checkbox` · `combobox` · `command` · `data-table` · `dialog` · `drawer` · `dropdown-menu` · `emoji-picker` · `empty-state` · `error-state` · `field` · `input` · `input-group` · `input-otp` · `kbd` · `label` · `markdown` · `metric-headline` · `pagination` · `pill-group` · `popover` · `privacy-mask` · `progress` · `radio-group` · `responsive-sheet` · `search-input` · `select` · `shortcuts` · `sidebar` · `skeleton` · `slider` · `spinner` · `stat-strip` · `stepper` · `switch` · `table` · `tabs` · `textarea` · `theme-provider` · `theme-toggle` · `timeline` · `toast` · `tooltip`
+`alert` · `alert-dialog` · `answer-headline` · `avatar` · `badge` · `breadcrumb` · `button` · `calendar` · `card` · `chart` · `checkbox` · `combobox` · `command` · `data-grid` · `data-table` · `dialog` · `drawer` · `dropdown-menu` · `emoji-picker` · `empty-state` · `error-state` · `field` · `input` · `input-group` · `input-otp` · `kbd` · `label` · `markdown` · `metric-headline` · `pagination` · `pill-group` · `popover` · `privacy-mask` · `progress` · `radio-group` · `responsive-sheet` · `rich-text-editor` · `search-input` · `select` · `shortcuts` · `sidebar` · `skeleton` · `slider` · `spinner` · `stat-strip` · `stepper` · `switch` · `table` · `tabs` · `textarea` · `theme-provider` · `theme-toggle` · `timeline` · `toast` · `tooltip`
 
 Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"`.
 
@@ -237,6 +239,7 @@ Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"
 | `@dapplelight/signet-ui` | — |  |
 | `@dapplelight/signet-ui/behaviors` | useShortcut, useShortcutLabel, useControllableState, matchScore |  |
 | `@dapplelight/signet-ui/domain/amount` | — |  |
+| `@dapplelight/signet-ui/domain/csv-import` | autoMatch, validateRows, DEFAULT_CSV_IMPORT_LABELS, CsvImport, CsvField, CsvSchema, … |  |
 | `@dapplelight/signet-ui/domain/job-runs` | JobRun |  |
 | `@dapplelight/signet-ui/domain/kanban` | — |  |
 | `@dapplelight/signet-ui/domain/trend-chip` | — |  |

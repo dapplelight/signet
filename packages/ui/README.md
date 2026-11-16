@@ -162,6 +162,8 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   `aiSpendAdminRoutes`.
 - Real-time: `hooks/use-channel` and `screens/realtime-screens`, see
   [Real-time](#real-time). Demo: `screens-realtime.html`.
+- Data editing: `domain/csv-import`, `components/data-grid` and
+  `components/rich-text-editor`, see [Data editing](#data-editing).
 
 ### Real-time
 
@@ -193,6 +195,84 @@ function Doc({ id, me }) {
 
 A user removed from the org or whose session expired is not reconnected
 (close codes 4003 and 4001); anything else reconnects with backoff.
+
+### Data editing
+
+Three pieces for editing data in a product, all on theme tokens, with
+`DEFAULT_*_LABELS` + `labels` for every string, `className` plus
+`classNames` per part, `data-slot` and state attributes on every part, and
+copy-in with `signet add data-grid`, `signet add rich-text-editor` or
+`signet add csv-import`.
+
+- `domain/csv-import`: `CsvImport` takes a file or pasted text, parses it
+  (RFC 4180: quoted fields, `""`, line breaks inside quotes, CRLF, a BOM; the
+  separator is detected), matches columns to `fields` by name, key or alias,
+  validates every row with your zod schema (or anything with `safeParse`),
+  shows errors per cell with a "rows with errors" filter and a download of
+  them, and passes the valid rows to `onImport`. Return signet-db's
+  `bulkInsert` report and its errors land on the right line and field.
+  `parseCsv`, `toCsv`, `autoMatch` and `validateRows` are exported for your
+  own flow.
+- `components/data-grid`: `DataGrid` is an editable grid on the same
+  react-table core and Table parts as `DataTable`: text, number, select, date
+  and checkbox cells; one tab stop with arrows, Home/End, PageUp/PageDown,
+  Ctrl+arrows, Enter or F2 or typing to edit, Enter/Tab to save and move,
+  Escape to cancel; Shift+arrows select a range, Ctrl+C copies it as TSV,
+  Ctrl+V pastes a TSV block (or fills the range with one value), Delete
+  clears it; Shift+Space or the checkbox column selects rows; header sort
+  and keyboard column resize; rows are virtualised (10k+). `onChange` gets
+  every edit, paste and clear as a batch; the grid shows the new values at
+  once, and a throw (or returned failures) puts them back with the error on
+  each cell (`aria-invalid`, `data-error`) and in a live region. It is a
+  `role="grid"` with `aria-rowcount`, `aria-rowindex`, `aria-colindex`,
+  `aria-selected` and `aria-sort`.
+- `components/rich-text-editor`: `RichTextEditor` is built on Tiptap v3
+  (optional peers: `bun add @tiptap/react @tiptap/pm @tiptap/starter-kit
+  @tiptap/extension-mention @tiptap/extension-link`; like `chart`, it is not
+  in the barrel, so apps without Tiptap are unaffected). Bold, italic, inline
+  code, links, two heading levels, bulleted and numbered lists
+  (Mod+B/I/E/K), a WAI-ARIA toolbar, and `@` mentions through Tiptap's
+  suggestion API with `onMentionSearch`, the same people search
+  `MentionTextarea` uses. The value is markdown written by walking the
+  editor's HTML through an allowlist, and pasted HTML goes through the same
+  allowlist, so pasted scripts, handlers, styles and `javascript:` links
+  never reach it; mentions are stored as
+  `@[Name](user:<id>)`, so signet-db's `createCollab` parses and notifies
+  them as it does for comments. `RichTextContent` and `richTextToHtml`
+  render stored markdown as HTML that is safe by construction. On the
+  server, pass bodies through signet-server's `sanitizeMarkdown`.
+
+```tsx
+const schema = z.object({ name: z.string().min(1), email: z.email(), plan: z.enum(["free", "pro"]) })
+<CsvImport
+  fields={[{ key: "name", required: true }, { key: "email", aliases: ["E-mail"] }, { key: "plan" }]}
+  schema={schema}
+  onImport={(rows) => api.post("/customers/import", { rows })} // returns bulkInsert's report
+/>
+
+<DataGrid
+  aria-label="Customers"
+  rows={rows}
+  getRowId={(r) => r.id}
+  selectable
+  columns={[
+    { id: "name", header: "Name" },
+    { id: "seats", header: "Seats", type: "number" },
+    { id: "plan", header: "Plan", type: "select", options: [{ value: "free", label: "Free" }, { value: "pro", label: "Pro" }] },
+    { id: "renews", header: "Renews", type: "date" },
+    { id: "active", header: "Active", type: "checkbox" },
+  ]}
+  onChange={async (changes) => {
+    await api.patch("/customers", { changes }) // a throw reverts and marks the cells
+    setRows((all) => applyChanges(all, changes))
+  }}
+/>
+
+<RichTextEditor aria-label="Note" value={body} onValueChange={setBody} onMentionSearch={(q) => api.get(`/mentions?q=${q}`)} />
+<RichTextContent value={body} />
+```
+
+Demo: `data-edit.html` in the showcase.
 
 ## Behaviours and recipes
 
