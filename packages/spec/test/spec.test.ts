@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import { readFileSync } from "node:fs"
+import { readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { ERROR_CODES as LIB_ERROR_CODES } from "../../lib/src/api/codes"
 import { generateWebhookSecret, signWebhook, verifyWebhook } from "../../lib/src/webhooks"
 import { type IngestOptions, registerIngest } from "../../server/src/analytics/ingest"
 import { memorySink } from "../../server/src/analytics/sinks"
 import { STATUS_CODES } from "../../server/src/http/status-codes"
-import { generate, PUBLIC_DIR, SCHEMAS_DIR } from "../scripts/gen"
+import { generate, generateIndex, PUBLIC_DIR, SCHEMAS_DIR } from "../scripts/gen"
 import {
   analyticsIngestErrorSchema,
   analyticsIngestRequestSchema,
@@ -256,5 +256,38 @@ describe("webhook schemas", () => {
       outbox: { id: "m1", topic: WEBHOOK_TOPIC, payload: { deliveryId: "d1" } },
     }
     expect(webhookDeliverySchema.safeParse(delivery).success).toBe(true)
+  })
+})
+
+describe("index.json", () => {
+  const text = read(PUBLIC_DIR, "index.json")
+  const index = JSON.parse(text) as {
+    specVersion: string
+    files: { name: string; url: string; description: string }[]
+  }
+
+  test("equals the generated file (run `bun run gen`)", () => expect(text).toBe(generateIndex()))
+
+  test("lists every other file under /spec/v1/, each with a url", () => {
+    expect(index.specVersion).toBe(SPEC_VERSION)
+    expect(index.files.map((f) => f.name).sort()).toEqual(
+      readdirSync(PUBLIC_DIR)
+        .filter((f) => f !== "index.json")
+        .sort(),
+    )
+    for (const f of index.files)
+      expect(f.url).toBe(`https://signet.dapplelight.in/spec/${SPEC_VERSION}/${f.name}`)
+  })
+
+  test("uses the descriptions in the docs table, word for word", () => {
+    const mdx = readFileSync(
+      join(PUBLIC_DIR, "../../../content/docs/packages/spec/index.mdx"),
+      "utf8",
+    )
+    const rows = [...mdx.matchAll(/^\| \[([^\]]+)\]\([^)]*\) \| (.+) \|$/gm)].map(([, n, d]) => [
+      n,
+      d,
+    ])
+    expect(index.files.map((f) => [f.name, f.description])).toEqual(rows)
   })
 })

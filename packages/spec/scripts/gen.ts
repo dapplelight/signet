@@ -71,6 +71,29 @@ export function generateConformance(): string {
   return `${JSON.stringify({ specVersion: SPEC_VERSION, cases: CASES }, null, 2)}\n`
 }
 
+/** What each file under /spec/v1/ is; the same words as the table in the docs' spec page. */
+const DESCRIPTIONS: Record<string, string> = {
+  "error-envelope.schema.json": "JSON Schema 2020-12 for the body of every failed response.",
+  "error-codes.json": "Every error code and its default HTTP status.",
+  "analytics-ingest-request.schema.json": "Body of POST to the analytics ingest route.",
+  "analytics-ingest-response.schema.json": "Body of its 202 reply.",
+  "tracked-event.schema.json": "One stored analytics event.",
+  "webhook-delivery.schema.json": "Webhook body, signed headers and outbox message.",
+  "auth.openapi.json": "OpenAPI 3.1 for the session and client-login routes.",
+  "contract.json": "The theme contract: the 78 required and 16 optional CSS variable names.",
+  "conformance-cases.json": "Request and expected-response cases any backend can run.",
+}
+
+/** `index.json`: every file under /spec/v1/, for a client that fetches them all. */
+export function generateIndex(): string {
+  const files = Object.entries(DESCRIPTIONS).map(([name, description]) => ({
+    name,
+    url: `${BASE}/${name}`,
+    description,
+  }))
+  return `${JSON.stringify({ specVersion: SPEC_VERSION, files }, null, 2)}\n`
+}
+
 if (import.meta.main) {
   const copies = [
     [SCHEMAS_DIR, generate()],
@@ -82,6 +105,7 @@ if (import.meta.main) {
         ...generate(),
         ...generateOpenApi(),
         "conformance-cases.json": generateConformance(),
+        "index.json": generateIndex(),
       },
     ],
   ] as const
@@ -90,6 +114,6 @@ if (import.meta.main) {
     for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, name), text)
   }
   console.log(
-    `spec ${SPEC_VERSION}: wrote ${[...Object.keys(generate()), ...Object.keys(generateOpenApi()), "cases.json"].join(", ")}`,
+    `spec ${SPEC_VERSION}: wrote ${[...Object.keys(generate()), ...Object.keys(generateOpenApi()), "cases.json", "index.json"].join(", ")}`,
   )
 }

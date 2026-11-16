@@ -45,6 +45,17 @@ Every error body is validated against [error-envelope.schema.json](/spec/v1/erro
 
 The envelope is described at [Error](/docs/packages/spec/error).
 
+### Python or Go backend
+
+1. Fetch [/spec/v1/index.json](/spec/v1/index.json). It lists every file under `/spec/v1/` with its URL and what it is.
+2. Validate request and response bodies with the schemas it lists, such as `error-envelope.schema.json`.
+3. Run `signet conformance <url>` against your server. It prints one line per case and exits 1 when any fails. See [CLI](/docs/packages/cli).
+4. Optionally run [Schemathesis](https://schemathesis.readthedocs.io) against `auth.openapi.json`.
+
+```bash
+signet conformance http://localhost:8000 --json-path /api/json
+```
+
 ## API
 
 `runConformance(options)` takes these fields.

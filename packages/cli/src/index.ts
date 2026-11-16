@@ -10,6 +10,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { runCodemods } from "./codemods.js"
+import { conformance } from "./conformance.js"
 import {
   add,
   CONFIG,
@@ -42,6 +43,7 @@ Commands:
   diff <name>          Show what changed upstream since the item was copied
   list                 Every item, with what is added, edited or out of date
   theme <hex>          A whole theme from one brand colour (signet theme --help)
+  conformance <url>    Check a backend against the Signet wire contract
 
 Options:
   --force              add: overwrite files you have edited
@@ -52,6 +54,10 @@ Options:
   --cwd <path>         App root (default: current directory)
   --registry <file>    Use this registry.json instead of the bundled one
   --json               Print the result as JSON
+  --auth-prefix <path> conformance: where client-login routes are mounted (default: /api/auth)
+  --ingest <path>      conformance: the analytics ingest route (default: /api/analytics)
+  --sessions <path>    conformance: where session routes are mounted (default: /api/sessions)
+  --json-path <path>   conformance: a route that parses a JSON body (needed for invalid-json-400)
   -h, --help
 
 Examples:
@@ -164,6 +170,7 @@ const installLines = (i: ReturnType<typeof install>) =>
 
 async function main(): Promise<number> {
   if (process.argv[2] === "theme") return theme(process.argv.slice(3))
+  if (process.argv[2] === "conformance") return conformance(process.argv.slice(3))
   const o = parseArgs(process.argv)
   if (!o.command || o.command === "help") {
     console.log(HELP)
