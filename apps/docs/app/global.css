@@ -7,6 +7,13 @@
 @import "@dapplelight/signet-tokens/base.css";
 @source "../../../packages/ui/src";
 
+/* Signet's base.css paints body with the theme background; the docs chrome
+   keeps Fumadocs' neutral one. Previews set their own. */
+body {
+  background: var(--color-fd-background);
+  color: var(--color-fd-foreground);
+}
+
 html {
   scrollbar-gutter: stable;
 }

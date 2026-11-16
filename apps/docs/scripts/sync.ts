@@ -4,7 +4,7 @@
  * gitignored (content/docs/<package>/index.md and meta.json); hand-written
  * pages (component pages, guides) sit next to it and are kept.
  */
-import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync } from "node:fs"
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
 const root = join(import.meta.dirname, "../../..")
@@ -32,6 +32,8 @@ const found = readdirSync(join(root, "packages")).filter((p) =>
 const missing = found.filter((p) => !PACKAGES.includes(p))
 if (missing.length) throw new Error(`packages without a docs section: ${missing.join(", ")}`)
 
+/* The folder's index.md is the section link itself, so it is not listed in pages. */
+
 /** CLIs run with npx; libraries install. */
 const install = (m: { name: string; bin?: unknown; exports?: unknown }) =>
   m.bin && !m.exports ? `npx ${m.name}` : `npm i ${m.name}`
@@ -52,7 +54,7 @@ for (const pkg of PACKAGES) {
   )
   const meta = join(out, pkg, "meta.json")
   const extra = existsSync(join(out, pkg, "components")) ? ["components"] : []
-  writeFileSync(meta, `${JSON.stringify({ title, pages: ["index", ...extra] }, null, 2)}\n`)
+  writeFileSync(meta, `${JSON.stringify({ title, pages: extra }, null, 2)}\n`)
 }
 
 writeFileSync(
