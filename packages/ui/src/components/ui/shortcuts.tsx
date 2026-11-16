@@ -14,13 +14,27 @@
  * `meta.description`), grouped by `meta.group`.
  */
 
-import { formatForDisplay, useHotkey, useHotkeyRegistrations } from "@tanstack/react-hotkeys"
+import {
+  formatForDisplay,
+  getHotkeyManager,
+  parseHotkey,
+  useHotkey,
+  useHotkeyRegistrations,
+} from "@tanstack/react-hotkeys"
 import { useState } from "react"
-
+import { CommandGroup, CommandItem } from "./command.js"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./dialog.js"
 import { Kbd } from "./kbd.js"
 
-type Entry = { id: string; label: string; detail?: string; group: string; steps: string[][] }
+type Entry = {
+  id: string
+  label: string
+  detail?: string
+  group: string
+  steps: string[][]
+  /** Runs the handler, as pressing the key would. Single keys only: sequences have none. */
+  run?: () => void
+}
 
 const keysOf = (hotkey: Parameters<typeof formatForDisplay>[0]) =>
   formatForDisplay(hotkey, { parts: true })
@@ -32,11 +46,17 @@ export function useShortcutList(): Array<[group: string, entries: Entry[]]> {
   const seen = new Set<string>()
   const add = (
     id: string,
-    meta: { name?: string; description?: string; group?: string } | undefined,
+    options: {
+      enabled?: boolean
+      meta?: { name?: string; description?: string; group?: string }
+    },
     steps: string[][],
+    run?: () => void,
   ) => {
+    const meta = options.meta
     const label = meta?.name ?? meta?.description
-    if (!label) return
+    // A key switched off (enabled: false) does nothing when pressed, so it is not listed.
+    if (!label || options.enabled === false) return
     const key = `${label}\u0000${steps.map((s) => s.join("+")).join(" ")}`
     if (seen.has(key)) return // the same key mounted twice (two lists on screen)
     seen.add(key)
@@ -46,13 +66,22 @@ export function useShortcutList(): Array<[group: string, entries: Entry[]]> {
       ...(meta?.name && meta.description ? { detail: meta.description } : {}),
       group: meta?.group ?? "General",
       steps,
+      ...(run ? { run } : {}),
     })
   }
-  for (const h of hotkeys) add(h.id, h.options.meta, [keysOf(h.hotkey)])
+  for (const h of hotkeys)
+    add(h.id, h.options, [keysOf(h.hotkey)], () => {
+      // The live registration holds the handler; the list above is a read-only view.
+      const reg = getHotkeyManager().registrations.state.get(h.id)
+      reg?.callback(new KeyboardEvent("keydown"), {
+        hotkey: reg.hotkey,
+        parsedHotkey: parseHotkey(reg.hotkey),
+      })
+    })
   for (const s of sequences)
     add(
       s.id,
-      s.options.meta,
+      s.options,
       s.sequence.map((step) => keysOf(step)),
     )
   const groups = new Map<string, Entry[]>()
@@ -209,4 +238,48 @@ export function useListNavigation({
     },
   )
   return { activeId, setActiveId: setActive }
+}
+
+/**
+ * Every described single-key shortcut as command-palette items, one group per
+ * `meta.group`; choosing one runs it. Sequences ("G then I") stay in the `?`
+ * overlay only. Put it inside a `CommandList`:
+ *
+ *   <CommandDialog>
+ *     <CommandInput />
+ *     <CommandList>
+ *       <CommandGroup heading="Pages">…your items…</CommandGroup>
+ *       <ShortcutCommands />
+ *     </CommandList>
+ *   </CommandDialog>
+ */
+export function ShortcutCommands() {
+  return useShortcutList().map(([group, all]) => {
+    const entries = all.filter((e) => e.run)
+    return entries.length ? (
+      <CommandGroup key={group} heading={group}>
+        {entries.map((e) => (
+          <CommandItem
+            key={e.id}
+            value={`shortcut:${e.id}`}
+            label={e.label}
+            keywords={e.detail ? [e.detail] : undefined}
+            onSelect={e.run}
+          >
+            <span className="min-w-0 flex-1 truncate">{e.label}</span>
+            <span aria-hidden className="ml-auto flex shrink-0 items-center gap-0.5">
+              {e.steps.map((step, i) => (
+                <span key={i} className="inline-flex items-center gap-0.5">
+                  {i > 0 && <span className="mx-0.5 text-[10px] text-text-muted">then</span>}
+                  {step.map((k) => (
+                    <Kbd key={k}>{k}</Kbd>
+                  ))}
+                </span>
+              ))}
+            </span>
+          </CommandItem>
+        ))}
+      </CommandGroup>
+    ) : null
+  })
 }

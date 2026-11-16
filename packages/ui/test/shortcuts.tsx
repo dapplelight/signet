@@ -10,7 +10,10 @@ const { cleanup, render, screen, within } = await import("@testing-library/react
 const { default: userEvent } = await import("@testing-library/user-event")
 const { useState } = await import("react")
 const { useHotkey, useHotkeySequence } = await import("@tanstack/react-hotkeys")
-const { ShortcutsHelp, useListNavigation } = await import("../src/components/ui/shortcuts")
+const { ShortcutCommands, ShortcutsHelp, useListNavigation } = await import(
+  "../src/components/ui/shortcuts"
+)
+const { Command, CommandInput, CommandList } = await import("../src/components/ui/command")
 const { DataTable } = await import("../src/components/ui/data-table")
 
 let pass = 0,
@@ -196,6 +199,37 @@ await t("DataTable", async () => {
     "DataTable: j moves the active row",
     container.querySelector("[data-active=true]")?.textContent === "Row 2",
   )
+})
+
+// --- shortcuts in the command palette ---
+await t("palette", async () => {
+  const fired: string[] = []
+  function App() {
+    useHotkey("Mod+S", () => fired.push("save"), { meta: { name: "Save", group: "File" } })
+    useHotkey("Mod+P", () => fired.push("off"), {
+      enabled: false,
+      meta: { name: "Print", group: "File" },
+    })
+    useHotkeySequence(["G", "I"], () => fired.push("inbox"), {
+      meta: { name: "Go to inbox", group: "Go to" },
+    })
+    return (
+      <Command>
+        <CommandInput aria-label="Search" />
+        <CommandList>
+          <ShortcutCommands />
+        </CommandList>
+      </Command>
+    )
+  }
+  render(<App />)
+  const save = await screen.findByRole("option", { name: /Save/ })
+  ok("palette: a described key is an item", !!save)
+  ok("palette: a switched-off key is not listed", !screen.queryByRole("option", { name: /Print/ }))
+  ok("palette: sequences stay out", !screen.queryByRole("option", { name: /inbox/ }))
+  ok("palette: its group is the heading", !!screen.getByText("File"))
+  await userEvent.click(save)
+  ok("palette: choosing it runs the handler", fired.join() === "save", fired)
 })
 
 console.log(`\n${pass} passed, ${fail} failed`)
