@@ -8,6 +8,11 @@
  *   if (!navigator.onLine) await outbox.add(expense)
  *   addEventListener("online", () => outbox.flush((e) => api.post("/expenses", e)))
  *
+ * `send` must be safe to repeat for the same `id` (send it as an idempotency key):
+ * a crash between sending and removing, or a browser without Web Locks, can
+ * deliver an item twice. Where `navigator.locks` exists, tabs and the service
+ * worker sharing a `key` take turns, so each item is sent once per flush.
+ *
  * Items are stored as one JSON array under `key`: fine for the tens or hundreds
  * of items a person queues offline. ponytail: one key, rewrite on each change;
  * a store-per-item layout if queues ever reach thousands.
@@ -44,10 +49,20 @@ export function createOutbox<T>({ storage, key = "signet-outbox" }: OutboxOption
   }
   const write = (entries: Entry<T>[]) =>
     entries.length ? storage.set(key, JSON.stringify(entries)) : storage.remove(key)
-  // Serialise this outbox's own reads and writes so add and flush never overwrite each other.
+  // Across tabs and the service worker: one holder per name where Web Locks exist.
+  const lock = <R>(name: string, fn: () => Promise<R>): Promise<R> => {
+    const locks = (
+      globalThis as {
+        navigator?: { locks?: { request<R>(n: string, cb: () => Promise<R>): Promise<R> } }
+      }
+    ).navigator?.locks
+    return locks ? locks.request(`${key}:${name}`, fn) : fn()
+  }
+  // Serialise reads and writes of the array (this instance in order, other tabs by lock) so add and flush never overwrite each other.
   let chain: Promise<unknown> = Promise.resolve()
   const locked = <R>(fn: () => Promise<R>): Promise<R> => {
-    const run = chain.then(fn, fn)
+    const go = () => lock("rw", fn)
+    const run = chain.then(go, go)
     chain = run.catch(() => {})
     return run
   }
@@ -65,26 +80,25 @@ export function createOutbox<T>({ storage, key = "signet-outbox" }: OutboxOption
       return (await read()).length
     },
     flush(send) {
-      // One flush at a time: a second call (an "online" event and a timer together) joins it.
-      flushing ??= (async () => {
-        try {
-          const sent = new Set<string>()
-          for (const { id, item } of await read()) {
-            try {
-              await send(item, id)
-              sent.add(id)
-            } catch {
-              // kept for the next flush
-            }
+      // One flush at a time: a second call (an "online" event and a timer together) joins it,
+      // and another tab's flush waits for the lock, then reads what is left.
+      flushing ??= lock("flush", async () => {
+        const sent = new Set<string>()
+        for (const { id, item } of await read()) {
+          try {
+            await send(item, id)
+            sent.add(id)
+          } catch {
+            // kept for the next flush
           }
-          // Re-read: items added while sending stay.
-          if (sent.size)
-            await locked(async () => write((await read()).filter((e) => !sent.has(e.id))))
-          return sent.size
-        } finally {
-          flushing = null
         }
-      })()
+        // Re-read: items added while sending stay.
+        if (sent.size)
+          await locked(async () => write((await read()).filter((e) => !sent.has(e.id))))
+        return sent.size
+      }).finally(() => {
+        flushing = null
+      })
       return flushing
     },
     clear() {

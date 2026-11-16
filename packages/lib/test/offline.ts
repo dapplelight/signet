@@ -77,50 +77,147 @@ const ok = (n: string, c: boolean, d: unknown = "") => {
 }
 
 // --- indexedDbStorage, against a fake with IndexedDB's request/callback shape ---
+// Databases persist across open() calls and only run onupgradeneeded for a higher version, like the real one.
+// `ctl.failCommit` makes readwrite transactions abort at commit (a full disk) after their requests succeeded.
 function fakeIndexedDB() {
-  const stores = new Map<string, Map<string, unknown>>()
-  const req = <T>(fn: () => T) => {
-    const r = { result: undefined as T, error: null, onsuccess: null, onerror: null } as {
-      result: T
-      error: unknown
-      onsuccess: null | (() => void)
-      onerror: null | (() => void)
-    }
-    queueMicrotask(() => {
-      r.result = fn()
-      r.onsuccess?.()
-    })
-    return r
-  }
-  const db = {
-    objectStoreNames: { contains: (n: string) => stores.has(n) },
-    createObjectStore: (n: string) => stores.set(n, new Map()),
-    transaction: (s: string) => ({
-      objectStore: () => {
-        const m = stores.get(s) as Map<string, unknown>
-        return {
+  const dbs = new Map<string, { version: number; stores: Map<string, Map<string, unknown>> }>()
+  const ctl = { failCommit: false }
+  const connect = (d: { version: number; stores: Map<string, Map<string, unknown>> }) => ({
+    version: d.version,
+    close() {},
+    onversionchange: null,
+    objectStoreNames: { contains: (n: string) => d.stores.has(n) },
+    createObjectStore: (n: string) => d.stores.set(n, new Map()),
+    transaction(s: string) {
+      const m = d.stores.get(s)
+      if (!m) throw new Error("NotFoundError")
+      const tx = {
+        error: null as unknown,
+        oncomplete: null as null | (() => void),
+        onabort: null as null | (() => void),
+        onerror: null as null | (() => void),
+        wrote: false,
+        objectStore: () => ({
           get: (k: string) => req(() => m.get(k)),
-          put: (v: unknown, k: string) => req(() => m.set(k, v)),
-          delete: (k: string) => req(() => m.delete(k)),
+          put: (v: unknown, k: string) => {
+            tx.wrote = true
+            return req(() => {
+              if (!ctl.failCommit) m.set(k, v)
+            })
+          },
+          delete: (k: string) => {
+            tx.wrote = true
+            return req(() => {
+              if (!ctl.failCommit) m.delete(k)
+            })
+          },
+        }),
+      }
+      const req = <T>(fn: () => T) => {
+        const r = { result: undefined as T, error: null, onsuccess: null, onerror: null } as {
+          result: T
+          error: unknown
+          onsuccess: null | (() => void)
+          onerror: null | (() => void)
         }
-      },
-    }),
-  }
+        queueMicrotask(() => {
+          r.result = fn()
+          r.onsuccess?.()
+          queueMicrotask(() => {
+            if (ctl.failCommit && tx.wrote) {
+              tx.error = new Error("QuotaExceededError")
+              tx.onabort?.()
+            } else tx.oncomplete?.()
+          })
+        })
+        return r
+      }
+      return tx
+    },
+  })
   return {
-    open() {
+    ctl,
+    open(name: string, version?: number) {
       const r = {
-        result: db,
+        result: undefined as unknown,
         error: null,
         onsuccess: null as null | (() => void),
         onerror: null,
         onupgradeneeded: null as null | (() => void),
       }
       queueMicrotask(() => {
-        r.onupgradeneeded?.()
+        let d = dbs.get(name)
+        const upgrade = !d || (version !== undefined && version > d.version)
+        if (!d) {
+          d = { version: version ?? 1, stores: new Map() }
+          dbs.set(name, d)
+        } else if (upgrade) d.version = version as number
+        r.result = connect(d)
+        if (upgrade) r.onupgradeneeded?.()
         r.onsuccess?.()
       })
       return r
     },
+  }
+}
+{
+  const fake = fakeIndexedDB()
+  const first = indexedDbStorage({ indexedDB: fake, store: "outbox" })
+  await first.set("k", "1")
+  // Same database name, another store, opened later (or by another context).
+  const second = indexedDbStorage({ indexedDB: fake, store: "session" })
+  await second.set("k", "2")
+  ok(
+    "idb: a second store in an existing database is created",
+    (await second.get("k")) === "2" && (await first.get("k")) === "1",
+  )
+}
+{
+  const fake = fakeIndexedDB()
+  const s = indexedDbStorage({ indexedDB: fake })
+  fake.ctl.failCommit = true
+  let err = ""
+  await s.set("k", "v").catch((e: Error) => {
+    err = e.message
+  })
+  fake.ctl.failCommit = false
+  ok("idb: a write that aborts at commit rejects", err === "QuotaExceededError", err)
+  ok("idb: and nothing was stored", (await s.get("k")) === null)
+}
+{
+  // Two outboxes on one key (two tabs) with Web Locks: each item is sent once.
+  const held = new Map<string, Promise<unknown>>()
+  const nav = {
+    locks: {
+      request<R>(n: string, cb: () => Promise<R>): Promise<R> {
+        const run = (held.get(n) ?? Promise.resolve()).then(cb, cb)
+        held.set(
+          n,
+          run.catch(() => {}),
+        )
+        return run
+      },
+    },
+  }
+  const had = Object.getOwnPropertyDescriptor(globalThis, "navigator")
+  Object.defineProperty(globalThis, "navigator", { value: nav, configurable: true })
+  try {
+    const storage = memoryStorage()
+    const tab1 = createOutbox<string>({ storage })
+    const tab2 = createOutbox<string>({ storage })
+    await tab1.add("x")
+    await tab2.add("y")
+    const sent: string[] = []
+    const send = async (s: string) => {
+      await new Promise((r) => setTimeout(r, 5))
+      sent.push(s)
+    }
+    await Promise.all([tab1.flush(send), tab2.flush(send)])
+    ok("two tabs, one key: each item sent once", sent.sort().join() === "x,y", sent)
+    ok("two tabs: outbox empty after", (await tab1.count()) === 0)
+  } finally {
+    if (had) Object.defineProperty(globalThis, "navigator", had)
+    else Reflect.deleteProperty(globalThis, "navigator")
   }
 }
 {

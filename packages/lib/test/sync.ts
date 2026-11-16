@@ -5,6 +5,7 @@ import {
   type Change,
   type Conflict,
   compareHlc,
+  conflictOf,
   deletedButEdited,
   type Hlc,
   type Row,
@@ -38,7 +39,12 @@ const base = (): Row => ({
   deleted: null,
 })
 const h = (wall: number, node: string, n = 0): Hlc => ({ wall, n, node })
-const set = (field: string, value: Value, b: Value, hlc: Hlc): Change => ({
+const set = (
+  field: string,
+  value: Value,
+  b: Value,
+  hlc: Hlc,
+): Extract<Change, { kind: "set" }> => ({
   kind: "set",
   rowId: "t1",
   field,
@@ -65,13 +71,18 @@ ok(
   ok("guarded clash: later edit shown", r.row.fields.amount === 450)
   ok(
     "guarded clash: both values kept",
-    eq(r.conflict, { rowId: "t1", field: "amount", shown: 450, other: 600 }),
+    eq(r.conflict, { rowId: "t1", field: "amount", shown: 450, others: [600] }),
   )
 }
 ok(
   "guarded edit on an unchanged field just applies",
   eq(apply(base(), set("amount", 450, 500, h(1, "a")), opts), {
-    row: { ...base(), fields: { ...base().fields, amount: 450 }, stamps: { amount: h(1, "a") } },
+    row: {
+      ...base(),
+      fields: { ...base().fields, amount: 450 },
+      stamps: { amount: h(1, "a") },
+      edits: { amount: [{ value: 450, base: 500, hlc: h(1, "a") }] },
+    },
     conflict: null,
   }),
 )
@@ -102,6 +113,54 @@ ok(
   const c = set("amount", 450, 500, h(1, "a"))
   const once = apply(base(), c, opts).row
   ok("a retried change changes nothing", eq(apply(once, c, opts), { row: once, conflict: null }))
+}
+{
+  // A retry of a change that was overtaken, before and after a person settled it.
+  const a1 = set("amount", 600, 500, h(1, "a"))
+  const b1 = set("amount", 450, 500, h(2, "b"))
+  const clash = apply(apply(base(), a1, opts).row, b1, opts)
+  ok(
+    "overtaken change retried: nothing new",
+    eq(apply(clash.row, a1, opts), { row: clash.row, conflict: null }),
+  )
+  const pick = apply(clash.row, { ...set("amount", 600, 450, h(3, "c")), resolve: true }, opts)
+  ok("a person's pick settles the clash", pick.conflict === null && pick.row.fields.amount === 600)
+  ok(
+    "after the pick, retries of either edit change nothing",
+    eq(apply(pick.row, a1, opts), { row: pick.row, conflict: null }) &&
+      eq(apply(pick.row, b1, opts), { row: pick.row, conflict: null }),
+  )
+  // The pick arriving first still settles the older edits that arrive later.
+  const early = apply(base(), { ...set("amount", 600, 450, h(3, "c")), resolve: true }, opts).row
+  const late = apply(apply(early, a1, opts).row, b1, opts)
+  ok(
+    "pick before the edits it settles: no clash",
+    late.conflict === null && late.row.fields.amount === 600,
+  )
+}
+{
+  // Three devices on one guarded field; C saw B's value. Every arrival order gives the same row and clash.
+  const A = set("amount", 600, 500, h(1, "a"))
+  const B = set("amount", 450, 500, h(2, "b"))
+  const C = set("amount", 700, 450, h(3, "c"))
+  const orders = [
+    [A, B, C],
+    [A, C, B],
+    [B, A, C],
+    [B, C, A],
+    [C, A, B],
+    [C, B, A],
+  ]
+  const ends = orders.map((o) => {
+    const row = o.reduce((r, c) => apply(r, c, opts).row, base())
+    return { row, clash: conflictOf(row, "amount") }
+  })
+  ok(
+    "3 devices: same clash in any order",
+    ends.every((e) => eq(e, ends[0])) &&
+      eq(ends[0]?.clash, { rowId: "t1", field: "amount", shown: 700, others: [600] }),
+    ends.map((e) => e.clash),
+  )
 }
 
 // --- property: two devices offline, random edits, any arrival order ---
@@ -172,6 +231,8 @@ for (let seed = 1; seed <= 2000 && !bad; seed++) {
   const one = deliver(x, y, rng(seed * 7))
   const two = deliver(x, y, rng(seed * 13))
   if (!eq(one.row, two.row)) bad = { seed, why: "diverged" }
+  for (const f of GUARDED)
+    if (!eq(conflictOf(one.row, f), conflictOf(two.row, f))) bad = { seed, why: "clash differs", f }
   for (const c of [...x, ...y]) {
     if (c.kind !== "set" || !(GUARDED as readonly string[]).includes(c.field) || c.value === c.base)
       continue
@@ -179,7 +240,7 @@ for (let seed = 1; seed <= 2000 && !bad; seed++) {
       const seen =
         run.row.fields[c.field] === c.value ||
         run.conflicts.some(
-          (k) => k.field === c.field && (k.other === c.value || k.shown === c.value),
+          (k) => k.field === c.field && (k.others.includes(c.value) || k.shown === c.value),
         )
       if (!seen) bad = { seed, why: "guarded edit lost", field: c.field, value: c.value }
     }

@@ -143,6 +143,11 @@ type IdbRequestLike<T> = {
   onsuccess: (() => void) | null
   onerror: (() => void) | null
 }
+type IdbStoreLike = {
+  get(k: string): IdbRequestLike<unknown>
+  put(v: string, k: string): IdbRequestLike<unknown>
+  delete(k: string): IdbRequestLike<unknown>
+}
 type IdbLike = {
   open(
     name: string,
@@ -152,17 +157,20 @@ type IdbLike = {
   }
 }
 type IdbDbLike = {
+  version: number
+  close(): void
+  onversionchange: (() => void) | null
   objectStoreNames: { contains(n: string): boolean }
   createObjectStore(n: string): unknown
   transaction(
     store: string,
     mode: "readonly" | "readwrite",
   ): {
-    objectStore(n: string): {
-      get(k: string): IdbRequestLike<unknown>
-      put(v: string, k: string): IdbRequestLike<unknown>
-      delete(k: string): IdbRequestLike<unknown>
-    }
+    objectStore(n: string): IdbStoreLike
+    error: unknown
+    oncomplete: (() => void) | null
+    onabort: (() => void) | null
+    onerror: (() => void) | null
   }
 }
 
@@ -175,7 +183,9 @@ const idbDone = <T>(r: IdbRequestLike<T>) =>
 /**
  * IndexedDB: larger than localStorage, and reachable from a service worker,
  * which localStorage is not. One object store of string values, opened on
- * first use. Pass `indexedDB` explicitly where it is not a global.
+ * first use; a store missing from an existing database is added. Writes resolve
+ * once the transaction commits, so a full disk rejects instead of losing the
+ * value. Pass `indexedDB` explicitly where it is not a global.
  */
 export function indexedDbStorage(
   options: { db?: string; store?: string; indexedDB?: unknown } = {},
@@ -183,31 +193,57 @@ export function indexedDbStorage(
   const { db: name = "signet", store = "kv" } = options
   let opened: Promise<IdbDbLike> | null = null
   const open = () => {
-    opened ??= (() => {
+    opened ??= (async () => {
       const idb = (options.indexedDB ?? (globalThis as { indexedDB?: unknown }).indexedDB) as
         | IdbLike
         | undefined
-      if (!idb) return Promise.reject(new Error("indexedDbStorage: no indexedDB here"))
-      const req = idb.open(name, 1)
-      req.onupgradeneeded = () => {
-        if (!req.result.objectStoreNames.contains(store)) req.result.createObjectStore(store)
+      if (!idb) throw new Error("indexedDbStorage: no indexedDB here")
+      const at = (version?: number) => {
+        const req = idb.open(name, version)
+        req.onupgradeneeded = () => {
+          if (!req.result.objectStoreNames.contains(store)) req.result.createObjectStore(store)
+        }
+        return idbDone(req)
       }
-      return idbDone(req)
+      let db = await at()
+      // The database exists without our store (another store made it): bump the
+      // version to add it. A loop, as another context may bump at the same time.
+      while (!db.objectStoreNames.contains(store)) {
+        const next = db.version + 1
+        db.close()
+        db = await at(next)
+      }
+      // Let another context upgrade the database; we reopen on the next call.
+      db.onversionchange = () => {
+        db.close()
+        opened = null
+      }
+      return db
     })()
     return opened
   }
-  const os = async (mode: "readonly" | "readwrite") =>
-    (await open()).transaction(store, mode).objectStore(store)
+  const run = async <T>(
+    mode: "readonly" | "readwrite",
+    op: (s: IdbStoreLike) => IdbRequestLike<T>,
+  ) => {
+    const tx = (await open()).transaction(store, mode)
+    const req = op(tx.objectStore(store))
+    // Wait for the commit, not the request: a full disk aborts the transaction after the request succeeded.
+    return new Promise<T>((resolve, reject) => {
+      tx.oncomplete = () => resolve(req.result)
+      tx.onabort = tx.onerror = () => reject(tx.error ?? req.error)
+    })
+  }
   return {
     async get(key) {
-      const v = await idbDone((await os("readonly")).get(key))
+      const v = await run("readonly", (s) => s.get(key))
       return typeof v === "string" ? v : null
     },
     async set(key, value) {
-      await idbDone((await os("readwrite")).put(value, key))
+      await run("readwrite", (s) => s.put(value, key))
     },
     async remove(key) {
-      await idbDone((await os("readwrite")).delete(key))
+      await run("readwrite", (s) => s.delete(key))
     },
   }
 }

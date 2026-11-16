@@ -6,8 +6,9 @@
  * - Plain fields: per-field merge; a clash on one field goes to the later edit
  *   by a hybrid logical clock (never device wall clocks alone).
  * - Guarded fields (`options.guarded`, e.g. an amount or a date): never picked
- *   automatically. An edit applies only if the field still holds the value the
- *   editor saw; otherwise both values come back as a `Conflict` for a person.
+ *   automatically. Every edit is kept on the row; edits that did not see each
+ *   other's value (`base`) come back as a `Conflict` (`conflictOf`) for a person,
+ *   whose pick is a `set` with `resolve: true`.
  * - Delete vs edit: an edit after a delete brings the row back flagged
  *   (`deletedButEdited`), never silently lost or revived.
  *
@@ -35,23 +36,39 @@ export function receive(last: Hlc | null, remote: Hlc, now: number, node: string
 
 export type Value = string | number | boolean | null
 
+/** One edit of a guarded field, kept on the row so conflicts are worked out from the whole set. */
+export type GuardedEdit = { value: Value; base: Value; hlc: Hlc; resolve?: boolean }
+
 export type Row = {
   id: string
   fields: Record<string, Value>
   /** When each field was last set. */
   stamps: Record<string, Hlc>
   deleted: Hlc | null
+  /** Every edit seen of each guarded field, oldest first; this is what makes retries and any arrival order safe. */
+  edits?: Record<string, GuardedEdit[]>
 }
 
 /**
- * A guarded-field clash: both values. `shown` is the later edit, so every
- * device and the server show the same thing whatever order changes arrive in;
- * nothing is decided until a person picks.
+ * A guarded-field clash. `shown` is the later edit, so every device and the
+ * server show the same thing whatever order changes arrive in; `others` are the
+ * competing values (latest first) nobody has settled. Nothing is decided until
+ * a person picks (a `set` with `resolve: true`).
  */
-export type Conflict = { rowId: string; field: string; shown: Value; other: Value }
+export type Conflict = { rowId: string; field: string; shown: Value; others: Value[] }
 
 export type Change =
-  | { kind: "set"; rowId: string; field: string; value: Value; base: Value; hlc: Hlc }
+  | {
+      kind: "set"
+      rowId: string
+      field: string
+      value: Value
+      /** What the editor saw in the field when they made this edit. */
+      base: Value
+      hlc: Hlc
+      /** A person's pick on a conflict: settles every earlier edit of this field. */
+      resolve?: boolean
+    }
   | { kind: "delete"; rowId: string; hlc: Hlc }
 
 export type ApplyOptions = {
@@ -65,7 +82,32 @@ export function deletedButEdited(row: Row): boolean {
   return !!d && Object.values(row.stamps).some((s) => compareHlc(s, d) > 0)
 }
 
-/** Apply one change to a row. Any arrival order ends in the same row and the same conflicts; a retry changes nothing. */
+/**
+ * The open conflict on a guarded field, worked out from the edits on the row, so
+ * it is the same whatever order they arrived in. An edit is settled once a later
+ * edit either saw its value (`base` equals it) or is a person's `resolve`. The
+ * edits still standing with different values are the clash.
+ */
+export function conflictOf(row: Row, field: string): Conflict | null {
+  const edits = row.edits?.[field] ?? []
+  const win = edits.at(-1)
+  if (!win) return null
+  const standing = edits.filter(
+    (e) => !edits.some((l) => compareHlc(l.hlc, e.hlc) > 0 && (l.resolve || l.base === e.value)),
+  )
+  const others: Value[] = []
+  for (const e of standing.reverse())
+    if (e.value !== win.value && !others.includes(e.value)) others.push(e.value)
+  return others.length ? { rowId: row.id, field, shown: win.value, others } : null
+}
+
+/**
+ * Apply one change to a row. Any arrival order ends in the same row and the same
+ * conflicts (`conflictOf`); a change already applied, however late it is
+ * redelivered, changes nothing. `conflict` is the field's open conflict after a
+ * guarded edit, null for a retry or a plain field.
+ * ponytail: every guarded edit stays on the row; compact settled ones if rows grow large.
+ */
 export function apply(
   row: Row,
   c: Change,
@@ -75,28 +117,30 @@ export function apply(
     if (row.deleted && compareHlc(row.deleted, c.hlc) >= 0) return { row, conflict: null }
     return { row: { ...row, deleted: c.hlc }, conflict: null }
   }
-  const stamp = row.stamps[c.field]
-  const current = row.fields[c.field] ?? null
-  const later = !stamp || compareHlc(c.hlc, stamp) > 0
-  const set = (r: Row): Row => ({
-    ...r,
-    fields: { ...r.fields, [c.field]: c.value },
-    stamps: { ...r.stamps, [c.field]: c.hlc },
-  })
-  // Same stamp: a retry.
-  if (stamp && compareHlc(c.hlc, stamp) === 0) return { row, conflict: null }
-  // Guarded: a clash when the field moved since the editor looked, or when this
-  // edit is older than what is there (it would otherwise vanish). Keep both.
-  if (options.guarded?.includes(c.field) && current !== c.value && (current !== c.base || !later)) {
-    const conflict = (shown: Value, other: Value): Conflict => ({
-      rowId: row.id,
-      field: c.field,
-      shown,
-      other,
-    })
-    return later
-      ? { row: set(row), conflict: conflict(c.value, current) }
-      : { row, conflict: conflict(current, c.value) }
+  if (options.guarded?.includes(c.field)) {
+    const log = row.edits?.[c.field] ?? []
+    if (log.some((e) => compareHlc(e.hlc, c.hlc) === 0)) return { row, conflict: null }
+    const edits = [...log, { value: c.value, base: c.base, hlc: c.hlc, resolve: c.resolve }].sort(
+      (x, y) => compareHlc(x.hlc, y.hlc),
+    )
+    const win = edits[edits.length - 1] as GuardedEdit
+    const next: Row = {
+      ...row,
+      fields: { ...row.fields, [c.field]: win.value },
+      stamps: { ...row.stamps, [c.field]: win.hlc },
+      edits: { ...row.edits, [c.field]: edits },
+    }
+    return { row: next, conflict: conflictOf(next, c.field) }
   }
-  return { row: later ? set(row) : row, conflict: null }
+  const stamp = row.stamps[c.field]
+  // Same or older stamp: a retry, or an edit that lost.
+  if (stamp && compareHlc(c.hlc, stamp) <= 0) return { row, conflict: null }
+  return {
+    row: {
+      ...row,
+      fields: { ...row.fields, [c.field]: c.value },
+      stamps: { ...row.stamps, [c.field]: c.hlc },
+    },
+    conflict: null,
+  }
 }
