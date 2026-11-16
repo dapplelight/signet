@@ -154,6 +154,25 @@ export const app = new Hono()
     t,
   )
 
+  // A nested object after a key is never a function body, even after a ternary ending in a call.
+  const nested = app("nested", {
+    "src/app.ts": `import { Hono } from "hono"
+export const app = new Hono()
+export const config = {
+  mode: isProd() ? String(1) : "dev",
+  db: {
+    url: process.env.DATABASE_URL,
+  },
+}
+`,
+  })
+  const n = (await import("../src/check-conventions.js")).conventions(nested)
+  ok(
+    "env read in a nested object after a ternary is module scope",
+    n.some((f) => f.rule === "env-module-scope"),
+    n,
+  )
+
   const h = await run("--cwd", bad)
   ok(
     "human output: steps, finding lines, fix line, summary",

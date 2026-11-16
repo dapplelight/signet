@@ -58,7 +58,7 @@ function moduleScopeEnvReads(src: string): number[] {
         before.endsWith(")") ||
         before.endsWith("=>") ||
         /\b(?:else|try|finally|do)$/.test(before) ||
-        /\)\s*:\s*(?:[^;={}]|=>)+$/.test(before)
+        (!before.endsWith(":") && /\)\s*:\s*(?:[^;={}]|=>)+$/.test(before))
       stack.push(fn)
       if (fn) fnDepth++
     } else if (ch === "}") {
