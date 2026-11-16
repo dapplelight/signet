@@ -6,6 +6,7 @@ apps/*
 !apps/.gitkeep
 !apps/showcase/
 !apps/docs/
+qa-out/
 BACKLOG.md
 docs/audits/
 packages/mcp/src/generated/
