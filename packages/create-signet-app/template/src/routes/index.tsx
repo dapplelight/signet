@@ -2,6 +2,7 @@ import { Badge } from "@dapplelight/signet-ui/components/badge"
 import { Button } from "@dapplelight/signet-ui/components/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@dapplelight/signet-ui/components/card"
 import { createFileRoute } from "@tanstack/react-router"
+import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
 export const Route = createFileRoute("/")({
@@ -9,19 +10,17 @@ export const Route = createFileRoute("/")({
 })
 
 function Home() {
+  const { t } = useTranslation()
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Running on the __THEME__ theme</CardTitle>
+        <CardTitle>{t("home.title")}</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-wrap items-center gap-3">
-        <Button onClick={() => toast.success("Saved")}>Show a toast</Button>
-        <Button variant="outline">Outline</Button>
-        <Badge>Badge</Badge>
-        <p className="w-full text-sm text-muted-foreground">
-          Swap the theme import in <code>src/app.css</code> and everything here reshapes — colour,
-          radius, type scale and motion. No component changes.
-        </p>
+        <Button onClick={() => toast.success(t("home.saved"))}>{t("home.showToast")}</Button>
+        <Button variant="outline">{t("home.outline")}</Button>
+        <Badge>{t("home.badge")}</Badge>
+        <p className="w-full text-sm text-muted-foreground">{t("home.themeHint")}</p>
       </CardContent>
     </Card>
   )

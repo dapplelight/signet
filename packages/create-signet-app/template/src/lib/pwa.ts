@@ -6,6 +6,7 @@
 
 import { registerSW } from "virtual:pwa-register"
 import { toast } from "sonner"
+import i18n from "./i18n"
 
 const CHECK_EVERY_MS = 30 * 60 * 1000
 
@@ -49,9 +50,9 @@ export function registerPwa(): void {
     },
     onNeedRefresh() {
       const reload = () => void update(true)
-      toast("A new version is available.", {
+      toast(i18n.t("update.available"), {
         duration: Number.POSITIVE_INFINITY,
-        action: { label: "Reload", onClick: reload },
+        action: { label: i18n.t("update.reload"), onClick: reload },
       })
       applyWhenHidden(reload)
     },

@@ -175,6 +175,12 @@ const DEPS = {
   "tailwind-merge": "^3.7.0",
 }
 
+// The web template's i18n: src/lib/i18n.ts + src/locales/*.json.
+const I18N_DEPS = {
+  i18next: "^26.4.2",
+  "react-i18next": "^17.0.15",
+}
+
 // The web template's PWA: vite-plugin-pwa builds src/sw.ts with Workbox.
 const PWA_DEV_DEPS = {
   "vite-plugin-pwa": "^1.3.0",
@@ -501,7 +507,7 @@ async function main() {
         ? { ...API_DEPS, ...(mcp ? MCP_DEPS : {}) }
         : template === "full"
           ? { ...FULL_DEPS, ...(mcp ? MCP_DEPS : {}) }
-          : DEPS,
+          : { ...DEPS, ...I18N_DEPS },
     devDependencies:
       template === "api"
         ? { ...API_DEV_DEPS, ...API_TARGETS[target].devDeps }

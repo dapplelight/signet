@@ -129,7 +129,7 @@ try {
   ok(
     "build emits the /login route chunk",
     !!loginChunk &&
-      readFileSync(join(DIR, "dist/assets", loginChunk), "utf8").includes("Replace this page"),
+      readFileSync(join(DIR, "dist/assets", loginChunk), "utf8").includes("login.title"),
     assets.join(","),
   )
   const js = assets
@@ -137,6 +137,12 @@ try {
     .map((f) => readFileSync(join(DIR, "dist/assets", f), "utf8"))
     .join("\n")
   ok("bundle mounts sonner's Toaster", js.includes("data-sonner-toaster"))
+  ok(
+    "bundle carries locales/en.json with the theme substituted",
+    js.includes("Running on the cinematic theme") && js.includes("Replace this page"),
+  )
+  const en = readFileSync(join(DIR, "src/locales/en.json"), "utf8")
+  ok("en.json has no placeholder", !anyPlaceholder(en))
   const installed = readdirSync(join(DIR, "node_modules/@dapplelight"))
   ok(
     "installs the signet packages",

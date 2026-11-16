@@ -1,0 +1,18 @@
+{
+  "home": {
+    "title": "Running on the __THEME__ theme",
+    "showToast": "Show a toast",
+    "saved": "Saved",
+    "outline": "Outline",
+    "badge": "Badge",
+    "themeHint": "Swap the theme import in src/app.css and everything here reshapes: colour, radius, type scale and motion. No component changes."
+  },
+  "login": {
+    "title": "Sign in",
+    "body": "Your session has ended or you are not signed in. Replace this page with your sign-in flow."
+  },
+  "update": {
+    "available": "A new version is available.",
+    "reload": "Reload"
+  }
+}
