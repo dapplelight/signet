@@ -10,6 +10,7 @@ import { createRelativeLink } from "fumadocs-ui/mdx"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { getMDXComponents } from "@/components/mdx"
+import { SidebarButton } from "@/components/sidebar-button"
 import { getPageImageUrl, gitConfig } from "@/lib/shared"
 import { source } from "@/lib/source"
 
@@ -23,6 +24,7 @@ export default async function Page(props: PageProps<"/docs/[[...slug]]">) {
 
   return (
     <DocsPage toc={page.data.toc} full={page.data.full}>
+      <SidebarButton />
       <DocsTitle className="text-[2rem] font-semibold tracking-tight">{page.data.title}</DocsTitle>
       <DocsDescription className="mb-0 text-[1rem]">{page.data.description}</DocsDescription>
       <div className="flex flex-row items-center gap-2 pb-2">

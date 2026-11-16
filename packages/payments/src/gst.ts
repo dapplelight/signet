@@ -188,7 +188,7 @@ export function numberInWords(n: number): string {
   return parts.join(" ")
 }
 
-/** Paise in words: "Rupees One Thousand Two Hundred and Fifty Paise Only". */
+/** Paise in words: `amountInWords(125050)` is "Rupees One Thousand Two Hundred Fifty and Fifty Paise Only". */
 export function amountInWords(paise: number): string {
   if (!Number.isSafeInteger(paise) || paise < 0)
     throw bad("amountInWords takes whole paise from 0.")
