@@ -198,7 +198,9 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/oauth-rs/metadata` | protectedResourceMetadata, wwwAuthenticate, ProtectedResourceMetadata, MetadataOptions | Protected Resource Metadata — RFC 9728 |
 | `@dapplelight/signet-server/oauth-rs/verify` | TokenError, scopesOf, createTokenVerifier, Claims, VerifiedToken, VerifierOptions, … | OAuth 2.1 access token verification for a RESOURCE SERVER |
 | `@dapplelight/signet-server/observability/logger` | LEVELS, createLogger, redactFields, LevelName, LevelSetting, LogFields, … | Structured JSON logger with pino's call shape and redaction by default |
+| `@dapplelight/signet-server/observability/request-log` | requestLog, RequestLogConfig | One structured log line when a request starts and one when it ends: `request.started`, then `request.completed` or `request.failed` |
 | `@dapplelight/signet-server/observability/sentry` | redactSecrets, parseStack, createSentry, SentryConfig, StackFrame, SentryRequest, … | Sentry reporting over the Envelope HTTP API |
+| `@dapplelight/signet-server/observability/trace` | traceContext, traceMiddleware, withSpan, SpanHandle, TraceConfig, TraceIds | OpenTelemetry tracing for Hono |
 | `@dapplelight/signet-server/realtime` | REALTIME_TOPIC, CLOSE, createRealtime, realtimeOutbox, admit, sessionAuth, … | Real-time channels: presence, live updates and a small shared state per channel, with one hub for every runtime |
 | `@dapplelight/signet-server/realtime/bun` | bunRealtime, BunSocket, BunServer | The realtime hub on Bun's built-in WebSocket server |
 | `@dapplelight/signet-server/realtime/cloudflare` | realtimeRoom, connectRoom, roomPublisher, RealtimeNamespace, WorkerSocket | The realtime hub in a Cloudflare Durable Object: one object per org, so every connection and channel of a tenant meets in one place and two orgs never |
