@@ -1,0 +1,6 @@
+{
+  "name": "list-detail",
+  "description": "List with search and status filters, paging, and a detail pane that becomes a sheet on phones.",
+  "files": ["index.tsx", "sample.ts"],
+  "deps": ["badge", "button", "card", "empty-state", "error-state", "pagination", "pill-group", "responsive-sheet", "search-input", "skeleton", "use-media-query", "utils"]
+}

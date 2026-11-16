@@ -381,6 +381,18 @@
     "./screens/abuse-screens": {
       "types": "./dist/components/screens/abuse-screens.d.ts",
       "import": "./dist/components/screens/abuse-screens.js"
+    },
+    "./blocks/analytics-dashboard": {
+      "types": "./dist/blocks/analytics-dashboard/index.d.ts",
+      "import": "./dist/blocks/analytics-dashboard/index.js"
+    },
+    "./blocks/list-detail": {
+      "types": "./dist/blocks/list-detail/index.d.ts",
+      "import": "./dist/blocks/list-detail/index.js"
+    },
+    "./blocks/settings": {
+      "types": "./dist/blocks/settings/index.d.ts",
+      "import": "./dist/blocks/settings/index.js"
     }
   },
   "scripts": {
