@@ -62,6 +62,8 @@ export type SentryScope = {
    */
   request?: SentryRequest
   user?: SentryUser
+  /** The request's trace id, e.g. from `traceContext(c)`. Sent as the `trace_id` tag. */
+  traceId?: string
 }
 
 export type SentryEvent = {
@@ -203,7 +205,11 @@ export function createSentry(config: SentryConfig) {
         config.includeStack === false || typeof serialized.stack !== "string"
           ? []
           : parseStack(serialized.stack, scrub)
-      const tags = { ...config.tags, ...scope?.tags }
+      const tags = {
+        ...config.tags,
+        ...scope?.tags,
+        ...(scope?.traceId ? { trace_id: scope.traceId } : {}),
+      }
       const request = scope?.request && cleanRequest(scope.request, scrub)
       const built: SentryEvent = {
         event_id: crypto.randomUUID().replaceAll("-", ""),

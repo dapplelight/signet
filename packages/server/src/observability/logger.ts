@@ -47,6 +47,12 @@ export type LoggerOptions = {
   production?: boolean
   /** Key the message is written under. Default "msg" (pino's). */
   messageKey?: string
+  /**
+   * Called on every line; its fields are merged in after `base` and before the
+   * call's own fields, and are redacted like any other. Default off. For values
+   * that change per call, e.g. the active trace id.
+   */
+  mixin?: () => LogFields
 }
 
 /**
@@ -94,6 +100,7 @@ type Config = {
   write: (line: string, level: LevelName) => void
   production: boolean
   messageKey: string
+  mixin?: () => LogFields
   names: Set<string>
   paths: string[][]
 }
@@ -184,7 +191,7 @@ function serialise(cfg: Config, level: LevelName, bindings: LogFields, args: unk
   try {
     // `fields` seeds the ancestors: the merged copy is new, so `fields.self =
     // fields` would otherwise be written out once before the cycle is caught.
-    const rest = clean(cfg, { ...bindings, ...fields }, [], [fields]) as LogFields
+    const rest = clean(cfg, { ...bindings, ...cfg.mixin?.(), ...fields }, [], [fields]) as LogFields
     for (const [key, v] of Object.entries(rest)) {
       if (!Object.hasOwn(entry, key) && key !== "level" && key !== "time") entry[key] = v
     }
@@ -249,6 +256,7 @@ function configure(opts: LoggerOptions): Config {
     write: opts.write ?? defaultWrite,
     production: opts.production ?? false,
     messageKey: opts.messageKey ?? "msg",
+    mixin: opts.mixin,
     names,
     paths,
   }

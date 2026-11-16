@@ -219,6 +219,7 @@
       "devDependencies": {
         "@modelcontextprotocol/client": "^2.1.0",
         "@modelcontextprotocol/server": "^2.1.0",
+        "@opentelemetry/api": "1.9.0",
         "@types/node": "^26.6.2",
         "hono": "^4.13.8",
         "typescript": "^7.0.2",
@@ -226,11 +227,13 @@
       },
       "peerDependencies": {
         "@modelcontextprotocol/server": "^2.1.0",
+        "@opentelemetry/api": "^1.9.0",
         "hono": ">=4.0.0",
         "zod": ">=4.2.0",
       },
       "optionalPeers": [
         "@modelcontextprotocol/server",
+        "@opentelemetry/api",
         "hono",
         "zod",
       ],
@@ -607,6 +610,8 @@
     "@next/swc-win32-arm64-msvc": ["@next/swc-win32-arm64-msvc@16.4.6", "", { "os": "win32", "cpu": "arm64" }, "sha512-U0p7/tEtqvHX2crhd841CDwKtp5CFkKXVjOhmfccR3Pvp64sj8KBwRqsvltqLOwVBbj0NtkxwXSDpEHYGbxeXQ=="],
 
     "@next/swc-win32-x64-msvc": ["@next/swc-win32-x64-msvc@16.4.6", "", { "os": "win32", "cpu": "x64" }, "sha512-3ZG15/5WIdlTQsIEvc9sPTTSL5XFrlLklIKmfF4fwsDnoAhu6NcBDXsk3mbGxNyo6aVLEGex+fHCv2MahY7a9g=="],
+
+    "@opentelemetry/api": ["@opentelemetry/api@1.9.0", "", {}, "sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg=="],
 
     "@oxc-project/types": ["@oxc-project/types@0.156.0", "", {}, "sha512-1Duyg48TdJNdyhEB8Xn1L36bT9Pv6GUtlKjHxOys8xkaF/rQq3XJE+bAurSK/AgIz5mGFsb77cn9Pb20+WCScw=="],
 
