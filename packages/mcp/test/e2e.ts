@@ -441,11 +441,16 @@ try {
           "Customer timeline",
           "Identity merge",
           "Customer Center",
+          "Pricing experiments",
           "Monetisation routes",
         ]) &&
-      ["createOfferings(db", "customers.merge(", "requestRefund(", "monetisationRoutes("].every(
-        (t) => JSON.stringify(mon.json).includes(t),
-      ) &&
+      [
+        "createOfferings(db",
+        "customers.merge(",
+        "requestRefund(",
+        "createPricing(db",
+        "monetisationRoutes(",
+      ].every((t) => JSON.stringify(mon.json).includes(t)) &&
       !mon.json.install.includes("@dapplelight/signet-db"),
     mon.json?.id,
   )
@@ -474,6 +479,7 @@ try {
       JSON.stringify(exr.json.steps.map((st: any) => st.title)) ===
         JSON.stringify([
           "Experiments",
+          "Pricing experiments",
           "Status page and maintenance",
           "Experiment routes",
           "Status page and maintenance mode",
@@ -481,6 +487,7 @@ try {
       [
         "createExperiments(db",
         "ex.results(",
+        "pricing.rollout(",
         "createStatus(db",
         "maintenanceMode(",
         "experimentAdminRoutes(",

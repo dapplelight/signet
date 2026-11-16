@@ -1124,10 +1124,12 @@ const RECIPES: RecipeSpec[] = [
       ["db", "Customer timeline"],
       ["db", "Identity merge"],
       ["db", "Customer Center"],
+      ["db", "Pricing experiments"],
       ["server", "Monetisation routes"],
     ],
     verify: [
       "bun run test; GET /offerings/:placement returns the paywall, and publishing a new version changes it with no app release",
+      "link a running pricing experiment on a placement: the same subject gets the same offering on every GET /offerings/:placement, one exposure row each, and GET /pricing/:experiment attributes a purchase recorded after that exposure to its variant",
       "merge the same anonymous id twice and into two accounts at once: one account gets the plan, once; the other merge is refused",
       "deliver a store notification twice: the customer timeline gains one entry",
     ],
@@ -1182,11 +1184,15 @@ const RECIPES: RecipeSpec[] = [
       "uptime",
       "maintenance",
       "maintenance mode",
+      "pricing experiment",
+      "price test",
+      "incidents admin",
     ],
     // signet-db is `private: true`, so it is not in the install line.
     install: ["@dapplelight/signet-server", "hono", "drizzle-orm"],
     refs: [
       ["db", "Experiments"],
+      ["db", "Pricing experiments"],
       ["db", "Status page and maintenance"],
       ["server", "Experiment routes"],
       ["server", "Status page and maintenance mode"],
@@ -1194,6 +1200,8 @@ const RECIPES: RecipeSpec[] = [
     verify: [
       "bun run test; the same subject gets the same variant on every call, and expose records it once",
       "results show per-variant exposures and conversions; rollout gives every subject the winner",
+      "pricing: with fixture purchases, GET /pricing/:experiment shows the conversion, trial conversion and revenue per exposed user you worked out by hand, ltv.estimate is true, and POST /pricing/:experiment/rollout makes the winner's offering what GET /offerings/:placement serves to everyone, with the experiment rolled_out",
+      "the status admin: turn maintenance on with a message and until (API answers 503 MAINTENANCE), post an incident update and resolve it; a resolved incident refuses a further update with 409",
       "with maintenance on, an API route answers 503 with Retry-After and code MAINTENANCE while /health and admins pass",
     ],
   },

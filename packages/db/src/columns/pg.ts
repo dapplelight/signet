@@ -671,6 +671,8 @@ export const monetisationTables = (prefix = "") => ({
     version: integer("version"),
     /** [{ when: { country?, platform?, attributes? }, offering, version? }], first match wins. */
     overrides: jsonb("overrides").notNull(),
+    /** The pricing experiment (`createExperiments` key) choosing the offering; null for none. */
+    experiment: text("experiment"),
     updatedBy: text("updated_by"),
     updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
   }),

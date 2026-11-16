@@ -17,11 +17,18 @@
  * }, { actor })
  * await offerings.current("onboarding", { country: "IN", platform: "appstore" })
  * ```
+ *
+ * A placement can also run a pricing experiment (`createExperiments`): each
+ * variant's `value` names the offering it serves, `{ offering: "annual-first",
+ * version?: 2 }`, and a variant with no offering serves the placement's own.
+ * `current(placement, audience, subjectId)` then assigns the subject sticky and
+ * records the exposure; see `./pricing` for the readout and the rollout.
  */
 
 import { and, desc, eq, type Table } from "drizzle-orm"
 import type { SignetDb } from "./db.js"
 import { SignetDbError } from "./errors.js"
+import type { AssignmentReason, Experiments } from "./experiments.js"
 import { matchesRule } from "./flags.js"
 import { type Actor, audited } from "./scoped.js"
 
@@ -123,6 +130,8 @@ export type Placement = {
   offering: string
   version: number | null
   overrides: AudienceRule[]
+  /** The pricing experiment this placement runs, or null. */
+  experiment: string | null
   updatedBy: string | null
   updatedAt: Date
 }
@@ -131,6 +140,21 @@ export type CurrentOffering = Offering & {
   placement: string
   /** The override that matched (its index), or null for the placement's own offering. */
   override: number | null
+  /** The pricing experiment's assignment, when the placement runs one and a subject was given. */
+  experiment: { key: string; variant: string; reason: AssignmentReason } | null
+}
+
+/** What a pricing experiment variant's `value` holds: the offering it serves. */
+export type PricingVariantValue = { offering: string; version?: number }
+
+/** The offering a variant value names, or null for none (the placement's own). */
+export function variantOffering(value: unknown): PricingVariantValue | null {
+  const v = value as Cols | null | undefined
+  if (!v || typeof v !== "object" || typeof v.offering !== "string") return null
+  return {
+    offering: v.offering,
+    ...(Number.isSafeInteger(v.version) ? { version: v.version } : {}),
+  }
 }
 
 export type OfferingTables = { offerings: Table; placements: Table }
@@ -139,6 +163,8 @@ export type OfferingsOptions = {
   tables: OfferingTables
   /** `definePlans(...)`: every product's plan must be one of these. */
   plans?: Readonly<Record<string, unknown>>
+  /** `createExperiments(...)`, for placements that run a pricing experiment. */
+  experiments?: Pick<Experiments, "get" | "expose">
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: structural call into a Drizzle db of any dialect
@@ -338,6 +364,7 @@ export function createOfferings(db: SignetDb<unknown>, options: OfferingsOptions
     offering: r.offering,
     version: r.version == null ? null : Number(r.version),
     overrides: (r.overrides as AudienceRule[]) ?? [],
+    experiment: r.experiment ?? null,
     updatedBy: r.updatedBy ?? null,
     updatedAt: r.updatedAt,
   })
@@ -381,22 +408,51 @@ export function createOfferings(db: SignetDb<unknown>, options: OfferingsOptions
   }
 
   /**
+   * A pricing experiment a placement may run: it exists, is not rolled out,
+   * and every variant names a published offering (or none, for the placement's own).
+   */
+  async function checkExperiment(k: string) {
+    if (!options.experiments)
+      throw new SignetDbError("BAD_CONFIG", "Pass `experiments` to run pricing experiments.")
+    const e = await options.experiments.get(k)
+    if (!e) throw bad(`No experiment "${k}".`)
+    if (e.status === "rolled_out") throw bad(`Experiment "${k}" is already rolled out.`)
+    for (const v of e.variants) {
+      if (v.value == null) continue
+      const named = variantOffering(v.value)
+      if (!named) throw bad(`Variant "${v.key}" of "${k}" needs a value of { offering, version? }.`)
+      await exists(named.offering, named.version, `variant "${v.key}" offering`)
+    }
+  }
+
+  /**
    * Point a placement at an offering (pinned to `version`, or the latest), with
-   * audience overrides, first match wins. Every offering named must be published.
+   * audience overrides, first match wins, and optionally a pricing experiment
+   * that picks the offering for everyone no override matched. This replaces
+   * the whole placement: an omitted `experiment` or `overrides` is none.
+   * Every offering named must be published.
    */
   async function setPlacement(
     placement: string,
-    input: { offering: string; version?: number | null; overrides?: AudienceRule[] },
+    input: {
+      offering: string
+      version?: number | null
+      overrides?: AudienceRule[]
+      experiment?: string | null
+    },
     { actor }: { actor: Actor },
   ): Promise<Placement> {
     key(placement, "Placement")
     const overrides = checkRules(input.overrides)
     await exists(input.offering, input.version)
     for (const r of overrides) await exists(r.offering, r.version, "override offering")
+    const experiment = input.experiment ?? null
+    if (experiment !== null) await checkExperiment(key(experiment, "Experiment"))
     const values = {
       offering: input.offering,
       version: input.version ?? null,
       overrides,
+      experiment,
       updatedBy: actor.id,
     }
     const w = audited(db, { actor })
@@ -422,16 +478,19 @@ export function createOfferings(db: SignetDb<unknown>, options: OfferingsOptions
 
   /**
    * The offering a placement serves to this audience: the first matching
-   * override, else the placement's own. Null for an unknown placement.
+   * override, else (when the placement runs a pricing experiment and
+   * `subjectId` is given) the subject's variant's offering, recording the
+   * exposure, else the placement's own. Null for an unknown placement.
    */
   async function current(
     placement: string,
     audience: Audience = {},
+    subjectId?: string | null,
   ): Promise<CurrentOffering | null> {
     const p = await getPlacement(placement)
     if (!p) return null
     const subject = {
-      id: "",
+      id: subjectId ?? "",
       attributes: {
         ...audience.attributes,
         ...(audience.country ? { country: audience.country.toUpperCase() } : {}),
@@ -448,10 +507,21 @@ export function createOfferings(db: SignetDb<unknown>, options: OfferingsOptions
       }
       if (!matchesRule({ when }, subject)) continue
       const hit = await get(r.offering, r.version)
-      if (hit) return { ...hit, placement, override: i }
+      if (hit) return { ...hit, placement, override: i, experiment: null }
+    }
+    let experiment: CurrentOffering["experiment"] = null
+    if (p.experiment && subjectId && options.experiments) {
+      const a = await options.experiments.expose(p.experiment, subject)
+      if (a) {
+        experiment = { key: p.experiment, variant: a.variant, reason: a.reason }
+        const named = variantOffering(a.value)
+        // A variant whose offering is gone falls back to the placement's own.
+        const hit = named && (await get(named.offering, named.version))
+        if (hit) return { ...hit, placement, override: null, experiment }
+      }
     }
     const own = await get(p.offering, p.version)
-    return own ? { ...own, placement, override: null } : null
+    return own ? { ...own, placement, override: null, experiment } : null
   }
 
   return { publish, get, versions, list, setPlacement, getPlacement, placements, current }

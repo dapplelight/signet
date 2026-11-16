@@ -100,9 +100,19 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   the admin readout of a signet-db experiment (exposures, conversions, rate,
   lift and p-value per variant against the control) with start, stop and
   roll out a winner, over signet-server's `experimentAdminRoutes`.
+  `ExperimentForm` creates and edits one (key, variants with weights, a
+  JSON value or, with `offerings`, an offering and version per variant,
+  goal event, audience, start and stop). `PricingExperimentResults` is a
+  pricing experiment's readout from `GET /pricing/:experiment`: per variant
+  the offering, conversion with lift and p-value, trial conversion, revenue
+  per exposed user and an LTV marked as an estimate, with one-click rollout.
 - `screens/status-screens`: `StatusPage`, the public status page from
   signet-db's `status.summary()`: overall status, a maintenance notice,
-  components and recent incidents with their updates.
+  components and recent incidents with their updates. `StatusAdmin` is the
+  admin screen over `statusAdminRoutes`: the maintenance switch with message
+  and until, component statuses, and incidents opened, updated and resolved
+  (updates are append-only); its parts (`MaintenanceForm`,
+  `ComponentStatusList`, `IncidentForm`, `IncidentUpdateForm`) are exported.
   periods across stores and web, with ledger totals. `RemotePaywall` shows
   the customer's best offer (free trial, intro or win-back, from
   `customers.withOffers`), passes it to `onPurchase`, and calls
@@ -207,7 +217,8 @@ without an app changing. Each component's source starts with its recipe:
 | `spinner` | live-region |
 | `screens/billing-screens` | selection + roving-focus + controllable-state + live-region |
 | `screens/monetisation-screens` | selection + roving-focus + controllable-state + live-region |
-| `screens/experiment-screens` | selection + live-region |
+| `screens/experiment-screens` | selection + live-region + field-wiring |
+| `screens/status-screens` | live-region + field-wiring + roving-focus (timeline) |
 | `screens/funnel-screens` | selection + controllable-state + live-region |
 | `screens/subscription-charts` | field-wiring (labelled filters) + controllable-state (filters) |
 | `screens/growth-screens` | selection + roving-focus + controllable-state + popup + dismiss + live-region + field-wiring |

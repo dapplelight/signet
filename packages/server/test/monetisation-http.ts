@@ -13,6 +13,7 @@ import {
   monetisationAdminRoutes,
   monetisationRoutes,
   type OfferingStore,
+  type PricingStore,
 } from "../src/http/monetisation"
 
 let pass = 0,
@@ -31,10 +32,18 @@ class FakeDbError extends Error {
   }
 }
 
-const seen: { audience?: unknown; merge?: unknown; refund?: unknown; published?: unknown } = {}
+const seen: {
+  audience?: unknown
+  subject?: unknown
+  merge?: unknown
+  refund?: unknown
+  published?: unknown
+  placement?: unknown
+} = {}
 const offerings: OfferingStore = {
-  async current(placement, audience) {
+  async current(placement, audience, subject) {
     seen.audience = audience
+    seen.subject = subject
     return placement === "onboarding"
       ? { key: "default", version: 2, products: [], paywall: null }
       : null
@@ -55,6 +64,7 @@ const offerings: OfferingStore = {
     return [{ key: "default", version: 2 }]
   },
   async setPlacement(placement, input) {
+    seen.placement = input
     return { placement, ...input }
   },
   async placements() {
@@ -144,6 +154,9 @@ console.log("app routes")
     JSON.stringify(seen.audience) === JSON.stringify({ country: "IN", platform: "appstore" }),
     seen.audience,
   )
+  ok("no subject: none passed for assignment", seen.subject === null, seen.subject)
+  await req("/billing/offerings/onboarding", { user: "u7" })
+  ok("the caller is passed for sticky assignment and exposure", seen.subject === "u7", seen.subject)
   ok("unknown placement is 404", (await req("/billing/offerings/nowhere")).status === 404)
   ok("customer center needs a subject: 401", (await req("/billing/customer")).status === 401)
   ok(
@@ -467,6 +480,122 @@ console.log("charts, offers, impressions and promotional grants")
         404,
   )
   ok("offer requests are listable", (await r2("/admin/requests?kind=offer", admin)).status === 200)
+}
+
+console.log("pricing experiments")
+{
+  const got: Record<string, unknown> = {}
+  const pricing: PricingStore = {
+    async readout(key, opts) {
+      if (key !== "price-test") throw new FakeDbError("NOT_FOUND", `No experiment "${key}".`)
+      got.readout = opts
+      return { experiment: key, variants: [] }
+    },
+    async rollout(key, variant, { actor }) {
+      if (variant === "nope") throw new FakeDbError("BAD_VALUE", "not a variant")
+      got.rollout = { key, variant, actor: actor.id }
+      return { experiment: { key, status: "rolled_out" }, placements: [] }
+    },
+  }
+  const app3 = new Hono()
+  app3.onError(errorHandler({ isProduction: () => true }))
+  app3.route(
+    "/admin",
+    monetisationAdminRoutes({
+      offerings,
+      pricing,
+      authorize: (c) => c.req.header("x-role") === "admin",
+      actor: (c) => ({ type: "user", id: who(c) ?? "?" }),
+    }),
+  )
+  const r3 = (path: string, init: RequestInit & { user?: string; role?: string } = {}) =>
+    app3.request(path, {
+      ...init,
+      headers: {
+        "content-type": "application/json",
+        ...(init.user ? { "x-user": init.user } : {}),
+        ...(init.role ? { "x-role": init.role } : {}),
+      },
+    })
+  const admin = { user: "a1", role: "admin" }
+  ok(
+    "readout is admin only",
+    (await r3("/admin/pricing/price-test", { user: "a1" })).status === 403,
+  )
+  ok(
+    "rollout is admin only",
+    (
+      await r3("/admin/pricing/price-test/rollout", {
+        method: "POST",
+        body: JSON.stringify({ variant: "annual" }),
+        role: "staff",
+      })
+    ).status === 403 && !got.rollout,
+  )
+  const rd = await r3("/admin/pricing/price-test?alpha=0.01", admin)
+  ok(
+    "readout with alpha",
+    rd.status === 200 &&
+      (await rd.json()).readout.experiment === "price-test" &&
+      JSON.stringify(got.readout) === JSON.stringify({ alpha: 0.01 }),
+    got.readout,
+  )
+  ok("bad alpha: 400", (await r3("/admin/pricing/price-test?alpha=2", admin)).status === 400)
+  ok("unknown experiment: 404", (await r3("/admin/pricing/other", admin)).status === 404)
+  const ro = await r3("/admin/pricing/price-test/rollout", {
+    method: "POST",
+    body: JSON.stringify({ variant: "annual" }),
+    ...admin,
+  })
+  ok(
+    "rollout by the admin actor",
+    ro.status === 200 &&
+      JSON.stringify(got.rollout) ===
+        JSON.stringify({ key: "price-test", variant: "annual", actor: "a1" }),
+    got.rollout,
+  )
+  const noVar = await r3("/admin/pricing/price-test/rollout", {
+    method: "POST",
+    body: "{}",
+    ...admin,
+  })
+  ok("rollout needs a variant: 400", noVar.status === 400)
+  const badVar = await r3("/admin/pricing/price-test/rollout", {
+    method: "POST",
+    body: JSON.stringify({ variant: "nope" }),
+    ...admin,
+  })
+  ok("unknown variant: 400 VALIDATION_FAILED", (await badVar.json()).code === "VALIDATION_FAILED")
+  const link = await r3("/admin/placements/onboarding", {
+    method: "PUT",
+    body: JSON.stringify({ offering: "default", experiment: "price-test" }),
+    ...admin,
+  })
+  ok(
+    "a placement links an experiment",
+    link.status === 200 && (seen.placement as { experiment?: string }).experiment === "price-test",
+    seen.placement,
+  )
+  const badLink = await r3("/admin/placements/onboarding", {
+    method: "PUT",
+    body: JSON.stringify({ offering: "default", experiment: 7 }),
+    ...admin,
+  })
+  ok("experiment must be a key or null", badLink.status === 400)
+  const noPricing = new Hono()
+  noPricing.onError(errorHandler({ isProduction: () => true }))
+  noPricing.route(
+    "/admin",
+    monetisationAdminRoutes({
+      offerings,
+      authorize: () => true,
+      actor: () => ({ type: "user", id: "a" }),
+    }),
+  )
+  ok(
+    "without the pricing store: 404",
+    (await noPricing.request("/admin/pricing/price-test")).status === 404,
+  )
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)
