@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### mcp: component examples are no longer cut off
+
+`get_component` examples stopped after 16 lines, so longer ones (Chart, Alert Dialog and others) ended mid-component. They now run to the closing tag.
+
 ### ui: SkipLink
 
 - `SkipLink` (from `skip-link`): a "Skip to content" link, hidden until focused with Tab, that jumps to `#main` (or `target`). Label comes from `useLabels().skipToContent`.
