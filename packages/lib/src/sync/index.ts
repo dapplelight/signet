@@ -8,7 +8,7 @@
  * - Guarded fields (`options.guarded`, e.g. an amount or a date): never picked
  *   automatically. Every edit is kept on the row; edits that did not see each
  *   other's value (`base`) come back as a `Conflict` (`conflictOf`) for a person,
- *   whose pick is a `set` with `resolve: true`.
+ *   whose pick is a `set` with `resolve` listing the values the person saw.
  * - Delete vs edit: an edit after a delete brings the row back flagged
  *   (`deletedButEdited`), never silently lost or revived.
  *
@@ -37,7 +37,7 @@ export function receive(last: Hlc | null, remote: Hlc, now: number, node: string
 export type Value = string | number | boolean | null
 
 /** One edit of a guarded field, kept on the row so conflicts are worked out from the whole set. */
-export type GuardedEdit = { value: Value; base: Value; hlc: Hlc; resolve?: boolean }
+export type GuardedEdit = { value: Value; base: Value; hlc: Hlc; resolve?: Value[] }
 
 export type Row = {
   id: string
@@ -53,7 +53,7 @@ export type Row = {
  * A guarded-field clash. `shown` is the later edit, so every device and the
  * server show the same thing whatever order changes arrive in; `others` are the
  * competing values (latest first) nobody has settled. Nothing is decided until
- * a person picks (a `set` with `resolve: true`).
+ * a person picks (a `set` with `resolve`).
  */
 export type Conflict = { rowId: string; field: string; shown: Value; others: Value[] }
 
@@ -66,8 +66,12 @@ export type Change =
       /** What the editor saw in the field when they made this edit. */
       base: Value
       hlc: Hlc
-      /** A person's pick on a conflict: settles every earlier edit of this field. */
-      resolve?: boolean
+      /**
+       * A person's pick on a conflict: the values they saw (`shown` and `others`).
+       * Settles earlier edits of those values only; an older edit of any other
+       * value was never seen, so it stays in the conflict.
+       */
+      resolve?: Value[]
     }
   | { kind: "delete"; rowId: string; hlc: Hlc }
 
@@ -85,7 +89,8 @@ export function deletedButEdited(row: Row): boolean {
 /**
  * The open conflict on a guarded field, worked out from the edits on the row, so
  * it is the same whatever order they arrived in. An edit is settled once a later
- * edit either saw its value (`base` equals it) or is a person's `resolve`. The
+ * edit either saw its value (`base` equals it) or is a person's `resolve` that
+ * listed that value. The
  * edits still standing with different values are the clash.
  */
 export function conflictOf(row: Row, field: string): Conflict | null {
@@ -93,7 +98,10 @@ export function conflictOf(row: Row, field: string): Conflict | null {
   const win = edits.at(-1)
   if (!win) return null
   const standing = edits.filter(
-    (e) => !edits.some((l) => compareHlc(l.hlc, e.hlc) > 0 && (l.resolve || l.base === e.value)),
+    (e) =>
+      !edits.some(
+        (l) => compareHlc(l.hlc, e.hlc) > 0 && (l.resolve?.includes(e.value) || l.base === e.value),
+      ),
   )
   const others: Value[] = []
   for (const e of standing.reverse())

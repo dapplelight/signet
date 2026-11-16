@@ -123,7 +123,11 @@ ok(
     "overtaken change retried: nothing new",
     eq(apply(clash.row, a1, opts), { row: clash.row, conflict: null }),
   )
-  const pick = apply(clash.row, { ...set("amount", 600, 450, h(3, "c")), resolve: true }, opts)
+  const pick = apply(
+    clash.row,
+    { ...set("amount", 600, 450, h(3, "c")), resolve: [450, 600] },
+    opts,
+  )
   ok("a person's pick settles the clash", pick.conflict === null && pick.row.fields.amount === 600)
   ok(
     "after the pick, retries of either edit change nothing",
@@ -131,11 +135,37 @@ ok(
       eq(apply(pick.row, b1, opts), { row: pick.row, conflict: null }),
   )
   // The pick arriving first still settles the older edits that arrive later.
-  const early = apply(base(), { ...set("amount", 600, 450, h(3, "c")), resolve: true }, opts).row
+  const early = apply(
+    base(),
+    { ...set("amount", 600, 450, h(3, "c")), resolve: [450, 600] },
+    opts,
+  ).row
   const late = apply(apply(early, a1, opts).row, b1, opts)
   ok(
     "pick before the edits it settles: no clash",
     late.conflict === null && late.row.fields.amount === 600,
+  )
+}
+{
+  // An offline edit older than the pick but never seen by the person (900) stays in the clash, in any arrival order.
+  const A = set("amount", 600, 500, h(1, "a"))
+  const B = set("amount", 450, 500, h(2, "b"))
+  const D = set("amount", 900, 450, h(4, "d"))
+  const pick = { ...set("amount", 600, 450, h(5, "c")), resolve: [600, 450] }
+  const want = { rowId: "t1", field: "amount", shown: 600, others: [900] }
+  const orders = [
+    [A, B, pick, D],
+    [A, B, D, pick],
+    [D, pick, B, A],
+    [pick, D, A, B],
+    [B, D, A, pick],
+  ]
+  ok(
+    "a pick settles only the values it saw: an unseen older edit stays a conflict",
+    orders.every((o) => {
+      const row = o.reduce((r, c) => apply(r, c, opts).row, base())
+      return row.fields.amount === 600 && eq(conflictOf(row, "amount"), want)
+    }),
   )
 }
 {
