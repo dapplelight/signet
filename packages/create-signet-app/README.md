@@ -75,9 +75,7 @@ same-origin. In dev, Vite proxies `/api` to it. What a fresh app has:
 - **README.md**, a first-day guide: run, orgs, become admin, try billing, add a
   table → route → page, check, deploy.
 
-The API runs on Bun whichever package manager installs it. signet-db and
-signet-payments are not on npm yet, so a full app installs only once they are
-published (the test installs packs of this checkout).
+The API runs on Bun whichever package manager installs it.
 
 ## Why
 
