@@ -52,23 +52,39 @@ export function createSession(opts: CreateSessionOptions): Session {
   let loaded: Promise<SessionTokens | null> | undefined
   let current: SessionTokens | null = null
   let refreshing: Promise<string | null> | undefined
+  // Bumped by every write, so a read or refresh that was in flight can tell it is stale.
+  let gen = 0
 
+  // Reads storage into `current` unless a write landed meanwhile. A throw (storage failure) propagates.
+  const read = async () => {
+    const g = gen
+    const raw = await opts.storage.get(key)
+    if (g !== gen) return current
+    try {
+      const t = raw ? (JSON.parse(raw) as SessionTokens) : null
+      current = t && typeof t.accessToken === "string" ? t : null
+    } catch {
+      current = null
+    }
+    return current
+  }
+
+  // Cached after the first success; a failed read is not cached, the next call tries again.
   const load = () => {
-    loaded ??= opts.storage.get(key).then((raw) => {
-      try {
-        const t = raw ? (JSON.parse(raw) as SessionTokens) : null
-        current = t && typeof t.accessToken === "string" ? t : null
-      } catch {
-        current = null
-      }
-      return current
-    })
+    if (!loaded) {
+      const p = read()
+      loaded = p
+      p.catch(() => {
+        if (loaded === p) loaded = undefined
+      })
+    }
     return loaded
   }
 
   const write = async (tokens: SessionTokens | null) => {
-    await load()
+    gen++
     current = tokens
+    loaded = Promise.resolve(tokens)
     if (tokens) await opts.storage.set(key, JSON.stringify(tokens))
     else await opts.storage.remove(key)
     for (const l of listeners) l(tokens)
@@ -78,9 +94,19 @@ export function createSession(opts: CreateSessionOptions): Session {
     refreshing ??= (async () => {
       try {
         await load()
-        const t = current
+        // Compare with `current`, not the cached load: a pickup updates `current` but not `loaded`.
+        const before = current
+        // Another context sharing the storage may have refreshed (and rotated the refresh token) since we cached.
+        const t = await read()
+        if (t?.accessToken !== before?.accessToken) {
+          for (const l of listeners) l(t)
+          return t?.accessToken ?? null
+        }
         if (!t?.refreshToken || !opts.refresh) return null
+        const g = gen
         const next = await opts.refresh(t)
+        // A set() or clear() while the request was out wins over this result.
+        if (g !== gen) return current?.accessToken ?? null
         await write(next)
         return next?.accessToken ?? null
       } finally {
