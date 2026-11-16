@@ -406,7 +406,7 @@ try {
       pub.json.steps[2].markdown.includes("createWebhooks(db") &&
       pub.json.steps[3].markdown.includes("verifyWebhook(") &&
       pub.json.steps[4].markdown.includes("httpCache(") &&
-      !pub.json.install.includes("@dapplelight/signet-db"),
+      pub.json.install.includes("@dapplelight/signet-db"),
     pub.json?.id,
   )
   const dbr = await call("recipe", { task: "add a database" })
@@ -451,7 +451,7 @@ try {
         "createPricing(db",
         "monetisationRoutes(",
       ].every((t) => JSON.stringify(mon.json).includes(t)) &&
-      !mon.json.install.includes("@dapplelight/signet-db"),
+      mon.json.install.includes("@dapplelight/signet-db"),
     mon.json?.id,
   )
 
@@ -466,7 +466,7 @@ try {
       ["requireCaptcha(", "blockDisposableEmail(", "createAiSpend(db", "requireAiSpend("].every(
         (t) => JSON.stringify(abuse.json).includes(t),
       ) &&
-      !abuse.json.install.includes("@dapplelight/signet-db"),
+      abuse.json.install.includes("@dapplelight/signet-db"),
     abuse.json?.id,
   )
 
@@ -492,7 +492,7 @@ try {
         "maintenanceMode(",
         "experimentAdminRoutes(",
       ].every((t) => JSON.stringify(exr.json).includes(t)) &&
-      !exr.json.install.includes("@dapplelight/signet-db"),
+      exr.json.install.includes("@dapplelight/signet-db"),
     exr.json?.id,
   )
 
@@ -538,7 +538,7 @@ try {
         "funnelRoutes(",
         "payment_method_domains",
       ].every((t) => JSON.stringify(fun.json).includes(t)) &&
-      !fun.json.install.includes("@dapplelight/signet-db"),
+      fun.json.install.includes("@dapplelight/signet-db"),
     fun.json?.id,
   )
 
@@ -566,7 +566,7 @@ try {
         "collabRoutes",
         "notifyMentions",
       ].every((t) => JSON.stringify(col.json).includes(t)) &&
-      !col.json.install.includes("@dapplelight/signet-db"),
+      col.json.install.includes("@dapplelight/signet-db"),
     col.json?.id,
   )
 

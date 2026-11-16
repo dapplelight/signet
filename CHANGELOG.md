@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-mcp: recipes install signet-db
+
+- Recipes that use `@dapplelight/signet-db` (collaboration, webhooks, monetisation, AI spend, experiments, store admin, checkout funnels) now list it in their install line; it is published, the old comments saying it was private were stale.
+
 ### mcp: component examples are no longer cut off
 
 `get_component` examples stopped after 16 lines, so longer ones (Chart, Alert Dialog and others) ended mid-component. They now run to the closing tag.
