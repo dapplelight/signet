@@ -102,3 +102,8 @@ figure :focus-visible {
 :root {
   --fd-nav-height: 3.5rem;
 }
+
+/* Jump links (On this page, #anchors) land below the shared 3.5rem header. */
+:where(h1, h2, h3, h4)[id] {
+  scroll-margin-top: 5rem;
+}
