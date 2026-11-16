@@ -83,7 +83,7 @@
     },
     "packages/create-signet-app": {
       "name": "create-signet-app",
-      "version": "0.4.5",
+      "version": "0.4.6",
       "bin": {
         "create-signet-app": "./src/index.ts",
       },
@@ -142,7 +142,7 @@
     },
     "packages/mcp": {
       "name": "@dapplelight/signet-mcp",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "bin": {
         "signet-mcp": "./dist/bin.js",
       },
