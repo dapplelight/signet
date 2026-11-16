@@ -53,8 +53,12 @@ function moduleScopeEnvReads(src: string): number[] {
     const ch = c[i]
     if (ch === "{") {
       const before = c.slice(Math.max(0, i - 200), i).trimEnd()
+      // `) {`, `=> {`, `else {`, or `): ReturnType {` (the return type may hold `=>` but no `;={}`)
       const fn =
-        before.endsWith(")") || before.endsWith("=>") || /\b(?:else|try|finally|do)$/.test(before)
+        before.endsWith(")") ||
+        before.endsWith("=>") ||
+        /\b(?:else|try|finally|do)$/.test(before) ||
+        /\)\s*:\s*(?:[^;={}]|=>)+$/.test(before)
       stack.push(fn)
       if (fn) fnDepth++
     } else if (ch === "}") {

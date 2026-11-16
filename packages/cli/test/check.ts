@@ -132,6 +132,28 @@ app.get("/", () => secret)
     r.out,
   )
 
+  // A function with a return type annotation is a function body, not module scope.
+  const typed = app("typed", {
+    "src/app.ts": `import { Hono } from "hono"
+export function getKey(): string {
+  return process.env.KEY ?? ""
+}
+export async function f(): Promise<void> {
+  if (process.env.X) return
+}
+export const g = (): (() => void) => {
+  return () => process.env.Y
+}
+export const app = new Hono()
+`,
+  })
+  const t = (await import("../src/check-conventions.js")).conventions(typed)
+  ok(
+    "env read inside a function with a return type is not module scope",
+    !t.some((f) => f.rule === "env-module-scope"),
+    t,
+  )
+
   const h = await run("--cwd", bad)
   ok(
     "human output: steps, finding lines, fix line, summary",
