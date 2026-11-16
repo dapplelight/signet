@@ -15,4 +15,8 @@ Generated, versioned JSON files in `schemas/`:
 - `tracked-event.schema.json`
 - `webhook-delivery.schema.json`
 
+OpenAPI documents in `openapi/`:
+
+- `auth.openapi.json`
+
 Docs: signet.dapplelight.in/docs/packages/spec

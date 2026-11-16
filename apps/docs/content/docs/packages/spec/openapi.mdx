@@ -1,0 +1,35 @@
+---
+title: "OpenAPI"
+description: "OpenAPI 3.1 document for the session and client-login auth routes."
+---
+
+## Usage
+
+```ts
+import auth from "@dapplelight/signet-spec/openapi/auth.openapi.json" with { type: "json" }
+
+auth.paths["/token"].post.operationId // "token"
+```
+
+Paths are relative to the mount prefix. The `authPrefix` server variable defaults to `/api/auth`. The session routes are mounted apart, at `/api/sessions` by default, because their middleware guards every path under its prefix.
+
+Session routes use the Signet error envelope, described at [Error](/docs/packages/spec/error). They are guarded by the stored-session cookie.
+
+OAuth routes answer `{ error, error_description? }`, send `Cache-Control: no-store` and may send `Retry-After`. `POST /token` takes the grants `authorization_code`, `refresh_token` and `urn:ietf:params:oauth:grant-type:device_code`. The error values are `invalid_request`, `invalid_client`, `invalid_grant`, `unsupported_grant_type`, `authorization_pending`, `slow_down`, `expired_token`, `invalid_code` and `rate_limited`.
+
+`POST /revoke` always answers 200.
+
+The routes are in [Server auth](/docs/packages/server/auth). A test mounts the real routes and checks every response against this document, and another fails when the committed file drifts. The same bytes are served at `/spec/v1/auth.openapi.json`.
+
+## API
+
+| Method and path | What it does |
+| --- | --- |
+| `GET /` | Lists the signed-in user's sessions. |
+| `POST /revoke-others` | Signs out every other session. |
+| `DELETE /:id` | Revokes one of the user's sessions. |
+| `GET /authorize` | Redirects with an authorization code (PKCE S256). |
+| `POST /token` | Exchanges a grant for access and refresh tokens. |
+| `POST /device/code` | Starts the device flow. |
+| `POST /device/approve` | Approves a device's user code. |
+| `POST /revoke` | Signs a client out. |
