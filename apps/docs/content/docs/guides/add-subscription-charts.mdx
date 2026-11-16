@@ -1,0 +1,97 @@
+---
+title: "Add Subscription Charts and Offers"
+description: "MRR, churn and trial conversion charts, free-trial and win-back offers, promotional grants and Apple refund answers."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-server @dapplelight/signet-ui recharts hono drizzle-orm
+```
+This builds on [Add remote paywalls](/docs/guides/add-monetisation).
+</Step>
+<Step>
+### Create the charts
+```ts title="server/charts.ts"
+import { chartsCsv, createCharts } from "@dapplelight/signet-db/charts"
+
+export const charts = createCharts(db, {
+  tables: { customerEvents, chartAudiences, offerings },
+  fx: { base: "USD", rates: { INR: 0.012, EUR: 1.08 } }, // optional: totals in one currency
+})
+
+const r = await charts.metrics({ from: "2026-10-01", to: "2026-10-31", store: "appstore", country: "IN" })
+// r.days[i]: activeSubscribers, mrr, newRevenue, refunds, churned, trialConversions, ...
+const a = await charts.saveAudience("India App Store", { store: "appstore", country: "IN" }, { actor })
+await charts.csv({ from: "2026-10-01", to: "2026-10-31", audience: a.id })
+```
+Log paywall views so conversion can be measured:
+```ts title="server/routes/paywall.ts"
+await customers.logImpression(userId, { offering: "default", version: 3, country: "IN" })
+```
+</Step>
+<Step>
+### Serve and draw them
+```ts title="server/app.ts"
+app.route("/api/admin/billing", monetisationAdminRoutes({ offerings: off, customers, charts, authorize, actor }))
+```
+```tsx title="app/admin/revenue.tsx"
+import { SubscriptionCharts } from "@dapplelight/signet-ui/screens/subscription-charts"
+```
+</Step>
+<Step>
+### Publish a trial and a win-back offer
+```ts title="server/monetisation.ts"
+await off.publish("default", {
+  products: [{
+    id: "pro.monthly", store: "appstore", plan: "pro", interval: "month",
+    offers: [
+      { id: "trial7", type: "free_trial", days: 7 },
+      { id: "winback50", type: "win_back", price: { amount: 249, currency: "USD" }, days: 30,
+        eligibility: { lapsedDays: 30 } },
+    ],
+  }],
+}, { actor })
+
+const offering = await customers.withOffers(userId, await off.current("onboarding", audience))
+await customers.redeemOffer(userId, offering, "winback50")
+```
+Each offer is once per customer. `redeemOffer` claims it before you apply it at checkout.
+</Step>
+<Step>
+### Grant a promotional plan
+```ts title="server/admin.ts"
+await customers.grantPromotional(userId, { plan: "pro", days: 30, note: "Beta tester" }, { actor })
+await customers.endPromotional(userId, grantId, { actor }) // early
+```
+It lapses exactly at its expiry, with no job to run, and charts leave it out.
+</Step>
+<Step>
+### Answer Apple refund requests
+```ts title="server/customers.ts"
+const customers = createCustomers(db, {
+  tables,
+  entitlements: ent,
+  payments: store,
+  consumption: {
+    consented: (subject) => privacy.has(subject, "apple_refund_info"), // no consent, no answer
+  },
+})
+
+onEvent: async (e) => {
+  await customers.record(e)
+  const r = await customers.consumptionInfo(e)
+  if (r.respond) await appstoreGateway.sendConsumptionInfo(r.transactionId, r.body)
+}
+```
+Apple wants the answer within 12 hours.
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="Charts" href="/docs/packages/db/charts" description="How the timeline becomes MRR, churn and conversion." />
+  <Card title="Subscription charts" href="/docs/components/subscription-charts" description="The chart component and its filters." />
+  <Card title="Customers" href="/docs/packages/db/customers" description="Offers, promotional grants and refund requests." />
+</Cards>

@@ -1,0 +1,86 @@
+---
+title: "Add MCP Tools to an App"
+description: "A typed, scoped MCP endpoint behind OAuth, with errors mapped to the Signet envelope, plus a stdio entry."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-server @modelcontextprotocol/server zod hono
+```
+Keep one copy of zod at 4.2 or later in the tree (`npm ls zod`).
+</Step>
+<Step>
+### Define the tools once
+```ts title="server/mcp/tools.ts"
+import { z } from "zod"
+import { ApiException } from "@dapplelight/signet-server/http"
+import { defineTool } from "@dapplelight/signet-server/mcp"
+
+export const tools = [
+  defineTool({
+    name: "get_order",
+    description: "Read back an order by id.",
+    input: z.object({ id: z.string().uuid(), expand: z.boolean().default(false) }),
+    scopes: ["orders:read"], // checked against the verified token
+    annotations: { readOnlyHint: true },
+    handler: async ({ id, expand }, { token, c }) => {
+      const order = await ordersFor(c!.env).get(id, token!.claims.sub)
+      if (!order) throw new ApiException(404, "Order not found", "ORDER_NOT_FOUND")
+      return expand ? order : { id: order.id, status: order.status }
+    },
+  }),
+]
+```
+</Step>
+<Step>
+### Mount it behind OAuth
+```ts title="server/app.ts"
+import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
+import { registerProtectedResourceMetadata, requireToken } from "@dapplelight/signet-server/oauth-rs/hono"
+import { META, RESOURCE, verifier } from "./oauth"
+import { tools } from "./mcp/tools"
+
+registerProtectedResourceMetadata(app, {
+  resource: RESOURCE,
+  authorizationServers: ["https://auth.example.com"],
+})
+mountMcp(app, "/mcp", {
+  name: "orders",
+  version: "1.0.0",
+  tools,
+  middleware: [requireToken({ verifier, resourceMetadataUrl: META })],
+  onError: (err, { tool }) => sentry.captureException(err, { tool }),
+})
+```
+Auth runs before MCP, so an unauthenticated request is a 401.
+</Step>
+<Step>
+### Or serve the same tools over stdio
+```ts title="server/mcp/stdio.ts"
+import { serveStdio } from "@modelcontextprotocol/server/stdio"
+import { createMcpServer } from "@dapplelight/signet-server/mcp"
+import { tools } from "./tools"
+
+serveStdio(() => createMcpServer({ name: "orders", version: "1.0.0", tools }))
+```
+A stdio tool gets no `c` and no `token`, so a scoped tool is refused there.
+</Step>
+<Step>
+### Verify
+```bash
+npm run test
+```
+Then call `tools/list` from an MCP client with a valid token.
+</Step>
+</Steps>
+
+Anything a handler throws other than `ApiException`, an `HTTPException` or a `ZodError` becomes `INTERNAL_ERROR` and its message never reaches the client.
+
+## Next
+<Cards>
+  <Card title="MCP servers" href="/docs/packages/server/mcp" description="Typed output, resources, prompts, confirm and progress." />
+  <Card title="Expose routes as tools" href="/docs/guides/mcp-by-default" description="Turn existing routes into tools with approvals." />
+  <Card title="OAuth" href="/docs/guides/add-oauth" description="The token verifier used above." />
+</Cards>

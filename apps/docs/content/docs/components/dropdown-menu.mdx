@@ -201,11 +201,23 @@ export function Demo() {
 
 Built on Radix's Dropdown Menu. Every part takes that primitive's props; these are the Signet additions.
 
+### DropdownMenu
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `open` | `boolean` | - | Controlled open state. |
+| `defaultOpen` | `boolean` | `false` | Initial state when uncontrolled. |
+| `onOpenChange` | `(open: boolean) => void` | - | Runs when it opens or closes. |
+| `modal` | `boolean` | `true` | Block pointer interaction outside while open. |
+
 ### DropdownMenuContent
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
 | `sideOffset` | `number` | `4` | Gap from the trigger in px. |
+| `side` | `"top" \| "right" \| "bottom" \| "left"` | `"bottom"` | Preferred side; flips when there is no room. |
+| `align` | `"start" \| "center" \| "end"` | `"center"` | Alignment against the trigger. |
+| `loop` | `boolean` | `false` | Wrap arrow keys at the ends. |
 | `className` | `string` | none | Merged onto the content. Rendered in a portal. |
 
 ### DropdownMenuItem, DropdownMenuLabel, DropdownMenuSubTrigger
@@ -213,6 +225,8 @@ Built on Radix's Dropdown Menu. Every part takes that primitive's props; these a
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
 | `inset` | `boolean` | `false` | Indent to line up with items that have an indicator. |
+| `onSelect` (`DropdownMenuItem`) | `(event: Event) => void` | - | Runs on choice; `event.preventDefault()` keeps the menu open. |
+| `disabled` (`DropdownMenuItem`, `DropdownMenuSubTrigger`) | `boolean` | `false` | Not focusable or selectable. |
 | `className` | `string` | none | Merged last. |
 
 ### Other parts

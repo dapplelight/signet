@@ -154,14 +154,20 @@ export function Demo() {
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
-| `defaultValue` | `number[]` | `[min, max]` | Initial value. One entry per thumb. |
+| `defaultValue` | `number[]` | none | Initial values, one entry per thumb. Pass an array even for one thumb: the thumb count comes from the array, and without `value` or `defaultValue` two thumbs render. |
 | `value` | `number[]` | `-` | Controlled value. |
-| `onValueChange` | `(value: number[]) => void` | `-` | Called as the value changes. |
+| `onValueChange` | `(value: number[], details) => void` | `-` | Called as the value changes. |
+| `onValueCommitted` | `(value: number[], details) => void` | `-` | Called when a drag, key press or track press ends. |
 | `min` | `number` | `0` | Lowest value. |
 | `max` | `number` | `100` | Highest value. |
 | `step` | `number` | `1` | Increment. |
+| `largeStep` | `number` | `10` | Increment for Page Up, Page Down and Shift + arrow. |
+| `minStepsBetweenValues` | `number` | `0` | Least number of steps between range thumbs. |
+| `thumbCollisionBehavior` | `"push" \| "swap" \| "none"` | `"push"` | What colliding range thumbs do. |
+| `thumbAlignment` | `"center" \| "edge" \| "edge-client-only"` | `"edge"` | Signet sets `edge` so a thumb at `min` or `max` stays inside the track. |
+| `name` | `string` | `-` | Form field name. |
 | `orientation` | `"horizontal" \| "vertical"` | `"horizontal"` | Direction of the slider. |
 | `disabled` | `boolean` | `false` | Blocks interaction. |
 | `aria-label` | `string` | `-` | Name for the thumb. Applied only when there is a single thumb; `aria-labelledby` works the same way. |
 
-The remaining props come from the Base UI slider root.
+The remaining props come from the Base UI slider root. For a range slider, name each thumb yourself: only a single-thumb slider gets `aria-label`.

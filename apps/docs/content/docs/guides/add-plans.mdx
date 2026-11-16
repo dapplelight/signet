@@ -1,0 +1,99 @@
+---
+title: "Add Plans, Entitlements and Feature Flags"
+description: "Plans with features and usage limits, billing events applied to them, and flags with rules and percentage rollouts."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-db drizzle-orm
+```
+</Step>
+<Step>
+### Declare plans and create the service
+```ts title="server/entitlements.ts"
+import { entitlementTables } from "@dapplelight/signet-db/columns/sqlite" // or /columns/pg
+import { createEntitlements, definePlans } from "@dapplelight/signet-db/entitlements"
+
+export const { subjectPlans, entitlementOverrides, usageCounters } = entitlementTables()
+
+// Declare plans lowest first.
+export const plans = definePlans({
+  free: { features: ["export"], limits: { seats: 1, aiCredits: 20 } },
+  pro: { features: ["export", "sso"], limits: { seats: 10, aiCredits: 1000 } },
+  team: { features: ["export", "sso", "audit"], limits: { seats: Infinity, aiCredits: 5000 } },
+})
+
+export const ent = createEntitlements(db, {
+  plans,
+  default: "free",
+  tables: { subjectPlans, entitlementOverrides, usageCounters },
+  periods: { seats: "total" }, // aiCredits resets monthly by default
+  billing: { plans: { plan_Nx1: "pro", price_9f: "team" }, graceMs: 3 * 86_400_000 },
+})
+```
+The db needs an audit table: every write goes through `audited`.
+</Step>
+<Step>
+### Check and spend
+```ts title="server/routes/export.ts"
+if (!(await ent.can(orgId, "sso"))) return c.json({ error: "Upgrade to use SSO" }, 403)
+
+const spent = await ent.consume(orgId, "aiCredits", 5) // { ok, used, limit, remaining, period }
+if (!spent.ok) return c.json({ error: "Out of credits" }, 402)
+```
+`consume` is one conditional update, so concurrent requests cannot overspend.
+</Step>
+<Step>
+### Apply billing events
+```ts title="server/payments.ts"
+const payments = createPayments({
+  gateways,
+  db: store,
+  onEvent: (event) => ent.applyBillingEvent(event),
+})
+// At checkout, link the subscription to the subject on its first event:
+await ent.applyBillingEvent(event, { subject: orgId })
+```
+</Step>
+<Step>
+### Grant and override by hand
+```ts title="server/admin.ts"
+const actor = { type: "user", id: adminId } as const
+await ent.setPlan(orgId, "pro", { actor })
+await ent.grant(orgId, "audit", { actor, expiresAt: trialEnd })
+```
+</Step>
+<Step>
+### Add feature flags
+```ts title="server/flags.ts"
+import { createFlags, defineFlags } from "@dapplelight/signet-db/flags"
+import { ent } from "./entitlements"
+import { flagOverrides } from "./db/schema"
+
+const flags = defineFlags({
+  newEditor: {
+    default: false,
+    rules: [
+      { when: { plan: ["team"] }, value: true },
+      { when: { attributes: { country: ["IN", "LK"] } }, value: true },
+    ],
+    rollout: { percent: 10, value: true },
+  },
+})
+
+export const ff = createFlags(db, flags, { table: flagOverrides, entitlements: ent })
+
+await ff.get("newEditor", { id: userId, attributes: { country } }) // { value, reason: "rule", rule: 1 }
+```
+First match wins: the subject's override, the everyone override, the rules in order, the rollout, the default.
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="Entitlements" href="/docs/packages/db/entitlements" description="App Store, Google Play, restore and agent tools." />
+  <Card title="Feature flags" href="/docs/packages/db/flags" description="Salt, expiry and audited overrides." />
+  <Card title="Payments" href="/docs/guides/payments" description="The checkout and webhook inbox that feed billing events." />
+</Cards>

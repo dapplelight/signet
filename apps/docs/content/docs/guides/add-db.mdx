@@ -1,0 +1,73 @@
+---
+title: "Add a Database"
+description: "A scoped, soft-deleting, optionally encrypted database layer on D1, SQLite or Postgres, with money, an outbox and idempotent writes."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-db drizzle-orm zod
+```
+</Step>
+<Step>
+### Connect
+```ts title="src/server/db.ts"
+import { createDb } from "@dapplelight/signet-db/d1"
+import * as schema from "./schema"
+
+export const dbFor = (bindings: { DB: D1Database }) => createDb(bindings.DB, { schema })
+```
+For SQLite on Bun use `@dapplelight/signet-db/sqlite`, for Postgres `@dapplelight/signet-db/postgres`.
+</Step>
+<Step>
+### Scope every query to the user
+```ts title="src/server/orders.ts"
+import { scoped } from "@dapplelight/signet-db"
+
+const me = scoped(db, { userId: session.userId })
+await me.insert(orders, { item: "Dosa" })
+await me.select(orders, eq(orders.item, "Dosa"), { orderBy: desc(orders.createdAt), limit: 20 })
+await me.delete(orders, eq(orders.id, id))
+```
+Deletes set `deletedAt` unless you pass `{ hard: true }`.
+</Step>
+<Step>
+### Store money and secrets
+```ts title="src/db/schema.ts"
+import { money, encrypted, id } from "@dapplelight/signet-db/columns/sqlite"
+
+export const items = sqliteTable("items", { id: id(), ...money("price", { currency: "INR" }) })
+export const profiles = sqliteTable("profiles", { id: id(), userId: text("user_id").notNull(), pan: encrypted("pan") })
+```
+```ts title="src/server/db.ts"
+import { createCipher } from "@dapplelight/signet-db"
+
+const cipher = createCipher({ keys: { k1: bindings.FIELD_KEY }, current: "k1" })
+const db = createDb(bindings.DB, { schema, cipher })
+```
+</Step>
+<Step>
+### Make writes safe to retry
+```ts title="src/server/orders.ts"
+import { withIdempotency, enqueue, drainOutbox } from "@dapplelight/signet-db"
+
+const order = await withIdempotency(db, c.req.header("idempotency-key") ?? "", userId, () =>
+  scoped(db, { userId }).insert(orders, body),
+)
+await db.batch([
+  (tx) => tx.insert(orders).values(order),
+  enqueue(db, "order.created", { orderId: order.id }),
+])
+await drainOutbox(db, queue, { batch: 50 })
+```
+Create the db with `idempotency` and `outbox` tables set.
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="DB" href="/docs/packages/db" description="Every helper and column." />
+  <Card title="Columns" href="/docs/packages/db/columns" description="Money, encrypted, ids and timestamps." />
+  <Card title="D1" href="/docs/packages/db/d1" description="Atomic groups as one batch." />
+</Cards>

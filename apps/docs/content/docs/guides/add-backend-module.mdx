@@ -1,0 +1,51 @@
+---
+title: "Add a Backend Module to an API App"
+description: "Wire auth, a database, an admin API, payments or notifications into an app made from the api template."
+---
+
+<Steps>
+<Step>
+### Add the module
+```bash
+npx @dapplelight/signet-cli add auth payments
+```
+</Step>
+<Step>
+### Check what it wired
+```ts title="src/app.ts"
+import { authRoutes } from "./server/auth.ts"
+import { paymentsRoutes } from "./server/payments.ts"
+
+export const app = new Hono()
+  .route("/api/sessions", authRoutes())
+  .route("/webhooks", paymentsRoutes())
+  .onError(errorHandler({ isProduction }))
+```
+Each module adds an import and one `.route(...)` line before `.onError(`.
+</Step>
+<Step>
+### Fill in the keys
+```ts title="src/env.ts"
+export const envSchema = z.object({
+  SESSION_SECRET: z.string().min(32),
+  STRIPE_SECRET_KEY: z.string().min(1),
+})
+```
+New keys also land in `.env.example`.
+</Step>
+<Step>
+### Preview an upgrade
+```bash
+npx @dapplelight/signet-cli upgrade --dry-run
+```
+Upgrade merges upstream changes into your edited module files and runs the codemods your installed versions need.
+</Step>
+</Steps>
+
+Modules: `auth`, `db`, `admin`, `payments`, `notify`. `admin` pulls in `auth` and `db`. Running a module again adds nothing twice.
+
+## Next
+<Cards>
+  <Card title="CLI" href="/docs/packages/cli" description="Every command, flag and codemod." />
+  <Card title="Auth" href="/docs/packages/server/auth" description="What the auth module wires." />
+</Cards>

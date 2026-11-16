@@ -33,6 +33,8 @@ const { value, meta } = await ai.extract({
 | `ExtractConfig`, `ExtractArgs`, `Extractor` | Types |
 | `ExtractResult<T>`, `ExtractMeta` | Result `{ value, meta }`; meta has `provider`, `model`, `usage`, `costUsd`, `cacheHit`, `attempts`, `durationMs` |
 | `Provider`, `Pricing`, `Usage`, `BudgetOptions` | Types from the root |
+| `analyticsUsage(sink, name?)` | An `onUsage` that writes each report to an analytics sink as one event. Default `name` is `ai.usage`. |
+| `OnUsage`, `UsageReport`, `UsageSink` | Types. `UsageSink` is any `{ write(events) }`, such as signet-server's `AnalyticsSink`. |
 
 ### createExtractor(config)
 | Option | Type | Default | |
@@ -60,3 +62,11 @@ const { value, meta } = await ai.extract({
 <Callout type="info">
 A `fallback` never masks a budget refusal. Running out of money must be visible.
 </Callout>
+
+### Send usage to analytics
+`analyticsUsage` is exported from `@dapplelight/signet-ai`. It writes one event per report with `operation`, `provider`, `model`, `inputTokens`, `outputTokens`, `costUsd`, `durationMs` and the budget `key`; a cache hit adds `cacheHit: 1` and `savedUsd`. A sink that rejects is ignored, so analytics never fails a paid call.
+```ts
+import { analyticsUsage } from "@dapplelight/signet-ai"
+
+const ai = createExtractor({ providers, onUsage: analyticsUsage(sink) })
+```

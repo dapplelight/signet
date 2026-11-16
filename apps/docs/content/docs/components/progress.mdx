@@ -133,10 +133,11 @@ const [value, setValue] = useState(30)
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
-| value | `number \| null` | - | Current value. `null` means indeterminate. |
+| value | `number \| null` | required | Current value. `null` means indeterminate. |
 | min | `number` | 0 | Lowest value. |
 | max | `number` | 100 | Highest value. |
 | format | `Intl.NumberFormatOptions` | - | How the value is formatted. |
+| locale | `Intl.LocalesArgument` | browser | Locale for formatting the value. |
 | getAriaValueText | `(formatted, value) => string` | - | Accessible value text. |
 | className | `string` | - | Class on the root. |
 | children | `ReactNode` | - | `ProgressLabel` and `ProgressValue`, shown above the bar. |
@@ -151,7 +152,7 @@ const [value, setValue] = useState(30)
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
-| children | `(formatted, value) => ReactNode` | - | Custom text for the value. Defaults to the formatted percentage. |
+| children | `(formatted: string \| null, value: number \| null) => ReactNode` | - | Custom text for the value. Defaults to the formatted percentage. |
 | className | `string` | - | Class on the value. |
 
 ### ProgressTrack / ProgressIndicator

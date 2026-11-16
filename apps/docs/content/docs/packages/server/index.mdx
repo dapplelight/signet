@@ -9,6 +9,14 @@ npm i @dapplelight/signet-server
 
 `hono`, `zod` and `@modelcontextprotocol/server` are optional peers, needed only by the modules that use them. Every module takes a config object and never reads env at import, so it runs on Workers, Node and Bun.
 
+<AgentPrompt title="Add Signet's server kit to this API">
+Add the Signet MCP server so you can read Signet's docs: run `claude mcp add signet -- bunx @dapplelight/signet-mcp`, or add it to .cursor/mcp.json with command "bunx" and args ["@dapplelight/signet-mcp"].
+
+Then install `@dapplelight/signet-server` along with `hono` and `zod`, and wire it into my Hono app: requestId() on "*", rateLimit() on "/api/*", errorHandler() through app.onError, and zValidator("json", schema) on every route that reads a body.
+
+Throw ApiException for expected errors instead of returning ad-hoc JSON. Import from the subpath modules, such as `@dapplelight/signet-server/http`. Look up each module's options with the MCP tools before using it, then run my typecheck and tests.
+</AgentPrompt>
+
 ## Quick start
 
 ```ts

@@ -1,0 +1,63 @@
+---
+title: "Add a Waitlist, Invites, Referrals and Onboarding"
+description: "Launch tooling in your own database: waitlist, one-shot invites, referral rewards, onboarding progress, a changelog and feedback."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-db drizzle-orm
+```
+</Step>
+<Step>
+### Create the tables and service
+```ts title="src/server/growth.ts"
+import { growthTables } from "@dapplelight/signet-db/columns/sqlite"
+import { createGrowth } from "@dapplelight/signet-db/growth"
+
+export const { waitlist, invites, referralCodes, referrals, marks, feedback } = growthTables()
+
+export const growth = createGrowth(db, {
+  tables: { waitlist, invites, referralCodes, referrals, marks, feedback },
+  inviteTtlMs: 7 * 86_400_000,
+})
+```
+</Step>
+<Step>
+### Run the waitlist and invites
+```ts title="src/server/launch.ts"
+await growth.joinWaitlist(email, { source: "launch", referralCode })
+await growth.markInvited([email])
+
+const { invite, token } = await growth.createInvite({ invitedBy: userId, scope: orgId, role: "member", email })
+const result = await growth.acceptInvite(token, { userId, email })
+```
+The token is returned once; only its hash is stored.
+</Step>
+<Step>
+### Reward referrals once
+```ts title="src/server/referrals.ts"
+const code = await growth.referralCode(userId)
+await growth.refer(code, newUserId)
+
+const c = await growth.convertReferral(newUserId)
+if (c?.first) await growth.markRewarded(newUserId)
+```
+</Step>
+<Step>
+### Track onboarding, changelog and feedback
+```ts title="src/server/onboarding.ts"
+await growth.completeStep(userId, "profile")
+const progress = await growth.onboarding(userId, ["profile", "invite", "first-project"])
+const unseen = await growth.unseenChangelog(userId, entries)
+await growth.sendFeedback({ subject: userId, kind: "bug", message, rating: 4, page: "/settings" })
+```
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="Growth" href="/docs/packages/db/growth" description="Every call and failure reason." />
+  <Card title="Growth screens" href="/docs/components/growth-screens" description="Waitlist, invite and feedback UI." />
+</Cards>

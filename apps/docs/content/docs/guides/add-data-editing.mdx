@@ -1,0 +1,89 @@
+---
+title: "Add CSV Import, an Editable Grid and a Rich Text Editor"
+description: "Bulk-import customers from a CSV, edit them in a spreadsheet-style grid, and store sanitised rich notes."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-ui @dapplelight/signet-server @dapplelight/signet-db zod
+npm i @tiptap/react @tiptap/pm @tiptap/starter-kit @tiptap/extension-mention @tiptap/extension-link
+```
+The Tiptap packages are only for the rich text editor.
+</Step>
+<Step>
+### Import a CSV
+```tsx title="src/web/customers-import.tsx"
+import { CsvImport } from "@dapplelight/signet-ui/domain/csv-import"
+
+const schema = z.object({ name: z.string().min(1), email: z.email(), plan: z.enum(["free", "pro"]) })
+
+<CsvImport
+  fields={[{ key: "name", required: true }, { key: "email", aliases: ["E-mail"] }, { key: "plan" }]}
+  schema={schema}
+  onImport={(rows) => api.post("/customers/import", { rows })}
+/>
+```
+</Step>
+<Step>
+### Insert the rows on the server
+```ts title="src/server/customers.ts"
+import { bulkInsert } from "@dapplelight/signet-db/import"
+
+app.post("/customers/import", async (c) => {
+  const { rows } = await c.req.json()
+  const ops = audited(scoped(db, { orgId: c.get("orgId") }))
+  return c.json(await bulkInsert(ops, customers, rows, { key: "externalId" }))
+})
+```
+Importing the same file twice inserts nothing new.
+</Step>
+<Step>
+### Edit in a grid
+```tsx title="src/web/customers-grid.tsx"
+import { DataGrid } from "@dapplelight/signet-ui/components/data-grid"
+
+<DataGrid
+  aria-label="Customers"
+  rows={rows}
+  getRowId={(r) => r.id}
+  columns={[
+    { id: "name", header: "Name" },
+    { id: "seats", header: "Seats", type: "number" },
+    { id: "plan", header: "Plan", type: "select", options: [{ value: "free", label: "Free" }, { value: "pro", label: "Pro" }] },
+  ]}
+  onChange={async (changes) => {
+    await api.patch("/customers", { changes })
+    setRows((all) => applyChanges(all, changes))
+  }}
+/>
+```
+A throw from `onChange` reverts the cells and marks them with the error.
+</Step>
+<Step>
+### Write rich notes
+```tsx title="src/web/note.tsx"
+import { RichTextEditor, RichTextContent } from "@dapplelight/signet-ui/components/rich-text-editor"
+
+<RichTextEditor aria-label="Note" value={body} onValueChange={setBody} onMentionSearch={(q) => api.get(`/mentions?q=${q}`)} />
+<RichTextContent value={body} />
+```
+</Step>
+<Step>
+### Sanitise on save
+```ts title="src/server/notes.ts"
+import { sanitizeMarkdown } from "@dapplelight/signet-server/http/sanitize"
+
+const NoteInput = z.object({ body: z.string().max(20_000).transform(sanitizeMarkdown) })
+```
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="CSV import" href="/docs/components/csv-import" description="Fields, labels and the parse helpers." />
+  <Card title="Data grid" href="/docs/components/data-grid" description="Keyboard, paste and column types." />
+  <Card title="Rich text editor" href="/docs/components/rich-text-editor" description="Toolbar, mentions and safe rendering." />
+  <Card title="Import" href="/docs/packages/db/import" description="bulkInsert and its report." />
+</Cards>

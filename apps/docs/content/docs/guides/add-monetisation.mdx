@@ -1,0 +1,122 @@
+---
+title: "Add Remote Paywalls and a Customer Center"
+description: "Offerings you publish without an app release, a paywall per placement, self-serve cancel and refund, and anonymous-to-account merge."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-server @dapplelight/signet-db hono drizzle-orm
+```
+Plans and entitlements come first: see [Add plans](/docs/guides/add-plans).
+</Step>
+<Step>
+### Add the tables
+```ts title="server/db/schema.ts"
+import { monetisationTables } from "@dapplelight/signet-db/columns/sqlite" // or /columns/pg
+
+export const { offerings, placements, customerIdentities, customerEvents, customerRequests } =
+  monetisationTables()
+```
+</Step>
+<Step>
+### Publish an offering and point a placement at it
+```ts title="server/monetisation.ts"
+import { createOfferings, plansFromProducts } from "@dapplelight/signet-db/offerings"
+
+const products = [
+  { id: "pro.monthly", store: "appstore", plan: "pro", interval: "month" },
+  { id: "pro_monthly", store: "googleplay", plan: "pro", interval: "month" },
+  { id: "price_pro_m", store: "web", plan: "pro", interval: "month", price: { amount: 49900, currency: "INR" } },
+] as const
+
+export const off = createOfferings(db, { tables: { offerings, placements }, plans })
+export const ent = createEntitlements(db, {
+  plans,
+  default: "free",
+  tables,
+  billing: { plans: plansFromProducts(products) }, // what the paywall sells is what billing grants
+})
+
+await off.publish("default", {
+  products,
+  paywall: { title: "Go pro", plans: ["pro"], highlight: "pro", badge: "Best value", trial: "7 days free", cta: "Start trial" },
+}, { actor })
+await off.setPlacement("onboarding", {
+  offering: "default",
+  overrides: [{ when: { country: ["IN"], platform: ["web"] }, offering: "india" }],
+}, { actor })
+```
+Each publish is an immutable version. Pin one with `version: 1` to roll back.
+</Step>
+<Step>
+### Record customers and run the Customer Center
+```ts title="server/monetisation.ts"
+import { createCustomers } from "@dapplelight/signet-db/customers"
+
+export const customers = createCustomers(db, {
+  tables: { ...entitlementTables, customerIdentities, customerEvents, customerRequests },
+  entitlements: ent,
+  payments: store,
+  notify: (n) => notifier.notify(teamId, "customer.request", { kind: n.kind, text: n.text }),
+  cancel: (s) => payments.gateway(s.gateway).cancelSubscription(s.subscriptionId, { atPeriodEnd: true }),
+  retention: { offer: { kind: "discount", percent: 50, months: 3 }, apply: ({ source }) => applyCoupon(source) },
+})
+
+createPayments({
+  gateways,
+  db: store,
+  onEvent: async (e) => {
+    const subject = await customers.resolve(ownerOf(e))
+    await ent.applyBillingEvent(e, { subject })
+    await customers.record(e, { subject })
+  },
+})
+```
+</Step>
+<Step>
+### Merge an anonymous device into an account
+```ts title="server/routes/signin.ts"
+const anon = await customers.anonymousId({ orgId }) // "anon_<uuid>", before sign-in
+const r = await customers.merge({ anonymousId: anon, userId, orgId })
+// { merged: true, already: false, moved: { subscriptions, overrides, events, requests, payments } }
+```
+</Step>
+<Step>
+### Mount the routes
+```ts title="server/app.ts"
+import { monetisationAdminRoutes, monetisationRoutes } from "@dapplelight/signet-server/http/monetisation"
+
+const me = (c) => c.get("session")?.sub
+
+app.route("/api/billing", monetisationRoutes({
+  offerings: off,
+  customers,
+  subject: (c) => me(c) ?? c.req.header("x-app-user"),
+  userId: me,
+}))
+app.route("/api/admin/billing", monetisationAdminRoutes({
+  offerings: off,
+  customers,
+  authorize: (c) => c.get("session")?.role === "admin", // deny by default
+  actor: (c) => ({ type: "user", id: me(c) }),
+}))
+```
+Put `csrfMiddleware` in front when the session cookie is `SameSite=None`.
+</Step>
+<Step>
+### Render it
+```tsx title="app/paywall.tsx"
+import { RemotePaywall } from "@dapplelight/signet-ui/screens/monetisation-screens"
+```
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="Offerings" href="/docs/packages/db/offerings" description="Versions, placements and overrides." />
+  <Card title="Customers" href="/docs/packages/db/customers" description="Timeline, identity merge and the Customer Center." />
+  <Card title="Monetisation screens" href="/docs/components/monetisation-screens" description="RemotePaywall and CustomerCenter." />
+  <Card title="Charts and offers" href="/docs/guides/add-subscription-charts" description="MRR, trials, win-back offers and promotional grants." />
+</Cards>

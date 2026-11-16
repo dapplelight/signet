@@ -1,20 +1,26 @@
 ---
 title: "Package"
-description: "The package's own package.json, exported for tooling that reads it."
+description: "What the config package ships and how its exports map resolves."
 ---
+
+The config package has no code, only files. Its `exports` map is the whole public surface:
+
+| Specifier | File | Use |
+| --- | --- | --- |
+| `@dapplelight/signet-config/biome` | `biome.json` | `extends` in your `biome.json`. See [Biome](/docs/packages/config/biome). |
+| `@dapplelight/signet-config/biome.json` | `biome.json` | Same file, with the extension. |
+| `@dapplelight/signet-config/tsconfig/*.json` | `tsconfig/*.json` | `extends` in your `tsconfig.json`. See [TSConfig](/docs/packages/config/tsconfig). |
+| `@dapplelight/signet-config/package.json` | `package.json` | Lets tools that resolve a package root (bundlers, `require.resolve`, version checks) read it. |
+
+Only `biome.json` and `tsconfig/` are published, so nothing else resolves.
 
 ## Usage
 
+Read the installed version, for example in a doctor script that checks apps are on the current preset:
 ```ts
 import pkg from "@dapplelight/signet-config/package.json" with { type: "json" }
 
-console.log(pkg.version)
+console.log(pkg.name, pkg.version)
 ```
 
-## API
-
-| Export | What it does |
-| --- | --- |
-| `@dapplelight/signet-config/package.json` | The config package's `package.json`, for tools that read its name or version. |
-
-Most apps never import this. Use [Biome](/docs/packages/config/biome) and [TSConfig](/docs/packages/config/tsconfig) instead.
+Most apps never import it. Use [Biome](/docs/packages/config/biome) and [TSConfig](/docs/packages/config/tsconfig) instead.

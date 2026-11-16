@@ -198,13 +198,22 @@ const [status, setStatus] = useState<string | null>("pending")
 
 ### Select
 
+Base UI's Select root. Common props:
+
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
-| value | `string \| null` | - | Controlled value. |
-| defaultValue | `string` | - | Initial value when uncontrolled. |
-| onValueChange | `(value: string \| null, details) => void` | - | Called when the selection changes. |
+| value | `Value \| null` | - | Controlled value. |
+| defaultValue | `Value \| null` | - | Initial value when uncontrolled. |
+| onValueChange | `(value: Value \| null, details) => void` | - | Called when the selection changes. |
+| multiple | `boolean` | false | Allow several values; `value` becomes an array. |
+| items | `Record<string, ReactNode> \| { label, value }[]` | - | Lets `SelectValue` show an item's label instead of its raw value. |
+| open | `boolean` | - | Controlled open state. |
+| defaultOpen | `boolean` | false | Initial open state. |
+| onOpenChange | `(open: boolean, details) => void` | - | Called when the popup opens or closes. |
+| modal | `boolean` | true | Block outside interaction while open. |
 | name | `string` | - | Form field name. |
 | disabled | `boolean` | false | Disable the select. |
+| readOnly | `boolean` | false | Show the value but block changes. |
 | required | `boolean` | false | Require a choice in a form. |
 
 ### SelectTrigger
@@ -225,7 +234,7 @@ const [status, setStatus] = useState<string | null>("pending")
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
-| side | `"top" \| "bottom" \| "left" \| "right"` | `"bottom"` | Preferred side. |
+| side | `"top" \| "bottom" \| "left" \| "right" \| "inline-start" \| "inline-end"` | `"bottom"` | Preferred side. |
 | sideOffset | `number` | 4 | Gap from the trigger. |
 | align | `"start" \| "center" \| "end"` | `"center"` | Alignment against the trigger. |
 | alignOffset | `number` | 0 | Offset along the alignment axis. |
@@ -235,7 +244,7 @@ const [status, setStatus] = useState<string | null>("pending")
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
-| value | `string` | - | This option's value. |
+| value | `Value` | - | This option's value; any type, matching the root. |
 | disabled | `boolean` | false | Disable this option. |
 | children | `ReactNode` | - | Label. A truncated label shows a tooltip on hover. |
 

@@ -133,6 +133,14 @@ Built on `react-day-picker` v10, a peer dependency. Every `DayPicker` prop works
 | `mode` | `single` \| `multiple` \| `range` | - | Selection mode. |
 | `selected` | `Date \| Date[] \| DateRange` | - | Selected value, shaped by `mode`. |
 | `onSelect` | `(value) => void` | - | Runs when the selection changes. |
+| `required` | `boolean` | `false` | Keep a day selected: clicking the selected day does not clear it. |
+| `min` / `max` | `number` | - | Fewest and most days in `multiple` or `range` mode. |
+| `month` / `defaultMonth` / `onMonthChange` | `Date` / `Date` / `(month: Date) => void` | current month | Control the visible month. |
+| `startMonth` / `endMonth` | `Date` | - | Limit how far the user can navigate. |
+| `numberOfMonths` | `number` | `1` | Months shown side by side. |
+| `weekStartsOn` | `0` to `6` | locale | First day of the week; `0` is Sunday. |
+| `showWeekNumber` | `boolean` | `false` | Show a week number column. |
+| `timeZone` | `string` | local | IANA time zone the days are computed in. |
 | `showOutsideDays` | `boolean` | `true` | Show days from adjacent months. |
 | `captionLayout` | `label` \| `dropdown` \| `dropdown-months` \| `dropdown-years` | `label` | Month caption style. |
 | `buttonVariant` | Button variant | `ghost` | Variant of the previous and next buttons. |

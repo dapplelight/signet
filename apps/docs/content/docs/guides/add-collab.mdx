@@ -1,0 +1,76 @@
+---
+title: "Add Comments, Mentions, Activity and Version History"
+description: "Comment threads, notifying at-mentions, a per-record timeline and undo on any org-scoped record."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-server @dapplelight/signet-ui @dapplelight/signet-db hono drizzle-orm
+```
+</Step>
+<Step>
+### Add the tables and track versions
+```ts title="src/db/schema.ts"
+import { collabTables } from "@dapplelight/signet-db/columns/sqlite"
+
+export const { comments, recordVersions } = collabTables()
+```
+```ts title="src/server/db.ts"
+export const db = createDb(bindings.DB, { audit, versions: { table: recordVersions, track: [tasks] } })
+```
+Each tracked table needs an `orgId` column.
+</Step>
+<Step>
+### Create the collab service
+```ts title="src/server/collab.ts"
+import { createCollab } from "@dapplelight/signet-db/collab"
+import { notifyMentions } from "@dapplelight/signet-server/http/collab"
+
+export const collab = createCollab(db, {
+  tables: { comments },
+  records: { tasks },
+  orgs,
+  people: (ids) => namesById(ids),
+  notify: notifyMentions(notifier),
+})
+```
+</Step>
+<Step>
+### Mount the routes after the tenant
+```ts title="src/app.ts"
+import { collabRoutes, mentionTemplates } from "@dapplelight/signet-server/http/collab"
+import { tenant } from "@dapplelight/signet-server/http/orgs"
+
+const templates = { ...appTemplates, ...mentionTemplates({ url: (m) => `https://app.example.com/${m.table}/${m.rowId}` }) }
+
+app.use("/api/*", tenant({ orgs, rootDomain: "app.example.com" }))
+app.route("/api/collab", collabRoutes({ collab, userId: (c) => c.get("session")?.sub }))
+```
+Pass `templates` to `createNotifier`.
+</Step>
+<Step>
+### Use it from code
+```ts title="src/server/tasks.ts"
+const who = { orgId, userId }
+const ref = { table: "tasks", id: taskId }
+
+await collab.addComment(who, ref, { body: "Ready? @[Asha Rao](user:u_1)" })
+await collab.timeline(who, ref, { limit: 20 })
+await collab.restore(who, ref, 2)
+await collab.undo(who, ref, { expected: 5 })
+```
+</Step>
+<Step>
+### Render it
+See the collab screens for the thread, mention picker and history UI.
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="Collab" href="/docs/packages/db/collab" description="Access rules, mentions and versions." />
+  <Card title="Collab screens" href="/docs/components/collab-screens" description="Thread, timeline and history UI." />
+  <Card title="HTTP" href="/docs/packages/server/http" description="All collab routes and guards." />
+</Cards>

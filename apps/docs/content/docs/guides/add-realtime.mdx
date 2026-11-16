@@ -1,0 +1,99 @@
+---
+title: "Add Real-Time Presence and Live Updates"
+description: "Who is viewing a record, who is typing, and a banner when someone else saves, over WebSockets on your runtime."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-server @dapplelight/signet-ui
+```
+</Step>
+<Step>
+### Create the hub
+```ts title="server/realtime.ts"
+import { createRealtime, sessionAuth } from "@dapplelight/signet-server/realtime"
+import { verifySession } from "@dapplelight/signet-server/auth/session"
+import { grants } from "@dapplelight/signet-server/http/orgs"
+
+export const hub = createRealtime({
+  // Deny by default: without authorize, every join is refused.
+  authorize: (who, channel) =>
+    channel.startsWith("record:") && grants(who.permissions ?? [], "records:read"),
+})
+
+export const authenticate = sessionAuth({
+  verify: (t) => verifySession(t, sessionOpts),
+  cookieName: "app_session",
+  orgs,
+})
+```
+</Step>
+<Step>
+### Attach it to your runtime
+```ts title="server/main.ts"
+import { bunRealtime } from "@dapplelight/signet-server/realtime/bun"
+import { authenticate, hub } from "./realtime"
+
+const live = bunRealtime(hub, { authenticate })
+Bun.serve({
+  fetch: (req, srv) => (new URL(req.url).pathname === "/realtime" ? live.upgrade(req, srv) : app.fetch(req)),
+  websocket: live.websocket,
+})
+```
+```ts title="server/main.node.ts"
+import { attachRealtime } from "@dapplelight/signet-server/realtime/node"
+
+attachRealtime(server, hub, { path: "/realtime", authenticate })
+```
+```ts title="worker/index.ts"
+import { connectRoom, realtimeRoom } from "@dapplelight/signet-server/realtime/cloudflare"
+
+export const RealtimeRoom = realtimeRoom({ authorize }) // bind as REALTIME
+app.get("/realtime", (c) => connectRoom(c.env.REALTIME, c.req.raw, { authenticate }))
+```
+</Step>
+<Step>
+### Publish when a record changes
+```ts title="server/routes/docs.ts"
+await db.update(docs).set(patch).where(eq(docs.id, id))
+hub.publish(orgId, `record:docs:${id}`, "updated", { id, by: userId, name: userName })
+```
+</Step>
+<Step>
+### Show presence in React
+```tsx title="app/doc.tsx"
+import { AvatarStack, EditingBadge, RecordChangedBanner, TypingIndicator } from "@dapplelight/signet-ui/screens/realtime-screens"
+import { createRealtimeClient, useChannel, useRecordChanges } from "@dapplelight/signet-ui/hooks/use-channel"
+
+const live = createRealtimeClient({ url: `/realtime?org=${orgId}` })
+
+export function Doc({ id, me }: { id: string; me: string }) {
+  const ch = useChannel(live, `record:docs:${id}`)
+  const { changed, change, dismiss } = useRecordChanges(live, `record:docs:${id}`, { selfId: me })
+  return (
+    <>
+      <RecordChangedBanner changed={changed} by={change?.data?.name} onReload={() => { refetch(); dismiss() }} />
+      <AvatarStack members={ch.members} selfId={me} />
+      <EditingBadge members={ch.members} selfId={me} field="title" />
+      <input
+        onFocus={() => ch.setEditing("title")}
+        onBlur={() => ch.setEditing(null)}
+        onInput={() => ch.setTyping(true)}
+      />
+      <TypingIndicator members={ch.members} selfId={me} />
+    </>
+  )
+}
+```
+</Step>
+</Steps>
+
+The org comes from `authenticate`, never from the client, so tenants cannot see each other's channels. Bun and Node hubs live in one process: run one instance.
+
+## Next
+<Cards>
+  <Card title="Realtime" href="/docs/packages/server/realtime" description="Resume, shared state, limits and the outbox path." />
+  <Card title="Realtime screens" href="/docs/components/realtime-screens" description="AvatarStack, TypingIndicator and the changed banner." />
+</Cards>

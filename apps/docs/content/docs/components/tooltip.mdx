@@ -169,13 +169,14 @@ export function Demo() {
 | `delayDuration` | `number` | `300` | Milliseconds before a tooltip opens. |
 | `skipDelayDuration` | `number` | `300` | Radix default: window in which moving to another tooltip skips the delay. |
 
-`Tooltip` is the Radix root (`open`, `defaultOpen`, `onOpenChange`). `TooltipTrigger` is the Radix trigger (use `asChild` to wrap your own element).
+`Tooltip` is the Radix root (`open`, `defaultOpen`, `onOpenChange`, and `delayDuration` to override the provider's for one tooltip). `TooltipTrigger` is the Radix trigger (use `asChild` to wrap your own element).
 
 `TooltipContent`
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
 | `side` | `"top" \| "right" \| "bottom" \| "left"` | `"top"` | Preferred side. |
+| `align` | `"start" \| "center" \| "end"` | `"center"` | Alignment against the trigger. |
 | `sideOffset` | `number` | `4` | Gap from the trigger in px. |
 | `className` | `string` | `-` | Merged over the defaults. |
 

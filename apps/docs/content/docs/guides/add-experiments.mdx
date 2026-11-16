@@ -1,0 +1,104 @@
+---
+title: "Add A/B Experiments, a Status Page and Maintenance Mode"
+description: "Sticky variant assignment with a significance readout, plus a public status page and an API-wide maintenance switch."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-server @dapplelight/signet-db hono drizzle-orm
+```
+</Step>
+<Step>
+### Create the experiments service
+```ts title="src/server/experiments.ts"
+import { analyticsEvents, experimentTables } from "@dapplelight/signet-db/columns/sqlite"
+import { createExperiments } from "@dapplelight/signet-db/experiments"
+
+export const { experiments, experimentExposures } = experimentTables()
+
+export const ex = createExperiments(db, {
+  tables: { experiments, experimentExposures },
+  events: analyticsEvents(),
+})
+```
+</Step>
+<Step>
+### Create and start a test
+```ts title="scripts/onboarding-test.ts"
+await ex.create("onboarding-copy", {
+  variants: [{ key: "control", weight: 50 }, { key: "short", weight: 50, value: { steps: 3 } }],
+  goal: "signup_completed",
+  audience: { plan: ["free"] },
+}, { actor })
+await ex.start("onboarding-copy", { actor })
+```
+</Step>
+<Step>
+### Expose where people see it
+```ts title="src/server/onboarding.ts"
+const { variant, value } = await ex.expose("onboarding-copy", { id: userId })
+```
+</Step>
+<Step>
+### Mount the routes
+```ts title="src/app.ts"
+import { experimentAdminRoutes, experimentRoutes } from "@dapplelight/signet-server/http/experiments"
+
+app.route("/api/experiments", experimentRoutes({
+  experiments: ex,
+  subject: (c) => ({ id: me(c) ?? c.req.header("x-app-user"), plan: c.get("session")?.plan }),
+}))
+app.route("/api/admin/experiments", experimentAdminRoutes({
+  experiments: ex,
+  authorize: (c) => c.get("session")?.role === "admin",
+  actor: (c) => ({ type: "user", id: me(c) }),
+}))
+```
+</Step>
+<Step>
+### Read the result and roll out
+```ts title="scripts/onboarding-test.ts"
+const r = await ex.results("onboarding-copy")
+await ex.rollout("onboarding-copy", "short", { actor })
+```
+</Step>
+<Step>
+### Add a status page
+```ts title="src/server/status.ts"
+import { statusTables } from "@dapplelight/signet-db/columns/sqlite"
+import { createStatus } from "@dapplelight/signet-db/status"
+
+export const { statusComponents, statusIncidents, maintenance } = statusTables()
+export const status = createStatus(db, { tables: { statusComponents, statusIncidents, maintenance } })
+```
+</Step>
+<Step>
+### Mount it with maintenance mode
+```ts title="src/app.ts"
+import { statusAdminRoutes, statusRoutes } from "@dapplelight/signet-server/http/status"
+import { maintenanceMode } from "@dapplelight/signet-server/middleware/maintenance"
+
+app.use("*", maintenanceMode({
+  state: () => status.maintenance(),
+  paths: ["/health", "/api/status", "/api/admin"],
+  allow: (c) => c.get("session")?.role === "admin",
+}))
+app.route("/api/status", statusRoutes({ status }))
+app.route("/api/admin/status", statusAdminRoutes({ status, authorize, actor }))
+```
+While on, other requests get 503 with code `MAINTENANCE` and `Retry-After`.
+</Step>
+</Steps>
+
+To test prices instead of copy, link an experiment to a placement; see the pricing page.
+
+## Next
+<Cards>
+  <Card title="Experiments" href="/docs/packages/db/experiments" description="Lifecycle, audiences and statistics." />
+  <Card title="Pricing experiments" href="/docs/packages/db/pricing" description="Variants that serve different offerings." />
+  <Card title="Status" href="/docs/packages/db/status" description="Components, incidents and maintenance." />
+  <Card title="Experiment screens" href="/docs/components/experiment-screens" description="Readout and form UI." />
+  <Card title="Status screens" href="/docs/components/status-screens" description="Public page and admin screen." />
+</Cards>

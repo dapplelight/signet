@@ -5,11 +5,12 @@ description: "A status page with components and incidents, plus the maintenance 
 
 ## Usage
 ```ts
-import { statusTables } from "@dapplelight/signet-db/columns/sqlite"
+import { auditLog, statusTables } from "@dapplelight/signet-db/columns/sqlite"
 import { createStatus } from "@dapplelight/signet-db/status"
 
-// schema.ts
+// schema.ts: the status tables and the audit table the writes need
 export const { statusComponents, statusIncidents, maintenance } = statusTables()
+export const audit = auditLog()
 
 // app
 const status = createStatus(db, { tables: { statusComponents, statusIncidents, maintenance } })
@@ -24,7 +25,11 @@ await status.updateIncident(incident.id, { status: "resolved", message: "Fixed" 
 const page = await status.summary() // what the public status page shows
 ```
 
-Writes are audited, so the db needs an `audit` table. Component statuses are set by hand. The overall status is the worst of the components and the impact of open incidents. Maintenance mode shows as `maintenance` unless something is worse.
+Writes are audited, so the db needs an audit table: `auditLog()` above, passed as `createDb(sqlite, { audit })`. Then generate and apply the migration as for any table:
+```bash
+npx drizzle-kit generate && npx drizzle-kit migrate
+```
+ Component statuses are set by hand. The overall status is the worst of the components and the impact of open incidents. Maintenance mode shows as `maintenance` unless something is worse.
 
 ## API
 | Export | What it does |

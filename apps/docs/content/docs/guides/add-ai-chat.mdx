@@ -1,0 +1,87 @@
+---
+title: "Add AI Chat, Tool Loops and Grounded Answers"
+description: "A streaming chat route with a React hook, plus tool loops, embeddings search and answers that cite their sources."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-ai zod ai @ai-sdk/react
+```
+</Step>
+<Step>
+### Stream from the server
+```ts title="src/server/chat.ts"
+import { streamChat } from "@dapplelight/signet-ai/chat"
+
+app.post("/api/chat", requireAuth, async (c) => {
+  const { messages } = await c.req.json()
+  return streamChat({
+    model, messages, tools, maxSteps: 5, onUsage,
+    key: c.get("session").sub,
+    abortSignal: c.req.raw.signal,
+  })
+})
+```
+Authenticate the route and cap `messages` yourself.
+</Step>
+<Step>
+### Read it in React
+```tsx title="src/web/chat.tsx"
+import { useSignetChat } from "@dapplelight/signet-ai/react"
+
+const { messages, sendMessage, status, stop, usage } = useSignetChat({ api: "/api/chat" })
+```
+</Step>
+<Step>
+### Run a tool loop
+```ts title="src/server/orders-agent.ts"
+import { runTools } from "@dapplelight/signet-ai/chat"
+import { tool } from "ai"
+
+const r = await runTools({
+  model,
+  tools: { lookupOrder: tool({ description: "Find an order by id", inputSchema, execute }) },
+  prompt: "Where is order A1?",
+  maxSteps: 5,
+  onUsage,
+})
+if (r.capped) { /* stopped at maxSteps while the model still wanted tools */ }
+```
+</Step>
+<Step>
+### Search your help pages
+```ts title="src/server/help-search.ts"
+import { embedDocuments, searchDocuments } from "@dapplelight/signet-ai/ground"
+
+const indexed = await embedDocuments(embeddingModel, docs)
+const hits = await searchDocuments(embeddingModel, "how long is delivery", indexed, { topK: 5, minScore: 0.3 })
+```
+</Step>
+<Step>
+### Answer with citations
+```ts title="src/server/help-answer.ts"
+import { groundedAnswer } from "@dapplelight/signet-ai/ground"
+
+const r = await groundedAnswer({ model, question, documents: hits })
+if (!r.grounded) return "I couldn't find that in our help pages."
+// r.answer, r.citations: [{ id, quote }], r.rejected
+```
+</Step>
+<Step>
+### Report cost
+```ts title="src/server/ai.ts"
+import { analyticsUsage } from "@dapplelight/signet-ai"
+
+export const onUsage = analyticsUsage(sink) // one ai.usage event per call
+```
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="Chat" href="/docs/packages/ai/chat" description="streamChat, runTools and useSignetChat." />
+  <Card title="Ground" href="/docs/packages/ai/ground" description="Embeddings and grounded answers." />
+  <Card title="Fake provider" href="/docs/packages/ai/fake" description="Test without network or spend." />
+</Cards>

@@ -120,12 +120,14 @@ const Invite = z.object({
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
-| schema | `ZodSchema \| SchemaProvider` | - | A zod object schema, or any AutoForm `SchemaProvider`. |
+| schema | zod object schema or `SchemaProvider` | - | A zod object schema, or any AutoForm `SchemaProvider`. |
 | onSubmit | `(values, form, event) => void \| Promise<void>` | - | Runs after the schema validates. |
 | onSubmitError | `(error: unknown, form: unknown) => void` | - | Receives a rejected `onSubmit`, e.g. for `applyServerErrors`. Without it the error is rethrown. |
-| submit | `ReactNode \| false` | `"Submit"` | Submit button text. `false` hides it so you can render your own in `children`. |
+| submit | `ReactNode \| false` | `LabelsProvider` `submit` ("Submit") | Submit button text. `false` hides it so you can render your own in `children`. |
 | defaultValues | `Partial<T>` | from schema | Initial values merged over schema defaults. |
 | values | `Partial<T>` | - | Controlled values kept in sync with external state. |
 | uiComponents | `Partial<AutoFormUIComponents>` | - | Replace layout pieces: wrappers, error message, submit button. |
 | formComponents | `Partial<AutoFormFieldComponents>` | - | Replace a control for a field type: `string`, `textarea`, `number`, `date`, `boolean`, `select`. |
-| children | `ReactNode` | - | Extra content after the fields. |
+| children | `ReactNode` | - | Extra content after the fields, before the submit button. |
+
+`withSubmit` is not available: use `submit`. Other AutoForm props pass through.

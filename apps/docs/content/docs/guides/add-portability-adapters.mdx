@@ -1,0 +1,62 @@
+---
+title: "Run Off Cloudflare"
+description: "Swap the KV, queue, blob and defer adapters so the same server code runs on Node, Bun, Vercel or Upstash."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-server
+```
+</Step>
+<Step>
+### Pick adapters for your runtime
+```ts title="server/runtime.ts"
+import { memoryKv, processDefer } from "@dapplelight/signet-server/adapters"
+import { fsBlobStore } from "@dapplelight/signet-server/adapters/node"
+
+// One container (Node, Bun, Docker): mount a volume at ./data
+export const kv = memoryKv()
+export const blobs = fsBlobStore("./data/uploads")
+export const defer = processDefer() // runs work after the response, errors caught
+```
+</Step>
+<Step>
+### Or use hosted services over fetch
+```ts title="server/runtime.ts"
+import { qstashQueue, upstashKv } from "@dapplelight/signet-server/adapters/upstash"
+import { s3BlobStore } from "@dapplelight/signet-server/adapters/s3"
+import { vercelDefer } from "@dapplelight/signet-server/adapters/vercel"
+import { waitUntil } from "@vercel/functions"
+
+export const makeKv = (env: Env) => upstashKv({ url: env.UPSTASH_URL, token: env.UPSTASH_TOKEN })
+export const makeQueue = (env: Env) =>
+  qstashQueue({ token: env.QSTASH_TOKEN, destinationUrl: "https://app.example.com/api/jobs" })
+export const defer = vercelDefer(waitUntil)
+```
+</Step>
+<Step>
+### Share the rate limit across instances
+```ts title="server/app.ts"
+import { rateLimit } from "@dapplelight/signet-server/middleware/rate-limit"
+import { upstashRateLimitStore } from "@dapplelight/signet-server/adapters/upstash"
+
+app.use("/api/*", rateLimit({
+  max: 100,
+  windowSeconds: 60,
+  store: (c) => upstashRateLimitStore({ url: c.env.UPSTASH_URL, token: c.env.UPSTASH_TOKEN }),
+  trust: { forwardedHops: 1 },
+}))
+```
+</Step>
+</Steps>
+
+Workers KV has no atomic increment, so `kvRateLimitStore(cloudflareKv(ns))` is approximate there. There is no Vercel Blob or Netlify Blobs adapter: use `s3BlobStore` or `supabaseBlobStore`.
+
+## Next
+<Cards>
+  <Card title="Adapters" href="/docs/packages/server/adapters" description="Every adapter, its runtime and its limits." />
+  <Card title="Background jobs" href="/docs/guides/add-jobs" description="Run jobs on QStash or in process." />
+  <Card title="Rate limiting" href="/docs/guides/add-rate-limit" description="Choose a store per route." />
+</Cards>

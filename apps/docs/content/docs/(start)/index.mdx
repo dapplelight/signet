@@ -3,17 +3,56 @@ title: Introduction
 description: Write your business logic. Signet handles the rest.
 ---
 
-Signet is a design system and backend kit for React apps: components, themes, auth, payments, AI, data and the glue between them, so an app only holds its own business logic.
+Signet is a design system and backend kit for React apps. Your app holds only its own business logic.
 
-## Start here
+## How it fits
 
-```bash
-npx create-signet-app my-app
-```
+| Layer | Packages | You get |
+| --- | --- | --- |
+| Frontend | ui, tokens, lib | Components, themes, API client, forms |
+| Backend | server, db, payments, ai | Auth, middleware, tables, billing, models |
+| Tooling | create-signet-app, cli, mcp, config, test | Scaffold, copy-in, agents, presets, fakes |
+
+### Frontend
+
+<Cards>
+  <Card title="ui" href="/docs/packages/ui" description="Themed, accessible React components and screens." />
+  <Card title="tokens" href="/docs/packages/tokens" description="Themes as CSS variables." />
+  <Card title="lib" href="/docs/packages/lib" description="API client, forms, formatting, analytics, sessions." />
+</Cards>
+
+### Backend
+
+<Cards>
+  <Card title="server" href="/docs/packages/server" description="Auth, admin, billing, notify, realtime, jobs." />
+  <Card title="db" href="/docs/packages/db" description="Tables, audit, outbox, flags, growth." />
+  <Card title="payments" href="/docs/packages/payments" description="One payment model over 12 gateways." />
+  <Card title="ai" href="/docs/packages/ai" description="Typed model output with budget and cache." />
+</Cards>
+
+### Tooling
 
 <Cards>
   <Card title="create-signet-app" href="/docs/packages/create-signet-app" description="Scaffold an app wired to every package." />
-  <Card title="ui" href="/docs/packages/ui" description="Themed, accessible React components." />
-  <Card title="server" href="/docs/packages/server" description="Auth, admin, billing, notify, realtime, jobs." />
+  <Card title="cli" href="/docs/packages/cli" description="Copy components and backend modules in as source." />
   <Card title="mcp" href="/docs/packages/mcp" description="Signet for coding agents." />
+  <Card title="config" href="/docs/packages/config" description="Biome, TypeScript and CI presets." />
+  <Card title="test" href="/docs/packages/test" description="Fake providers with the real interfaces." />
+</Cards>
+
+## 60-second start
+
+```bash
+npx create-signet-app my-app --template full --theme finance
+cd my-app
+bun install
+bun run dev
+```
+
+`--template` takes `web`, `api`, `full`, `cli`, `extension` or `desktop`. `--theme` takes `editorial`, `cinematic` or `finance`. `full` gives you a web app and an API with sign-in, billing, admin and privacy already wired.
+
+## For agents
+
+<Cards>
+  <Card title="Signet MCP" href="/docs/packages/mcp" description="Docs, exports, components, themes and checks as tools your coding agent can call." />
 </Cards>

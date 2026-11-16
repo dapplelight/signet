@@ -1,0 +1,53 @@
+---
+title: "Add Web Push Notifications"
+description: "Send web push from a Worker with VAPID, prune dead subscriptions, and report errors to Sentry."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-server
+```
+</Step>
+<Step>
+### Create the pusher
+```ts title="server/push.ts"
+import { createPusher, webCryptoPushSender } from "@dapplelight/signet-server/notify/push"
+
+export const pusherFor = (env: Env) =>
+  createPusher({
+    send: webCryptoPushSender({
+      vapid: { subject: "mailto:ops@example.com", publicKey: env.VAPID_PUBLIC, privateKey: env.VAPID_PRIVATE },
+    }),
+    removeSubscription: (id) => db.deleteSubscription(id),
+  })
+```
+The public key is the 65-byte point you give `pushManager.subscribe`. Both are base64url.
+</Step>
+<Step>
+### Send
+```ts title="server/routes/orders.ts"
+const sent = await pusherFor(c.env).sendTo(subscriptions, {
+  title: "Order shipped",
+  message: "Your order ord_1042 is on its way.",
+  url: "/orders/ord_1042",
+})
+```
+`sendTo` returns the count delivered and never throws. A 404 or 410 from the endpoint removes that subscription.
+</Step>
+<Step>
+### Add email and operator alerts
+```ts title="server/notify.ts"
+import { createEmailer } from "@dapplelight/signet-server/notify/email"
+import { createTelegram } from "@dapplelight/signet-server/notify/telegram"
+```
+Telegram is operator-level only: never put user names, amounts or account ids in it.
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="Notifications" href="/docs/packages/server/notify" description="One notify call to email, SMS, WhatsApp, push and an inbox." />
+  <Card title="Logging and Sentry" href="/docs/guides/add-logging" description="Report failed sends with scrubbed context." />
+</Cards>

@@ -187,11 +187,16 @@ Built on the `input-otp` package. `InputOTP` takes its props; screen readers see
 | `value` | `string` | none | Controlled value. |
 | `onChange` | `(value: string) => void` | none | Called on every change. |
 | `onComplete` | `(value: string) => void` | none | Called when all slots are filled. |
-| `pattern` | `string` | any character | Regular expression each character must match. |
+| `defaultValue` | `string` | none | Initial value when uncontrolled. |
+| `pattern` | `string` | none (any character) | Regular expression source the whole value must match, such as `"^[0-9]+$"`. |
 | `inputMode` | `string` | `"numeric"` | Soft keyboard type. |
-| `disabled` | `boolean` | `false` | Disable the input. |
+| `textAlign` | `"left" \| "center" \| "right"` | `"left"` | Alignment of the hidden input's caret. |
+| `pasteTransformer` | `(pasted: string) => string` | none | Clean pasted text, for example strip dashes. |
+| `pushPasswordManagerStrategy` | `"increase-width" \| "none"` | `"increase-width"` | Make room for a password manager's badge. |
+| `autoComplete` | `string` | `"one-time-code"` | Lets the OS offer SMS codes. |
+| `disabled` | `boolean` | `false` | Disable the input (a standard input attribute). |
 | `containerClassName` | `string` | none | Class for the wrapper. |
-| `className` | `string` | none | Class for the hidden input. |
+| `className` | `string` | none | Class for the hidden input; `disabled:cursor-not-allowed` is built in. |
 
 ### InputOTPSlot
 

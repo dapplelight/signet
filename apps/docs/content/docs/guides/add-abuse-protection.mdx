@@ -1,0 +1,92 @@
+---
+title: "Add Bot Checks, Disposable-Email Blocking and AI Spend Caps"
+description: "Sign-up refuses bots and throwaway inboxes, and every AI call is capped per user, org and day."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-server @dapplelight/signet-ai @dapplelight/signet-db hono drizzle-orm
+```
+</Step>
+<Step>
+### Check a captcha on sign-up
+```ts title="src/server/abuse.ts"
+import { captchaVerifier, requireCaptcha } from "@dapplelight/signet-server/abuse/captcha"
+
+const captcha = (c) =>
+  c.env.APP_ENV === "local"
+    ? captchaVerifier({ provider: "test" })
+    : captchaVerifier({ provider: "turnstile", secret: c.env.TURNSTILE_SECRET, hostname: "app.example.com" })
+
+export const bots = requireCaptcha({ verifier: captcha, trust: "cloudflare" })
+```
+</Step>
+<Step>
+### Block disposable email
+```ts title="src/app.ts"
+import { blockDisposableEmail } from "@dapplelight/signet-server/abuse/email"
+import { bots } from "./server/abuse"
+
+app.use("/api/auth/sign-up/*", bots)
+app.use("/api/auth/forget-password", bots)
+app.use("/api/auth/sign-up/*", blockDisposableEmail({ add: ["burner.example"], allow: ["partner.example"] }))
+```
+</Step>
+<Step>
+### Show the widget
+```tsx title="src/web/sign-up.tsx"
+import { CaptchaWidget } from "@dapplelight/signet-ui/screens/abuse-screens"
+```
+Send the token it hands you as the `x-captcha-token` header or a `captchaToken` body field.
+</Step>
+<Step>
+### Add the spend ledger
+```ts title="src/server/ai-spend.ts"
+import { aiSpendCaps, entitlementTables } from "@dapplelight/signet-db/columns/sqlite"
+import { createAiSpend } from "@dapplelight/signet-db/ai-spend"
+
+export const { usageCounters } = entitlementTables()
+export const spendCaps = aiSpendCaps()
+
+export const spend = createAiSpend(db, {
+  tables: { usageCounters, aiSpendCaps: spendCaps },
+  caps: { user: { day: 200_000 }, org: { month: 20_000_000 }, global: { month: 100_000_000 } },
+})
+```
+Cost units are millionths of a US dollar.
+</Step>
+<Step>
+### Enforce and administer the caps
+```ts title="src/app.ts"
+import { aiSpendAdminRoutes, requireAiSpend } from "@dapplelight/signet-server/http/ai-spend"
+import { spend } from "./server/ai-spend"
+
+app.use("/api/ai/*", requireAiSpend({ spend, subject: (c) => ({ userId: me(c), orgId: currentTenant(c).id }) }))
+app.route("/api/admin/ai-spend", aiSpendAdminRoutes({
+  spend,
+  authorize: (c) => c.get("session")?.role === "admin",
+  actor: (c) => ({ type: "user", id: me(c) }),
+}))
+```
+</Step>
+<Step>
+### Feed the extractor
+```ts title="src/server/ai.ts"
+import { createExtractor } from "@dapplelight/signet-ai"
+import { spendKey } from "@dapplelight/signet-db/ai-spend"
+
+const extractor = createExtractor({ providers, ledger: spend.ledger })
+await extractor.extract({ ...args, budget: { key: spendKey({ userId, orgId }) } })
+```
+For `streamChat`, pass `onUsage: spend.onUsage` instead, never both.
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="Abuse" href="/docs/packages/server/abuse" description="Captcha and disposable-email options." />
+  <Card title="AI spend" href="/docs/packages/db/ai-spend" description="Caps, usage and the ledger." />
+  <Card title="Abuse screens" href="/docs/components/abuse-screens" description="CaptchaWidget and the AI spend admin." />
+</Cards>

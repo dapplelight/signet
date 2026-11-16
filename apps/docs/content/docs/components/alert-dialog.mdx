@@ -172,8 +172,12 @@ Takes the options of the underlying alert dialog. It is always modal and an outs
 | `open` | `boolean` | - | Controlled open state. |
 | `defaultOpen` | `boolean` | `false` | Initial state when uncontrolled. |
 | `onOpenChange` | `(open, details) => void` | - | `details.reason` says why, `details.returnValue` is the `value` of the button that closed it (`"confirm"` or `"cancel"`). |
-| `dismissible` | `boolean` | `true` | Whether Escape can close it. |
+| `dismissible` | `boolean` | `true` | Whether Escape and Android's back gesture can close it. An outside press never does. |
 | `onDismissAttempt` | `(details) => void` | - | Runs when a dismissal was refused. |
+| `onOpenChangeComplete` | `(open: boolean) => void` | - | Runs after the open or close animation ends. |
+| `pendingAnnouncement` | `string` | `"Loading"` | What screen readers hear once an action has been pending for a second. |
+| `persistentElements` | `(Element \| string)[]` | - | Elements that stay usable while the page is inert. |
+| `controller` | `AlertDialogController` | - | Open, close and inspect it from anywhere (`createAlertDialogController()`). |
 
 ### AlertDialogTrigger
 
@@ -185,8 +189,9 @@ Renders a `button`. Pass `render` to use your own element, such as a `Button`. A
 | --- | --- | --- | --- |
 | `className` | `string` | - | Merged onto the dialog surface. |
 | `backdropClassName` | `string` | - | Merged onto the backdrop. |
-| `initialFocus` | `DialogInitialFocus` | - | Where focus goes on open. |
-| `finalFocus` | `PopupFocusTarget` | - | Where focus returns on close. |
+| `initialFocus` | `"auto" \| "content" \| "none" \| selector \| element \| function` | `"auto"` | Where focus goes on open. `"auto"` picks the first Close part, the safe answer. |
+| `finalFocus` | `"trigger" \| "none" \| selector \| element \| function` | `"trigger"` | Where focus returns on close. |
+| `keepMounted` | `boolean` | `false` | Keep it in the page, hidden, while closed. |
 
 ### AlertDialogHeader, AlertDialogFooter
 

@@ -1,0 +1,57 @@
+---
+title: "Protect an API with OAuth"
+description: "Accept bearer tokens issued elsewhere on an API or MCP endpoint, with audience and scope checks."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-server hono
+```
+</Step>
+<Step>
+### Build a verifier
+```ts title="server/oauth.ts"
+import { createTokenVerifier } from "@dapplelight/signet-server/oauth-rs"
+
+export const RESOURCE = "https://api.example.com"
+export const META = `${RESOURCE}/.well-known/oauth-protected-resource`
+
+export const verifier = createTokenVerifier({
+  issuer: "https://auth.example.com",
+  audience: RESOURCE, // required: a token minted for another service is rejected
+  jwksUri: "https://auth.example.com/.well-known/jwks.json",
+})
+```
+</Step>
+<Step>
+### Publish the resource metadata and guard the routes
+```ts title="server/app.ts"
+import {
+  registerProtectedResourceMetadata,
+  requireScopes,
+  requireToken,
+} from "@dapplelight/signet-server/oauth-rs/hono"
+import { META, RESOURCE, verifier } from "./oauth"
+
+registerProtectedResourceMetadata(app, {
+  resource: RESOURCE,
+  authorizationServers: ["https://auth.example.com"],
+  scopesSupported: ["read", "write"],
+})
+
+app.use("/api/*", requireToken({ verifier, resourceMetadataUrl: META }))
+app.post("/api/orders", requireScopes(META, "write"), createOrder)
+```
+A missing scope is a 403 whose `WWW-Authenticate` names it, so a client can ask for a new token.
+</Step>
+</Steps>
+
+This verifies JWTs locally. It does not do opaque-token introspection or act as an authorization server.
+
+## Next
+<Cards>
+  <Card title="OAuth resource server" href="/docs/packages/server/oauth-rs" description="What is enforced, key rotation and what is not included." />
+  <Card title="Expose to agents" href="/docs/guides/mcp-by-default" description="Put the same guard in front of an MCP endpoint." />
+</Cards>

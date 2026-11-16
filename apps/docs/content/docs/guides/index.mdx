@@ -1,0 +1,70 @@
+---
+title: "Guides"
+description: "Task recipes: install, configure, ship. Each one is the same answer agents get from the MCP server."
+---
+
+## Start an app
+
+<Cards>
+  <Card title="Add a Database" href="/docs/guides/add-db" description="A scoped, soft-deleting, optionally encrypted database layer on D1, SQLite or Postgres, with money, an outbox and idempotent writes." />
+  <Card title="Add Workers-Safe Env Configuration" href="/docs/guides/add-env" description="Validated config that works on Cloudflare Workers, read lazily so deploys never fail on missing secrets." />
+  <Card title="Add the Error Envelope and Request Validation" href="/docs/guides/add-error-envelope" description="Every API error has the same JSON shape, validation failures carry field errors, and production hides internals." />
+  <Card title="Add the Typed API Client" href="/docs/guides/add-api-client" description="A fetch client with structured errors, end-to-end route types from Hono, streaming and sane TanStack Query defaults." />
+  <Card title="Add Sign-In" href="/docs/guides/add-auth" description="A passcode gate or a full Better Auth user system, with CSRF protection in front of the cookie." />
+  <Card title="Make a Theme" href="/docs/guides/add-theme" description="A full light and dark theme from one brand colour, checked for WCAG contrast." />
+  <Card title="Own a Component's Source" href="/docs/guides/add-component-source" description="Copy a signet-ui component into your app, edit it freely, and merge upstream changes later." />
+  <Card title="Test an App with Fakes and Playwright" href="/docs/guides/add-tests" description="Fake payment and notification providers, screenshots across every theme, a dev overlay and a no-network demo mode." />
+</Cards>
+
+## Security
+
+<Cards>
+  <Card title="Add CSRF Protection" href="/docs/guides/add-csrf" description="Cross-site form posts to your API get a 403 before they reach a cookie-reading route." />
+  <Card title="Add Rate Limiting" href="/docs/guides/add-rate-limit" description="A general API limit plus an exact, durable login limit on Cloudflare Workers." />
+  <Card title="Add Bot Checks, Disposable-Email Blocking and AI Spend Caps" href="/docs/guides/add-abuse-protection" description="Sign-up refuses bots and throwaway inboxes, and every AI call is capped per user, org and day." />
+  <Card title="Protect an API with OAuth" href="/docs/guides/add-oauth" description="Accept bearer tokens issued elsewhere on an API or MCP endpoint, with audience and scope checks." />
+</Cards>
+
+## Money
+
+<Cards>
+  <Card title="Take Payments" href="/docs/guides/payments" description="Checkout across Razorpay and Stripe with a verified webhook inbox, a ledger, store purchases and daily reconciliation." />
+  <Card title="Add Plans, Entitlements and Feature Flags" href="/docs/guides/add-plans" description="Plans with features and usage limits, billing events applied to them, and flags with rules and percentage rollouts." />
+  <Card title="Add Remote Paywalls and a Customer Center" href="/docs/guides/add-monetisation" description="Offerings you publish without an app release, a paywall per placement, self-serve cancel and refund, and anonymous-to-account merge." />
+  <Card title="Add Subscription Charts and Offers" href="/docs/guides/add-subscription-charts" description="MRR, churn and trial conversion charts, free-trial and win-back offers, promotional grants and Apple refund answers." />
+  <Card title="Add Web-to-App Funnels With Hosted Checkout" href="/docs/guides/add-funnels" description="A hosted quiz and checkout page with Apple Pay, Google Pay and URL discounts, then a one-time link that moves the purchase into the app." />
+  <Card title="Add UPI Links, GST Invoices and DPDP Consent" href="/docs/guides/add-india" description="Pay-by-UPI links, numbered GST tax invoices, and consent and data-request records for Indian customers." />
+</Cards>
+
+## Product features
+
+<Cards>
+  <Card title="Add a Waitlist, Invites, Referrals and Onboarding" href="/docs/guides/add-growth" description="Launch tooling in your own database: waitlist, one-shot invites, referral rewards, onboarding progress, a changelog and feedback." />
+  <Card title="Add Comments, Mentions, Activity and Version History" href="/docs/guides/add-collab" description="Comment threads, notifying at-mentions, a per-record timeline and undo on any org-scoped record." />
+  <Card title="Add CSV Import, an Editable Grid and a Rich Text Editor" href="/docs/guides/add-data-editing" description="Bulk-import customers from a CSV, edit them in a spreadsheet-style grid, and store sanitised rich notes." />
+  <Card title="Add A/B Experiments, a Status Page and Maintenance Mode" href="/docs/guides/add-experiments" description="Sticky variant assignment with a significance readout, plus a public status page and an API-wide maintenance switch." />
+  <Card title="Add Analytics" href="/docs/guides/add-analytics" description="Track events from the browser, store them in your own database, and read answers instead of dashboards." />
+  <Card title="Add Real-Time Presence and Live Updates" href="/docs/guides/add-realtime" description="Who is viewing a record, who is typing, and a banner when someone else saves, over WebSockets on your runtime." />
+  <Card title="Add File Uploads" href="/docs/guides/add-uploads" description="Presigned uploads that are size- and type-checked, confirmed after arrival and scoped to each user." />
+  <Card title="Add Web Push Notifications" href="/docs/guides/add-web-push" description="Send web push from a Worker with VAPID, prune dead subscriptions, and report errors to Sentry." />
+</Cards>
+
+## Backend
+
+<Cards>
+  <Card title="Add Background Jobs" href="/docs/guides/add-jobs" description="Typed background jobs with retries, a dead-letter list, cron schedules and a queue consumer on your runtime." />
+  <Card title="Add Durable Workflows with Approvals" href="/docs/guides/add-workflows" description="Crash-safe multi-step runs that sleep, wait for events and pause for a named person to approve." />
+  <Card title="Add Structured Logging and Sentry" href="/docs/guides/add-logging" description="JSON logs with a request id and secrets redacted by default, plus error reports to Sentry that work on Workers." />
+  <Card title="Run Off Cloudflare" href="/docs/guides/add-portability-adapters" description="Swap the KV, queue, blob and defer adapters so the same server code runs on Node, Bun, Vercel or Upstash." />
+  <Card title="Publish an API" href="/docs/guides/publish-an-api" description="An OpenAPI spec and reference page generated from your validators, signed outbound webhooks, and HTTP caching." />
+  <Card title="Add a Backend Module to an API App" href="/docs/guides/add-backend-module" description="Wire auth, a database, an admin API, payments or notifications into an app made from the api template." />
+</Cards>
+
+## AI and agents
+
+<Cards>
+  <Card title="Add AI Chat, Tool Loops and Grounded Answers" href="/docs/guides/add-ai-chat" description="A streaming chat route with a React hook, plus tool loops, embeddings search and answers that cite their sources." />
+  <Card title="Add AI Extraction With a Budget" href="/docs/guides/add-ai-extraction" description="Typed, schema-validated LLM output with a cache, a spend cap and a fallback provider." />
+  <Card title="Add MCP Tools to an App" href="/docs/guides/add-mcp-tools" description="A typed, scoped MCP endpoint behind OAuth, with errors mapped to the Signet envelope, plus a stdio entry." />
+  <Card title="Expose an App to Agents" href="/docs/guides/mcp-by-default" description="Every validated route becomes an MCP tool run as the caller, with per-user tools and approvals for writes." />
+</Cards>

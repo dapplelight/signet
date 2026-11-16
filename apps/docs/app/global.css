@@ -107,3 +107,18 @@ figure :focus-visible {
 :where(h1, h2, h3, h4)[id] {
   scroll-margin-top: 5rem;
 }
+
+/* Next.js-style code titles: tinted bar, language icon, mono filename, copy
+   button on the right. Fumadocs renders the icon and button; this styles them. */
+figure.shiki > div:first-child:has(> figcaption) {
+  background: var(--color-fd-secondary);
+  height: 2.5rem;
+}
+figure.shiki > div:first-child > figcaption {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.8125rem;
+  color: var(--color-fd-foreground);
+}
+figure.shiki > div:first-child svg {
+  color: var(--color-fd-muted-foreground);
+}

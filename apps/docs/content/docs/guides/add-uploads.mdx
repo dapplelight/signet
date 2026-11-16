@@ -1,0 +1,66 @@
+---
+title: "Add File Uploads"
+description: "Presigned uploads that are size- and type-checked, confirmed after arrival and scoped to each user."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-server @dapplelight/signet-ui
+```
+</Step>
+<Step>
+### Create the upload service
+```ts title="server/uploads.ts"
+import { supabaseBlobStore } from "@dapplelight/signet-server/adapters/supabase"
+import { createUploads } from "@dapplelight/signet-server/storage"
+
+export const uploadsFor = (env: Env) =>
+  createUploads({
+    store: supabaseBlobStore({ url: env.SUPABASE_URL, serviceRoleKey: env.SUPABASE_KEY, bucket: "avatars" }),
+    maxBytes: 5_000_000,
+    allowedTypes: ["image/png", "image/jpeg", "image/webp"],
+    afterUpload: (u) => makeThumbnail.enqueue({ key: u.key }),
+  })
+```
+</Step>
+<Step>
+### Issue a presigned URL and confirm
+```ts title="server/routes/avatar.ts"
+app.post("/api/avatar/presign", async (c) => {
+  const { name, type, size } = await c.req.json()
+  const { url, key } = await uploadsFor(c.env).presignUpload({ userId }, { name, type, size })
+  return c.json({ url, key })
+})
+
+app.post("/api/avatar/confirm", async (c) => {
+  const { key } = await c.req.json()
+  await uploadsFor(c.env).confirmUpload({ userId }, key) // re-checks what arrived, deletes it if bad
+  return c.body(null, 204)
+})
+```
+</Step>
+<Step>
+### Put the file from the browser
+```tsx title="app/avatar.tsx"
+import { Upload } from "@dapplelight/signet-ui/domain/upload"
+```
+Or by hand: `fetch(url, { method: "PUT", body: file, headers: { "Content-Type": type } })`, then call confirm.
+</Step>
+<Step>
+### Stores that cannot presign
+```ts title="server/routes/avatar.ts"
+const result = await uploads.acceptUpload({ userId }, c.req.raw) // streams, stops at maxBytes, sniffs magic bytes
+```
+`fsBlobStore` and an R2 binding throw `PRESIGN_UNSUPPORTED`. `acceptUpload` also strips EXIF and GPS from images.
+</Step>
+</Steps>
+
+A renamed file or an oversize file is refused with an `UploadError` carrying its HTTP status (415, 413).
+
+## Next
+<Cards>
+  <Card title="Storage" href="/docs/packages/server/storage" description="Quotas, dedupe, resumable uploads, resizing." />
+  <Card title="Upload" href="/docs/components/upload" description="Drag and drop with progress and retry." />
+</Cards>

@@ -1,0 +1,52 @@
+---
+title: "Make a Theme"
+description: "A full light and dark theme from one brand colour, checked for WCAG contrast."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-tokens
+```
+</Step>
+<Step>
+### Generate it from the CLI
+```bash
+signet theme "#e11d48" --base cinematic > src/brand.css
+```
+Import `src/brand.css` in place of the base theme.
+</Step>
+<Step>
+### Or build it in code
+```ts title="scripts/theme.ts"
+import { buildTheme, toCss, toDesignTokens, toFigmaVariables } from "@dapplelight/signet-tokens/theme"
+
+const theme = buildTheme({ brand: "#e11d48", base: "cinematic" }) // mode: "light" | "dark" | "both"
+console.log(toCss(theme))           // overrides the base's colours in light and dark
+console.log(theme.adjustments)      // tokens moved to reach WCAG 4.5:1 (text) or 3:1 (focus, charts)
+const json = toDesignTokens(theme)   // W3C Design Tokens JSON
+const figma = toFigmaVariables(theme) // body for Figma's POST /v1/files/:key/variables
+```
+A pale brand comes back darker in light mode, with the change listed.
+</Step>
+<Step>
+### Write one by hand
+```css title="src/brand.css"
+@import "@dapplelight/signet-tokens/editorial.css";
+
+@theme inline {
+  --color-primary: #e11d48;
+  --color-primary-foreground: #ffffff;
+  --color-ring: #e11d48;
+}
+```
+Keep every variable the contract lists; `@dapplelight/signet-ui` reads only those.
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="Theme builder" href="/docs/packages/tokens/theme" description="Every option of buildTheme and the converters." />
+  <Card title="Themes" href="/docs/packages/tokens/themes" description="The shipped themes and the required variables." />
+</Cards>

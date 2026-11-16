@@ -7,6 +7,14 @@ description: "Scaffold a Vite + React app, a Hono API, a CLI, an extension or a 
 npx create-signet-app my-app
 ```
 
+<AgentPrompt title="Scaffold a Signet app">
+Create a new app with `npx create-signet-app my-app --template full --theme editorial`, then run `cd my-app && bun install && bun dev`. Use `--template api --target cloudflare` for a backend only, or `web` for a frontend only.
+
+Add the Signet MCP server first so you can look up components, themes and conventions: `claude mcp add signet -- bunx @dapplelight/signet-mcp`.
+
+Build every screen from `@dapplelight/signet-ui` components and `@dapplelight/signet-tokens` themes, and use the generated typed API client in src/lib/api.ts. Do not hand-roll buttons, inputs or fetch wrappers. Run lint, typecheck and tests before you finish.
+</AgentPrompt>
+
 ## Quick start
 
 ```bash
@@ -52,66 +60,96 @@ Bun, npm and pnpm all work (`bunx`, `npm create signet-app my-app -- --template 
 
 <Tabs items={["web", "api", "full"]}>
   <Tab value="web">
-```text
-my-app/
-├─ .github/workflows/ci.yml     lint, typecheck, test, build
-├─ public/
-├─ src/
-│  ├─ app.css                   imports the chosen theme
-│  ├─ main.tsx                  ThemeProvider, QueryClient, router
-│  ├─ router.ts
-│  ├─ router.test.ts
-│  ├─ routeTree.gen.ts          generated, committed
-│  ├─ components/toaster.tsx
-│  ├─ lib/api.ts                createApiClient
-│  └─ routes/
-│     ├─ __root.tsx
-│     ├─ index.tsx
-│     └─ login.tsx
-├─ index.html
-├─ biome.json
-├─ tsconfig.json
-├─ tsconfig.app.json
-├─ tsconfig.node.json
-└─ vite.config.ts
-```
+<Files>
+  <Folder name="my-app" defaultOpen>
+    <Folder name=".github" defaultOpen>
+      <Folder name="workflows" defaultOpen>
+        <File name="ci.yml" />
+      </Folder>
+    </Folder>
+    <Folder name="public" />
+    <Folder name="src" defaultOpen>
+      <File name="app.css" />
+      <File name="main.tsx" />
+      <File name="router.ts" />
+      <File name="router.test.ts" />
+      <File name="routeTree.gen.ts" />
+      <Folder name="components" defaultOpen>
+        <File name="toaster.tsx" />
+      </Folder>
+      <Folder name="lib" defaultOpen>
+        <File name="api.ts" />
+      </Folder>
+      <Folder name="routes" defaultOpen>
+        <File name="__root.tsx" />
+        <File name="index.tsx" />
+        <File name="login.tsx" />
+      </Folder>
+    </Folder>
+    <File name="index.html" />
+    <File name="biome.json" />
+    <File name="tsconfig.json" />
+    <File name="tsconfig.app.json" />
+    <File name="tsconfig.node.json" />
+    <File name="vite.config.ts" />
+  </Folder>
+</Files>
   </Tab>
   <Tab value="api">
-```text
-my-api/
-├─ .github/workflows/ci.yml
-├─ src/
-│  ├─ app.ts                    shared Hono app
-│  ├─ env.ts                    zod schema through createEnv
-│  └─ index.ts                  entry for the chosen target
-├─ test/
-├─ biome.json
-├─ tsconfig.json
-└─ wrangler.jsonc               cloudflare target (Dockerfile, vercel.json for others)
-```
+<Files>
+  <Folder name="my-api" defaultOpen>
+    <Folder name=".github" defaultOpen>
+      <Folder name="workflows" defaultOpen>
+        <File name="ci.yml" />
+      </Folder>
+    </Folder>
+    <Folder name="src" defaultOpen>
+      <File name="app.ts" />
+      <File name="env.ts" />
+      <File name="index.ts" />
+    </Folder>
+    <Folder name="test" />
+    <File name="biome.json" />
+    <File name="tsconfig.json" />
+    <File name="wrangler.jsonc" />
+  </Folder>
+</Files>
   </Tab>
   <Tab value="full">
-```text
-my-app/
-├─ .github/workflows/ci.yml
-├─ api/                         Hono on Bun
-│  ├─ app.ts
-│  ├─ env.ts
-│  ├─ plans.ts
-│  ├─ server.ts                 serves /api and the built web app
-│  ├─ services.ts
-│  └─ db/                       schema
-├─ drizzle/                     migrations, applied on start
-├─ e2e/smoke.spec.ts            Playwright
-├─ src/
-│  ├─ main.tsx
-│  ├─ lib/api.ts                typed client over the API's routes
-│  └─ routes/                   login, account, notifications, privacy, billing, admin, org, invite
-├─ test/api.test.ts
-├─ drizzle.config.ts
-├─ playwright.config.ts
-└─ vite.config.ts
-```
+<Files>
+  <Folder name="my-app" defaultOpen>
+    <Folder name=".github" defaultOpen>
+      <Folder name="workflows" defaultOpen>
+        <File name="ci.yml" />
+      </Folder>
+    </Folder>
+    <Folder name="api" defaultOpen>
+      <File name="app.ts" />
+      <File name="env.ts" />
+      <File name="plans.ts" />
+      <File name="server.ts" />
+      <File name="services.ts" />
+      <Folder name="db" />
+    </Folder>
+    <Folder name="drizzle" />
+    <Folder name="e2e" defaultOpen>
+      <File name="smoke.spec.ts" />
+    </Folder>
+    <Folder name="src" defaultOpen>
+      <File name="main.tsx" />
+      <Folder name="lib" defaultOpen>
+        <File name="api.ts" />
+      </Folder>
+      <Folder name="routes" />
+    </Folder>
+    <Folder name="test" defaultOpen>
+      <File name="api.test.ts" />
+    </Folder>
+    <File name="drizzle.config.ts" />
+    <File name="playwright.config.ts" />
+    <File name="vite.config.ts" />
+  </Folder>
+</Files>
   </Tab>
 </Tabs>
 

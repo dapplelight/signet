@@ -1,0 +1,64 @@
+---
+title: "Add Rate Limiting"
+description: "A general API limit plus an exact, durable login limit on Cloudflare Workers."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-server hono
+```
+</Step>
+<Step>
+### Limit the API
+```ts title="server/app.ts"
+import { rateLimit } from "@dapplelight/signet-server/middleware/rate-limit"
+
+app.use("/api/*", rateLimit({ max: 100, windowSeconds: 60, trust: "cloudflare" }))
+```
+The default store is per isolate on Workers, which is fine for general traffic. `trust` is required: it says which proxy header to believe.
+</Step>
+<Step>
+### Add an exact limit for login
+```ts title="server/app.ts"
+import { durableObjectStore } from "@dapplelight/signet-server/middleware/rate-limit-do"
+
+app.use("/api/auth/login", rateLimit({
+  scope: "login",
+  max: 5,
+  windowSeconds: 60,
+  trust: "cloudflare",
+  store: (c) => durableObjectStore(c.env.RATE_LIMIT), // bindings live on c.env
+  failOpen: false, // a login limit is a security control: 503 if the store is down
+}))
+```
+</Step>
+<Step>
+### Export and bind the Durable Object
+```ts title="worker/index.ts"
+export { RateLimitCounter } from "@dapplelight/signet-server/middleware/rate-limit-do"
+```
+```jsonc title="wrangler.jsonc"
+{
+  "durable_objects": { "bindings": [{ "name": "RATE_LIMIT", "class_name": "RateLimitCounter" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RateLimitCounter"] }]
+}
+```
+</Step>
+<Step>
+### Check the setup
+```bash
+npx signet-doctor
+```
+It checks the binding, the migration and the export, and exits 1 on a problem, so it fits in CI.
+</Step>
+</Steps>
+
+Off Cloudflare, use `upstashRateLimitStore` from `@dapplelight/signet-server/adapters/upstash` for a shared count.
+
+## Next
+<Cards>
+  <Card title="Middleware" href="/docs/packages/server/middleware" description="Store tradeoffs, trust modes and failure behaviour." />
+  <Card title="Adapters" href="/docs/packages/server/adapters" description="Run the same limiter on Node, Bun or Vercel." />
+</Cards>

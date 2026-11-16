@@ -162,8 +162,12 @@ export function Demo() {
 | `size` | `"default" \| "sm"` | `"default"` | Track and thumb size. |
 | `checked` | `boolean` | `-` | Controlled state. |
 | `defaultChecked` | `boolean` | `false` | Initial state. |
-| `onCheckedChange` | `(checked: boolean) => void` | `-` | Called when toggled. |
+| `onCheckedChange` | `(checked: boolean, details) => void` | `-` | Called when toggled. |
 | `disabled` | `boolean` | `false` | Blocks interaction. |
+| `readOnly` | `boolean` | `false` | Shows the state but blocks changes. |
+| `required` | `boolean` | `false` | Require it to be on in a form. |
+| `name` | `string` | `-` | Form field name. |
+| `value` / `uncheckedValue` | `string` | `"on"` / none | Submitted when on / off. |
 | `aria-invalid` | `boolean` | `-` | Shows the destructive ring. |
 
 The remaining props come from the Base UI switch root.

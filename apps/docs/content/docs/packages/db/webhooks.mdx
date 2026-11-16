@@ -5,12 +5,13 @@ description: "Outbound signed webhooks with retries, a delivery log and SSRF pro
 
 ## Usage
 ```ts
-import { webhookTables } from "@dapplelight/signet-db/columns/sqlite"
+import { outbox, webhookTables } from "@dapplelight/signet-db/columns/sqlite"
 import { drainOutbox } from "@dapplelight/signet-db"
 import { createWebhooks, WEBHOOK_TOPIC } from "@dapplelight/signet-db/webhooks"
 
-// schema.ts
+// schema.ts: the two webhook tables and the outbox they queue through
 export const { webhookEndpoints, webhookDeliveries } = webhookTables()
+export const outboxTable = outbox()
 
 // app
 const webhooks = createWebhooks(db, {
@@ -37,7 +38,7 @@ await drainOutbox(db, {
 })
 ```
 
-The db needs an `outbox` table: `createDb(..., { outbox })`. Receivers dedupe on `webhook-id` (the event id), which is the same on every retry. They verify with `verifyWebhook` from `@dapplelight/signet-lib/webhooks`.
+The db needs the outbox table: `createDb(sqlite, { outbox: outboxTable })`. Generate and apply the migration as for any table (`npx drizzle-kit generate && npx drizzle-kit migrate`). Receivers dedupe on `webhook-id` (the event id), which is the same on every retry. They verify with `verifyWebhook` from `@dapplelight/signet-lib/webhooks`.
 
 ## API
 | Export | What it does |

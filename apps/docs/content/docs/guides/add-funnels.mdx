@@ -1,0 +1,90 @@
+---
+title: "Add Web-to-App Funnels With Hosted Checkout"
+description: "A hosted quiz and checkout page with Apple Pay, Google Pay and URL discounts, then a one-time link that moves the purchase into the app."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-server @dapplelight/signet-payments @dapplelight/signet-db hono drizzle-orm
+```
+</Step>
+<Step>
+### Define the funnel
+```ts title="src/server/funnels.ts"
+import { createFunnels } from "@dapplelight/signet-db/funnels"
+import { redemptionLink } from "@dapplelight/signet-server/http/funnels"
+
+export const funnels = createFunnels(db, {
+  tables: { ...funnelTables(), customerEvents },
+  funnels: [{
+    key: "spring", placement: "web", title: "Sleep better",
+    questions: [{ id: "goal", title: "Your goal?", options: [{ value: "sleep", label: "Sleep" }] }],
+  }],
+  discounts: [{ code: "SPRING25", percentOff: 25, expiresAt: "2027-04-01", maxRedemptions: 500, plans: ["pro"] }],
+  offerings, customers, entitlements,
+  checkout: (input) => payments.checkout(input),
+  track: (e) => sink.write([e]),
+  onPaid: async (s) => s.email && sendMail(s.email, (await redemptionLink(opts, s.id)).link),
+})
+```
+</Step>
+<Step>
+### Apply gateway events
+```ts title="src/server/payments.ts"
+createPayments({
+  ...gateways,
+  onEvent: async (e) => {
+    await entitlements.applyBillingEvent(e)
+    await customers.record(e)
+    await funnels.applyEvent(e)
+  },
+})
+```
+Nothing is granted until the gateway webhook signature verifies.
+</Step>
+<Step>
+### Mount the routes
+```ts title="src/app.ts"
+import { funnelRoutes } from "@dapplelight/signet-server/http/funnels"
+import { rateLimit } from "@dapplelight/signet-server/middleware/rate-limit"
+
+app.use("/f/:key/checkout", rateLimit({ scope: "funnel-checkout", max: 10, trust: "cloudflare" }))
+app.use("/f/redeem", rateLimit({ scope: "funnel-redeem", max: 10, trust: "cloudflare" }))
+app.route("/f", funnelRoutes({
+  funnels,
+  secret: c.env.FUNNEL_SECRET,
+  redeemUrl: "https://app.example.com/redeem",
+  userId: (c) => c.get("session")?.sub,
+  page: { stripePublishableKey: c.env.STRIPE_PUBLISHABLE_KEY, razorpayKeyId: c.env.RAZORPAY_KEY_ID },
+}))
+app.post("/webhooks/:gateway", (c) => payments.handleWebhook(c.req.param("gateway"), c.req.raw))
+```
+`FUNNEL_SECRET` must be 32 or more characters.
+</Step>
+<Step>
+### Redeem in the app
+```ts title="src/web/redeem.ts"
+await api.post("/f/redeem", { token })
+```
+This moves the anonymous buyer's plan, payments and history to the signed-in account. A token works once.
+</Step>
+<Step>
+### Read drop-off
+```ts title="src/server/reports.ts"
+import { funnelSteps } from "@dapplelight/signet-db/funnels"
+
+const dropOff = await store.funnel({ steps: funnelSteps(def) })
+```
+</Step>
+</Steps>
+
+Visit `/f/spring?code=SPRING25` to price the discount on the server.
+
+## Next
+<Cards>
+  <Card title="Funnels" href="/docs/packages/db/funnels" description="Sessions, discounts and redemption." />
+  <Card title="HTTP" href="/docs/packages/server/http" description="Funnel routes and Apple Pay verification." />
+  <Card title="Funnel screens" href="/docs/components/funnel-screens" description="Funnel admin UI." />
+</Cards>

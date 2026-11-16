@@ -150,14 +150,16 @@ const [plan, setPlan] = useState("starter")
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
-| value | `string` | - | Controlled selected value. |
-| defaultValue | `string` | - | Initial value when uncontrolled. |
+| value | `string \| null` | - | Controlled selected value. `null` selects nothing. |
+| defaultValue | `string \| null` | - | Initial value when uncontrolled. |
 | onValueChange | `(value: string \| null, details) => void` | - | Called when the selection changes. |
 | name | `string` | - | Form field name for the hidden native radio. |
 | disabled | `boolean` | false | Disable every item. |
 | readOnly | `boolean` | false | Show the value without allowing changes. |
 | required | `boolean` | false | Require a choice in a form. |
-| loop | `boolean` | - | Whether arrow keys wrap around. |
+| form | `string` | - | `id` of a form to attach the hidden radio to. |
+| loop | `boolean` | true | Whether arrow keys wrap from the last item to the first. |
+| controller | `RadioGroupController` | - | Read and drive the group from outside (`createRadioGroupController()`). |
 | className | `string` | - | Merged with `grid gap-2`. |
 
 ### RadioGroupItem

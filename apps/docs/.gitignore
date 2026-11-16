@@ -29,3 +29,4 @@ next-env.d.ts
 /content/docs/packages/*/meta.json
 /content/docs/components/meta.json
 /components/demos.generated.tsx
+/.wrangler/

@@ -172,13 +172,17 @@ Built on the Base UI combobox. `Combobox` is the Base UI `Combobox.Root`, so it 
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
-| `items` | `T[]` | - | The options. Filtering is done for you. |
+| `items` | `T[]` or groups | - | The options. Filtering is done for you. |
+| `filter` | `null \| (item, query, itemToString?) => boolean` | built-in | Custom match; `null` turns filtering off (for server-side search). |
+| `inputValue` / `onInputValueChange` | `string` / `(value, details) => void` | - | Control the typed text. |
+| `autoHighlight` | `boolean` | `false` | Highlight the first match while typing. |
 | `value` | `T \| T[] \| null` | - | Controlled value. |
 | `defaultValue` | `T \| T[] \| null` | - | Initial value when uncontrolled. |
-| `onValueChange` | `(value) => void` | - | Runs when the selection changes. |
+| `onValueChange` | `(value, details) => void` | - | Runs when the selection changes. |
 | `multiple` | `boolean` | `false` | Allow several values. Value becomes an array. |
 | `open` / `onOpenChange` | `boolean` / `(open) => void` | - | Control the popup. |
-| `disabled` | `boolean` | `false` | Disable the field. |
+| `disabled` / `readOnly` / `required` | `boolean` | `false` | Field state. |
+| `name` | `string` | - | Form field name. |
 
 ### ComboboxInput
 

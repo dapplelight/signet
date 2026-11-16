@@ -1,0 +1,54 @@
+---
+title: "Add Workers-Safe Env Configuration"
+description: "Validated config that works on Cloudflare Workers, read lazily so deploys never fail on missing secrets."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-server zod
+```
+</Step>
+<Step>
+### Define the schema
+```ts title="src/env.ts"
+import { createEnv } from "@dapplelight/signet-server/env"
+import { z } from "zod"
+
+export const env = createEnv(
+  z.object({ DATABASE_URL: z.string().url(), SENTRY_DSN: z.string().url().optional() }),
+  { optionalFeatures: [["SENTRY_DSN", "error reporting"]] },
+)
+```
+Validation runs on first property access, not at import.
+</Step>
+<Step>
+### Hand over the bindings first
+```ts title="src/worker.ts"
+import { initRuntimeEnv } from "@dapplelight/signet-server/env"
+import { app } from "./app"
+
+export default {
+  fetch(req: Request, bindings: Record<string, unknown>, ctx: ExecutionContext) {
+    initRuntimeEnv(bindings)
+    return app.fetch(req, bindings, ctx)
+  },
+}
+```
+</Step>
+<Step>
+### Read it in a handler
+```ts title="src/server/db.ts"
+import { env } from "../env"
+
+const db = connect(env.DATABASE_URL)
+```
+Never read `env` at module scope: Workers pass secrets per request.
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="Env" href="/docs/packages/server/env" description="createEnv, runtime env and optional features." />
+</Cards>

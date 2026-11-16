@@ -154,8 +154,14 @@ Typing filters and ranks, arrow keys move the highlight while focus stays in the
 | `filter` | `fuzzy` \| `contains` \| `startsWith` \| function \| `false` | `fuzzy` | How typing narrows the list. |
 | `query` / `onQueryChange` | `string` / `(query, details) => void` | - | Control the search text. |
 | `value` / `onValueChange` | `string \| null` / `(value, details) => void` | - | Control the highlighted command. |
+| `defaultQuery` / `defaultValue` | `string` / `string \| null` | - | Initial search text and highlighted command when uncontrolled. |
+| `autoHighlight` | `boolean` | `true` | Highlight the first or best-matching command so Enter runs it. |
 | `loop` | `boolean` | `true` | Wrap arrow keys at the ends. |
 | `items` | `CommandData` | - | Commands as data instead of children. |
+| `emptyItems` | `CommandData` | - | Shown instead of `items` while the search is empty, such as recent commands. Needs `items`. |
+| `status` | `"idle" \| "loading" \| "error"` | `"idle"` | Whether results are loading or failed. |
+| `onLoadMore` | `() => void` | - | Runs when the highlight reaches the last command. |
+| `pendingAnnouncement` | `string` | `"Loading"` | What screen readers hear when an action stays pending. |
 | `className` | `string` | - | Merged last. |
 
 ### CommandDialog

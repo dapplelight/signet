@@ -1,0 +1,83 @@
+---
+title: "Add UPI Links, GST Invoices and DPDP Consent"
+description: "Pay-by-UPI links, numbered GST tax invoices, and consent and data-request records for Indian customers."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-payments @dapplelight/signet-db drizzle-orm
+```
+</Step>
+<Step>
+### Make a UPI link
+```ts title="src/server/upi.ts"
+import { upiIntent } from "@dapplelight/signet-payments/upi"
+
+const link = upiIntent({ pa: "shop@okbank", pn: "Corner Shop", amount: 49_900, tr: orderId, note: "Order 42" })
+```
+Use it as an `href` on mobile or render it as a QR code yourself. Confirm payment through your gateway, not the link.
+</Step>
+<Step>
+### Number invoices without gaps
+```ts title="src/db/schema.ts"
+import { sequences } from "@dapplelight/signet-db/columns/sqlite"
+
+export { sequences }
+```
+</Step>
+<Step>
+### Issue a GST invoice
+```ts title="src/server/invoices.ts"
+import { financialYear, gstInvoice, invoiceNumber, renderGstInvoiceHtml } from "@dapplelight/signet-payments/gst"
+import { nextSequence } from "@dapplelight/signet-db"
+
+const fy = financialYear(now)
+const seq = await nextSequence(db, schema.sequences, `invoice:INV:${fy}`)
+const inv = gstInvoice({
+  number: invoiceNumber({ prefix: "INV", fy, seq }),
+  date: now,
+  supplier: { name, address, gstin },
+  recipient: { name, address, gstin },
+  placeOfSupply: "29",
+  lines: [{ description: "Plan, 1 year", hsn: "998314", quantity: 1, unit: "OTH", unitPrice: 99_900, rate: 18 }],
+})
+const html = renderGstInvoiceHtml(inv)
+```
+`inv.taxType` is `intra` for CGST and SGST, or `inter` for IGST. Amounts are in paise.
+</Step>
+<Step>
+### Record consent and data requests
+```ts title="src/server/privacy.ts"
+import { privacyTables } from "@dapplelight/signet-db/columns/sqlite"
+import { createPrivacy } from "@dapplelight/signet-db/privacy"
+
+export const { consents, dataRequests } = privacyTables()
+
+export const privacy = createPrivacy(db, {
+  tables: { consents, dataRequests },
+  userTables: [notes, tags, [users, users.id]],
+  respondWithinMs: 30 * 86_400_000,
+})
+```
+</Step>
+<Step>
+### Use it
+```ts title="src/server/privacy-routes.ts"
+await privacy.give(userId, "marketing-email", { noticeVersion: "2026-11-01", source: "signup" })
+await privacy.withdraw(userId, "marketing-email")
+
+const req = await privacy.requestErasure(userId)
+await privacy.fulfil(req.id, { actor: { type: "user", id: staffId } })
+```
+Fulfilling an erasure deletes the rows in `userTables`. This is record-keeping, not legal advice.
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="UPI" href="/docs/packages/payments/upi" description="Every intent parameter." />
+  <Card title="GST" href="/docs/packages/payments/gst" description="Rules covered and what is refused." />
+  <Card title="Privacy" href="/docs/packages/db/privacy" description="Consent, requests and agent tools." />
+</Cards>
