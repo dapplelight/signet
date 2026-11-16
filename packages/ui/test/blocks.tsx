@@ -134,6 +134,34 @@ await t("settings: Delete stays disabled until the workspace name is typed", asy
   ok("onDelete ran", deleted === 1)
 })
 
+await t("settings: forms take the real values when they arrive after loading", async () => {
+  const real = { name: "Real Co", description: "Real description." }
+  const { rerender } = render(<Settings state="loading" />)
+  rerender(
+    <Settings
+      state="ready"
+      general={real}
+      notifications={{ emailUpdates: false, weeklySummary: true }}
+    />,
+  )
+  const general = within(document.querySelector("[data-slot=settings-general]") as HTMLElement)
+  ok(
+    "name is the real one",
+    (general.getByLabelText("Workspace name") as HTMLInputElement).value === "Real Co",
+  )
+  ok(
+    "Save is disabled, nothing differs",
+    (general.getByRole("button", { name: "Save changes" }) as HTMLButtonElement).disabled,
+  )
+  rerender(<Settings state="ready" general={{ ...real }} />)
+  await userEvent.type(general.getByLabelText("Workspace name"), "X")
+  rerender(<Settings state="ready" general={{ ...real }} />)
+  ok(
+    "an equal object does not wipe an edit",
+    (general.getByLabelText("Workspace name") as HTMLInputElement).value === "Real CoX",
+  )
+})
+
 await t("settings: loading and error states", async () => {
   const { unmount } = render(<Settings state="loading" />)
   ok("loading status", !!screen.getByRole("status", { name: "Loading settings" }))

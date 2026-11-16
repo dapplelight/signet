@@ -118,6 +118,18 @@ function useSavedForm<T extends Record<string, string | boolean>>(
   const [saving, setSaving] = React.useState(false)
   const dirty = (Object.keys(saved) as (keyof T)[]).some((k) => saved[k] !== values[k])
 
+  // Incoming values replace the form (loading -> ready). Compared by content so a
+  // parent passing a fresh-but-equal object each render does not wipe edits.
+  const incoming = JSON.stringify(initial)
+  const seen = React.useRef(incoming)
+  if (seen.current !== incoming) {
+    seen.current = incoming
+    setSaved(initial)
+    setValues(initial)
+    setErrors({})
+    setFailed(false)
+  }
+
   const set = <K extends keyof T>(key: K, value: T[K]) => {
     setValues((v) => ({ ...v, [key]: value }))
     setErrors((e) => ({ ...e, [key]: undefined }))
