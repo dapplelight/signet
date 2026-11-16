@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "sync": "bun run scripts/sync.ts",
+    "sync": "bun run --cwd ../../packages/mcp gen && bun run scripts/sync.ts",
     "dev": "bun run sync && next dev",
     "build": "bun run sync && next build",
     "start": "serve out",
