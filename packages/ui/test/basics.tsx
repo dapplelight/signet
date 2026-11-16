@@ -62,6 +62,7 @@ const {
 } = await import("../src/components/ui/breadcrumb")
 const { Spinner } = await import("../src/components/ui/spinner")
 const { Button } = await import("../src/components/ui/button")
+const { SkipLink } = await import("../src/components/ui/skip-link")
 
 let pass = 0,
   fail = 0
@@ -753,6 +754,30 @@ await t("Customisation", async () => {
     "Stepper: renderIndicator and classNames",
     document.querySelector(".my-dot")?.textContent === "0:current",
   )
+})
+
+await t("SkipLink", async () => {
+  render(
+    <>
+      <SkipLink />
+      <SkipLink target="content" className="mine">
+        Jump
+      </SkipLink>
+    </>,
+  )
+  const a = screen.getByText("Skip to content")
+  ok("SkipLink: default label and #main", a.getAttribute("href") === "#main")
+  ok(
+    "SkipLink: hidden until focused",
+    a.className.includes("sr-only") && a.className.includes("focus:not-sr-only"),
+  )
+  const b = screen.getByText("Jump")
+  ok(
+    "SkipLink: target, children, className",
+    b.getAttribute("href") === "#content" && b.className.includes("mine"),
+  )
+  await userEvent.tab()
+  ok("SkipLink: first Tab focuses it", document.activeElement === a)
 })
 
 console.log(`\n${pass} passed, ${fail} failed`)

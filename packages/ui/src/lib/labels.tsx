@@ -58,6 +58,7 @@ export const defaultLabels = {
   addItem: "Add",
   removeItem: "Remove",
   chooseOption: "Choose…",
+  skipToContent: "Skip to content",
 }
 
 export type Labels = typeof defaultLabels
