@@ -22,7 +22,9 @@
  * User and org ids are stored only as `hashSubject(id)` (SHA-256 by default),
  * never raw. Rows older than `retentionDays` (default 400) are pruned.
  *
- * Fails closed like signet-ai's ledger: a database error refuses the call.
+ * Fails closed like signet-ai's ledger: a database error on the counters
+ * refuses the call. The dated ledger is reporting only, so a failed ledger
+ * write is dropped and never fails `record`.
  * Calls in flight are not reserved, so concurrent calls can overshoot a cap by
  * their own cost.
  */
@@ -272,28 +274,35 @@ export function createAiSpend(db: SignetDb<unknown>, options: AiSpendOptions) {
     if (!L || (n === 0 && saved === 0)) return
     const day = periodOf("day", at)
     const model = detail.model || "unknown"
-    const rows = await Promise.all(
-      targets(subject).map(async ([scope, id]) => ({
-        day,
-        model,
-        scope,
-        subject: scope === "global" ? "*" : await hash(id),
-        units: n,
-        calls: 1,
-        cacheSavedUnits: saved,
-      })),
-    )
-    await o
-      .insert(L)
-      .values(rows)
-      .onConflictDoUpdate({
-        target: [lc.day, lc.model, lc.scope, lc.subject],
-        set: {
-          units: sql`${lc.units} + ${n}`,
-          calls: sql`${lc.calls} + 1`,
-          cacheSavedUnits: sql`${lc.cacheSavedUnits} + ${saved}`,
-        },
-      })
+    // The ledger is reporting only and the counters are already charged, so a
+    // failed ledger write (unmigrated table, DB error, rejecting hashSubject)
+    // must not fail a call that finished and was paid for.
+    try {
+      const rows = await Promise.all(
+        targets(subject).map(async ([scope, id]) => ({
+          day,
+          model,
+          scope,
+          subject: scope === "global" ? "*" : await hash(id),
+          units: n,
+          calls: 1,
+          cacheSavedUnits: saved,
+        })),
+      )
+      await o
+        .insert(L)
+        .values(rows)
+        .onConflictDoUpdate({
+          target: [lc.day, lc.model, lc.scope, lc.subject],
+          set: {
+            units: sql`${lc.units} + ${n}`,
+            calls: sql`${lc.calls} + 1`,
+            cacheSavedUnits: sql`${lc.cacheSavedUnits} + ${saved}`,
+          },
+        })
+    } catch {
+      return
+    }
     // Once per UTC day per instance; a failed prune must not fail the record.
     if (prunedOn !== day) {
       prunedOn = day

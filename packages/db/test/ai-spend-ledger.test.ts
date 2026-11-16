@@ -156,6 +156,31 @@ describe.each(backends)("$name", (backend) => {
     expect(await code(spend.topSpenders({ scope: "global" as never, days: 1 }))).toBe("BAD_VALUE")
   })
 
+  test("a failing hashSubject does not fail record; the counters are still charged once", async () => {
+    const spend = await make({
+      hashSubject: () => {
+        throw new Error("hmac down")
+      },
+    })
+    await spend.record({ userId: "a" }, 5, clock)
+    expect((await spend.usage("user", "a")).day.used).toBe(5)
+    expect(await rows()).toHaveLength(0)
+  })
+
+  test("an unmigrated ledger table does not fail record", async () => {
+    open = await backend.make({})
+    const c = open.db.dialect === "pg" ? pgc : sqc
+    const usageCounters = c.entitlementTables().usageCounters
+    const aiSpendCaps = c.aiSpendCaps()
+    const aiSpendLedger = c.aiSpendLedger()
+    for (const t of [usageCounters, aiSpendCaps]) await open.exec(ddl(t)) // no ledger DDL
+    const spend = createAiSpend(open.db, {
+      tables: { usageCounters, aiSpendCaps, aiSpendLedger } as never,
+    })
+    await spend.record({ userId: "a" }, 5)
+    expect((await spend.usage("user", "a")).day.used).toBe(5)
+  })
+
   test("without a ledger table record still counts and the ledger methods say so", async () => {
     open = await backend.make({})
     const c = open.db.dialect === "pg" ? pgc : sqc
