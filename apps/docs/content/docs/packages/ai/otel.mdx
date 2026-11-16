@@ -64,6 +64,10 @@ Cost is converted to units, rounded up. An unpriced call or a cache hit records 
 </Callout>
 
 <Callout type="warn">
+`./otel` imports `@opentelemetry/api` by its literal name, so a bundler (esbuild, wrangler, Vite) resolves it at build time and fails if it is missing. If you bundle `./otel`, install `@opentelemetry/api` or mark it external (for example `--external:@opentelemetry/api`). The runtime fallback only covers unbundled use. Apps that never import `./otel` are not affected.
+</Callout>
+
+<Callout type="warn">
 `includeKey` puts the budget key (often a user id) on the span. Prompts and outputs are never added.
 </Callout>
 

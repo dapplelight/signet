@@ -4,6 +4,9 @@
  *
  * `@opentelemetry/api` is an optional peer loaded on first use. Without it, or
  * without an SDK registered, `otelUsage` does nothing. No exporter here.
+ * The import is a literal specifier, so a bundler (esbuild, wrangler, Vite)
+ * resolves it at build time: install `@opentelemetry/api` or mark it external
+ * if you bundle `./otel`. Apps that never import `./otel` are unaffected.
  * Takes configuration; never reads env. Spans carry no prompts or outputs.
  */
 
