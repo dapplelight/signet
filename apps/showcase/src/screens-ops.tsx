@@ -1,5 +1,5 @@
 // Demo page for the operator and money screens: /screens-ops.html?screen=admin
-// (admin, admin-record, billing, paywall, growth, workflows), &theme=<name>, &dark=1.
+// (admin, admin-record, billing, paywall, growth, workflows, cost), &theme=<name>, &dark=1.
 // Everything runs on in-memory data; nothing calls a server.
 import {
   type AdminApi,
@@ -13,6 +13,7 @@ import {
   Paywall,
   plansFromEntitlements,
 } from "@dapplelight/signet-ui/screens/billing-screens"
+import { CostDashboard } from "@dapplelight/signet-ui/screens/cost-dashboard"
 import {
   FeedbackWidget,
   InviteAccept,
@@ -287,7 +288,62 @@ function WorkflowsDemo() {
   )
 }
 
+// ------------------------------------------------------------------- cost
+
+const costDay = (d: number, units: number, saved: number) => ({
+  day: `2026-11-${String(d).padStart(2, "0")}`,
+  units,
+  calls: Math.round(units / 9_000),
+  cacheSavedUnits: saved,
+})
+const COST = {
+  series: [
+    costDay(8, 1_200_000, 300_000),
+    costDay(9, 2_400_000, 500_000),
+    costDay(10, 1_900_000, 800_000),
+    costDay(11, 3_100_000, 700_000),
+    costDay(12, 2_700_000, 1_100_000),
+    costDay(13, 800_000, 200_000),
+    costDay(14, 3_600_000, 1_400_000),
+  ],
+  models: [
+    { model: "small-model-2", units: 4_100_000, calls: 612 },
+    { model: "large-model-1", units: 9_800_000, calls: 340 },
+    { model: "embed-model-1", units: 7_500, calls: 1_200 },
+  ],
+  top: [
+    {
+      subject: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      units: 5_200_000,
+      calls: 211,
+    },
+    {
+      subject: "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae",
+      units: 3_100_000,
+      calls: 140,
+    },
+    {
+      subject: "fcde2b2edba56bf408601fb721fe9b5c338d10ee429ea04fae5511b68fbf8fb9",
+      units: 900_000,
+      calls: 62,
+    },
+  ],
+  caps: {
+    day: { used: 3_600_000, cap: 3_000_000 },
+    month: { used: 15_700_000, cap: 50_000_000 },
+  },
+}
+
+function CostDemo() {
+  return (
+    <div className="mx-auto max-w-5xl px-4 py-8">
+      <CostDashboard fetcher={async () => (await wait(400), COST)} />
+    </div>
+  )
+}
+
 function Screen() {
+  if (which === "cost") return <CostDemo />
   if (which === "workflows") return <WorkflowsDemo />
   if (which === "admin" || which === "admin-record")
     return (
@@ -435,7 +491,7 @@ function Screen() {
   )
 }
 
-const SCREENS = ["admin", "admin-record", "billing", "paywall", "growth", "workflows"]
+const SCREENS = ["admin", "admin-record", "billing", "paywall", "growth", "workflows", "cost"]
 
 /** Links between the demos, keeping the theme and dark mode in the URL. */
 function DemoBar() {

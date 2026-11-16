@@ -133,6 +133,10 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   trial conversions, paywall views against conversions, with filters by
   store, plan, country and offering, saved audiences and a CSV link. Needs
   recharts (optional peer), so it is its own export path.
+- `screens/cost-dashboard`: `CostDashboard` on signet-server's
+  `observabilityAdminRoutes`: spend over time with cache savings, spend by
+  model, top spenders (hashes as given) and global cap bars; give it `data` or a
+  `fetcher(days)`. Needs recharts (optional peer), so it is its own export path.
 - `screens/growth-screens`: `WaitlistJoin` (with the place in line),
   `InviteAccept`, `ReferralCard`, `OnboardingChecklist`, `FeedbackWidget` /
   `FeedbackForm` and `WhatsNew`, shaped like signet-db's growth results.
@@ -301,6 +305,7 @@ without an app changing. Each component's source starts with its recipe:
 | `screens/status-screens` | live-region + field-wiring + roving-focus (timeline) |
 | `screens/funnel-screens` | selection + controllable-state + live-region |
 | `screens/subscription-charts` | field-wiring (labelled filters) + controllable-state (filters) |
+| `screens/cost-dashboard` | controllable-state (range) + live-region (loading, error) |
 | `screens/growth-screens` | selection + roving-focus + controllable-state + popup + dismiss + live-region + field-wiring |
 | `screens/workflow-screens` | roving-focus (timeline) + live-region + field-wiring |
 | `screens/org-screens` | popup + dismiss + live-region + field-wiring + controllable-state |
