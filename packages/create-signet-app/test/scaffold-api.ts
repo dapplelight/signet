@@ -15,7 +15,7 @@
  * fetch in process (a real deploy needs a Vercel account).
  */
 
-import { existsSync, readFileSync, rmSync } from "node:fs"
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { $ } from "bun"
 
@@ -34,9 +34,16 @@ const ok = (n: string, c: boolean, d = "") => {
  * does for the web template): the template may use what is not on npm yet.
  */
 async function installLocal(dir: string) {
+  // Point the dependency at the tarball before the first install: a bumped
+  // version is not on npm until the release runs.
+  const tgz = (await $`npm pack ${ROOT}/packages/server`.cwd(dir).quiet()).text().trim()
+  const pkgPath = join(dir, "package.json")
+  const pkg = readFileSync(pkgPath, "utf8")
+  writeFileSync(
+    pkgPath,
+    pkg.replace(/("@dapplelight\/signet-server": )"[^"]+"/, `$1"file:./${tgz}"`),
+  )
   await $`bun install`.cwd(dir).quiet()
-  await $`npm pack ${ROOT}/packages/server`.cwd(dir).quiet()
-  await $`sh -c 'bun add ./dapplelight-signet-server-*.tgz'`.cwd(dir).quiet()
 }
 
 rmSync(DIR, { recursive: true, force: true })
