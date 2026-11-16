@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### mcp: plan_page tool
+
+- New `plan_page({ description, target? })`: describe a page in words and get a file plan. It returns the block to add (with its `signet add block` command), the components it uses, server modules, the matching recipe, the data the page needs and the files to create, each with a one-line purpose. `target` is `web` (default), `api` or `full`. It ranks the blocks, recipes and server exports by words only: no LLM call, and the same description gives the same plan.
+
 ### create-signet-app: observability in the full template
 
 - The full template can turn on request logs, a span per request and `/health/live` and `/health/ready` with `OBSERVABILITY=on` (`traceMiddleware`, `requestLog`, `healthRoutes` and the logger `mixin`, wired through `createApp`'s new `observability` option). It is off by default: with the variable unset, the routes and log output are unchanged and there is no `/health`.
