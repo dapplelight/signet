@@ -1,4 +1,5 @@
 import { useCallback, useId, useRef, useState } from "react"
+import { useLabels } from "../../lib/labels.js"
 import { cn } from "../../lib/utils.js"
 import { Button } from "../ui/button.js"
 import { Progress } from "../ui/progress.js"
@@ -90,6 +91,7 @@ function Upload({
   transport = xhrUpload,
   className,
 }: UploadProps) {
+  const l = useLabels()
   const inputId = useId()
   const hintId = useId()
   const [items, setItems] = useState<Item[]>([])
@@ -150,7 +152,7 @@ function Upload({
   return (
     <div data-slot="upload" className={cn("flex flex-col gap-3", className)}>
       <section
-        aria-label="Upload"
+        aria-label={l.upload}
         data-dragging={dragging || undefined}
         onDragOver={(e) => {
           e.preventDefault()
@@ -206,17 +208,17 @@ function Upload({
                       : `${item.progress}%`}
                 </span>
               </div>
-              <Progress value={item.progress} aria-label={`Uploading ${item.file.name}`} />
+              <Progress value={item.progress} aria-label={l.uploading(item.file.name)} />
               {item.status === "error" ? (
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs text-accent-red">{item.error}</span>
                   <Button
                     size="xs"
                     variant="outline"
-                    aria-label={`Retry ${item.file.name}`}
+                    aria-label={l.retryItem(item.file.name)}
                     onClick={() => void send(item)}
                   >
-                    Retry
+                    {l.retry}
                   </Button>
                 </div>
               ) : null}

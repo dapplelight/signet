@@ -31,6 +31,7 @@ import {
 import { ArrowDown, ArrowUp, ArrowUpDown, ListFilter, X } from "lucide-react"
 import type * as React from "react"
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
+import { useLabels } from "../../lib/labels.js"
 import { cn } from "../../lib/utils.js"
 import { Checkbox } from "./checkbox.js"
 import { Popover, PopoverContent, PopoverTrigger } from "./popover.js"
@@ -289,7 +290,7 @@ function DataTable<TData extends RowData>({
   columns,
   data,
   onRowClick,
-  emptyMessage = "No data.",
+  emptyMessage,
   className,
   tableRef,
   getRowId,
@@ -312,6 +313,7 @@ function DataTable<TData extends RowData>({
   columnsMenu = false,
   exportFilename,
 }: DataTableProps<TData>) {
+  const l = useLabels()
   const columnResizeMode: ColumnResizeMode = "onChange"
   // Each header is labelled by its own content: otherwise its accessible name
   // takes in the resize handle's label ("Name Resize column name").
@@ -341,7 +343,7 @@ function DataTable<TData extends RowData>({
       id: "__select__",
       header: ({ table }) => (
         <Checkbox
-          aria-label="Select all rows"
+          aria-label={l.selectAllRows}
           checked={
             table.getIsAllRowsSelected()
               ? true
@@ -354,7 +356,7 @@ function DataTable<TData extends RowData>({
       ),
       cell: ({ row }) => (
         <Checkbox
-          aria-label={`Select row ${row.id}`}
+          aria-label={l.selectRow(row.id)}
           checked={row.getIsSelected()}
           onCheckedChange={(v) => row.toggleSelected(v === true)}
           onClick={(e) => e.stopPropagation()}
@@ -366,7 +368,7 @@ function DataTable<TData extends RowData>({
       minSize: 32,
     }
     return [selectColumn, ...withFilterFn]
-  }, [columns, selectable])
+  }, [columns, selectable, l])
 
   // Selection: controlled by id, converted to/against the table's own
   // Record<id, true> shape. Kept separate from `view` — selection is
@@ -536,7 +538,7 @@ function DataTable<TData extends RowData>({
               onClick={() => setRowSelection({})}
               className="text-[12px] text-text-muted hover:text-text-primary"
             >
-              Clear
+              {l.clear}
             </button>
             <div className="ml-auto flex items-center gap-2">
               {bulkActions?.(table.getSelectedRowModel().rows.map((r) => r.original))}
@@ -548,9 +550,9 @@ function DataTable<TData extends RowData>({
             {searchable && (
               <input
                 type="search"
-                aria-label="Search"
+                aria-label={l.search}
                 placeholder={
-                  (typeof searchable === "object" && searchable.placeholder) || "Search…"
+                  (typeof searchable === "object" && searchable.placeholder) || l.searchPlaceholder
                 }
                 value={current.search ?? ""}
                 onChange={(e) => table.setGlobalFilter(e.target.value)}
@@ -571,7 +573,7 @@ function DataTable<TData extends RowData>({
                 className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-[12px] text-text-muted hover:bg-bg-elevated hover:text-text-primary"
               >
                 <X className="size-3.5" aria-hidden />
-                Reset
+                {l.reset}
               </button>
             )}
             <span
@@ -671,7 +673,7 @@ function DataTable<TData extends RowData>({
                             <div
                               role="separator"
                               aria-orientation="vertical"
-                              aria-label={`Resize column ${header.column.id}`}
+                              aria-label={l.resizeColumn(header.column.id)}
                               aria-valuenow={header.getSize()}
                               aria-valuemin={header.column.columnDef.minSize ?? MIN_COLUMN_PX}
                               tabIndex={0}
@@ -776,7 +778,7 @@ function DataTable<TData extends RowData>({
               ) : (
                 <TableRow>
                   <TableCell colSpan={colSpan} className="h-24 text-center text-text-muted">
-                    {emptyMessage}
+                    {emptyMessage ?? l.noData}
                   </TableCell>
                 </TableRow>
               )}
@@ -793,11 +795,12 @@ function TextFilter<TData extends RowData>({
 }: {
   column: Column<DataTableFeatures, TData, unknown>
 }) {
+  const l = useLabels()
   const label = columnLabel(column)
   return (
     <input
       type="search"
-      aria-label={`Filter ${label}`}
+      aria-label={l.filterBy(label)}
       placeholder={`${label}…`}
       value={String(column.getFilterValue() ?? "")}
       onChange={(e) => column.setFilterValue(e.target.value)}
@@ -813,6 +816,7 @@ function FacetFilter<TData extends RowData>({
   column: Column<DataTableFeatures, TData, unknown>
   counts?: Record<string, number>
 }) {
+  const l = useLabels()
   const label = columnLabel(column)
   const uid = useId()
   const selected = (column.getFilterValue() as string[] | undefined) ?? []
@@ -880,7 +884,7 @@ function FacetFilter<TData extends RowData>({
             )
           })}
           {options.length === 0 && (
-            <li className="px-2 py-1.5 text-[13px] text-text-muted">No values</li>
+            <li className="px-2 py-1.5 text-[13px] text-text-muted">{l.noValues}</li>
           )}
         </ul>
         {selected.length > 0 && (
@@ -903,6 +907,7 @@ function ColumnsMenu<TData extends RowData>({
 }: {
   table: TanstackTable<DataTableFeatures, TData>
 }) {
+  const l = useLabels()
   const columns = table
     .getAllLeafColumns()
     .filter((c) => c.id !== "__select__" && c.columnDef.enableHiding !== false)
@@ -914,11 +919,11 @@ function ColumnsMenu<TData extends RowData>({
           data-slot="data-table-columns"
           className="inline-flex h-8 items-center rounded-lg border border-border-default px-2.5 text-[12px] text-text-secondary hover:bg-bg-elevated"
         >
-          Columns
+          {l.columns}
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-56 p-1">
-        <ul aria-label="Toggle columns">
+        <ul aria-label={l.toggleColumns}>
           {columns.map((column) => {
             const id = `col-${column.id}`
             return (
@@ -956,6 +961,7 @@ function ViewPicker({
   onSave: (name: string, view: DataTableView) => void
   onDelete?: (id: string) => void
 }) {
+  const l = useLabels()
   const [name, setName] = useState("")
   const [open, setOpen] = useState(false)
   const save = () => {
@@ -972,11 +978,11 @@ function ViewPicker({
           data-slot="data-table-views"
           className="inline-flex h-8 items-center rounded-lg border border-border-default px-2.5 text-[12px] text-text-secondary hover:bg-bg-elevated"
         >
-          Views
+          {l.views}
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-64 p-1">
-        <ul aria-label="Saved views">
+        <ul aria-label={l.savedViews}>
           {views.map((v) => (
             <li key={v.id} className="flex items-center">
               <button
@@ -992,7 +998,7 @@ function ViewPicker({
               {onDelete && (
                 <button
                   type="button"
-                  aria-label={`Delete view ${v.name}`}
+                  aria-label={l.deleteView(v.name)}
                   onClick={() => onDelete(v.id)}
                   className="rounded-md p-1.5 text-text-muted hover:bg-bg-elevated hover:text-text-primary"
                 >
@@ -1002,7 +1008,7 @@ function ViewPicker({
             </li>
           ))}
           {views.length === 0 && (
-            <li className="px-2 py-1.5 text-[13px] text-text-muted">No saved views</li>
+            <li className="px-2 py-1.5 text-[13px] text-text-muted">{l.noSavedViews}</li>
           )}
         </ul>
         <form
@@ -1013,8 +1019,8 @@ function ViewPicker({
           }}
         >
           <input
-            aria-label="View name"
-            placeholder="Save current view as…"
+            aria-label={l.viewName}
+            placeholder={l.saveViewPlaceholder}
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="h-7 min-w-0 flex-1 rounded-md border border-border-default bg-bg-elevated px-2 text-[12px] outline-none"
@@ -1024,7 +1030,7 @@ function ViewPicker({
             disabled={!name.trim()}
             className="h-7 rounded-md bg-primary/12 px-2 text-[12px] text-primary disabled:opacity-40"
           >
-            Save
+            {l.save}
           </button>
         </form>
       </PopoverContent>
