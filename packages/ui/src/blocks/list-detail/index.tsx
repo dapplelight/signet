@@ -20,8 +20,8 @@ import { DESKTOP_QUERY, useMediaQuery } from "../../hooks/use-media-query.js"
 import { cn } from "../../lib/utils.js"
 import type { ListDetailItem } from "./sample.js"
 
-export { SAMPLE_ITEMS } from "./sample.js"
 export type { ListDetailItem } from "./sample.js"
+export { SAMPLE_ITEMS } from "./sample.js"
 
 export type BlockState = "ready" | "loading" | "error"
 
@@ -156,7 +156,9 @@ export function ListDetail({
     const at = buttons.indexOf(document.activeElement as HTMLButtonElement)
     if (at < 0) return
     e.preventDefault()
-    buttons[Math.min(buttons.length - 1, Math.max(0, at + (e.key === "ArrowDown" ? 1 : -1)))]?.focus()
+    buttons[
+      Math.min(buttons.length - 1, Math.max(0, at + (e.key === "ArrowDown" ? 1 : -1)))
+    ]?.focus()
   }
 
   return (
@@ -194,7 +196,7 @@ export function ListDetail({
                   setPage(1)
                 }}
               />
-              <div role="group" aria-label={l.filter}>
+              <fieldset aria-label={l.filter} className="m-0 min-w-0 border-0 p-0">
                 <PillGroup
                   options={filters}
                   value={filter}
@@ -204,7 +206,7 @@ export function ListDetail({
                   }}
                   className="[&_button]:min-h-11 [&_button]:px-4 md:[&_button]:min-h-0 md:[&_button]:px-3"
                 />
-              </div>
+              </fieldset>
             </div>
 
             {shown.length === 0 ? (
@@ -242,7 +244,10 @@ export function ListDetail({
                       className="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left outline-none transition-colors hover:bg-bg-elevated/50 focus-visible:ring-3 focus-visible:ring-ring focus-visible:ring-inset aria-[current=true]:bg-bg-elevated"
                     >
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate font-medium text-text-primary" title={it.title}>
+                        <span
+                          className="block truncate font-medium text-text-primary"
+                          title={it.title}
+                        >
                           {it.title}
                         </span>
                         {it.subtitle && (
@@ -293,7 +298,11 @@ export function ListDetail({
       )}
 
       {!isDesktop && sheetOpen && selected && (
-        <ResponsiveSheet title={selected.title} description={selected.subtitle} onClose={closeSheet}>
+        <ResponsiveSheet
+          title={selected.title}
+          description={selected.subtitle}
+          onClose={closeSheet}
+        >
           {detail(selected)}
         </ResponsiveSheet>
       )}

@@ -37,9 +37,21 @@ export const SAMPLE_DASHBOARD: DashboardData = {
   ],
   rows: [
     { id: "1", name: "Acme Studio", status: "Active", date: "Nov 16, 2026" },
-    { id: "2", name: "Northwind Analytics", status: "Trial", tone: "secondary", date: "Nov 15, 2026" },
+    {
+      id: "2",
+      name: "Northwind Analytics",
+      status: "Trial",
+      tone: "secondary",
+      date: "Nov 15, 2026",
+    },
     { id: "3", name: "Globex Design Collective", status: "Active", date: "Nov 15, 2026" },
     { id: "4", name: "Initech", status: "Paused", tone: "outline", date: "Nov 13, 2026" },
-    { id: "5", name: "Umbrella Labs", status: "Past due", tone: "destructive", date: "Nov 12, 2026" },
+    {
+      id: "5",
+      name: "Umbrella Labs",
+      status: "Past due",
+      tone: "destructive",
+      date: "Nov 12, 2026",
+    },
   ],
 }

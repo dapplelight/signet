@@ -34,6 +34,8 @@ Commands:
                        Backend modules (auth, db, payments, notify, admin) go to
                        src/server/ and are wired into src/app.ts, src/env.ts and
                        .env.example; their npm packages are installed
+  add block <name...>  Copy a page-level block (analytics-dashboard, list-detail,
+                       settings) and the components it uses
   upgrade [name...]    Merge upstream changes into added items (default: all),
                        then run the codemods your installed Signet versions need
   diff <name>          Show what changed upstream since the item was copied
@@ -172,6 +174,19 @@ async function main(): Promise<number> {
   const print = (json: unknown, text: string) => console.log(o.json ? JSON.stringify(json) : text)
 
   if (o.command === "add") {
+    // `add block <name...>`: same copy, but the names must be page-level blocks.
+    if (o.names[0] === "block") {
+      o.names.shift()
+      if (!o.names.length)
+        throw new SignetCliError(
+          `Usage: signet add block <name...>. Blocks: ${Object.keys(reg.items)
+            .filter((n) => reg.items[n]?.block)
+            .join(", ")}`,
+        )
+      for (const n of o.names)
+        if (!reg.items[n]?.block)
+          throw new SignetCliError(`"${n}" is not a block. Run signet add block for the list.`)
+    }
     if (!o.names.length) throw new SignetCliError("Usage: signet add <name...>")
     const config = {
       ...(o.dir !== undefined && { dir: o.dir }),

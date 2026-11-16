@@ -268,6 +268,38 @@ try {
   ok("upgrade: an item that was never added is refused", notAdded.includes("signet add card"))
   ok("list: through the CLI", cli(n, "list").out.includes("dialog              added 9.9.9"))
 
+  // ---- blocks: validated against block.json at build, copied by `add block`
+  const blocks = Object.keys(reg.items).filter((n) => reg.items[n]?.block)
+  ok(
+    "registry: the three blocks are items with a description from block.json",
+    JSON.stringify(blocks.sort()) ===
+      JSON.stringify(["analytics-dashboard", "list-detail", "settings"]) &&
+      blocks.every((n) => reg.items[n]?.block?.description),
+    blocks,
+  )
+  const b = app("block")
+  const rb = cli(b, "add", "block", "analytics-dashboard")
+  ok(
+    "add block: prints the usual Added line and copies the block with its components",
+    rb.code === 0 &&
+      rb.out.includes("Added ") &&
+      rb.out.includes("analytics-dashboard (signet-ui") &&
+      existsSync(join(b, "src/components/signet/blocks/analytics-dashboard/index.tsx")) &&
+      existsSync(join(b, "src/components/signet/blocks/analytics-dashboard/sample.ts")) &&
+      existsSync(join(b, "src/components/signet/components/ui/stat-strip.tsx")),
+    rb.out,
+  )
+  const rn = cli(b, "add", "block", "dialog")
+  ok(
+    "add block: a name that is not a block is refused",
+    rn.code === 1 && rn.out.includes('"dialog" is not a block'),
+    rn.out,
+  )
+  ok(
+    "add block: no name lists the blocks",
+    cli(b, "add", "block").out.includes("analytics-dashboard, list-detail, settings"),
+  )
+
   // ---- every item, copied with rewritten imports, typechecks in an app
   // Inside the package so its npm imports resolve from the workspace's node_modules.
   const all = join(PKG, ".typecheck-app")

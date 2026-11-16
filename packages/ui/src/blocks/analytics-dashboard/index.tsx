@@ -38,8 +38,8 @@ import {
 import { cn } from "../../lib/utils.js"
 import type { DashboardData, DashboardPoint } from "./sample.js"
 
-export { SAMPLE_DASHBOARD } from "./sample.js"
 export type { DashboardData, DashboardPoint, DashboardRow } from "./sample.js"
+export { SAMPLE_DASHBOARD } from "./sample.js"
 
 export type BlockState = "ready" | "loading" | "error"
 
