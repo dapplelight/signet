@@ -498,7 +498,8 @@ async function main() {
   if (template === "extension")
     Object.assign(pkg, {
       scripts: EXT_SCRIPTS,
-      dependencies: omit(DEPS, EXT_OMIT),
+      // ^0.4.1: chromeStorage().watch, so the pages see the service worker sign in.
+      dependencies: { ...omit(DEPS, EXT_OMIT), "@dapplelight/signet-lib": "^0.4.1" },
       devDependencies: omit(DEV_DEPS, EXT_DEV_OMIT),
     })
   const final =
@@ -530,16 +531,16 @@ async function main() {
   Then load dist/ at chrome://extensions (Developer mode, Load unpacked), and
   register its redirect URI on your server. README.md has both steps.
 `
-      : template === "api"
-        ? `
+        : template === "api"
+          ? `
   Created ${appName}, an API for ${target}${mcp ? ", with MCP at /mcp (MCP=off turns it off)" : ""}.
 
   ${steps}
 
   ${API_NEXT_STEPS[target]}
 `
-        : template === "full"
-          ? `
+          : template === "full"
+            ? `
   Created ${appName}: web app + API with the ${theme} theme${mcp ? ", MCP at /mcp" : ""}.
 
   ${steps}
@@ -549,7 +550,7 @@ async function main() {
   to see /admin. README.md walks through the first day. The API runs on Bun,
   whichever package manager installs it.
 `
-          : `
+            : `
   Created ${appName} with the ${theme} theme.
 
   ${steps}

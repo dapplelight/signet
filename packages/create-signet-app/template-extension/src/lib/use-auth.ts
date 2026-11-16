@@ -4,17 +4,16 @@ import { session } from "./auth"
 
 /**
  * Signed in or not, for the popup and options page. Sign-in runs in the service
- * worker (the popup closes when the sign-in window opens), so the result
- * arrives through chrome.storage, which every extension page can watch.
+ * worker (the popup closes when the sign-in window opens); the session watches
+ * chrome.storage, so its result reaches every open page through subscribe().
  */
 export function useAuth() {
   const [signedIn, setSignedIn] = useState<boolean | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const read = () => session.get().then((t) => setSignedIn(t !== null))
-    read()
-    chrome.storage.onChanged.addListener(read)
+    session.get().then((t) => setSignedIn(t !== null))
+    return session.subscribe((t) => setSignedIn(t !== null))
   }, [])
 
   const ask = useCallback(async (type: "signin" | "signout") => {

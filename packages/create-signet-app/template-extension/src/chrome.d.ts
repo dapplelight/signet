@@ -18,9 +18,4 @@ declare const chrome: {
       ): void
     }
   }
-  storage: {
-    onChanged: {
-      addListener(listener: (changes: Record<string, unknown>, area: string) => void): void
-    }
-  }
 }

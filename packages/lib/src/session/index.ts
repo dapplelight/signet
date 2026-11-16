@@ -69,8 +69,28 @@ export function createSession(opts: CreateSessionOptions): Session {
     return current
   }
 
+  // Another context (service worker, other window or tab) signed in, out or refreshed.
+  // Our own writes echo back on some backends (chrome.storage); same tokens, so ignored.
+  let watching = false
+  const onExternal = (raw: string | null) => {
+    let t: SessionTokens | null = null
+    try {
+      const parsed = raw ? (JSON.parse(raw) as SessionTokens) : null
+      t = parsed && typeof parsed.accessToken === "string" ? parsed : null
+    } catch {}
+    if (JSON.stringify(t) === JSON.stringify(current)) return
+    gen++
+    current = t
+    loaded = Promise.resolve(t)
+    for (const l of listeners) l(t)
+  }
+
   // Cached after the first success; a failed read is not cached, the next call tries again.
   const load = () => {
+    if (!watching) {
+      watching = true
+      opts.storage.watch?.(key, onExternal)
+    }
     if (!loaded) {
       const p = read()
       loaded = p
@@ -125,6 +145,7 @@ export function createSession(opts: CreateSessionOptions): Session {
     clear: () => write(null),
     subscribe(listener) {
       listeners.add(listener)
+      load().catch(() => {}) // starts watching storage, so changes elsewhere reach this listener
       return () => listeners.delete(listener)
     },
     async token() {

@@ -94,6 +94,103 @@ const fakeStore: TauriStoreLike = {
 await contract("tauri", tauriStorage(fakeStore))
 ok("tauri: saves after each write", saves === 4, saves)
 
+// --- watch: changes from other contexts ---
+{
+  // chrome: onChanged fires for the watched key only; unsubscribe stops it.
+  let listener: ((c: Record<string, { newValue?: unknown }>) => void) | undefined
+  const watched: ChromeStorageAreaLike = {
+    ...fakeArea,
+    onChanged: {
+      addListener: (l) => {
+        listener = l
+      },
+      removeListener: (l) => {
+        if (listener === l) listener = undefined
+      },
+    },
+  }
+  const seen: (string | null)[] = []
+  const off = chromeStorage(watched).watch?.("k", (v) => seen.push(v)) ?? (() => {})
+  listener?.({ other: { newValue: "x" } })
+  listener?.({ k: { newValue: "a" } })
+  listener?.({ k: {} })
+  listener?.({ k: { newValue: 5 } })
+  ok(
+    "chrome watch: own key only, removal and non-strings are null",
+    JSON.stringify(seen) === '["a",null,null]',
+    seen,
+  )
+  off()
+  ok("chrome watch: unsubscribe removes the listener", listener === undefined)
+  ok(
+    "chrome watch: none when the area has no onChanged",
+    (() => {
+      const off2 = chromeStorage(fakeArea).watch?.("k", () => {})
+      off2?.()
+      return typeof off2 === "function"
+    })(),
+  )
+
+  // tauri: only when the injected store has onKeyChange; the unlisten arrives async.
+  ok("tauri watch: absent without onKeyChange", tauriStorage(fakeStore).watch === undefined)
+  let tcb: ((v: unknown) => void) | undefined
+  let unlistened = false
+  const tw = tauriStorage({
+    ...fakeStore,
+    onKeyChange: async (_k, cb) => {
+      tcb = cb
+      return () => {
+        unlistened = true
+      }
+    },
+  })
+  const tseen: (string | null)[] = []
+  const toff = tw.watch?.("k", (v) => tseen.push(v)) ?? (() => {})
+  tcb?.("a")
+  tcb?.(undefined)
+  ok("tauri watch: string value, else null", JSON.stringify(tseen) === '["a",null]', tseen)
+  await Promise.resolve()
+  toff()
+  ok("tauri watch: unsubscribe calls the unlisten", unlistened)
+
+  // web: the window "storage" event, key-matched; cleared (key null) is null.
+  const g = globalThis as { addEventListener?: unknown; removeEventListener?: unknown }
+  const prev = { a: g.addEventListener, r: g.removeEventListener }
+  let wl:
+    | ((e: { key: string | null; newValue: string | null; storageArea?: unknown }) => void)
+    | undefined
+  g.addEventListener = (_t: string, l: typeof wl) => {
+    wl = l
+  }
+  g.removeEventListener = () => {
+    wl = undefined
+  }
+  const wseen: (string | null)[] = []
+  const woff = webStorage(fakeLocal).watch?.("k", (v) => wseen.push(v)) ?? (() => {})
+  wl?.({ key: "other", newValue: "x" })
+  wl?.({ key: "k", newValue: "a" })
+  wl?.({ key: null, newValue: null })
+  wl?.({ key: "k", newValue: "z", storageArea: {} })
+  ok(
+    "web watch: key match, clear is null, other areas ignored",
+    JSON.stringify(wseen) === '["a",null]',
+    wseen,
+  )
+  woff()
+  ok("web watch: unsubscribe", wl === undefined)
+  g.addEventListener = undefined
+  ok(
+    "web watch: no window events is a no-op",
+    typeof webStorage(fakeLocal).watch?.("k", () => {}) === "function",
+  )
+  g.addEventListener = prev.a
+  g.removeEventListener = prev.r
+  ok(
+    "memory and file have no watch",
+    memoryStorage().watch === undefined && fileStorage("/x").watch === undefined,
+  )
+}
+
 const dir = mkdtempSync(join(tmpdir(), "signet-storage-"))
 try {
   const path = join(dir, "nested", "auth.json")
