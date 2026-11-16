@@ -1,6 +1,6 @@
 {
   "name": "@dapplelight/signet-ui",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "license": "MIT",
   "description": "Signet component kit — token-driven React primitives.",
   "keywords": [
@@ -214,6 +214,10 @@
       "types": "./dist/components/ui/select.d.ts",
       "import": "./dist/components/ui/select.js"
     },
+    "./components/schema-form": {
+      "types": "./dist/components/ui/schema-form.d.ts",
+      "import": "./dist/components/ui/schema-form.js"
+    },
     "./components/shortcuts": {
       "types": "./dist/components/ui/shortcuts.d.ts",
       "import": "./dist/components/ui/shortcuts.js"
@@ -377,7 +381,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "bun run test/ui.tsx && bun run test/labels.tsx && bun run test/dom.tsx && bun run test/data-table.tsx && bun run test/shortcuts.tsx && bun run test/markdown.tsx && bun run test/dom2.tsx && bun run test/domain.tsx && bun run test/basics.tsx && bun run test/behaviors.tsx && bun run test/screens-user.tsx && bun run test/screens-admin.tsx && bun run test/screens-billing.tsx && bun run test/screens-monetisation.tsx && bun run test/screens-growth.tsx && bun run test/screens-api.tsx && bun run test/screens-orgs.tsx && bun run test/screens-workflow.tsx && bun run test/screens-collab.tsx && bun run test/ui-domain.tsx && bun run test/metric-headline.tsx && bun run test/realtime.tsx && bun run test/data-edit.tsx && bun run test/screens-experiments.tsx && bun run test/screens-abuse.tsx && bun run test/screens-funnels.tsx && bun run test/screens-charts.tsx &&bun run test/screens-growth.tsx",
+    "test": "bun run test/ui.tsx && bun run test/labels.tsx && bun run test/dom.tsx && bun run test/data-table.tsx && bun run test/shortcuts.tsx && bun run test/schema-form.tsx && bun run test/markdown.tsx && bun run test/dom2.tsx && bun run test/domain.tsx && bun run test/basics.tsx && bun run test/behaviors.tsx && bun run test/screens-user.tsx && bun run test/screens-admin.tsx && bun run test/screens-billing.tsx && bun run test/screens-monetisation.tsx && bun run test/screens-growth.tsx && bun run test/screens-api.tsx && bun run test/screens-orgs.tsx && bun run test/screens-workflow.tsx && bun run test/screens-collab.tsx && bun run test/ui-domain.tsx && bun run test/metric-headline.tsx && bun run test/realtime.tsx && bun run test/data-edit.tsx && bun run test/screens-experiments.tsx && bun run test/screens-abuse.tsx && bun run test/screens-funnels.tsx && bun run test/screens-charts.tsx &&bun run test/screens-growth.tsx",
     "build": "tsc -p tsconfig.build.json",
     "prepublishOnly": "bun run build"
   },
@@ -408,7 +412,11 @@
     "@tiptap/pm": ">=3.34.0 <4",
     "@tiptap/starter-kit": ">=3.34.0 <4",
     "@tiptap/extension-mention": ">=3.34.0 <4",
-    "@tiptap/extension-link": ">=3.34.0 <4"
+    "@tiptap/extension-link": ">=3.34.0 <4",
+    "@autoform/react": "^5.0.0",
+    "@autoform/zod": "^6.0.0",
+    "@tanstack/react-form": "^1.0.0",
+    "zod": "^4.0.0"
   },
   "peerDependenciesMeta": {
     "recharts": {
@@ -446,11 +454,26 @@
     },
     "@tiptap/extension-link": {
       "optional": true
+    },
+    "@autoform/react": {
+      "optional": true
+    },
+    "@autoform/zod": {
+      "optional": true
+    },
+    "@tanstack/react-form": {
+      "optional": true
+    },
+    "zod": {
+      "optional": true
     }
   },
   "devDependencies": {
+    "@autoform/react": "5.0.0",
+    "@autoform/zod": "6.0.0",
     "@happy-dom/global-registrator": "^20.14.5",
     "@radix-ui/react-checkbox": "^1.3.11",
+    "@tanstack/react-form": "^1.33.5",
     "@tanstack/react-hotkeys": "0.12.0",
     "@tanstack/react-table": "^9.2.4",
     "@testing-library/dom": "^10.4.2",
@@ -472,7 +495,8 @@
     "remark-gfm": "4.0.1",
     "remark-parse": "11.0.0",
     "typescript": "^7.0.2",
-    "unified": "11.0.5"
+    "unified": "11.0.5",
+    "zod": "^4.6.5"
   },
   "publishConfig": {
     "access": "public"
