@@ -43,7 +43,7 @@ class FrozenDate extends RealDate {
     return QA_NOW
   }
 }
-globalThis.Date = FrozenDate
+globalThis.Date = FrozenDate as unknown as DateConstructor
 
 const params = new URLSearchParams(location.search)
 const id = params.get("item") ?? ""
