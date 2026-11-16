@@ -9,3 +9,8 @@ test("t() reads src/locales/en.json", () => {
 test("pseudo accents letters and pads ~35%", () => {
   expect(pseudo("Sign in")).toBe("[Sîgñ îñ~~~]")
 })
+
+test("Signet's own labels are in en.json, with {{value}} for the ones that take one", () => {
+  expect(i18n.t("signet.close")).toBe("Close")
+  expect(i18n.t("signet.deleteView", { value: "Q3" })).toBe("Delete view Q3")
+})

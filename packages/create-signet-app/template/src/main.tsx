@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { RouterProvider } from "@tanstack/react-router"
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
+import { SignetLabels } from "./components/signet-labels"
 import { Toaster } from "./components/toaster"
 import "./lib/i18n"
 import { registerPwa } from "./lib/pwa"
@@ -31,10 +32,12 @@ if (!rootElement) throw new Error("Root element #root not found in index.html")
 createRoot(rootElement).render(
   <StrictMode>
     <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-        <Toaster />
-      </QueryClientProvider>
+      <SignetLabels>
+        <QueryClientProvider client={queryClient}>
+          <RouterProvider router={router} />
+          <Toaster />
+        </QueryClientProvider>
+      </SignetLabels>
     </ThemeProvider>
   </StrictMode>,
 )

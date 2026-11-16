@@ -163,7 +163,8 @@ const DEPS = {
   // links the local copies, because the range matches the workspace version.
   "@dapplelight/signet-lib": "^0.4.0",
   "@dapplelight/signet-tokens": "^0.4.0",
-  "@dapplelight/signet-ui": "^0.3.0",
+  // ^0.3.2: LabelsProvider (src/components/signet-labels.tsx).
+  "@dapplelight/signet-ui": "^0.3.2",
   "@tanstack/react-query": "^5.103.2",
   "@tanstack/react-router": "^1.170.39",
   "class-variance-authority": "^0.7.1",
