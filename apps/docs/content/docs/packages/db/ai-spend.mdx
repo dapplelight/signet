@@ -1,6 +1,6 @@
 ---
 title: "AI Spend"
-description: "Per-user, per-org and global AI spend caps per day and month."
+description: "Per-user, per-org and global AI spend caps per day and month, and a dated spend ledger."
 ---
 
 ## Usage
@@ -37,8 +37,10 @@ Amounts are cost units: 1 unit is one millionth of a US dollar, so spend stays a
 ### createAiSpend(db, options)
 | Option | Type | Default | |
 | --- | --- | --- | --- |
-| `tables` | `{ usageCounters, aiSpendCaps }` | required | From `entitlementTables()` and `aiSpendCaps()` |
+| `tables` | `{ usageCounters, aiSpendCaps, aiSpendLedger? }` | required | From `entitlementTables()`, `aiSpendCaps()` and, for the ledger, `aiSpendLedger()` |
 | `caps` | `{ user?, org?, global? }` of `{ day?, month? }` | none | Used when no stored cap applies |
+| `hashSubject` | `(id) => string \| Promise<string>` | SHA-256 hex | What the ledger stores in place of a user or org id |
+| `retentionDays` | `number` | `400` | Days of ledger kept |
 | `now` | `() => Date` | `new Date` | Clock for tests |
 
 Returned methods:
@@ -53,7 +55,24 @@ Returned methods:
 | `setCap({ scope, subject?, period, units }, { actor? })` | Store a cap; `units: null` is unlimited |
 | `removeCap(scope, subject, period)` | Back to the option |
 | `ledger` | The `ledger` for signet-ai's `createExtractor` |
-| `onUsage` | The `onUsage` for `streamChat`, `chat` and `ground` |
+| `onUsage` | The `onUsage` for `streamChat`, `chat` and `ground`; also keeps the report's `model` and `savedUsd` in the dated ledger |
+
+### Ledger
+
+Give `tables` an `aiSpendLedger()` table and `record` also keeps one row per UTC day, model, scope and subject: `units`, `calls` and `cacheSavedUnits`. `record(subject, units, at?, { model?, cacheSavedUnits? })` adds to the row, and a call with no model is stored as `unknown`. A cache hit costs 0 but its saving is still kept.
+
+Raw user and org ids are never stored. The `subject` column holds `hashSubject(id)` (SHA-256 hex by default), or `*` for the global rows. A plain SHA-256 of a short id can be guessed, so pass an HMAC with a secret as `hashSubject` if the ids are guessable.
+
+The migration adds tables only; past spend is not backfilled. The ledger starts empty and fills as `record` runs.
+
+| Method | What it does |
+| --- | --- |
+| `series({ scope?, subject?, days })` | Spend per UTC day over the last `days` days, oldest first. No `scope` is the global total. `subject` is a raw id (hashed here) and needs scope `user` or `org`. |
+| `byModel({ days })` | Spend per model, biggest first |
+| `topSpenders({ scope?, days, limit? })` | Biggest spenders of `user` (default) or `org`, by subject hash |
+| `prune(at?)` | Delete rows older than `retentionDays`; returns how many. `record` also runs it once per UTC day. |
+
+Each row is `{ day, units, calls, cacheSavedUnits }` (`model` or `subject` in place of `day` for the other two). `days` is a whole number from 1 to `retentionDays`; anything else throws a `BAD_VALUE` `SignetDbError`. Without `aiSpendLedger`, these methods throw and `record` only counts.
 
 ## Examples
 
@@ -66,6 +85,21 @@ await streamChat({ ...args, key: spendKey({ userId, orgId }), onUsage: spend.onU
 ```
 
 Do not give an extractor both `ledger` and `onUsage`: spend would count twice.
+
+### Daily spend for one org
+```ts
+import { aiSpendLedger } from "@dapplelight/signet-db/columns/sqlite"
+
+const spend = createAiSpend(db, {
+  tables: { usageCounters, aiSpendCaps: spendCaps, aiSpendLedger: aiSpendLedger() },
+})
+
+await streamChat({ ...args, key: spendKey({ userId, orgId }), onUsage: spend.onUsage })
+
+// The last 30 days for one org. Pass the raw id: it is hashed before the lookup.
+const days = await spend.series({ scope: "org", subject: orgId, days: 30 })
+// [{ day: "2026-11-15", units: 42_000, calls: 9, cacheSavedUnits: 6_000 }, ...]
+```
 
 ### Raise one org's cap
 ```ts
