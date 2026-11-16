@@ -1556,8 +1556,8 @@ const scaffold: SignetIndex["scaffold"] = {
   web: {
     files: templateFiles("packages/create-signet-app/template"),
     scripts: scripts("web"),
-    dependencies: objectConst("DEPS"),
-    devDependencies: objectConst("DEV_DEPS"),
+    dependencies: { ...objectConst("DEPS"), ...objectConst("I18N_DEPS") },
+    devDependencies: { ...objectConst("DEV_DEPS"), ...objectConst("PWA_DEV_DEPS") },
   } satisfies ScaffoldTemplate,
   api: {
     files: templateFiles("packages/create-signet-app/template-api", "cloudflare"),
