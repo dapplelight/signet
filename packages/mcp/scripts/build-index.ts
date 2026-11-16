@@ -469,7 +469,9 @@ function exampleFor(
   const lines = SHOWCASE.slice(SHOWCASE.lastIndexOf("\n", at) + 1).split("\n")
   const indent = /^\s*/.exec(lines[0] as string)?.[0].length ?? 0
   const take: string[] = []
-  for (const l of lines.slice(0, 16)) {
+  // Up to the closing tag at the same indent; the cap only guards a
+  // malformed source (16 used to cut real examples off mid-component).
+  for (const l of lines.slice(0, 200)) {
     take.push(l.slice(indent))
     if (take.length > 1 && (/^\s*$/.test(l) || (/^\s*/.exec(l)?.[0].length ?? 0) <= indent)) break
     if (take.length === 1 && new RegExp(`(/>|</${main}>)\\s*$`).test(l)) break
