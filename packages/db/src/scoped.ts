@@ -149,6 +149,9 @@ export function audited(
   return make({ ...base, actor })
 }
 
+/** @internal The db a scope or `audited` wrapper was made on. */
+export const dbOfOps = (ops: Ops<Scope>): SignetDb<unknown> | undefined => states.get(ops)?.db
+
 function make(state: State): Ops<Scope> {
   const { db, userId, orgId, actor } = state
   const o = db.orm as AnyOrm

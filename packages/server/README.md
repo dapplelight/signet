@@ -698,6 +698,31 @@ app.get("/realtime", (c) => connectRoom(c.env.REALTIME, c.req.raw, { authenticat
 The React side is signet-ui's `hooks/use-channel` and
 `screens/realtime-screens`.
 
+## Rich text sanitiser
+
+`sanitizeMarkdown(text)` from `./http/sanitize` cleans rich text stored as
+markdown (signet-ui's `RichTextEditor` value, comment bodies) before you save
+it. The editor's own output is already clean, but anything can POST to your
+route, and stored markdown may later meet a renderer that passes raw HTML
+through.
+
+```ts
+import { sanitizeMarkdown } from "@dapplelight/signet-server/http/sanitize"
+
+const body = z.object({ body: z.string().max(20_000).transform(sanitizeMarkdown) })
+```
+
+- Raw HTML outside code (`<script>`, `<img onerror>`, comments,
+  `<javascript:…>` autolinks) is escaped, so it shows as text.
+- Link, image and reference targets that are not http(s), mailto, tel or
+  relative become `#`, judged after decoding entities and percent-encoding
+  and dropping the whitespace and control characters browsers ignore
+  (`jav&#x61;script:`, `java\tscript:`, `javascript%3A`).
+- Mention tokens (`@[Name](user:<id>)`) are kept; control characters and
+  bidirectional overrides are removed; code spans and fenced code blocks are
+  left as written. Running it twice changes nothing more.
+- `isSafeLinkTarget(url)` is the link rule on its own.
+
 ## Public API: OpenAPI, docs, webhooks, caching
 
 Three modules for an API other developers call: the spec and docs come from
