@@ -1,0 +1,92 @@
+---
+title: "Page Blocks"
+description: "Whole pages you copy into your app and edit: an analytics dashboard, a list with a detail pane, and settings."
+---
+
+A block is a page-level layout built only from Signet components. You copy it into your app as source, then change the data, the text and the markup. Agents compose from blocks instead of inventing layouts.
+
+```bash
+npx @dapplelight/signet-cli add block analytics-dashboard
+```
+
+```text
+Added utils, badge, card, ..., analytics-dashboard (signet-ui 0.3.5).
+  wrote blocks/analytics-dashboard/index.tsx
+  wrote blocks/analytics-dashboard/sample.ts
+  ...
+```
+
+The command copies the block and the components it uses into `src/components/signet/`, the same way `add dialog` does (see [Own a component's source](/docs/guides/add-component-source)). `signet upgrade` merges later changes into your copy. Run `signet add block` with no name to list the blocks.
+
+Every block:
+
+- takes `className` and `classNames` (one entry per part), and sets `data-block` on its root and `data-slot` on each part, so you can restyle it from CSS or from a parent;
+- gets every string from a `labels` prop with defaults, so translating it or renaming a field needs no edit to the file;
+- takes `state="ready" | "loading" | "error"`. Loading shows skeletons in the shape of the real content, and error shows an error state with `onRetry`;
+- is themed only through tokens, so it follows every theme and light/dark;
+- is one column at 390px with 44px touch targets, and stops growing at `max-w-7xl`.
+
+The previews below are the showcase pages in an iframe. Use the width buttons to check 390px and 1440px, and the showcase page (link above each preview) for the theme switcher.
+
+## Analytics dashboard
+
+A range picker, a row of stats, an area chart and a recent-activity table. It needs `recharts`, an optional peer of signet-ui.
+
+<BlockPreview block="analytics-dashboard" />
+
+```tsx
+import { AnalyticsDashboard } from "@/components/signet/blocks/analytics-dashboard"
+
+<AnalyticsDashboard
+  data={{ stats, series, rows }}
+  range={range}
+  onRangeChange={setRange}
+  state={isLoading ? "loading" : "ready"}
+/>
+```
+
+Without `data` the block shows its empty state: "No data yet". Long names truncate and keep the full text in a `title`.
+
+## List with a detail pane
+
+A searchable, filterable list of 20 rows a page, with the selected row's detail beside it. On a phone, tapping a row opens the detail in a sheet and closing it returns focus to the row. Arrow keys move between rows.
+
+<BlockPreview block="list-detail" />
+
+```tsx
+import { ListDetail } from "@/components/signet/blocks/list-detail"
+
+<ListDetail
+  items={projects}
+  onSelect={(item) => navigate(item.id)}
+  renderDetail={(item) => <ProjectPanel project={item} />}
+/>
+```
+
+`filters` replaces the status pills, and `pageSize` changes the rows per page.
+
+## Settings
+
+A General card, a Notifications card and a Danger zone. Each form card has a "Save changes" button that stays disabled until a value changes. Deleting asks the user to type the workspace name first. Mount a `<Toaster />` once in your app to show "Changes saved".
+
+<BlockPreview block="settings" />
+
+```tsx
+import { Settings } from "@/components/signet/blocks/settings"
+
+<Settings
+  general={{ name: workspace.name, description: workspace.description }}
+  onSaveGeneral={(values) => api.updateWorkspace(values)}
+  onDelete={() => api.deleteWorkspace()}
+/>
+```
+
+A save callback can resolve with `{ name: "Name is taken" }` to show that message under the field.
+
+## Add your own block
+
+A block is a folder `packages/ui/src/blocks/<name>/` with an `index.tsx`, a `block.json` and a matching `./blocks/<name>` entry in signet-ui's `exports`. `block.json` lists `name`, `description`, `files` and `deps` (the signet-ui items it imports). The registry build checks that the file tells the truth and fails when it does not. A block imports only its own files and signet-ui components.
+
+## Previews in these docs
+
+Set `NEXT_PUBLIC_SHOWCASE_URL` when building the docs to the address the showcase is served from. Without it the previews point at the local showcase dev server (`bun run dev` in `apps/showcase`).

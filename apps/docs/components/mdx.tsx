@@ -5,6 +5,7 @@ import { Tab, Tabs } from "fumadocs-ui/components/tabs"
 import defaultMdxComponents from "fumadocs-ui/mdx"
 import type { MDXComponents } from "mdx/types"
 import { AgentPrompt } from "./agent-prompt"
+import { BlockPreview } from "./block-preview"
 import { Demo } from "./demo"
 import { Preview } from "./preview"
 
@@ -12,6 +13,7 @@ export function getMDXComponents(components?: MDXComponents) {
   return {
     ...defaultMdxComponents,
     Preview,
+    BlockPreview,
     Demo,
     Tabs,
     Step,

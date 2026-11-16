@@ -1,0 +1,17 @@
+{
+  "name": "analytics-dashboard",
+  "description": "Analytics overview page: range picker, stat row, area chart and a recent-activity table, with loading, error and empty states.",
+  "files": ["index.tsx", "sample.ts"],
+  "deps": [
+    "badge",
+    "card",
+    "chart",
+    "empty-state",
+    "error-state",
+    "select",
+    "skeleton",
+    "stat-strip",
+    "table",
+    "utils"
+  ]
+}

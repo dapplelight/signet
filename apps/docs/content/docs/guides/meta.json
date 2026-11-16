@@ -11,6 +11,7 @@
     "add-auth",
     "add-theme",
     "add-component-source",
+    "blocks",
     "add-tests",
     "---Security---",
     "add-csrf",

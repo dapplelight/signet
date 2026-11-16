@@ -30,6 +30,8 @@ export type RegistryItem = {
   peers: Record<string, string>
   /** Changes whenever any of `files` changes. */
   hash: string
+  /** Set on a page-level block (`signet add block <name>`), from its block.json. */
+  block?: { description: string }
   /** "app": a backend module (src/modules.ts); its files go under the app's src/. */
   root?: "app"
   /** Peers that are not on npm yet (`private: true` in the Signet repo). */
@@ -65,6 +67,43 @@ const packageName = (spec: string) =>
     .split("/")
     .slice(0, spec.startsWith("@") ? 2 : 1)
     .join("/")
+
+/**
+ * A page-level block is an item at `blocks/<name>/index.tsx`; its block.json
+ * describes it. The file must tell the truth: name, files and deps are checked
+ * against what the walk found, so a stale block.json fails the build.
+ */
+function blockOf(
+  src: string,
+  entry: string,
+  name: string,
+  item: RegistryItem,
+): { description: string } | undefined {
+  const m = /^blocks\/([^/]+)\/index\.tsx$/.exec(entry)
+  if (!m) return undefined
+  const dir = m[1] as string
+  const fail = (why: string) => {
+    throw new Error(`registry: blocks/${dir}/block.json ${why}`)
+  }
+  const path = join(src, "blocks", dir, "block.json")
+  if (!existsSync(path)) return fail("is missing")
+  const j = JSON.parse(readFileSync(path, "utf8")) as {
+    name?: string
+    description?: string
+    files?: string[]
+    deps?: string[]
+  }
+  if (j.name !== dir || name !== dir) fail(`name must be "${dir}" (the folder and the export)`)
+  if (!j.description) fail("needs a description")
+  const same = (a: string[] = [], b: string[]) =>
+    JSON.stringify([...a].sort()) === JSON.stringify(b)
+  const own = item.files.map((f) => f.slice(`blocks/${dir}/`.length))
+  if (item.files.some((f) => !f.startsWith(`blocks/${dir}/`)))
+    fail("must only import its own files; shared code belongs in a component")
+  if (!same(j.files, own)) fail(`files must be ${JSON.stringify(own.sort())}`)
+  if (!same(j.deps, item.deps)) fail(`deps must be ${JSON.stringify(item.deps)}`)
+  return { description: j.description as string }
+}
 
 export function buildRegistry(uiDir: string): Registry {
   const pkg = JSON.parse(readFileSync(join(uiDir, "package.json"), "utf8")) as {
@@ -148,6 +187,8 @@ export function buildRegistry(uiDir: string): Registry {
       peers,
       hash: hash(own.map((f) => `${f}:${files[f]?.hash}`).join("\n")),
     }
+    const block = blockOf(src, entry, name, items[name] as RegistryItem)
+    if (block) (items[name] as RegistryItem).block = block
   }
 
   return { version: pkg.version, items, files }
