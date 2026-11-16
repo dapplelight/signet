@@ -16,6 +16,7 @@
     "verify:publish": "bun run scripts/verify-publish.ts",
     "release": "bun run scripts/release.ts",
     "release:status": "bun run scripts/release-status.ts",
+    "qa": "bun run scripts/qa/run.ts",
     "lint": "biome check .",
     "format": "biome check --write ."
   },
@@ -24,6 +25,7 @@
     "@tailwindcss/cli": "^4.3.3",
     "@tanstack/react-form": "^1.33.5",
     "ai": "^7.0.109",
+    "axe-core": "4.11.1",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "zod": "^4.6.5"

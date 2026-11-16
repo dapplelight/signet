@@ -37,6 +37,17 @@ run `bun run gen` in `packages/spec`. It rewrites the files in the package
 `apps/docs/public/spec/v1/`, including `index.json`. The package's tests fail
 when any of them drifts from the source.
 
+## Visual QA
+
+`bun run qa` builds the showcase, serves it on 127.0.0.1, and screenshots every QA item in each theme, mode and viewport. It also runs axe and records console errors and horizontal overflow. Output goes to `qa-out/<timestamp>/` (gitignored). Use `--quick` for editorial light only, and `--filter <id>` for matching items. Open `manifest.json` first: entries with violations, console errors or overflow need a look.
+
+```bash
+bun run qa                            # every item x theme x mode x viewport
+bun run qa --quick                    # editorial light only, both viewports
+bun run qa --filter button            # items whose id contains "button"
+bun run qa --out /tmp/qa --concurrency 8   # output directory, parallel pages (default 4)
+```
+
 ## Add a theme
 
 1. Copy `packages/tokens/src/themes/editorial.css` to
