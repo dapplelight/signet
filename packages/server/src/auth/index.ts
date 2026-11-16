@@ -1,6 +1,7 @@
 export * from "./api-keys.js"
 export * from "./bearer.js"
 export * from "./better-auth.js"
+export * from "./client-login.js"
 export * from "./guards.js"
 export * from "./otp.js"
 export * from "./passcode.js"
