@@ -94,11 +94,13 @@
       "peerDependencies": {
         "@ai-sdk/react": ">=4.0.0",
         "@dapplelight/signet-lib": "^0.2.0 || ^0.3.0 || ^0.4.0",
+        "@opentelemetry/api": "^1.9.0",
         "ai": ">=7.0.0",
         "zod": ">=4.0.0",
       },
       "optionalPeers": [
         "@ai-sdk/react",
+        "@opentelemetry/api",
         "ai",
       ],
     },
