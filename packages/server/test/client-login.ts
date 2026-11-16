@@ -40,9 +40,22 @@ const opts: ClientLoginOptions = {
 const app = new Hono()
 app.route(
   "/auth",
-  clientLoginRoutes({ ...opts, loginUrl: (r) => `/login?next=${encodeURIComponent(r)}` }),
+  clientLoginRoutes({
+    ...opts,
+    trust: "cloudflare",
+    loginUrl: (r) => `/login?next=${encodeURIComponent(r)}`,
+  }),
 )
-app.route("/bare", clientLoginRoutes(opts))
+app.route("/bare", clientLoginRoutes({ ...opts, trust: "cloudflare" }))
+{
+  let msg = ""
+  try {
+    clientLoginRoutes(opts as Parameters<typeof clientLoginRoutes>[0])
+  } catch (e) {
+    msg = String(e)
+  }
+  ok("clientLoginRoutes throws at setup without trust", msg.includes("trust"), msg)
+}
 app.get("/me", requireStoredSession({ ...sessions, bearer: true }), (c) =>
   c.json({ sub: (c.get("session" as never) as { record: { sub: string } }).record.sub }),
 )
@@ -366,6 +379,27 @@ ok(
     "device: device code is single use",
     (await poll(d.device_code)).body.error === "invalid_grant",
   )
+
+  // an approval landing while a poll is in flight must not be lost
+  {
+    const r = await start()
+    const realGet = opts.kv.get
+    let approved = false
+    opts.kv.get = async (key: string) => {
+      const v = await realGet.call(opts.kv, key)
+      // approve right after the poll reads the pending device record
+      if (!approved && key.includes(":dc:")) {
+        approved = true
+        opts.kv.get = realGet
+        await approve(r.user_code)
+      }
+      return v
+    }
+    const pending = await poll(r.device_code)
+    ok("device: racing poll answers pending", pending.body.error === "authorization_pending")
+    const after = await poll(r.device_code)
+    ok("device: approval made during a poll is kept", after.status === 200, after.body)
+  }
 
   // expiry
   const e = await start()

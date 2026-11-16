@@ -117,10 +117,12 @@ type DeviceRecord = {
   clientId: string
   userCode: string
   exp: number
+  /** The starting poll interval; the live one is in the poll record. */
   interval: number
-  lastPoll: number
   sub?: string
 }
+/** Kept apart from `DeviceRecord`, so a poll never writes over an approval. */
+type PollRecord = { lastPoll: number; interval: number }
 type RefreshRecord = { sid: string; sub: string; clientId: string; exp: number; used?: true }
 
 export const DEVICE_CODE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
@@ -165,6 +167,7 @@ const keys = (o: ClientLoginOptions) => {
   return {
     code: (hash: string) => `${p}:ac:${hash}`,
     device: (hash: string) => `${p}:dc:${hash}`,
+    poll: (hash: string) => `${p}:dp:${hash}`,
     user: (code: string) => `${p}:uc:${code}`,
     refresh: (hash: string) => `${p}:rt:${hash}`,
   }
@@ -373,22 +376,32 @@ async function deviceGrant(
   ctx: { userAgent?: string | null; ip?: string | null },
 ): Promise<{ ok: true; tokens: TokenResponse } | OAuthFailure> {
   const k = keys(o)
-  const key = k.device(await sha256Hex(deviceCode))
+  const hash = await sha256Hex(deviceCode)
+  const key = k.device(hash)
   const rec = await readJson<DeviceRecord>(o.kv, key)
   if (!rec || rec.clientId !== clientId) return fail("invalid_grant", "Unknown device_code")
   const now = Date.now()
   if (rec.exp <= now) {
-    await Promise.all([o.kv.delete(key), o.kv.delete(k.user(rec.userCode))])
+    await Promise.all([
+      o.kv.delete(key),
+      o.kv.delete(k.poll(hash)),
+      o.kv.delete(k.user(rec.userCode)),
+    ])
     return fail("expired_token", "The device code expired; start again")
   }
-  const keep = { ttlSeconds: ttl(rec.exp) + 300 }
   if (!rec.sub) {
-    const early = now - rec.lastPoll < rec.interval * 1000
-    const next = { ...rec, lastPoll: now, interval: rec.interval + (early ? 5 : 0) }
-    await o.kv.set(key, JSON.stringify(next), keep)
+    // Only the poll key is written here: an approval landing between the read
+    // above and this write stays in the device record.
+    const last = (await readJson<PollRecord>(o.kv, k.poll(hash))) ?? {
+      lastPoll: 0,
+      interval: rec.interval,
+    }
+    const early = now - last.lastPoll < last.interval * 1000
+    const next: PollRecord = { lastPoll: now, interval: last.interval + (early ? 5 : 0) }
+    await o.kv.set(k.poll(hash), JSON.stringify(next), { ttlSeconds: ttl(rec.exp) + 300 })
     return early ? { ...fail("slow_down"), interval: next.interval } : fail("authorization_pending")
   }
-  await o.kv.delete(key)
+  await Promise.all([o.kv.delete(key), o.kv.delete(k.poll(hash))])
   if (!(await claim(o.kv, key, rec.exp))) return fail("invalid_grant", "Device code already used")
   return { ok: true, tokens: await signIn(o, rec.sub, clientId, ctx) }
 }
@@ -436,7 +449,7 @@ export async function startDeviceLogin(
   const deviceCode = randomToken()
   const hash = await sha256Hex(deviceCode)
   const interval = o.pollIntervalSeconds ?? 5
-  const rec: DeviceRecord = { clientId, userCode, exp, interval, lastPoll: 0 }
+  const rec: DeviceRecord = { clientId, userCode, exp, interval }
   await o.kv.set(k.device(hash), JSON.stringify(rec), { ttlSeconds: lifetime + 300 })
   await o.kv.set(k.user(userCode), hash, { ttlSeconds: lifetime })
   const shown = `${userCode.slice(0, 4)}-${userCode.slice(4)}`

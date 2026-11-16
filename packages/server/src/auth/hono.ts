@@ -211,8 +211,12 @@ export function requireAuth<U>(opts: DualAuthOptions<U>): MiddlewareHandler {
 }
 
 export type ClientLoginRoutesOptions = ClientLoginOptions & {
-  /** Which proxy to believe for client IPs (rate limits, the sessions list). Default "none". */
-  trust?: ClientIpTrust
+  /**
+   * Which proxy to believe for client IPs (device-start limit, the sessions
+   * list). Required: `"none"` is an explicit opt-in to every caller sharing one
+   * device-start bucket, so a few requests can lock everyone out.
+   */
+  trust: ClientIpTrust
   /**
    * Where `/authorize` sends a visitor who is not signed in, given the URL to
    * come back to. Absent: they get a 401.
@@ -237,7 +241,13 @@ export type ClientLoginRoutesOptions = ClientLoginOptions & {
  * when the cookie is `SameSite=None`.
  */
 export function clientLoginRoutes(opts: ClientLoginRoutesOptions) {
-  const ipOf = (c: Context) => clientIp(c, opts.trust ?? "none")
+  if (opts.trust === undefined) {
+    throw new Error(
+      'clientLoginRoutes: set `trust` ("cloudflare", { forwardedHops }, or "none" for one shared device-start bucket)',
+    )
+  }
+  const trust = opts.trust
+  const ipOf = (c: Context) => clientIp(c, trust)
   const webUser = async (c: Context) => {
     const token = readSessionCookie(c.req.header("cookie"), opts.sessions)
     const s = await validateSession(token, opts.sessions, { ip: ipOf(c) })
