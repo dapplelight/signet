@@ -4,7 +4,7 @@
  * case, exit 1 when any fails.
  */
 
-import { type ConformanceReport, runConformance } from "../../spec/src/conformance.js"
+import type { ConformanceReport } from "@dapplelight/signet-spec/conformance"
 import { SignetCliError } from "./core.js"
 
 const USAGE =
@@ -51,6 +51,8 @@ export async function conformance(args: string[]): Promise<number> {
     throw new SignetCliError(`"${baseUrl}" is not a URL. Example: http://localhost:3000`)
   }
 
+  // Lazy, so every other command still runs when this module cannot load.
+  const { runConformance } = await import("@dapplelight/signet-spec/conformance")
   const report = await runConformance({
     baseUrl,
     authPrefix: opts.authPrefix ?? "/api/auth",
