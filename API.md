@@ -267,7 +267,13 @@ Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"
 | `@dapplelight/signet-ui` | — |  |
 | `@dapplelight/signet-ui/behaviors` | useShortcut, useShortcutLabel, useControllableState, matchScore |  |
 | `@dapplelight/signet-ui/blocks/analytics-dashboard` | DEFAULT_DASHBOARD_LABELS, DEFAULT_DASHBOARD_RANGES, AnalyticsDashboard, BlockState, DashboardLabels, AnalyticsDashboardProps |  |
+| `@dapplelight/signet-ui/blocks/auth-page` | DEFAULT_AUTH_BLOCK_LABELS, SAMPLE_PROVIDERS, Auth, BlockState, AuthBlockLabels, AuthProps |  |
+| `@dapplelight/signet-ui/blocks/checkout-summary` | DEFAULT_CHECKOUT_LABELS, checkoutTotal, CheckoutSummary, BlockState, CheckoutItem, CheckoutLabels, … |  |
+| `@dapplelight/signet-ui/blocks/empty-page` | DEFAULT_EMPTY_PAGE_LABELS, EmptyPage, BlockState, EmptyPageLabels, EmptyPageProps |  |
+| `@dapplelight/signet-ui/blocks/error-page` | DEFAULT_ERROR_PAGE_LABELS, ErrorPage, BlockState, ErrorPageLabels, ErrorPageProps |  |
 | `@dapplelight/signet-ui/blocks/list-detail` | DEFAULT_LIST_DETAIL_LABELS, DEFAULT_LIST_DETAIL_FILTERS, ListDetail, BlockState, ListDetailLabels, ListDetailProps |  |
+| `@dapplelight/signet-ui/blocks/onboarding` | DEFAULT_ONBOARDING_LABELS, Onboarding, BlockState, OnboardingStep, OnboardingLabels, OnboardingProps |  |
+| `@dapplelight/signet-ui/blocks/pricing` | DEFAULT_PRICING_LABELS, Pricing, BlockState, PricingInterval, PricingPlan, PricingLabels, … |  |
 | `@dapplelight/signet-ui/blocks/settings` | SAMPLE_GENERAL, SAMPLE_NOTIFICATIONS, DEFAULT_SETTINGS_LABELS, Settings, BlockState, GeneralValues, … |  |
 | `@dapplelight/signet-ui/domain/amount` | — |  |
 | `@dapplelight/signet-ui/domain/csv-import` | autoMatch, validateRows, DEFAULT_CSV_IMPORT_LABELS, CsvImport, CsvField, CsvSchema, … |  |
