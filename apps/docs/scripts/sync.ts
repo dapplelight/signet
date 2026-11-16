@@ -30,6 +30,7 @@ const GROUPS: [string, [string, string][]][] = [
     "Backend",
     [
       ["server", "Server"],
+      ["spec", "Spec"],
       ["db", "Database"],
       ["payments", "Payments"],
       ["ai", "AI"],

@@ -240,6 +240,19 @@
         "zod",
       ],
     },
+    "packages/spec": {
+      "name": "@dapplelight/signet-spec",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
+        "@types/node": "^26.6.2",
+        "typescript": "^7.0.2",
+        "zod": "^4.6.5",
+      },
+      "peerDependencies": {
+        "zod": ">=4.2.0",
+      },
+    },
     "packages/test": {
       "name": "@dapplelight/signet-test",
       "version": "0.1.0",
@@ -442,6 +455,8 @@
     "@dapplelight/signet-payments": ["@dapplelight/signet-payments@workspace:packages/payments"],
 
     "@dapplelight/signet-server": ["@dapplelight/signet-server@workspace:packages/server"],
+
+    "@dapplelight/signet-spec": ["@dapplelight/signet-spec@workspace:packages/spec"],
 
     "@dapplelight/signet-test": ["@dapplelight/signet-test@workspace:packages/test"],
 
@@ -1744,6 +1759,8 @@
     "zwitch": ["zwitch@2.0.4", "", {}, "sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A=="],
 
     "@base-ui/utils/reselect": ["reselect@5.3.0", "", {}, "sha512-XGoLeRAVzUTcJ1qkxPQhDJyIZ5d6zzZD9nT7AEZOaaU9UbWclhycElmhO+VD5bFeLuzhPBaOV2oXC8uG35ZSpg=="],
+
+    "@dapplelight/signet-spec/@types/node": ["@types/node@26.6.6", "", { "dependencies": { "undici-types": "~8.9.0" } }, "sha512-MzQj+8Kx3XI40OmUAE6Qoh58ZMNstNNMwn2nfd3qWsfe7nDNSqJNzes4njhz6AHwrSHOffSLwXU6yb474Q4aog=="],
 
     "@reduxjs/toolkit/reselect": ["reselect@5.3.0", "", {}, "sha512-XGoLeRAVzUTcJ1qkxPQhDJyIZ5d6zzZD9nT7AEZOaaU9UbWclhycElmhO+VD5bFeLuzhPBaOV2oXC8uG35ZSpg=="],
 

@@ -207,6 +207,16 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/realtime/node` | attachRealtime, NodeRealtimeOptions | The realtime hub on a Node `http.Server`, with no dependency |
 | `@dapplelight/signet-server/storage` | sniffType, stripMetadata, UploadError, assertContentMatches, createUploads, abandonedUploadsJob, … | re-exports metadata, uploads |
 
+## @dapplelight/signet-spec
+
+Signet's wire contract as Zod: the error envelope and every error code with its HTTP status, plus versioned JSON Schema files.
+
+| Import | Exports | What |
+|---|---|---|
+| `@dapplelight/signet-spec` | SPEC_VERSION, errorEnvelopeSchema, ERROR_CODE_STATUS, ERROR_CODES, errorCodeSchema, ErrorEnvelope, … | re-exports error |
+| `@dapplelight/signet-spec/error` | SPEC_VERSION, errorEnvelopeSchema, ERROR_CODE_STATUS, ERROR_CODES, errorCodeSchema, ErrorEnvelope, … |  |
+| `@dapplelight/signet-spec/schemas/*.json` | — |  |
+
 ## @dapplelight/signet-test
 
 Testing kit for Signet apps: fake providers with the real interfaces (payments, app stores, notifications, AI, clock), Playwright helpers with visual regression across themes, a dev overlay and demo mode.

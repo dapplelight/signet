@@ -22,6 +22,7 @@ const PKGS = [
   "ui",
   "server",
   "ai",
+  "spec",
   "create-signet-app",
 ] as const
 const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "")

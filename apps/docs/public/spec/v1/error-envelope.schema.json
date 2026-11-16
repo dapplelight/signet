@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://signet.dapplelight.in/spec/v1/error-envelope.schema.json",
+  "specVersion": "v1",
+  "title": "Signet error envelope",
+  "type": "object",
+  "properties": {
+    "success": {
+      "type": "boolean",
+      "const": false
+    },
+    "error": {
+      "type": "string",
+      "description": "A message safe to show."
+    },
+    "code": {
+      "description": "Stable machine code, e.g. VALIDATION_FAILED.",
+      "type": "string"
+    },
+    "details": {
+      "type": "object",
+      "properties": {
+        "formErrors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "fieldErrors": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "required": [
+        "formErrors",
+        "fieldErrors"
+      ]
+    },
+    "requestId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "success",
+    "error"
+  ]
+}

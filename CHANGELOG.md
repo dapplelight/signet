@@ -5,6 +5,11 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-spec: new package with the error envelope and error-code schemas
+
+- New `@dapplelight/signet-spec` (peer: `zod`). `./error` has `errorEnvelopeSchema`, `ERROR_CODE_STATUS` (every `ERROR_CODES` entry from signet-lib mapped to its default HTTP status), `ErrorCode` and `errorCodeSchema`. `./schemas/*.json` ships `error-envelope.schema.json` (JSON Schema 2020-12) and `error-codes.json`, both generated from the Zod source with `"specVersion": "v1"` and served at `/spec/v1/` on the docs site.
+- signet-server's `ERROR_ENVELOPE_SCHEMA` is unchanged; a test now fails if it disagrees with the spec package's schema.
+
 ### server: request tracing and request logs
 
 - New `./observability/trace`: `traceMiddleware` starts one OpenTelemetry server span per request (method, route pattern, status, errors recorded and rethrown, incoming `traceparent` honoured), with `withSpan` and `traceContext`. It uses only `@opentelemetry/api`, now an optional peer, and is a no-op without it or without an SDK.
