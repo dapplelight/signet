@@ -10,7 +10,7 @@ import { SignetCliError } from "./core.js"
 const USAGE =
   "Usage: signet conformance <baseUrl> [--auth-prefix /api/auth] [--ingest /api/analytics] [--json]"
 
-const FLAGS: Record<string, "authPrefix" | "ingestPath" | "sessionsPrefix" | "jsonPath"> = {
+export const FLAGS: Record<string, "authPrefix" | "ingestPath" | "sessionsPrefix" | "jsonPath"> = {
   "--auth-prefix": "authPrefix",
   "--ingest": "ingestPath",
   "--sessions": "sessionsPrefix",

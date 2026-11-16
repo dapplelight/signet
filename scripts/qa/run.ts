@@ -6,17 +6,14 @@ import { mkdirSync, readFileSync } from "node:fs"
 import { createRequire } from "node:module"
 import { join, relative, resolve, sep } from "node:path"
 import { QA_ITEMS, QA_MODES } from "../../apps/showcase/src/qa-items"
+import { AXE_TAGS, type AxeViolation, axeScript, QA_VIEWPORTS } from "../../packages/cli/src/qa"
 import type { Browser } from "../../packages/test/node_modules/@playwright/test"
 import { writeSheets } from "./sheets"
 
 const ROOT = resolve(import.meta.dir, "../..")
 const SHOWCASE = join(ROOT, "apps/showcase")
 const THEMES = ["editorial", "cinematic", "finance"]
-const VIEWPORTS = [
-  { name: "mobile", width: 390, height: 844 },
-  { name: "desktop", width: 1280, height: 800 },
-]
-const AXE_TAGS = ["wcag2a", "wcag2aa", "best-practice"]
+const VIEWPORTS = QA_VIEWPORTS
 const READY_MS = 15_000
 const USAGE = "Usage: bun run qa [--quick] [--filter <id>] [--out <dir>] [--concurrency N]"
 
@@ -166,22 +163,11 @@ async function main() {
         animations: "disabled",
       })
       entry.png = `shots/${name}.png`
-      await page.evaluate(axeSource)
-      const results = await page.evaluate(
-        (tags) =>
-          (
-            window as unknown as {
-              axe: {
-                run: (c: Document, o: object) => Promise<{ violations: { nodes: unknown[] }[] }>
-              }
-            }
-          ).axe.run(document, { runOnly: { type: "tag", values: tags } }),
-        AXE_TAGS,
-      )
-      entry.violations = results.violations.length
+      const violations = (await page.evaluate(axeScript(axeSource))) as AxeViolation[]
+      entry.violations = violations.length
       await Bun.write(
         join(runDir, "axe", `${name}.json`),
-        JSON.stringify({ tags: AXE_TAGS, violations: results.violations }, null, 2),
+        JSON.stringify({ tags: AXE_TAGS, violations }, null, 2),
       )
       entry.axe = `axe/${name}.json`
     } catch (e) {

@@ -34,6 +34,7 @@ import { Dialog } from "@/components/signet/components/ui/dialog"
 | `signet list` | Every item, with what is added, edited or out of date. |
 | `signet theme <hex>` | A whole theme from one brand colour. |
 | `signet conformance <url>` | Check a backend against the Signet wire contract. |
+| `signet check` | Typecheck, lint and check Signet conventions in this app. |
 
 ## Flags
 
@@ -124,6 +125,64 @@ It runs the cases from [Spec: Conformance](/docs/packages/spec/conformance) agai
 | `--sessions <path>` | `conformance` | Where the session routes are mounted. Default `/api/sessions`. |
 | `--json-path <path>` | `conformance` | A route that parses a JSON body. Without it `invalid-json-400` fails as `not run`. |
 | `--json` | `conformance` | Print the report as one line of JSON. |
+
+## Check
+
+```bash
+signet check --api http://localhost:8787 --pages /dashboard
+```
+
+The verify loop for code an agent wrote. Run it from the app root. It runs five steps in order and prints one line for each: `typecheck` (`tsc --noEmit`), `lint` (Biome), `conventions`, `conformance` and `pages`. The last two are skipped unless you pass `--api` or `--pages`. It exits 1 when any finding is an error, otherwise 0.
+
+`conventions` reads your source for three rules. `env-module-scope`: server code reads `process.env` at import time. `error-handler`: a Hono app has no Signet `errorHandler`, so errors are not the Signet envelope (a warning). `raw-colour`: a hex or `rgb()` colour, or a stock Tailwind colour such as `bg-red-500`, where a theme token belongs. A `--name: #hex` line is a token definition and is allowed.
+
+`pages` opens each page at 390 and 1280 px wide, saves a screenshot to `.signet/check/` and runs axe. Every axe violation is an error whose rule is `axe/<id>` and whose fix is axe's help text. It uses the app's own `@playwright/test` and `axe-core`, so add both as dev dependencies and run `bunx playwright install chromium` once. Start the app's dev server first.
+
+| Flag | What it does |
+| --- | --- |
+| `--api <url>` | Also run the [conformance suite](/docs/packages/spec/conformance) against this backend. It takes the `conformance` flags (`--auth-prefix`, `--ingest`, `--sessions`, `--json-path`). |
+| `--pages <path...>` | Screenshots and axe for these pages. A path like `/dashboard` is read from `--web`; a full URL is used as it is. |
+| `--web <url>` | The dev server that serves `--pages`. Default `http://localhost:5173`. |
+| `--json` | Print one line of JSON instead. |
+| `--cwd <path>` | App root. Default: current directory. |
+
+```text
+    fail  typecheck  (1 error)
+      src/types.ts:1  typecheck  TS2322: Type 'string' is not assignable to type 'number'.
+        fix: Fix the type error; `tsc --noEmit` shows it in full.
+    pass  lint
+    fail  conventions  (1 error)
+      src/server/app.ts:2  env-module-scope  Reads process.env at import time.
+        fix: Declare the key in the createEnv schema (@dapplelight/signet-server/env) and read `env.KEY` inside the handler, after initRuntimeEnv(c.env).
+    skip  conformance  (no --api)
+    skip  pages  (no --pages)
+
+  2 errors in 2 files.
+```
+
+With `--json` the result has the same shape as the MCP `check_app` tool, plus the screenshot paths:
+
+```json
+{
+  "ok": false,
+  "errors": 1,
+  "warnings": 0,
+  "findings": [
+    {
+      "file": "src/server/app.ts",
+      "line": 2,
+      "rule": "env-module-scope",
+      "level": "error",
+      "message": "Reads process.env at import time.",
+      "fix": "Declare the key in the createEnv schema (@dapplelight/signet-server/env) and read `env.KEY` inside the handler, after initRuntimeEnv(c.env)."
+    }
+  ],
+  "passed": ["typecheck", "lint"],
+  "screenshots": []
+}
+```
+
+`line` and `file` are `null` when a finding has no place in a file. A tool that cannot run (no `tsc`, no browser, an API that is down) is a finding too, never a crash.
 
 ## Theme
 

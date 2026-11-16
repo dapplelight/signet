@@ -34,7 +34,7 @@
   "scripts": {
     "build": "bun run src/build.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "bun run build && bun run test/cli.ts && bun run test/modules.ts && bun run test/conformance.ts",
+    "test": "bun run build && bun run test/cli.ts && bun run test/modules.ts && bun run test/conformance.ts && bun run test/check.ts",
     "prepublishOnly": "bun run build"
   },
   "dependencies": {
