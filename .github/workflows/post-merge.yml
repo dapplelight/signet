@@ -6,6 +6,11 @@
 # workflows, the message carries [skip ci] as well, and it touches only
 # CHANGELOG.md, API.md and .changes/, never packages/*/package.json (the paths
 # release.yml listens on).
+#
+# main requires a "Dobby Review" status. Only this job marks its own commit
+# passed, and only after checking the commit touches nothing but CHANGELOG.md,
+# API.md and .changes/. It pushes to a one-off branch first (a status needs the
+# SHA on GitHub), marks it, fast-forwards main, then deletes the branch.
 name: post-merge
 
 on:
@@ -14,6 +19,7 @@ on:
 
 permissions:
   contents: write
+  statuses: write
 
 concurrency:
   group: post-merge
@@ -29,7 +35,9 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       # Both scripts use node: builtins only, so no install. A merge can land
       # while this runs; on a rejected push, redo the work on the new main.
-      - run: |
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           for attempt in 1 2 3; do
@@ -40,7 +48,18 @@ jobs:
             git add -A CHANGELOG.md API.md .changes
             git diff --cached --quiet && { echo "nothing to commit"; exit 0; }
             git commit -q -m "chore: fold changelog fragments, regenerate API.md [skip ci]"
-            git push -q origin HEAD:main && exit 0
+            other=$(git diff --name-only HEAD~1 HEAD | grep -vE '^(CHANGELOG\.md|API\.md|\.changes/)' || true)
+            [ -z "$other" ] || { echo "refusing to self-pass, commit touches: $other"; exit 1; }
+            tmp="ci/post-merge-${{ github.run_id }}-$attempt"
+            git push -q origin "HEAD:refs/heads/$tmp"
+            gh api "repos/${{ github.repository }}/statuses/$(git rev-parse HEAD)" \
+              --field state=success --field context="Dobby Review" \
+              --field description="post-merge: generated files only" >/dev/null
+            if git push -q origin HEAD:main; then
+              git push -q origin --delete "$tmp"
+              exit 0
+            fi
+            git push -q origin --delete "$tmp" || true
             sleep $((attempt * 5))
           done
           exit 1
