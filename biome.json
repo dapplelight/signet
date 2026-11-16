@@ -6,7 +6,11 @@
     "includes": [
       "**",
       "!**/dist",
-      "!apps",
+      "!apps/showcase",
+      "!apps/docs/.next",
+      "!apps/docs/out",
+      "!apps/docs/.source",
+      "!apps/docs/content/docs/*/index.md",
       "!site",
       "!packages/create-signet-app/template",
       "!packages/create-signet-app/template-api",

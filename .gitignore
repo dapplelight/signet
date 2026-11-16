@@ -5,6 +5,7 @@ dist
 apps/*
 !apps/.gitkeep
 !apps/showcase/
+!apps/docs/
 BACKLOG.md
 docs/audits/
 packages/mcp/src/generated/

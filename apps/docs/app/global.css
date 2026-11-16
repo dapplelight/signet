@@ -1,0 +1,24 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+/* Signet's own tokens drive the live previews. Fumadocs' chrome uses its
+   --color-fd-* variables, so the two don't collide. */
+@import "@dapplelight/signet-tokens/editorial.css";
+@import "@dapplelight/signet-tokens/base.css";
+@source "../../../packages/ui/src";
+
+/* Signet's base.css paints body with the theme background; the docs chrome
+   keeps Fumadocs' neutral one. Previews set their own. */
+body {
+  background: var(--color-fd-background);
+  color: var(--color-fd-foreground);
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+html > body[data-scroll-locked] {
+  margin-right: 0px !important;
+  --removed-body-scroll-bar-size: 0px !important;
+}
