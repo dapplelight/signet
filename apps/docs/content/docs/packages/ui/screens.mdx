@@ -92,6 +92,34 @@ Needs the optional peer `recharts`, so it is never in the barrel.
 | `DEFAULT_CHART_LABELS` | Default strings. |
 | Types | `ChartDayView`, `ChartResultView`, `ChartFilterView`, `ChartAudienceView`, `ChartLabels`, `SubscriptionChartsProps`. |
 
+### cost-dashboard
+
+AI cost for the admin: a spend-over-time chart with what the cache saved, spend by model, top spenders (subject hashes, exactly as the server gives them), and global cap usage bars. Needs the optional peer `recharts`, so it is never in the barrel. Money is millionths of a USD; anything above zero but under one cent shows "<$0.01". The caps bar is the primary colour under 80%, amber from 80%, red at 100% and over, and always shows its percent as text; a null cap reads "No cap".
+
+Feed it the JSON of signet-server's `observabilityAdminRoutes` (`series`, `models`, `top`) and, for the caps card, signet-db's `usage("global")`. Pass `fetcher(days)` and the screen loads, reloads on a new range and retries itself; or pass `data`, `loading`, `error`, `onRetry` and `onDaysChange` and own the state.
+
+```tsx
+import { CostDashboard } from "@dapplelight/signet-ui/screens/cost-dashboard"
+
+const get = (path: string, days: number) =>
+  fetch(`/api/admin/observability/cost/${path}?days=${days}`).then((r) => r.json())
+
+<CostDashboard
+  fetcher={async (days) => {
+    const [s, m, t, caps] = await Promise.all([
+      get("series", days), get("by-model", days), get("top", days), fetch("/api/admin/ai-caps").then((r) => r.json()),
+    ])
+    return { series: s.series, models: m.models, top: t.top, caps }
+  }}
+/>
+```
+
+| Export | What it does |
+| --- | --- |
+| `CostDashboard` | Range select, spend / cache-saved / top-model tiles, and the four cards. Root `data-slot="cost-dashboard"`; cards `chart-spend`, `cost-models`, `cost-top`, `cost-caps`; rows carry `data-model`, `data-subject` or `data-period`. |
+| `DEFAULT_COST_LABELS` | Default strings, plus `money(units)` (USD). |
+| Types | `CostDashboardData`, `CostSeriesRow`, `CostModelRow`, `CostSubjectRow`, `CostCapUsage`, `CostLabels`, `CostDashboardProps`. |
+
 ### admin-screens
 
 An admin panel generated from signet-db's `defineAdmin` metadata and signet-server's `adminRoutes`.
