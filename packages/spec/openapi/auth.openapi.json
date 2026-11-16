@@ -1,0 +1,1010 @@
+{
+  "openapi": "3.1.0",
+  "x-specVersion": "v1",
+  "info": {
+    "title": "Signet auth routes",
+    "version": "v1",
+    "description": "sessionRoutes (the signed-in user's devices) and clientLoginRoutes (bearer sign-in for extensions, desktop apps and CLIs) from @dapplelight/signet-server/auth/hono. Session routes answer failures in Signet's error envelope. Client-login routes answer in OAuth's shape, `{ error, error_description? }`, with `Cache-Control: no-store`, and `Retry-After` when rate limited."
+  },
+  "servers": [
+    {
+      "url": "{authPrefix}",
+      "description": "Where clientLoginRoutes is mounted.",
+      "variables": {
+        "authPrefix": {
+          "default": "/api/auth"
+        }
+      }
+    }
+  ],
+  "tags": [
+    {
+      "name": "Sessions"
+    },
+    {
+      "name": "Client login"
+    }
+  ],
+  "paths": {
+    "/": {
+      "servers": [
+        {
+          "url": "{sessionsPrefix}",
+          "description": "Where sessionRoutes is mounted.",
+          "variables": {
+            "sessionsPrefix": {
+              "default": "/api/sessions"
+            }
+          }
+        }
+      ],
+      "get": {
+        "operationId": "listSessions",
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "List the signed-in user's sessions",
+        "security": [
+          {
+            "storedSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Live sessions, newest activity first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessions": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Session"
+                      }
+                    }
+                  },
+                  "required": [
+                    "sessions"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/revoke-others": {
+      "servers": [
+        {
+          "url": "{sessionsPrefix}",
+          "description": "Where sessionRoutes is mounted.",
+          "variables": {
+            "sessionsPrefix": {
+              "default": "/api/sessions"
+            }
+          }
+        }
+      ],
+      "post": {
+        "operationId": "revokeOtherSessions",
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Sign out everywhere else",
+        "security": [
+          {
+            "storedSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "How many other sessions were revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Revoked"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/{id}": {
+      "servers": [
+        {
+          "url": "{sessionsPrefix}",
+          "description": "Where sessionRoutes is mounted.",
+          "variables": {
+            "sessionsPrefix": {
+              "default": "/api/sessions"
+            }
+          }
+        }
+      ],
+      "delete": {
+        "operationId": "revokeSession",
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Revoke one of the user's sessions",
+        "description": "Revoking the current session also clears the session cookie. Another user's session reads as missing.",
+        "security": [
+          {
+            "storedSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revoked.",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Clears the session cookie when the current session was revoked.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "revoked": {
+                      "const": 1
+                    }
+                  },
+                  "required": [
+                    "revoked"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No such session of this user (code NOT_FOUND).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/authorize": {
+      "get": {
+        "operationId": "authorize",
+        "tags": [
+          "Client login"
+        ],
+        "summary": "Authorization code with PKCE (S256 only)",
+        "description": "For a user signed in on the web. Redirects to the client's redirect_uri with `code` and `state`. A PKCE error is sent to the redirect_uri as `error` and `error_description`. An unknown client_id or unregistered redirect_uri is never redirected to. A visitor who is not signed in is redirected to the app's login page when the app sets loginUrl, otherwise answered 401.",
+        "security": [
+          {
+            "storedSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "client_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "redirect_uri",
+            "in": "query",
+            "required": true,
+            "description": "Matched exactly against the client's registered redirectUris; a portless loopback entry matches any port.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code_challenge",
+            "in": "query",
+            "required": true,
+            "description": "base64url(SHA-256(code_verifier)).",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{43}$"
+            }
+          },
+          {
+            "name": "code_challenge_method",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "const": "S256"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to redirect_uri?code&state, to redirect_uri?error&error_description, or to the login page.",
+            "headers": {
+              "Location": {
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown client_id (invalid_client) or unregistered redirect_uri (invalid_request).",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "enum": [
+                        "invalid_client",
+                        "invalid_request"
+                      ]
+                    },
+                    "error_description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "Not signed in and the app sets no loginUrl."
+          }
+        }
+      }
+    },
+    "/token": {
+      "post": {
+        "operationId": "token",
+        "tags": [
+          "Client login"
+        ],
+        "summary": "Exchange a grant for tokens",
+        "description": "grant_type is `authorization_code` (with code_verifier), `refresh_token` or the device code grant. A refresh token is single use and rotated; presenting a used one revokes the session. A form or JSON body.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/CodeGrantRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RefreshGrantRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DeviceGrantRequest"
+                  }
+                ]
+              }
+            },
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/CodeGrantRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RefreshGrantRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DeviceGrantRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A new access and refresh token.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "authorization_pending and slow_down are the device flow's polling answers.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "enum": [
+                        "invalid_request",
+                        "invalid_grant",
+                        "unsupported_grant_type",
+                        "authorization_pending",
+                        "slow_down",
+                        "expired_token"
+                      ]
+                    },
+                    "error_description": {
+                      "type": "string"
+                    },
+                    "interval": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "With slow_down: the poll interval to use from now on, in seconds."
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unknown client_id.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "enum": [
+                        "invalid_client"
+                      ]
+                    },
+                    "error_description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device/code": {
+      "post": {
+        "operationId": "deviceCode",
+        "tags": [
+          "Client login"
+        ],
+        "summary": "Start the device flow (RFC 8628)",
+        "description": "Counted per client IP.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "client_id": {
+                    "type": "string",
+                    "description": "A registered client id."
+                  }
+                },
+                "required": [
+                  "client_id"
+                ]
+              }
+            },
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "client_id": {
+                    "type": "string",
+                    "description": "A registered client id."
+                  }
+                },
+                "required": [
+                  "client_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A device code to poll with and a user code to show.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceCodeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unknown client_id.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "enum": [
+                        "invalid_client"
+                      ]
+                    },
+                    "error_description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/device/approve": {
+      "post": {
+        "operationId": "deviceApprove",
+        "tags": [
+          "Client login"
+        ],
+        "summary": "Approve a device's user code",
+        "description": "For a user signed in on the web. Single use; counted per user against guessing.",
+        "security": [
+          {
+            "storedSession": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_code": {
+                    "type": "string",
+                    "description": "As shown, \"BCDF-GHJK\"; case and separators are ignored."
+                  }
+                },
+                "required": [
+                  "user_code"
+                ]
+              }
+            },
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_code": {
+                    "type": "string",
+                    "description": "As shown, \"BCDF-GHJK\"; case and separators are ignored."
+                  }
+                },
+                "required": [
+                  "user_code"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Approved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceApproveResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a valid, live, unused code.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "enum": [
+                        "invalid_code"
+                      ]
+                    },
+                    "error_description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/revoke": {
+      "post": {
+        "operationId": "revoke",
+        "tags": [
+          "Client login"
+        ],
+        "summary": "Sign a client out (RFC 7009)",
+        "description": "Revokes the session behind a refresh or access token. An unknown token is ignored: the answer is always 200.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              }
+            },
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Always, with an empty body."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "string",
+            "description": "A message safe to show."
+          },
+          "code": {
+            "description": "Stable machine code, e.g. VALIDATION_FAILED.",
+            "type": "string"
+          },
+          "details": {
+            "type": "object",
+            "properties": {
+              "formErrors": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "fieldErrors": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "required": [
+              "formErrors",
+              "fieldErrors"
+            ]
+          },
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "Session": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "device": {
+            "type": "string",
+            "description": "\"Chrome on macOS\", from the user agent at sign-in."
+          },
+          "ip": {
+            "description": "Client IP at sign-in, then at the last touch; null when the app trusts no proxy.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Epoch ms."
+          },
+          "lastSeenAt": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Epoch ms."
+          },
+          "expiresAt": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Epoch ms."
+          },
+          "current": {
+            "type": "boolean",
+            "description": "True for the session making this request."
+          }
+        },
+        "required": [
+          "id",
+          "device",
+          "ip",
+          "createdAt",
+          "lastSeenAt",
+          "expiresAt",
+          "current"
+        ]
+      },
+      "Revoked": {
+        "type": "object",
+        "properties": {
+          "revoked": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "How many sessions were revoked."
+          }
+        },
+        "required": [
+          "revoked"
+        ]
+      },
+      "TokenResponse": {
+        "type": "object",
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "token_type": {
+            "type": "string",
+            "const": "Bearer"
+          },
+          "expires_in": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Seconds."
+          },
+          "refresh_token": {
+            "type": "string",
+            "description": "Single use: each refresh returns a new one."
+          }
+        },
+        "required": [
+          "access_token",
+          "token_type",
+          "expires_in",
+          "refresh_token"
+        ]
+      },
+      "DeviceCodeResponse": {
+        "type": "object",
+        "properties": {
+          "device_code": {
+            "type": "string"
+          },
+          "user_code": {
+            "type": "string",
+            "description": "Shown to the user as XXXX-XXXX."
+          },
+          "verification_uri": {
+            "type": "string"
+          },
+          "verification_uri_complete": {
+            "type": "string"
+          },
+          "expires_in": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Seconds."
+          },
+          "interval": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Minimum seconds between polls."
+          }
+        },
+        "required": [
+          "device_code",
+          "user_code",
+          "verification_uri",
+          "verification_uri_complete",
+          "expires_in",
+          "interval"
+        ]
+      },
+      "DeviceApproveResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "client_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ok",
+          "client_id"
+        ]
+      },
+      "CodeGrantRequest": {
+        "type": "object",
+        "properties": {
+          "grant_type": {
+            "type": "string",
+            "const": "authorization_code"
+          },
+          "client_id": {
+            "type": "string",
+            "description": "A registered client id."
+          },
+          "code": {
+            "type": "string"
+          },
+          "redirect_uri": {
+            "type": "string",
+            "description": "The redirect_uri sent to /authorize."
+          },
+          "code_verifier": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._~-]{43,128}$"
+          }
+        },
+        "required": [
+          "grant_type",
+          "client_id",
+          "code",
+          "redirect_uri",
+          "code_verifier"
+        ]
+      },
+      "RefreshGrantRequest": {
+        "type": "object",
+        "properties": {
+          "grant_type": {
+            "type": "string",
+            "const": "refresh_token"
+          },
+          "client_id": {
+            "type": "string",
+            "description": "A registered client id."
+          },
+          "refresh_token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "grant_type",
+          "client_id",
+          "refresh_token"
+        ]
+      },
+      "DeviceGrantRequest": {
+        "type": "object",
+        "properties": {
+          "grant_type": {
+            "type": "string",
+            "const": "urn:ietf:params:oauth:grant-type:device_code"
+          },
+          "client_id": {
+            "type": "string",
+            "description": "A registered client id."
+          },
+          "device_code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "grant_type",
+          "client_id",
+          "device_code"
+        ]
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "No valid stored-session cookie (code UNAUTHORIZED).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Too many attempts; retry after the Retry-After seconds.",
+        "headers": {
+          "Cache-Control": {
+            "$ref": "#/components/headers/CacheControlNoStore"
+          },
+          "Retry-After": {
+            "$ref": "#/components/headers/RetryAfter"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string",
+                  "enum": [
+                    "rate_limited"
+                  ]
+                },
+                "error_description": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "error"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "headers": {
+      "CacheControlNoStore": {
+        "required": true,
+        "schema": {
+          "const": "no-store"
+        }
+      },
+      "RetryAfter": {
+        "required": true,
+        "description": "Seconds.",
+        "schema": {
+          "type": "integer"
+        }
+      }
+    },
+    "securitySchemes": {
+      "storedSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "sid",
+        "description": "The stored-session cookie from startSession (./sessions). Its name is the app's cookieName; `sid` is the example's."
+      }
+    }
+  }
+}

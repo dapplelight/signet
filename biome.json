@@ -20,6 +20,7 @@
       "!.claude",
       "!packages/mcp/src/generated",
       "!packages/spec/schemas",
+      "!packages/spec/openapi",
       "!apps/docs/public/spec"
     ]
   },

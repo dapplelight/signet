@@ -16,9 +16,11 @@ import {
 } from "../src/analytics"
 import { ERROR_CODE_STATUS, errorEnvelopeSchema, SPEC_VERSION } from "../src/error"
 import { webhookDeliverySchema } from "../src/webhooks"
+import { authOpenApi } from "./auth-openapi"
 
 const ROOT = join(import.meta.dirname, "..")
 export const SCHEMAS_DIR = join(ROOT, "schemas")
+export const OPENAPI_DIR = join(ROOT, "openapi")
 export const PUBLIC_DIR = join(ROOT, "../../apps/docs/public/spec", SPEC_VERSION)
 const BASE = `https://signet.dapplelight.in/spec/${SPEC_VERSION}`
 
@@ -54,10 +56,22 @@ export function generate(): Record<string, string> {
   )
 }
 
+/** OpenAPI file name -> exact file contents; written to `openapi/` and to the docs site. */
+export function generateOpenApi(): Record<string, string> {
+  return { "auth.openapi.json": `${JSON.stringify(authOpenApi(), null, 2)}\n` }
+}
+
 if (import.meta.main) {
-  for (const dir of [SCHEMAS_DIR, PUBLIC_DIR]) {
+  const copies = [
+    [SCHEMAS_DIR, generate()],
+    [OPENAPI_DIR, generateOpenApi()],
+    [PUBLIC_DIR, { ...generate(), ...generateOpenApi() }],
+  ] as const
+  for (const [dir, files] of copies) {
     mkdirSync(dir, { recursive: true })
-    for (const [name, text] of Object.entries(generate())) writeFileSync(join(dir, name), text)
+    for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, name), text)
   }
-  console.log(`spec ${SPEC_VERSION}: wrote ${Object.keys(generate()).join(", ")}`)
+  console.log(
+    `spec ${SPEC_VERSION}: wrote ${[...Object.keys(generate()), ...Object.keys(generateOpenApi())].join(", ")}`,
+  )
 }
