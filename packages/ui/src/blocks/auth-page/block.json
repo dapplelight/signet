@@ -1,5 +1,5 @@
 {
-  "name": "auth",
+  "name": "auth-page",
   "description": "Sign-in, sign-up and one-time-code screens built on AuthScreen and VerifyCodeScreen, with OAuth buttons only when providers are passed.",
   "files": ["index.tsx"],
   "deps": ["auth-screens", "card", "error-state", "skeleton", "utils"]

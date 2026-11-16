@@ -7,14 +7,14 @@
 // through signet-lib's `createRpcClient`. A callback that throws shows its
 // message; one that returns a Promise keeps its button pending. OAuth buttons
 // show only when `providers` is not empty. Copy it in with `signet add block
-// auth` and edit it: labels, parts and the root's className are props.
-import * as React from "react"
+// auth-page` and edit it: labels, parts and the root's className are props.
+import type * as React from "react"
 import {
   type AuthChannel,
   type AuthLabels,
   type AuthMode,
-  type AuthScreenProps,
   AuthScreen,
+  type AuthScreenProps,
   type CodeRequest,
   DEFAULT_AUTH_LABELS,
   type OAuthProvider,
@@ -101,7 +101,7 @@ export function Auth({
 
   return (
     <section
-      data-block="auth"
+      data-block="auth-page"
       data-state={state}
       data-step={step}
       aria-busy={state === "loading" || undefined}

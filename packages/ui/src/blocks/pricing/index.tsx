@@ -12,7 +12,13 @@ import * as React from "react"
 import { formatMoney } from "../../components/screens/billing-screens.js"
 import { Badge } from "../../components/ui/badge.js"
 import { Button } from "../../components/ui/button.js"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "../../components/ui/card.js"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+} from "../../components/ui/card.js"
 import { EmptyState } from "../../components/ui/empty-state.js"
 import { ErrorState } from "../../components/ui/error-state.js"
 import { Skeleton } from "../../components/ui/skeleton.js"
@@ -157,7 +163,8 @@ export function Pricing({
             className={cn("grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3", classNames?.grid)}
           >
             {plans.map((plan) => {
-              const amount = plan.price[interval] ?? plan.price.month * (interval === "year" ? 12 : 1)
+              const amount =
+                plan.price[interval] ?? plan.price.month * (interval === "year" ? 12 : 1)
               return (
                 <Card
                   key={plan.id}
@@ -194,10 +201,16 @@ export function Pricing({
                         {interval === "year" ? l.perYearSr : l.perMonthSr}
                       </span>
                     </p>
-                    <ul data-slot="pricing-features" className={cn("grid gap-2", classNames?.features)}>
+                    <ul
+                      data-slot="pricing-features"
+                      className={cn("grid gap-2", classNames?.features)}
+                    >
                       {plan.features.map((f) => (
                         <li key={f} className="flex items-start gap-2">
-                          <CheckIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
+                          <CheckIcon
+                            aria-hidden="true"
+                            className="mt-0.5 size-4 shrink-0 text-primary"
+                          />
                           <span className="min-w-0 break-words" title={f}>
                             {f}
                           </span>

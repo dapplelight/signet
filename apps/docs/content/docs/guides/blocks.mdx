@@ -1,6 +1,6 @@
 ---
 title: "Page Blocks"
-description: "Whole pages you copy into your app and edit: an analytics dashboard, a list with a detail pane, and settings."
+description: "Whole pages you copy into your app and edit: dashboard, list-detail, settings, auth, onboarding, pricing, checkout, empty and error pages."
 ---
 
 A block is a page-level layout built only from Signet components. You copy it into your app as source, then change the data, the text and the markup. Agents compose from blocks instead of inventing layouts.
@@ -82,6 +82,120 @@ import { Settings } from "@/components/signet/blocks/settings"
 ```
 
 A save callback can resolve with `{ name: "Name is taken" }` to show that message under the field.
+
+## Auth page
+
+Sign in, sign up and the code step, built from `AuthScreen` and `VerifyCodeScreen`. The block holds no back-end code: `onRequestCode` and `onVerify` are props, so you wire them to your own API (here with `createRpcClient`, see [Add an API client](/docs/guides/add-api-client)). OAuth buttons show only when `providers` is not empty.
+
+<BlockPreview block="auth-page" />
+
+```tsx
+import { Auth } from "@/components/signet/blocks/auth-page"
+import { api } from "@/lib/api" // createRpcClient(hc<AppType>, { baseUrl: "/" })
+
+<Auth
+  mode="sign-in"
+  onRequestCode={({ channel, to }) => api.auth.code.$post({ json: { channel, to } })}
+  onVerify={({ to, code }) => api.auth.verify.$post({ json: { to, code } })}
+  providers={[{ id: "github", label: "GitHub" }]}
+  onOAuth={(provider) => (location.href = `/auth/${provider.id}`)}
+/>
+```
+
+A callback that throws shows its message in an alert line under the form. Pass `step="verify"` with `to` to open on the code step.
+
+## Onboarding
+
+A stepper on top and the current step's content in a card below. Steps come in as props. After each step, focus moves to the step heading. "Back" is hidden on the first step, and the last step's button reads "Finish".
+
+<BlockPreview block="onboarding" />
+
+```tsx
+import { Onboarding } from "@/components/signet/blocks/onboarding"
+
+<Onboarding
+  steps={[
+    { id: "profile", title: "Your profile", content: <ProfileForm /> },
+    { id: "team", title: "Invite your team", content: <InviteForm /> },
+  ]}
+  onNext={(step) => api.saveStep(step.id)}
+  onFinish={() => navigate("/")}
+  onSkip={() => navigate("/")}
+/>
+```
+
+`onNext` may throw to keep the user on the step. Pass `onSkip` to show "Skip for now".
+
+## Pricing
+
+Plans come from props and show as cards: one column on a phone, up to three on a wide screen. The highlighted plan gets a ring and a "Most popular" badge. A Monthly / Yearly toggle shows when a plan has a `year` price. With no plans it shows "No plans available".
+
+<BlockPreview block="pricing" />
+
+```tsx
+import { Pricing } from "@/components/signet/blocks/pricing"
+
+<Pricing
+  currency="USD"
+  plans={[
+    { id: "free", name: "Free", price: { month: 0 }, features: ["1 project"] },
+    {
+      id: "pro",
+      name: "Pro",
+      price: { month: 1200, year: 12000 },
+      features: ["Unlimited projects"],
+      highlighted: true,
+    },
+  ]}
+  onSelect={(plan, interval) => api.checkout(plan.id, interval)}
+/>
+```
+
+Prices are in minor units.
+
+## Checkout summary
+
+The line items, then subtotal, discount, tax and total, and a "Pay {total}" button. Amounts are minor units and go through the same `formatMoney` as the billing screens. The block holds no payment-provider code: `onPay` is where you start your own checkout.
+
+<BlockPreview block="checkout-summary" />
+
+```tsx
+import { CheckoutSummary } from "@/components/signet/blocks/checkout-summary"
+
+<CheckoutSummary
+  items={[{ id: "pro", name: "Pro plan", amount: 1200 }]}
+  tax={96}
+  onPay={(total) => api.pay(total)}
+/>
+```
+
+An empty `items` shows "Your cart is empty".
+
+## Empty state
+
+A whole empty page: an icon, a title, a description and an action.
+
+<BlockPreview block="empty-page" />
+
+```tsx
+import { EmptyPage } from "@/components/signet/blocks/empty-page"
+
+<EmptyPage onAction={() => openNewProject()} />
+```
+
+The defaults read "No projects yet" and "New project". Pass `title`, `description`, `icon` or `action` to change them.
+
+## 404 and 500 pages
+
+`code` is `404` or `500`. A 404 offers "Go home"; a 500 also offers "Try again" when you pass `onTryAgain`. The number is decoration, hidden from screen readers; the title is the page's `h1`.
+
+<BlockPreview block="error-page" />
+
+```tsx
+import { ErrorPage } from "@/components/signet/blocks/error-page"
+
+<ErrorPage code={500} homeHref="/" onTryAgain={() => location.reload()} />
+```
 
 ## Add your own block
 

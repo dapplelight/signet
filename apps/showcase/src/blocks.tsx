@@ -1,13 +1,13 @@
 // Demo page for the page-level blocks: /block-settings.html, /block-list-detail.html,
-// /block-analytics-dashboard.html, /block-auth.html, /block-onboarding.html,
+// /block-analytics-dashboard.html, /block-auth-page.html, /block-onboarding.html,
 // /block-pricing.html, /block-checkout-summary.html, /block-empty-page.html and
 // /block-error-page.html. Query: &state=ready|loading|error, &theme=<name>,
 // &dark=1, &embed=1 (no demo bar; the docs site embeds the page that way);
-// auth also takes &mode=sign-in|sign-up and &step=request|verify (the code is
+// auth-page also takes &mode=sign-in|sign-up and &step=request|verify (the code is
 // 123456), error-page takes &code=404|500.
 // The block name comes from <body data-block>. Everything runs on in-memory data.
 import { AnalyticsDashboard } from "@dapplelight/signet-ui/blocks/analytics-dashboard"
-import { Auth, SAMPLE_PROVIDERS } from "@dapplelight/signet-ui/blocks/auth"
+import { Auth, SAMPLE_PROVIDERS } from "@dapplelight/signet-ui/blocks/auth-page"
 import { CheckoutSummary } from "@dapplelight/signet-ui/blocks/checkout-summary"
 import { EmptyPage } from "@dapplelight/signet-ui/blocks/empty-page"
 import { ErrorPage } from "@dapplelight/signet-ui/blocks/error-page"
@@ -32,7 +32,7 @@ function Block() {
   if (block === "analytics-dashboard") return <AnalyticsDashboard state={state} onRetry={retry} />
   if (block === "list-detail") return <ListDetail state={state} onRetry={retry} />
   if (block === "settings") return <Settings state={state} onRetry={retry} />
-  if (block === "auth") {
+  if (block === "auth-page") {
     const wait = () => new Promise((r) => setTimeout(r, 400))
     return (
       <Auth

@@ -8,13 +8,19 @@
 // spinner and the step stays put if they throw (the message shows under the
 // content). Copy it in with `signet add block onboarding` and edit it.
 import * as React from "react"
-import { DESKTOP_QUERY, useMediaQuery } from "../../hooks/use-media-query.js"
 import { Button } from "../../components/ui/button.js"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "../../components/ui/card.js"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+} from "../../components/ui/card.js"
 import { ErrorState } from "../../components/ui/error-state.js"
 import { Skeleton } from "../../components/ui/skeleton.js"
 import { Spinner } from "../../components/ui/spinner.js"
 import { Stepper } from "../../components/ui/stepper.js"
+import { DESKTOP_QUERY, useMediaQuery } from "../../hooks/use-media-query.js"
 import { cn } from "../../lib/utils.js"
 import { SAMPLE_STEPS } from "./sample.js"
 
@@ -225,7 +231,12 @@ export function Onboarding({
 /** The stepper's row and a card with a heading, a field and the buttons. */
 function OnboardingSkeleton({ label }: { label: string }) {
   return (
-    <div data-slot="onboarding-skeleton" role="status" aria-label={label} className="flex flex-col gap-6">
+    <div
+      data-slot="onboarding-skeleton"
+      role="status"
+      aria-label={label}
+      className="flex flex-col gap-6"
+    >
       <div className="flex flex-col gap-3 md:flex-row md:justify-between">
         {Array.from({ length: 3 }, (_, i) => (
           <Skeleton key={i} className="h-11 w-full md:h-9" />

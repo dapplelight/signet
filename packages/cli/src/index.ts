@@ -35,7 +35,7 @@ Commands:
                        src/server/ and are wired into src/app.ts, src/env.ts and
                        .env.example; their npm packages are installed
   add block <name...>  Copy a page-level block (analytics-dashboard, list-detail,
-                       settings, auth, onboarding, pricing, checkout-summary,
+                       settings, auth-page, onboarding, pricing, checkout-summary,
                        empty-page, error-page) and the components it uses
   upgrade [name...]    Merge upstream changes into added items (default: all),
                        then run the codemods your installed Signet versions need

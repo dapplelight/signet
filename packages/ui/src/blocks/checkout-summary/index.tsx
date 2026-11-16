@@ -137,20 +137,13 @@ export function CheckoutSummary({
               {items.map((item) => {
                 const qty = item.quantity ?? 1
                 return (
-                  <li
-                    key={item.id}
-                    data-slot="checkout-item"
-                    className={cn(row, classNames?.item)}
-                  >
+                  <li key={item.id} data-slot="checkout-item" className={cn(row, classNames?.item)}>
                     <span className="min-w-0">
                       <span className="block truncate font-medium" title={item.name}>
                         {item.name}
                       </span>
                       {item.description || qty > 1 ? (
-                        <span
-                          className="block truncate text-text-muted"
-                          title={item.description}
-                        >
+                        <span className="block truncate text-text-muted" title={item.description}>
                           {[item.description, qty > 1 ? l.quantity(qty) : null]
                             .filter(Boolean)
                             .join(" · ")}
@@ -213,7 +206,12 @@ export function CheckoutSummary({
 /** The card's shape: a heading, three item rows, the totals and the button. */
 function CheckoutSkeleton({ label }: { label: string }) {
   return (
-    <Card data-slot="checkout-skeleton" role="status" aria-label={label} className="mx-auto max-w-lg">
+    <Card
+      data-slot="checkout-skeleton"
+      role="status"
+      aria-label={label}
+      className="mx-auto max-w-lg"
+    >
       <CardHeader>
         <Skeleton className="h-5 w-36" />
       </CardHeader>
