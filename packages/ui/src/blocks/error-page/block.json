@@ -1,0 +1,6 @@
+{
+  "name": "error-page",
+  "description": "404 and 500 pages: a large muted code, the title as the h1, a description, Go home and Try again.",
+  "files": ["index.tsx"],
+  "deps": ["button", "card", "error-state", "skeleton", "utils"]
+}

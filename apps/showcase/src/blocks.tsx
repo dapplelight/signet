@@ -1,9 +1,19 @@
 // Demo page for the page-level blocks: /block-settings.html, /block-list-detail.html,
-// /block-analytics-dashboard.html. Query: &state=ready|loading|error, &theme=<name>,
-// &dark=1, &embed=1 (no demo bar; the docs site embeds the page that way).
+// /block-analytics-dashboard.html, /block-auth.html, /block-onboarding.html,
+// /block-pricing.html, /block-checkout-summary.html, /block-empty-page.html and
+// /block-error-page.html. Query: &state=ready|loading|error, &theme=<name>,
+// &dark=1, &embed=1 (no demo bar; the docs site embeds the page that way);
+// auth also takes &mode=sign-in|sign-up and &step=request|verify (the code is
+// 123456), error-page takes &code=404|500.
 // The block name comes from <body data-block>. Everything runs on in-memory data.
 import { AnalyticsDashboard } from "@dapplelight/signet-ui/blocks/analytics-dashboard"
+import { Auth, SAMPLE_PROVIDERS } from "@dapplelight/signet-ui/blocks/auth"
+import { CheckoutSummary } from "@dapplelight/signet-ui/blocks/checkout-summary"
+import { EmptyPage } from "@dapplelight/signet-ui/blocks/empty-page"
+import { ErrorPage } from "@dapplelight/signet-ui/blocks/error-page"
 import { ListDetail } from "@dapplelight/signet-ui/blocks/list-detail"
+import { Onboarding } from "@dapplelight/signet-ui/blocks/onboarding"
+import { Pricing } from "@dapplelight/signet-ui/blocks/pricing"
 import { Settings } from "@dapplelight/signet-ui/blocks/settings"
 import { Toaster } from "@dapplelight/signet-ui/components/toast"
 import { StrictMode } from "react"
@@ -22,6 +32,49 @@ function Block() {
   if (block === "analytics-dashboard") return <AnalyticsDashboard state={state} onRetry={retry} />
   if (block === "list-detail") return <ListDetail state={state} onRetry={retry} />
   if (block === "settings") return <Settings state={state} onRetry={retry} />
+  if (block === "auth") {
+    const wait = () => new Promise((r) => setTimeout(r, 400))
+    return (
+      <Auth
+        state={state}
+        onRetry={retry}
+        mode={params.get("mode") === "sign-up" ? "sign-up" : "sign-in"}
+        step={params.get("step") === "verify" ? "verify" : "request"}
+        to="ada@example.com"
+        providers={SAMPLE_PROVIDERS}
+        onRequestCode={wait}
+        onVerify={async ({ code }) => {
+          await wait()
+          if (code !== "123456") throw new Error("That code is not right. Try 123456.")
+        }}
+        footer="By continuing you agree to the terms."
+      />
+    )
+  }
+  if (block === "onboarding")
+    return <Onboarding state={state} onRetry={retry} onSkip={() => {}} />
+  if (block === "pricing") return <Pricing state={state} onRetry={retry} />
+  if (block === "checkout-summary")
+    return (
+      <CheckoutSummary
+        state={state}
+        onRetry={retry}
+        discount={500}
+        tax={430}
+        onPay={() => new Promise((r) => setTimeout(r, 600))}
+      />
+    )
+  if (block === "empty-page") return <EmptyPage state={state} onRetry={retry} onAction={() => {}} />
+  if (block === "error-page")
+    return (
+      <ErrorPage
+        state={state}
+        onRetry={retry}
+        code={params.get("code") === "500" ? 500 : 404}
+        homeHref="./"
+        onTryAgain={() => location.reload()}
+      />
+    )
   return <p className="p-6">Unknown block "{block}".</p>
 }
 

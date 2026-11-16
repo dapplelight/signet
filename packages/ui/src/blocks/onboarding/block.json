@@ -1,0 +1,16 @@
+{
+  "name": "onboarding",
+  "description": "Onboarding stepper with the current step's content in a card, Back / Continue / Finish, optional Skip for now, and focus on the step heading.",
+  "files": ["index.tsx", "sample.tsx"],
+  "deps": [
+    "button",
+    "card",
+    "error-state",
+    "field",
+    "skeleton",
+    "spinner",
+    "stepper",
+    "use-media-query",
+    "utils"
+  ]
+}
