@@ -15,14 +15,11 @@ const THEMES_DIR = join(import.meta.dirname, "../../../tokens/src/themes")
 const PAGE = `<!doctype html><html><head><script>
   const t = new URLSearchParams(location.search).get("theme") || "editorial";
   document.write('<link rel="stylesheet" href="/themes/' + t + '.css">');
-  // The swatch colour is test-local: finance no longer ships product colours, and
-  // the stored finance baselines expect this blue. Other themes fall back to --muted.
-  if (t === "finance") document.write('<style>html{--swatch:#2563eb}html.dark{--swatch:#60a5fa}</style>');
 </script><style>
   body { margin: 0; padding: 24px; background: var(--background); color: var(--foreground); font: 16px sans-serif }
   .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px }
   .btn { display: inline-block; margin-top: 12px; padding: 8px 16px; background: var(--primary); color: var(--primary-fg); border-radius: var(--radius-md) }
-  .cat { display: inline-block; width: 24px; height: 24px; margin-left: 8px; vertical-align: middle; background: var(--swatch, var(--muted)) }
+  .cat { display: inline-block; width: 24px; height: 24px; margin-left: 8px; vertical-align: middle; background: var(--money-credit, var(--muted)) }
 </style></head><body><div class="card">Signet <span class="cat"></span><br><span class="btn">Pay</span></div>
 <p id="who"></p></body></html>`
 
