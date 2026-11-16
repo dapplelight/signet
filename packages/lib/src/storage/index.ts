@@ -137,6 +137,81 @@ export function chromeStorage(area?: ChromeStorageAreaLike): StorageAdapter {
   }
 }
 
+type IdbRequestLike<T> = {
+  result: T
+  error: unknown
+  onsuccess: (() => void) | null
+  onerror: (() => void) | null
+}
+type IdbLike = {
+  open(
+    name: string,
+    version?: number,
+  ): IdbRequestLike<IdbDbLike> & {
+    onupgradeneeded: (() => void) | null
+  }
+}
+type IdbDbLike = {
+  objectStoreNames: { contains(n: string): boolean }
+  createObjectStore(n: string): unknown
+  transaction(
+    store: string,
+    mode: "readonly" | "readwrite",
+  ): {
+    objectStore(n: string): {
+      get(k: string): IdbRequestLike<unknown>
+      put(v: string, k: string): IdbRequestLike<unknown>
+      delete(k: string): IdbRequestLike<unknown>
+    }
+  }
+}
+
+const idbDone = <T>(r: IdbRequestLike<T>) =>
+  new Promise<T>((resolve, reject) => {
+    r.onsuccess = () => resolve(r.result)
+    r.onerror = () => reject(r.error)
+  })
+
+/**
+ * IndexedDB: larger than localStorage, and reachable from a service worker,
+ * which localStorage is not. One object store of string values, opened on
+ * first use. Pass `indexedDB` explicitly where it is not a global.
+ */
+export function indexedDbStorage(
+  options: { db?: string; store?: string; indexedDB?: unknown } = {},
+): StorageAdapter {
+  const { db: name = "signet", store = "kv" } = options
+  let opened: Promise<IdbDbLike> | null = null
+  const open = () => {
+    opened ??= (() => {
+      const idb = (options.indexedDB ?? (globalThis as { indexedDB?: unknown }).indexedDB) as
+        | IdbLike
+        | undefined
+      if (!idb) return Promise.reject(new Error("indexedDbStorage: no indexedDB here"))
+      const req = idb.open(name, 1)
+      req.onupgradeneeded = () => {
+        if (!req.result.objectStoreNames.contains(store)) req.result.createObjectStore(store)
+      }
+      return idbDone(req)
+    })()
+    return opened
+  }
+  const os = async (mode: "readonly" | "readwrite") =>
+    (await open()).transaction(store, mode).objectStore(store)
+  return {
+    async get(key) {
+      const v = await idbDone((await os("readonly")).get(key))
+      return typeof v === "string" ? v : null
+    },
+    async set(key, value) {
+      await idbDone((await os("readwrite")).put(value, key))
+    },
+    async remove(key) {
+      await idbDone((await os("readwrite")).delete(key))
+    },
+  }
+}
+
 /** `Store` / `LazyStore` from `@tauri-apps/plugin-store` v2, typed by shape. */
 export type TauriStoreLike = {
   get(key: string): Promise<unknown>
