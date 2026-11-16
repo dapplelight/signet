@@ -6,6 +6,7 @@
 
 import { registerSW } from "virtual:pwa-register"
 import { toast } from "sonner"
+import i18n from "./i18n"
 
 const CHECK_EVERY_MS = 30 * 60 * 1000
 
@@ -47,9 +48,9 @@ export function registerPwa(): void {
       if (registration) wireUpdateChecks(registration)
     },
     onNeedRefresh() {
-      toast("A new version is available.", {
+      toast(i18n.t("update.available"), {
         duration: Number.POSITIVE_INFINITY,
-        action: { label: "Reload", onClick: () => void update(true) },
+        action: { label: i18n.t("update.reload"), onClick: () => void update(true) },
       })
       // The worker applies it only if every tab is hidden; the last one to hide does it.
       whenHidden(() => reg?.waiting?.postMessage({ type: "SKIP_WAITING_IF_HIDDEN" }))
