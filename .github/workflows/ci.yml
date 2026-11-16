@@ -28,6 +28,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run lint
       - run: bun run changes --check
+      - run: bun run scripts/check-bumps.ts
       - run: bun run scripts/changes.test.ts
       # Packages import each other through dist/ (see release.yml).
       - run: bun run build:all

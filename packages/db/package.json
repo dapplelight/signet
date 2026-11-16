@@ -1,6 +1,6 @@
 {
   "name": "@dapplelight/signet-db",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "MIT",
   "description": "Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit trail, migration checks.",
   "keywords": [
@@ -175,7 +175,7 @@
     "prepublishOnly": "bun run build"
   },
   "peerDependencies": {
-    "@dapplelight/signet-lib": "^0.3.0",
+    "@dapplelight/signet-lib": "^0.4.0",
     "drizzle-orm": "^0.45.0",
     "postgres": ">=3.4.0",
     "zod": ">=4.0.0"
@@ -189,7 +189,7 @@
     }
   },
   "devDependencies": {
-    "@dapplelight/signet-lib": "^0.3.0",
+    "@dapplelight/signet-lib": "^0.4.0",
     "@electric-sql/pglite": "^0.5.16",
     "@types/bun": "^1.4.2",
     "@types/node": "^26.6.2",
