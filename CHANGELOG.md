@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### create-signet-app: web template ships i18n (i18next)
+
+New web apps keep every string in `src/locales/en.json` and read it with `useTranslation()` (`i18next` + `react-i18next`, app dependencies; Signet's own packages stay library-free). The browser language picks the file, English is the fallback, and `?pseudo=1` in dev shows accented, padded text so missed strings and cut-off text stand out in review screenshots. A new language is a new JSON file plus one line in `src/lib/i18n.ts`.
+
 ### create-signet-app: PWA update applies only when every tab is hidden
 
 Activating a new service worker reloads every open tab, so a background tab applying the update reloaded the one in use. A hidden tab now asks the worker, which applies the update only when no window of the app is visible; the last tab to go to the background applies it.
