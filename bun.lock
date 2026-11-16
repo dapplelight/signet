@@ -111,6 +111,9 @@
       "bin": {
         "signet": "./src/index.ts",
       },
+      "dependencies": {
+        "@dapplelight/signet-spec": "^0.1.0",
+      },
       "devDependencies": {
         "@types/bun": "^1.4.2",
         "typescript": "^7.0.2",
