@@ -10,21 +10,15 @@ import { join } from "node:path"
 const root = join(import.meta.dirname, "../../..")
 const out = join(import.meta.dirname, "../content/docs/packages")
 
-/** Nav order: what a new app touches first. */
-const PACKAGES = [
-  "create-signet-app",
-  "ui",
-  "tokens",
-  "lib",
-  "server",
-  "db",
-  "payments",
-  "ai",
-  "mcp",
-  "cli",
-  "config",
-  "test",
+/** Nav groups and labels, in the order a new app touches them. */
+const GROUPS: [string, [string, string][]][] = [
+  ["Start", [["create-signet-app", "Create Signet App"], ["cli", "CLI"], ["mcp", "MCP Server"]]],
+  ["Frontend", [["ui", "UI"], ["tokens", "Tokens"], ["lib", "Client Lib"]]],
+  ["Backend", [["server", "Server"], ["db", "Database"], ["payments", "Payments"], ["ai", "AI"]]],
+  ["Tooling", [["config", "Config"], ["test", "Test"]]],
 ]
+const LABEL = Object.fromEntries(GROUPS.flatMap(([, items]) => items))
+const PACKAGES = Object.keys(LABEL)
 
 const found = readdirSync(join(root, "packages")).filter((p) =>
   existsSync(join(root, "packages", p, "package.json")),
@@ -79,13 +73,13 @@ for (const pkg of PACKAGES) {
     : ""
   writeFileSync(
     join(out, `${pkg}.mdx`),
-    `---\ntitle: "${pkg}"\ndescription: "${esc(m.description ?? "")}"\n---\n\n` +
+    `---\ntitle: "${LABEL[pkg]}"\ndescription: "${esc(m.description ?? "")}"\n---\n\n` +
       `\`\`\`bash\n${install}\n\`\`\`\n\n${cards}`,
   )
 }
 writeFileSync(
   join(out, "meta.json"),
-  `${JSON.stringify({ title: "Packages", root: true, pages: PACKAGES }, null, 2)}\n`,
+  `${JSON.stringify({ title: "Packages", root: true, pages: GROUPS.flatMap(([g, items]) => [`---${g}---`, ...items.map(([p]) => p)]) }, null, 2)}\n`,
 )
 console.log(`docs: ${PACKAGES.length} package pages`)
 

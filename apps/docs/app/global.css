@@ -83,10 +83,12 @@ figure pre code {
    colour; a clicked (focusable) code block then shows a white frame. Keep
    a ring for keyboard focus only, in the docs' own border colour. */
 figure :focus,
-figure:focus {
+figure:focus,
+#nd-sidebar a:focus {
   outline: none;
 }
-figure :focus-visible {
+figure :focus-visible,
+#nd-sidebar a:focus-visible {
   outline: 2px solid var(--color-fd-ring);
   outline-offset: -2px;
 }
