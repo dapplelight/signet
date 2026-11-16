@@ -82,6 +82,9 @@ Signet client primitives. API client, the wire contract, and search.
 | `@dapplelight/signet-lib/form` | errorMessages, firstError, applyServerErrors, clearServerErrors, submitWithServerErrors, FieldError, … | TanStack Form integration |
 | `@dapplelight/signet-lib/format` | createCurrencyFormatter, createCompactCurrencyFormatter, formatPercent, createDateFormatter, createDateShortFormatter, createDateTimeFormatter, … | Currency, number and date formatting, plus date arithmetic (./date.ts) |
 | `@dapplelight/signet-lib/search` | source, createSearch, Query, Source, Hit, Section, … | re-exports engine, readers, text, usage |
+| `@dapplelight/signet-lib/session` | createSession, fromTokenResponse, tokenEndpointRefresh, SessionTokens, CreateSessionOptions, Session | Bearer tokens for clients without cookies (an extension, a desktop app, a CLI, React Native), kept in any `StorageAdapter` and handed to the api clien |
+| `@dapplelight/signet-lib/storage` | memoryStorage, webStorage, chromeStorage, tauriStorage, StorageAdapter, ChromeStorageAreaLike, … | A small async key-value interface for strings, with an adapter per surface: the web (localStorage), a Chrome MV3 extension (chrome.storage.local), a T |
+| `@dapplelight/signet-lib/storage/file` | fileStorage | A JSON file as a `StorageAdapter`, for Node and Bun CLIs |
 | `@dapplelight/signet-lib/webhooks` | generateWebhookSecret, signWebhook, verifyWebhook, VerifyWebhookOptions | Standard Webhooks signatures (https://www.standardwebhooks.com), Web Crypto only, so the same code signs on a Worker and verifies in any receiver |
 
 ## @dapplelight/signet-mcp
@@ -135,10 +138,11 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/analytics/ingest` | cleanId, registerIngest, cloudflareEnrichment, IngestOptions | Hono ingest route for browser events |
 | `@dapplelight/signet-server/analytics/session` | ANALYTICS_HEADERS, analyticsContext, serverTracker, AnalyticsContext | Server-side events that join the browser's visit and user |
 | `@dapplelight/signet-server/analytics/sinks` | httpSink, memorySink, consoleSink, AnalyticsSink, HttpSinkConfig | Where server-side analytics events go, independent of runtime |
-| `@dapplelight/signet-server/auth` | kvApiKeyStore, createApiKey, listApiKeys, revokeApiKey, verifyApiKey, ApiKeyRecord, … | re-exports api-keys, bearer, better-auth, guards, otp, passcode, session, sessions |
+| `@dapplelight/signet-server/auth` | kvApiKeyStore, createApiKey, listApiKeys, revokeApiKey, verifyApiKey, ApiKeyRecord, … | re-exports api-keys, bearer, better-auth, client-login, guards, otp, passcode, session, sessions |
 | `@dapplelight/signet-server/auth/api-keys` | kvApiKeyStore, createApiKey, listApiKeys, revokeApiKey, verifyApiKey, ApiKeyRecord, … | API-key manager: create (secret shown once), list, revoke, with scopes and optional expiry |
 | `@dapplelight/signet-server/auth/bearer` | readBearer, verifySharedToken, sha256Hex, createApiToken, hashIncomingToken | Bearer-token auth for machine callers — CLIs, MCP servers, webhooks, cron |
 | `@dapplelight/signet-server/auth/better-auth` | betterAuthDefaults, socialProviders, BetterAuthEnv, BetterAuthDefaultsOptions | Opinionated defaults for Better Auth |
+| `@dapplelight/signet-server/auth/client-login` | DEVICE_CODE_GRANT, pkceChallenge, redirectUriAllowed, authorizeClient, exchangeToken, normalizeUserCode, … | Sign-in for clients that cannot hold the web app's cookie: a browser extension or desktop app (authorization code + PKCE, S256 only) and a CLI (device |
 | `@dapplelight/signet-server/auth/guards` | isDevAuthEnabled, requireEnv, checkEnv | Configuration guards |
 | `@dapplelight/signet-server/auth/hono` | requireSession, requireStoredSession, sessionRoutes, requireApiKey, requireSharedToken, requireAuth, … | Hono middleware |
 | `@dapplelight/signet-server/auth/mcp` | authTools, AuthToolsOptions | Per-user MCP tools for sessions and API keys: `list_my_sessions`, `revoke_session`, `list_api_keys`, `revoke_api_key` |
@@ -219,10 +223,12 @@ Signet design tokens. One theme file per design system; all themes satisfy CONTR
 
 | Import | Exports | What |
 |---|---|---|
+| `@dapplelight/signet-tokens/ansi` | RESET, nearest256, ansiCode, ansi, Depth, AnsiTheme | Theme colours as ANSI escapes for CLIs: truecolor (24-bit) or the nearest xterm 256-colour index |
 | `@dapplelight/signet-tokens/base.css` | — | stylesheet |
 | `@dapplelight/signet-tokens/cinematic.css` | — | stylesheet |
 | `@dapplelight/signet-tokens/editorial.css` | — | stylesheet |
 | `@dapplelight/signet-tokens/finance.css` | — | stylesheet |
+| `@dapplelight/signet-tokens/native` | NATIVE_THEMES, THEME_NAMES, nativeTheme, ThemeName, Mode, NativeColors, … | Every theme's tokens as plain JS for React Native (and anything else that cannot read CSS variables): colours as `#rrggbb` or `rgba(r, g, b, a)` strin |
 | `@dapplelight/signet-tokens/theme` | DENSITY, DENSITY_SLOTS, normalizeHex, hexToOklch, oklchToHex, contrast, … | Theme builder: one brand colour in, every colour token of a Signet theme out, light and dark, derived in OKLCH |
 
 ## @dapplelight/signet-ui

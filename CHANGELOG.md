@@ -5,6 +5,52 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### create-signet-app: `--template extension` scaffolds a Chrome MV3 extension
+
+`create-signet-app my-ext --template extension` writes a Manifest V3 extension:
+a popup, an options page (React, `signet-ui`, a `signet-tokens` theme with dark
+mode) and a background service worker, built by plain Vite with no extension
+plugin. Sign-in is authorization code + PKCE through `chrome.identity.launchWebAuthFlow`
+against `clientLoginRoutes`; tokens are kept with `createSession` and
+`chromeStorage()`, and API calls go through `createApiClient` with bearer tokens
+and `tokenEndpointRefresh`. The README covers loading it unpacked and registering
+the client id and `https://<extension-id>.chromiumapp.org/` redirect URI on the server.
+
+### signet-lib: `StorageAdapter.watch`, so a session follows other windows and workers
+
+- `StorageAdapter` gains an optional `watch(key, cb)` returning an unsubscribe. `chromeStorage` implements it with `chrome.storage` `onChanged`, `webStorage` with the window `storage` event (other tabs), and `tauriStorage` with the injected store's `onKeyChange` when it has one. Memory and file storage have none.
+- `createSession` uses it: a sign-in, refresh or sign-out in another context (an extension's service worker, a second window) updates `get()`, `token()` and `subscribe()` listeners. Echoes of its own writes are ignored.
+
+### signet-lib: storage adapters, bearer sessions, platform-free imports
+
+- New `./storage`: `StorageAdapter` (async `get`/`set`/`remove` of strings) with `memoryStorage()`, `webStorage()` (localStorage), `chromeStorage()` (MV3 `chrome.storage.local`, typed by shape) and `tauriStorage(store)` (an injected plugin-store `Store`). No backend is looked up until first use.
+- New `./storage/file`: `fileStorage(path)`, a 0600 JSON file for Node/Bun CLIs, on its own path so browser bundles never pull in `fs`.
+- New `./session`: `createSession({ storage, refresh })` keeps access and refresh tokens with `get`/`set`/`clear`/`subscribe`, and exposes `token` and `refresh` for the api client. `tokenEndpointRefresh(url, clientId)` and `fromTokenResponse()` talk to an OAuth token endpoint such as signet-server's `clientLoginRoutes`.
+- `createApiClient` and `createRpcClient` take `token` (sent as `Authorization: Bearer`) and `refresh` (one refresh-and-retry on a 401). Without them nothing changes, so cookie auth works as before.
+- Every export path is tested to import with no `window`, `document`, `localStorage`, `navigator` or `chrome`, so the package loads in a service worker, a Tauri webview, a Bun CLI and React Native.
+
+### server: publish Phase 2 and 3 exports
+
+signet-server 0.5.0, signet-ui 0.3.0, signet-lib 0.4.0, signet-tokens 0.3.0, signet-ai 0.4.1 and signet-db 0.2.0 (needs signet-lib 0.4 for ./webhooks) publish the export paths that landed on main without a version bump. create-signet-app 0.4.1 points its templates at these versions; 0.4.0 scaffolded apps that imported `signet-server/auth/otp` and other paths missing from npm. CI now fails when a package's export paths differ from npm for the same version.
+
+### signet-server: bearer sign-in for extensions, desktop apps and CLIs
+
+- New `./auth/client-login`: authorization code with PKCE (S256 only) for extensions and desktop apps, and the RFC 8628 device code flow (`authorization_pending`, `slow_down`, `expired_token`) for CLIs. Both issue a short-lived access token (a stored-session token, 15 minutes by default) and an opaque refresh token that is single use, rotated on every refresh, and revokes the session when a used one comes back. Each sign-in is a stored session, so it shows in "your devices" and can be revoked there. Codes are hashed at rest, single use, short-lived and compared in constant time; device starts are rate-limited per IP and approvals per user. Redirect URIs are matched exactly, except that a portless loopback entry matches any port (RFC 8252).
+- `./auth/hono`: `clientLoginRoutes({ trust, ... })` (which proxy to believe for client IPs, as in `rateLimit`; it throws at setup without one, and `"none"` makes every caller share one device-start limit) mounts `GET /authorize`, `POST /token`, `POST /device/code`, `POST /device/approve` and `POST /revoke`. `requireStoredSession({ bearer: true })` also accepts `Authorization: Bearer <access token>`, so one route serves the web cookie and every other client.
+
+### create-signet-app: `--template cli`
+
+- New `cli` template: a Bun CLI that signs in through signet-server's device code flow (`login`, `logout`, `whoami`), keeps tokens in a 0600 file under the OS config dir via `createSession` and `fileStorage`, and compiles to one binary with `bun build --compile`. Ships a CI matrix that builds a binary per OS on tags, and a unit-tested poll loop that honours `interval`, `slow_down`, `authorization_pending` and `expired_token`. Colour comes from `@dapplelight/signet-tokens/ansi` and respects `NO_COLOR` and pipes. No CLI framework: `node:util` `parseArgs` only.
+
+### signet-tokens: React Native guide, `nativeTheme` takes `useColorScheme()` as is
+
+- `nativeTheme(name, scheme)` now accepts `null` and `"unspecified"` (anything but `"dark"` is light), so `nativeTheme("editorial", useColorScheme())` typechecks. The README has an Expo / React Native section.
+
+### signet-tokens: `./native` and `./ansi`
+
+- New `./native`: every theme's tokens as plain JS for React Native (`nativeTheme(name, mode)`, `NATIVE_THEMES`, `THEME_NAMES`), with colours as `#rrggbb` or `rgba()` strings and radii, spacing and font sizes as numbers. Generated from the theme CSS by `bun run gen:native`; the test fails when the committed data drifts from the stylesheets or a theme leaves a CONTRACT.md colour unresolved.
+- New `./ansi`: `ansi(name, { mode, depth })` gives `fg`/`bg` painters per token in truecolor or the nearest xterm 256 colour, with translucent tokens flattened onto the background. `nearest256`, `ansiCode` and `RESET` are exported too.
+
 ### release: signet-db and signet-payments publish from CI
 
 Both packages now have a Trusted Publisher and are in the release order, so
