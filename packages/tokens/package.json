@@ -28,16 +28,25 @@
     "./base.css": "./dist/base.css",
     "./editorial.css": "./dist/themes/editorial.css",
     "./cinematic.css": "./dist/themes/cinematic.css",
-    "./finance.css": "./dist/themes/finance.css"
+    "./finance.css": "./dist/themes/finance.css",
+    "./native": {
+      "types": "./dist/native.d.ts",
+      "import": "./dist/native.js"
+    },
+    "./ansi": {
+      "types": "./dist/ansi.d.ts",
+      "import": "./dist/ansi.js"
+    }
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "test": "bun run test/themes.ts && bun run test/contrast.ts && bun run test/builder.ts",
+    "test": "bun run test/themes.ts && bun run test/contrast.ts && bun run test/builder.ts && bun run test/native.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "build": "rm -rf dist && mkdir -p dist && cp -R src/themes src/base.css dist/ && tsc -p tsconfig.build.json",
-    "prepublishOnly": "bun run build"
+    "prepublishOnly": "bun run build",
+    "gen:native": "bun run scripts/gen-native.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",

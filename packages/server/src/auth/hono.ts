@@ -9,7 +9,16 @@ import { type Context, Hono, type MiddlewareHandler } from "hono"
 import { HTTPException } from "hono/http-exception"
 import { type ClientIpTrust, clientIp } from "../middleware/rate-limit.js"
 import { type ApiKeyStore, verifyApiKey } from "./api-keys.js"
-import { hashIncomingToken, verifySharedToken } from "./bearer.js"
+import { hashIncomingToken, readBearer, verifySharedToken } from "./bearer.js"
+import {
+  approveDeviceLogin,
+  authorizeClient,
+  type ClientLoginOptions,
+  exchangeToken,
+  type OAuthFailure,
+  revokeClientToken,
+  startDeviceLogin,
+} from "./client-login.js"
 import {
   checkSession,
   clearCookie,
@@ -49,6 +58,12 @@ export type StoredSessionMiddlewareOptions = StoredSessionOptions & {
   trust?: ClientIpTrust
   /** Keep the lastSeen write off the response, e.g. `(c) => waitUntilDefer(c.executionCtx)`. */
   defer?: (c: Context) => (work: Promise<unknown>) => void
+  /**
+   * Also accept `Authorization: Bearer <access token>` (from
+   * `./auth/client-login`), checked first, so one route serves the web app's
+   * cookie and an extension, desktop app or CLI. Default false.
+   */
+  bearer?: boolean
 }
 
 /**
@@ -57,13 +72,15 @@ export type StoredSessionMiddlewareOptions = StoredSessionOptions & {
  */
 export function requireStoredSession(opts: StoredSessionMiddlewareOptions): MiddlewareHandler {
   return async (c, next) => {
-    const token = readSessionCookie(c.req.header("cookie"), opts)
+    const bearer = opts.bearer ? readBearer(c.req.raw.headers) : null
+    const token = bearer ?? readSessionCookie(c.req.header("cookie"), opts)
     const session = await validateSession(token, opts, {
       ip: clientIp(c, opts.trust ?? "none"),
       ...(opts.defer ? { defer: opts.defer(c) } : {}),
     })
     if (!session) throw new HTTPException(401, { message: "Unauthorized" })
-    if (session.resigned) resendResigned(c, opts, session.resigned, session.payload.exp)
+    // A re-signed bearer token is not sent back: the client refreshes instead.
+    if (session.resigned && !bearer) resendResigned(c, opts, session.resigned, session.payload.exp)
     c.set("session", session)
     await next()
   }
@@ -192,3 +209,121 @@ export function requireAuth<U>(opts: DualAuthOptions<U>): MiddlewareHandler {
     await next()
   }
 }
+
+export type ClientLoginRoutesOptions = ClientLoginOptions & {
+  /**
+   * Which proxy to believe for client IPs (device-start limit, the sessions
+   * list). Required: `"none"` is an explicit opt-in to every caller sharing one
+   * device-start bucket, so a few requests can lock everyone out.
+   */
+  trust: ClientIpTrust
+  /**
+   * Where `/authorize` sends a visitor who is not signed in, given the URL to
+   * come back to. Absent: they get a 401.
+   */
+  loginUrl?: (returnTo: string) => string
+}
+
+/**
+ * Bearer sign-in for extensions, desktop apps and CLIs (`./auth/client-login`).
+ * Mount with `app.route("/api/auth", clientLoginRoutes(opts))`:
+ *
+ *   GET  /authorize       web-signed-in user -> 302 to redirect_uri?code&state (PKCE S256)
+ *   POST /token           grant_type authorization_code | refresh_token | device code -> tokens
+ *   POST /device/code     { client_id } -> { device_code, user_code, verification_uri, … }
+ *   POST /device/approve  web-signed-in user, { user_code } -> { ok, client_id }
+ *   POST /revoke          { token } -> 200, always
+ *
+ * `/token`, `/device/code` and `/revoke` take a form or JSON body and answer
+ * in OAuth's shape (`{ error }`, `Cache-Control: no-store`). `/authorize` and
+ * `/device/approve` read the web app's stored-session cookie; the approve
+ * route is a cookie-authenticated write, so put `csrfMiddleware` in front
+ * when the cookie is `SameSite=None`.
+ */
+export function clientLoginRoutes(opts: ClientLoginRoutesOptions) {
+  if (opts.trust === undefined) {
+    throw new Error(
+      'clientLoginRoutes: set `trust` ("cloudflare", { forwardedHops }, or "none" for one shared device-start bucket)',
+    )
+  }
+  const trust = opts.trust
+  const ipOf = (c: Context) => clientIp(c, trust)
+  const webUser = async (c: Context) => {
+    const token = readSessionCookie(c.req.header("cookie"), opts.sessions)
+    const s = await validateSession(token, opts.sessions, { ip: ipOf(c) })
+    return s?.record.sub ?? null
+  }
+  const params = async (c: Context): Promise<Record<string, string | undefined>> => {
+    const type = c.req.header("content-type") ?? ""
+    try {
+      if (type.includes("application/json")) {
+        const body = (await c.req.json()) as Record<string, unknown>
+        return Object.fromEntries(
+          Object.entries(body ?? {}).filter((e): e is [string, string] => typeof e[1] === "string"),
+        )
+      }
+      const form = await c.req.parseBody()
+      return Object.fromEntries(
+        Object.entries(form).filter((e): e is [string, string] => typeof e[1] === "string"),
+      )
+    } catch {
+      return {}
+    }
+  }
+  const oauth = (c: Context, r: OAuthFailure) => {
+    c.header("Cache-Control", "no-store")
+    if (r.retryAfterSeconds !== undefined) c.header("Retry-After", String(r.retryAfterSeconds))
+    const { ok: _ok, status, retryAfterSeconds: _r, ...body } = r
+    return c.json(body, status)
+  }
+
+  return new Hono()
+    .get("/authorize", async (c) => {
+      const sub = await webUser(c)
+      if (!sub) {
+        if (opts.loginUrl) return c.redirect(opts.loginUrl(c.req.url), 302)
+        throw new HTTPException(401, { message: "Sign in first" })
+      }
+      const q = (k: string) => c.req.query(k) ?? null
+      const r = await authorizeClient(opts, {
+        sub,
+        client_id: q("client_id"),
+        redirect_uri: q("redirect_uri"),
+        code_challenge: q("code_challenge"),
+        code_challenge_method: q("code_challenge_method"),
+        state: q("state"),
+      })
+      if (r.ok || r.redirectTo) return c.redirect(r.redirectTo as string, 302)
+      return oauth(c, r)
+    })
+    .post("/token", async (c) => {
+      const r = await exchangeToken(opts, await params(c), {
+        userAgent: c.req.header("user-agent") ?? null,
+        ip: ipOf(c),
+      })
+      if (!r.ok) return oauth(c, r)
+      c.header("Cache-Control", "no-store")
+      return c.json(r.tokens)
+    })
+    .post("/device/code", async (c) => {
+      const p = await params(c)
+      const r = await startDeviceLogin(opts, { client_id: p.client_id, ip: ipOf(c) })
+      if (!r.ok) return oauth(c, r)
+      const { ok: _ok, ...body } = r
+      c.header("Cache-Control", "no-store")
+      return c.json(body)
+    })
+    .post("/device/approve", async (c) => {
+      const sub = await webUser(c)
+      if (!sub) throw new HTTPException(401, { message: "Unauthorized" })
+      const r = await approveDeviceLogin(opts, { user_code: (await params(c)).user_code, sub })
+      return r.ok ? c.json(r) : oauth(c, r)
+    })
+    .post("/revoke", async (c) => {
+      await revokeClientToken(opts, (await params(c)).token ?? "")
+      return c.body(null, 200)
+    })
+}
+
+/** For `hc<ClientLoginRoutes>`: import it with `import type`. */
+export type ClientLoginRoutes = ReturnType<typeof clientLoginRoutes>
