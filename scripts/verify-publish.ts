@@ -24,7 +24,9 @@ import { $ } from "bun"
 
 const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "")
 const TMP = "/tmp/signet-verify-publish"
-const PKGS = ["config", "lib", "tokens", "server", "ai", "ui"]
+// The @dapplelight/signet-* packages. create-signet-app (unscoped, a CLI) has
+// its own scaffold tests and is not installed here.
+const PKGS = ["config", "lib", "tokens", "db", "payments", "server", "ai", "ui"]
 
 rmSync(TMP, { recursive: true, force: true })
 mkdirSync(TMP, { recursive: true })

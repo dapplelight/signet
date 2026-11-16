@@ -151,22 +151,16 @@ The local `bun run release` still works as before, with `npm login`.
 
 ## A new package's first release
 
-npm Trusted Publishing is configured on a package's settings page, which only
-exists once the package has been published. So a new public package goes out
-by hand once, and only then joins the automated release:
+npm can now add a Trusted Publisher before a package exists: `npm trust`
+creates a `0.0.0-stage` placeholder, and the first real version then goes out
+from CI like every other. No hand publish.
 
-1. Merge it with `"version": "0.1.0"` and no `"private": true`, but **not** in
-   `ORDER` in `scripts/release.ts` or `PKGS` in `scripts/verify-publish.ts`.
-   CI then tests and builds it without trying to publish it.
-2. Publish 0.1.0 by hand, signed in as the owner:
-   `bun run --cwd packages/<name> build && cd packages/<name> && npm publish --access public`
-   (grep `dist` for private names first, as above).
-3. On npmjs.com, add the Trusted Publisher for it (repository
-   `dapplelight/signet`, workflow `release.yml`).
-4. Add it to `ORDER` (after its dependencies) and `PKGS`, so the next version
-   bump publishes from CI.
-
-`@dapplelight/signet-db` and `@dapplelight/signet-payments` are at step 1.
+1. Merge it with `"version": "0.1.0"` and no `"private": true`.
+2. Signed in as the owner (it opens the browser for 2FA):
+   `npm trust github @dapplelight/<name> --repository dapplelight/signet --file release.yml --allow-publish -y`
+3. Add it to `ORDER` in `scripts/release.ts` (after its dependencies), `PKGS`
+   in `scripts/release-status.ts` and `PKGS` in `scripts/verify-publish.ts`.
+   The next push to main publishes it.
 
 ## Versioning: bump only what changed
 
