@@ -133,6 +133,31 @@
       "types": "./dist/customers.d.ts",
       "import": "./dist/customers.js",
       "default": "./dist/customers.js"
+    },
+    "./ai-spend": {
+      "types": "./dist/ai-spend.d.ts",
+      "import": "./dist/ai-spend.js",
+      "default": "./dist/ai-spend.js"
+    },
+    "./experiments": {
+      "types": "./dist/experiments.d.ts",
+      "import": "./dist/experiments.js",
+      "default": "./dist/experiments.js"
+    },
+    "./status": {
+      "types": "./dist/status.d.ts",
+      "import": "./dist/status.js",
+      "default": "./dist/status.js"
+    },
+    "./charts": {
+      "types": "./dist/charts.d.ts",
+      "import": "./dist/charts.js",
+      "default": "./dist/charts.js"
+    },
+    "./funnels": {
+      "types": "./dist/funnels.d.ts",
+      "import": "./dist/funnels.js",
+      "default": "./dist/funnels.js"
     }
   },
   "bin": {

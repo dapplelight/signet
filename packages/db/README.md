@@ -622,7 +622,7 @@ access until its `currentPeriodEnd` (`ends_at`).
 RevenueCat-style monetisation on top of plans and entitlements, in your own
 database. Tables: `monetisationTables()` from `/columns/sqlite` or `/columns/pg`
 (`offerings`, `placements`, `customerIdentities`, `customerEvents`,
-`customerRequests`).
+`customerRequests`, `chartAudiences`).
 
 ### Offerings and remote paywalls
 
@@ -753,6 +753,209 @@ await customers.requests({ status: "open" }); await customers.setRequestStatus(i
 - signet-ui's `CustomerCenter` renders it; signet-server's
   `monetisationRoutes` serves it.
 
+### Offers
+
+Free trials, intro offers and win-back offers ride on offering products, so
+they change with a `publish` like the rest of the paywall:
+
+```ts
+await off.publish("default", {
+  products: [{
+    id: "pro.monthly", store: "appstore", plan: "pro", interval: "month",
+    offers: [
+      { id: "trial7", type: "free_trial", days: 7 },                       // never subscribed, once
+      { id: "winback50", type: "win_back", price: { amount: 249, currency: "USD" }, days: 30,
+        eligibility: { lapsedDays: 30 } },                                 // lapsed 30+ days, once
+    ],
+  }],
+}, { actor })
+
+const offering = await customers.withOffers(userId, await off.current("onboarding", audience))
+// each product's `offers` cut to what this customer may see now, best first
+await customers.redeemOffer(userId, offering, "winback50")
+// { redeemed: true, offer, product } | { redeemed: false, reason: "not_eligible" | "already_used" | "no_such_offer" }
+```
+
+- Eligibility (`offerEligible(offer, history)`, a pure function): never while
+  a subscription is live; `neverSubscribed` (the default for free trials and
+  intro offers) means no subscription or trial before on any plan;
+  `lapsedDays: n` (required for win-back) means the last subscription ended
+  at least `n` days ago; every offer is once per customer unless
+  `once: false`, and a free trial is also spent by any earlier trial on the
+  timeline.
+- `redeemOffer` claims the offer before you apply it (a web coupon, a trial
+  at checkout): one row per customer and offer, so of concurrent claims one
+  wins. Store offers are still the store's to grant (App Store intro
+  eligibility, Play offer tags); the filter decides what the paywall shows.
+- signet-server's `GET /offerings/:placement` returns the filtered offering;
+  signet-ui's `RemotePaywall` shows the first offer and passes it to
+  `onPurchase`.
+
+### Promotional entitlements
+
+```ts
+await customers.grantPromotional(userId, { plan: "pro", days: 30, note: "Beta tester" }, { actor })
+// or { expiresAt }; also ent.grantPromotional(subject, plan, { actor, expiresAt })
+await customers.endPromotional(userId, grantId, { actor })   // early; once
+```
+
+A promotional grant is its own entitlement source (gateway `promotional`): it
+rolls up with subscriptions, a paid plan declared later still wins, and it
+lapses exactly at its expiry with no job to run and no grace period. The
+timeline shows `promotional` when granted and `expiration` when it lapses or
+is ended. It is not a paid source: the Customer Center does not offer to
+cancel it, and charts leave it out.
+
+### Apple refund requests (CONSUMPTION_REQUEST)
+
+When a customer asks Apple for a refund, Apple sends `CONSUMPTION_REQUEST`
+and wants your consumption information within 12 hours, only for a customer
+who consented to share it.
+
+```ts
+const customers = createCustomers(db, {
+  ...,
+  consumption: {
+    consented: (subject) => privacy.has(subject, "apple_refund_info"), // required; no consent = no answer
+    refundPreference: (ctx) => undefined,                             // optional: DECLINE | GRANT_FULL | GRANT_PRORATED
+  },
+})
+onEvent: async (e) => {
+  await customers.record(e)                                   // on the timeline as refund_request
+  const r = await customers.consumptionInfo(e)
+  if (r.respond) await appstoreGateway.sendConsumptionInfo(r.transactionId, r.body)
+}
+```
+
+The body is Apple's v2 ConsumptionRequest, built from the customer's data:
+`customerConsented: true`, `deliveryStatus` `DELIVERED` when the purchase is
+on their timeline (else `UNDELIVERED_OTHER`), `consumptionPercentage` as the
+share of the paid period used (0 unless delivered, left out with
+`GRANT_PRORATED`), and `sampleContentProvided` when they had a free trial.
+Every field has a hook to override. `respond: false` says why
+(`no_consent`, `no_subject`, `not_configured`, `not_consumption_request`).
+
+### Subscription charts
+
+```ts
+import { chartsCsv, createCharts } from "@dapplelight/signet-db/charts"
+
+const charts = createCharts(db, {
+  tables: { customerEvents, chartAudiences, offerings },        // products from every offering version
+  fx: { base: "USD", rates: { INR: 0.012, EUR: 1.08 } },        // optional: totals in one currency
+})
+const r = await charts.metrics({ from: "2026-10-01", to: "2026-10-31", store: "appstore", country: "IN" })
+// r.days[i]: activeSubscribers, activeTrials, mrr, mrrTotal, newRevenue, renewalRevenue, refunds,
+//            refundCount, newSubscriptions, trialsStarted, trialConversions, churned, impressions, conversions
+// r.summary: the same on the last day or summed, plus trialConversion, churnRate, paywallConversion
+const a = await charts.saveAudience("India App Store", { store: "appstore", country: "IN" }, { actor })
+await charts.metrics({ from, to, audience: a.id })
+await charts.csv({ from, to })                                  // one row per day; or chartsCsv(r)
+await customers.logImpression(userId, { offering: "default", version: 3, country: "IN" }) // paywall views
+```
+
+One GROUP BY on SQLite, D1 or Postgres buckets the timeline per subscription,
+kind and UTC day; the rows are then replayed per subscription. Money stays per
+currency in minor units; `mrrTotal` is set only when `fx` has a rate for
+every currency in it. App Store amounts are list prices, so such results say
+`approximate`. How the timeline reads: the first paid charge is new revenue
+and later ones renewals; each charge covers one interval of its product
+(unknown products a month) and MRR is that charge per month (a year / 12;
+events without an amount use the product's display price); a refund or
+expiration ends coverage that day, and coverage that ends without a renewal is
+churn; a `trial` (a zero-amount or App Store FREE_TRIAL purchase) lasts the
+product's free-trial `days` (else `trialDays`, 7) and converts when paid
+within it; a start is a paywall conversion when the customer saw an offering
+within `attributionDays` (7) before, and that offering is what the offering
+filter matches. A customer's country is the latest one recorded
+(`record(e, { country })` or the impression's). Ranges are at most 731 days.
+signet-server's `monetisationAdminRoutes({ charts })` serves it and signet-ui's
+`SubscriptionCharts` draws it.
+
+## Web-to-app funnels
+
+`@dapplelight/signet-db/funnels`: a hosted web checkout that sells an
+offering's web products, then unlocks the purchase in the app. Tables:
+`funnelTables()` (in `./columns/sqlite` and `./columns/pg`) plus
+`customerEvents` from `monetisationTables()`.
+
+### Funnels and checkout
+
+```ts
+import { createFunnels, funnelSteps } from "@dapplelight/signet-db/funnels"
+
+const funnels = createFunnels(db, {
+  tables: { ...funnelTables(), customerEvents },
+  funnels: [{
+    key: "spring", placement: "web", title: "Sleep better",
+    questions: [{ id: "goal", title: "Your goal?", options: [{ value: "sleep", label: "Sleep" }] }],
+  }],
+  discounts: [{ code: "SPRING25", percentOff: 25, expiresAt: "2027-04-01", maxRedemptions: 500, plans: ["pro"] }],
+  offerings, customers, entitlements,          // entitlements' billing.plans from plansFromProducts
+  checkout: (input) => payments.checkout(input), // signet-payments
+  track: (e) => sink.write([e]),               // any signet-server AnalyticsSink
+  onPaid: async (s) => s.email && sendMail(s.email, (await redemptionLink(opts, s.id)).link),
+})
+createPayments({ ..., onEvent: async (e) => {
+  await entitlements.applyBillingEvent(e); await customers.record(e); await funnels.applyEvent(e)
+} })
+```
+
+- `page(key, { code })` is what the hosted page shows: the funnel, the
+  placement's priced web products, and the URL's code priced per product.
+- `start(key, { productId, answers, code, email, visitor })` checks the
+  product is a priced web product of the offering and the answers fit the
+  questions, prices the discount and takes one use, creates a new anonymous
+  customer (`customers.anonymousId`), and asks the gateway for exactly that
+  amount under the session id (`fs_<uuid>`) as idempotency key and reference.
+  The client never sends a price.
+- `applyEvent(e)`: a verified `payment.captured` for a funnel checkout, for
+  the amount and currency priced, grants the plan to the anonymous customer
+  (one interval from the capture; lifetime for `once`) through
+  `entitlements.applySubscription`, puts the discount on the customer
+  timeline (kind `discount`) and marks the session `paid`, once. A different
+  amount is `amount_mismatch` and grants nothing. `refund.processed` ends the
+  access, on whichever account it was merged into. Pass `grant` to start a
+  renewing gateway subscription instead.
+
+### URL discounts
+
+A code arrives in the funnel URL (`/f/spring?code=SPRING25`) and is priced on
+the server only: it must exist (case-insensitive), be unexpired, cover the
+plan (`plans`) and the currency (`amountOff`), have uses left, and leave
+something to charge. It is charged as a price override, so it works on every
+gateway. `maxRedemptions` is held by one conditional UPDATE, so concurrent
+checkouts never pass it; a checkout the gateway refused gives its use back.
+An abandoned checkout holds its use for `discountHoldMs` (default 1 hour):
+when a code looks used up, open sessions older than that are marked
+`expired` and their uses freed. A payment captured after that still grants
+the plan and takes a use again, so a limited code can go over by those late
+payers only.
+
+### Redemption
+
+```ts
+const r = await funnels.redeem(sessionId, userId, { orgId })
+// { redeemed: true, already: false, session } | { redeemed: false, reason }
+```
+
+The session is claimed for one account with a conditional UPDATE, then
+`customers.merge` moves the anonymous buyer's plan, payments and timeline to
+it. Repeating it for the same account returns `already: true` and finishes a
+merge a crash left half done; another account gets `already_redeemed`; of
+two accounts racing, exactly one wins. A refused merge (`other_org`,
+`not_member`) frees the claim. Before payment it is `not_paid`; after a
+refund, `refunded`. The redemption token (signed, expiring) is
+signet-server's: `funnelRoutes` checks it before calling this.
+
+### Funnel analytics
+
+Every step is an event named `funnel:<key>:<step>`: one per question, then
+`plans`, `checkout`, `purchased`, `redeemed`, with the browser's analytics
+id so the purchase joins the visit. Drop-off:
+`analytics.funnel({ steps: funnelSteps(def) })`. Analytics never fails a
+purchase.
+
 ## Feature flags
 
 ```ts
@@ -809,6 +1012,83 @@ or, with `createMcpServer({ approvals })`, opens a pending approval the
 person decides in the app (see signet-server's "Approvals").
 They are audited as `actor`. Give writes only to agents run by staff: on a
 per-user agent the person approving is the user who benefits.
+
+## Experiments
+
+A/B/n tests on top of feature flags. Tables: `experimentTables()` from
+`/columns/sqlite` or `/columns/pg` (`experiments`, `experimentExposures`);
+conversions are read from `analyticsEvents()`.
+
+```ts
+import { analyticsEvents, experimentTables } from "@dapplelight/signet-db/columns/sqlite"
+import { createExperiments } from "@dapplelight/signet-db/experiments"
+
+export const { experiments, experimentExposures } = experimentTables()
+const ex = createExperiments(db, { tables: { experiments, experimentExposures }, events: analyticsEvents() })
+
+await ex.create("onboarding-copy", {
+  variants: [{ key: "control", weight: 50 }, { key: "short", weight: 50, value: { steps: 3 } }],
+  goal: "signup_completed",                       // an analytics event name
+  audience: { plan: ["free"] },                   // optional: a flag rule's `when`
+}, { actor })
+await ex.start("onboarding-copy", { actor })
+await ex.expose("onboarding-copy", { id: userId }) // { variant: "short", value: { steps: 3 }, reason: "assigned", first: true }
+await ex.results("onboarding-copy")
+// { control: "control", variants: [{ key, exposed, converted, rate, lift, pValue, significant }] }
+await ex.rollout("onboarding-copy", "short", { actor }) // everyone gets "short" from now on
+```
+
+- Assignment is sticky with no storage: the flags' `bucket` (FNV-1a of
+  `salt:subjectId`) laid over the cumulative weights. Variants, weights and
+  salt can change only while a draft, so a subject never switches variant.
+- `assign` reads the variant; `expose` also records the first exposure
+  (once per subject, only while running). Call `expose` where the person
+  actually sees the variant, so the readout counts only them.
+- A conversion is the subject's goal event (`userId` or `anonymousId` equal
+  to the subject id) at or after their exposure. `results(key, { goal })`
+  reads another event; `alpha` defaults to 0.05.
+- Each variant is compared with the control (the first variant) by a
+  two-sided two-proportion z-test. With many variants, lower `alpha`.
+- Lifecycle: `draft` → `start` → `running` ⇄ `stop` → `rollout` →
+  `rolled_out`. Draft and stopped give the control (`not_running`); outside
+  the audience is the control (`not_eligible`); rolled out gives the winner.
+  A wrong move is `CONFLICT`, as one conditional UPDATE.
+- A variant's `value` is JSON the app reads. Pricing experiments put an
+  offering key there (`{ offering: "annual-first" }`) for a placement to serve.
+- signet-server's `experimentRoutes` / `experimentAdminRoutes` serve it;
+  signet-ui's `ExperimentResults` is the admin readout.
+
+## Status page and maintenance
+
+Tables: `statusTables()` (`statusComponents`, `statusIncidents`, `maintenance`).
+
+```ts
+import { statusTables } from "@dapplelight/signet-db/columns/sqlite"
+import { createStatus } from "@dapplelight/signet-db/status"
+
+export const { statusComponents, statusIncidents, maintenance } = statusTables()
+const status = createStatus(db, { tables: { statusComponents, statusIncidents, maintenance } })
+
+await status.setComponent("api", { name: "API", position: 1 }, { actor })
+const inc = await status.openIncident(
+  { title: "Slow sign-in", impact: "minor", components: ["api"], message: "Looking into it" },
+  { actor },
+)
+await status.updateIncident(inc.id, { status: "resolved", message: "Fixed" }, { actor })
+await status.setMaintenance({ on: true, message: "Upgrading the database", until }, { actor })
+await status.summary() // { status, components, incidents, maintenance }
+```
+
+- Component statuses (`operational`, `maintenance`, `degraded`,
+  `partial_outage`, `major_outage`) are set by hand. The overall status is
+  the worst of them and of open incidents' impact (`minor` degraded, `major`
+  partial outage, `critical` major outage); maintenance mode shows unless
+  something is worse.
+- Incident updates are appended, never edited; `resolved` closes the
+  incident, after which it cannot change. `summary` lists open incidents and
+  those resolved in the last 7 days (`days` changes it).
+- Every write is audited. `maintenance()` is what signet-server's
+  `maintenanceMode` middleware reads.
 
 ## Organisations and tenant scope
 
@@ -1116,6 +1396,42 @@ await collab.undo(who, ref, { expected: 5 })       // 409 if the record moved on
   audit table.
 - signet-server's `collabRoutes` mounts all of this over HTTP; signet-ui's
   `screens/collab-screens` renders it.
+
+## AI spend caps
+
+Per-user, per-org and global caps on AI spend, per UTC day and month, in
+cost units (1 unit = one millionth of a US dollar, so spend stays an
+integer). It plugs into signet-ai's extractor as its `ledger`.
+
+```ts
+import { aiSpendCaps, entitlementTables } from "@dapplelight/signet-db/columns/sqlite"
+import { createAiSpend, spendKey } from "@dapplelight/signet-db/ai-spend"
+
+export const { usageCounters } = entitlementTables()
+export const spendCaps = aiSpendCaps()
+
+const spend = createAiSpend(db, {
+  tables: { usageCounters, aiSpendCaps: spendCaps },
+  caps: { user: { day: 200_000 }, org: { month: 20_000_000 }, global: { month: 100_000_000 } },
+})
+const extractor = createExtractor({ providers, ledger: spend.ledger })
+await extractor.extract({ ...args, budget: { key: spendKey({ userId, orgId }) } })
+```
+
+- The ledger checks every cap that applies before a call (refused as
+  signet-ai's `AI_BUDGET_EXCEEDED`) and records the call's cost after, on
+  the user's, org's and global counters. A plain string `key` is a user id.
+- `streamChat`, `chat` and `ground` have no ledger: check first (signet-server's
+  `requireAiSpend`, or `spend.check(subject)`) and pass `onUsage: spend.onUsage`.
+  Do not give an extractor both, or spend counts twice.
+- Caps an admin sets (`setCap`, or signet-server's `aiSpendAdminRoutes`) win
+  over `caps`: a user's or org's own row, then the `*` row for its scope, then
+  the option. `units: null` stores unlimited; `removeCap` goes back.
+- `check(subject, estimateUnits?)` refuses once a cap is reached, and says
+  which (`scope`, `period`, `capUnits`, `usedUnits`, `resetsAt`).
+  `usage(scope, id)` and `top("user" | "org", period)` feed an admin screen.
+- Fails closed: a database error refuses the call. Calls in flight are not
+  reserved, so concurrent calls can overshoot by their own cost.
 
 ## Sequences
 

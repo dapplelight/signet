@@ -5,6 +5,107 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-db, signet-server, signet-ui: experiments, status page and maintenance mode
+
+- signet-db `./experiments`: `createExperiments` runs A/B/n tests on top of
+  feature flags. Weighted variants with sticky assignment from the flags'
+  `bucket` (no storage needed), exposure logging once per subject, conversions
+  from `analyticsEvents()` goal events after exposure, and `results` with
+  per-variant rates, lift and a two-proportion z-test against the control.
+  Lifecycle `create` / `update` (draft) / `start` / `stop` / `rollout`. A
+  variant's `value` is free JSON, so a placement can later serve an offering
+  by variant. Tables: `experimentTables()`.
+- signet-db `./status`: `createStatus` for a status page: components,
+  incidents with appended updates, the maintenance switch and `summary()`.
+  Tables: `statusTables()`.
+- signet-server `./http/experiments`: `experimentRoutes` (assignment and
+  exposure) and `experimentAdminRoutes` (create, edit, start, stop, results,
+  roll out; deny by default).
+- signet-server `./http/status`: public `statusRoutes` and
+  `statusAdminRoutes` for components, incidents and maintenance.
+- signet-server `./middleware/maintenance`: `maintenanceMode` answers 503
+  with `Retry-After` and the envelope (`code: "MAINTENANCE"`), with a path
+  allowlist and an `allow` callback for admins.
+- signet-lib: new error code `MAINTENANCE` with default copy.
+- signet-ui `screens/experiment-screens` (`ExperimentList`,
+  `ExperimentResults`) and `screens/status-screens` (`StatusPage`).
+- signet-mcp: recipe `add-experiments`.
+
+### signet-db: web-to-app funnels
+
+- New `./funnels`: `createFunnels(db, { tables, funnels, discounts, offerings, customers, entitlements, checkout, track?, grant?, onPaid? })`. A funnel is optional questions, a plan picker from an offering placement's priced web products, and the gateway's checkout. `start` prices the product and any discount on the server, creates a new anonymous customer and asks the gateway for exactly that amount under the session id. `applyEvent` grants the plan only on a verified `payment.captured` for the priced amount and currency, once; `refund.processed` ends the access. `redeem(sessionId, userId)` claims the session for one account (race-safe, idempotent for the same account) and merges the buyer in with `customers.merge`. URL discounts (`percentOff` or `amountOff`, `expiresAt`, `maxRedemptions` held atomically and given back for checkouts abandoned longer than `discountHoldMs`, default 1 hour, `plans`) are charged as a price override and recorded on the customer timeline as kind `discount`. Step views, purchase and redemption are analytics events `funnel:<key>:<step>`; `funnelSteps(def)` gives the drop-off steps.
+- `funnelTables()` in `./columns/sqlite` and `./columns/pg`. `TimelineKind` gains `discount`.
+
+### signet-server: funnel routes and redemption tokens
+
+- New `./http/funnels`: `funnelRoutes` serves the hosted checkout page (questions, plan picker, Stripe Express Checkout for Apple Pay and Google Pay plus the Payment Element with Stripe.js loaded at runtime, Razorpay Checkout, redirect or form gateways; nonce'd script and strict CSP), its config, step events and checkout API, the session status with a redemption link once paid (only to the browser that started the checkout, by an HttpOnly cookie), and `POST /redeem` for the signed-in app user. `redemptionToken`, `readRedemptionToken` and `redemptionLink` sign expiring, purpose-bound tokens with key rotation.
+
+### signet-lib: funnel error codes
+
+- `ERROR_CODES` and `DEFAULT_ERROR_COPY` gain `BAD_TOKEN` and `REDEEM_REFUSED`.
+
+### signet-ui: funnel screens
+
+- New `./screens/funnel-screens`: `WebFunnel` (questions, `RemotePaywall` with the URL discount priced in, email and code), `ExpressCheckout` (Stripe's Express Checkout and Payment Elements, Stripe.js loaded at runtime), `FunnelRedemption` (waits for payment, then the app link and the code), `discountedOffering` and `loadScript`.
+
+### signet-mcp: add-funnels recipe
+
+- New `add-funnels` recipe: funnels and checkout, URL discounts, redemption, funnel analytics and routes, cut from the db and server READMEs.
+
+### signet-db: subscription charts, offers, promotional entitlements, Apple refund requests
+
+- New `./charts`: `createCharts(db, { tables: { customerEvents, chartAudiences?, offerings? }, products?, fx?, trialDays?, attributionDays? })`. `metrics({ from, to, store?, plan?, country?, offering?, audience? })` gives per UTC day and in total: MRR per currency (normalised to a month; a total in `fx.base` only with a rate for every currency), active subscribers and trials, new versus renewal revenue, refunds, new subscriptions, trials started and converted, churn, paywall impressions and conversions, plus `trialConversion`, `churnRate` and `paywallConversion`. One GROUP BY on SQLite, D1 or Postgres buckets the timeline by day; results with App Store prices say `approximate`. Saved filters: `saveAudience`, `audiences`, `removeAudience`. CSV: `csv(query)` or `chartsCsv(result)`.
+- `monetisationTables()` adds `chartAudiences`, and `customerEvents` gains nullable `country` and `offering` columns and an `occurred_at` index. Add them in your next migration.
+- Offers: `OfferingProduct.offers` takes free trials, intro and win-back offers (`{ id, type, days?, price?, eligibility?: { neverSubscribed?, lapsedDays?, once? } }`), validated on `publish`. `offerEligible(offer, history)` is the rule: never while subscribed, never-subscribed by default for trials and intro, lapsed at least `lapsedDays` for win-back, once per customer. `customers.withOffers(subject, offering)` cuts an offering to what that customer may see; `customers.redeemOffer(subject, offering, offerId)` claims one once (concurrent claims have one winner). Requests gain the `offer` kind.
+- Promotional entitlements: `ent.grantPromotional(subject, plan, { actor, expiresAt })` and `ent.endPromotional`, a `promotional` source that lapses exactly at its expiry. `customers.grantPromotional(subject, { plan, days | expiresAt, note? }, { actor })` and `customers.endPromotional` also put it on the timeline (`promotional`, then `expiration`). The Customer Center treats it like a manual plan.
+- Timeline: zero-amount or App Store FREE_TRIAL purchases are `trial`; App Store `CONSUMPTION_REQUEST` is `refund_request` (`isTrial` is exported). `record(e, { country })` stores the customer's country. `customers.logImpression(subject, { offering, version?, placement?, country? })` logs a paywall view, once per customer, offering and day, kept off the timeline.
+- `customers.consumptionInfo(event)` builds the answer to a CONSUMPTION_REQUEST from the customer's data (delivery status, share of the paid period used, whether they had a trial), with hooks for each field. With no consent (`consumption.consented`) it returns `respond: false` and nothing is sent, as Apple requires.
+
+### signet-payments: answer App Store CONSUMPTION_REQUEST
+
+- `appstore(...).sendConsumptionInfo(transactionId, body)` PUTs Send Consumption Information v2 (`/inApps/v2/transactions/consumption/{id}`). `checkConsumptionRequest` refuses a body Apple would reject: `customerConsented` other than true, an unknown `deliveryStatus`, a percentage outside 0 to 100000, a non-zero percentage when not delivered, or a percentage with `GRANT_PRORATED`. New types `ConsumptionRequest` and `ConsumptionDeliveryStatus`.
+
+### signet-server: charts, offers and promotional grants in the monetisation routes
+
+- `monetisationRoutes`: `GET /offerings/:placement` returns only the offers this customer may see (`customers.withOffers`); new `POST /offerings/:placement/impression` (204) and `POST /offerings/:placement/redeem` (`{ offerId }`, 409 `OFFER_REFUSED` with the reason).
+- `monetisationAdminRoutes({ charts })`, deny by default like the rest: `GET /charts` and `GET /charts/csv` (`?from=&to=&store=&plan=&country=&offering=&audience=`, default the last 30 days), `GET/POST /audiences`, `DELETE /audiences/:id`, `POST /customers/:subject/promotional` and `DELETE /customers/:subject/promotional/:id`. `GET /requests?kind=offer` is accepted. New type `ChartStore`.
+
+### signet-ui: subscription charts screen, offers on the paywall
+
+- New `./screens/subscription-charts`: `SubscriptionCharts` draws signet-db's chart result on the recharts chart parts. It shows summary tiles, then MRR per currency with the converted total, subscribers and trials, new and renewal revenue with refunds, churn and trial conversions, and paywall views against conversions. Filters for store, plan, country and offering, the audience picker, save as audience and the CSV link go out as callbacks. recharts is an optional peer, so the screen is not in the barrel.
+- `RemotePaywall` shows the customer's first offer (`RemoteOffer`) in place of the static trial text and passes it to `onPurchase` as a fourth argument. New `onImpression` is called once per offering version. New `PromotionalGrantForm`. The timeline labels `trial`, `promotional` and `refund_request`.
+
+### signet-mcp: add-subscription-charts recipe
+
+- New recipe covering charts, offers, promotional entitlements and CONSUMPTION_REQUEST, cut from the db and server READMEs, with end-to-end checks.
+
+### signet-lib: OFFER_REFUSED error code
+
+- `ERROR_CODES` and `DEFAULT_ERROR_COPY` gain `OFFER_REFUSED` (signet-server's offer claim, 409, with the reason in `details`).
+
+### signet-server: abuse kit (bot checks, disposable email, AI spend routes)
+
+- New `./abuse/captcha`: `captchaVerifier` for Cloudflare Turnstile and hCaptcha (plain `fetch` to siteverify, optional hostname and action checks) with a test mode that passes `CAPTCHA_TEST_PASS`, and `requireCaptcha` middleware for chosen routes. Refusals are 400 `CAPTCHA_REQUIRED`, 403 `CAPTCHA_FAILED`, 503 `CAPTCHA_UNAVAILABLE` (fails closed).
+- New `./abuse/email`: `isDisposableEmail`, `disposableEmailChecker({ add, allow })`, `normalizeEmail` (plus-address and Gmail dots) and `blockDisposableEmail` middleware (400 `DISPOSABLE_EMAIL`). Subdomains of listed domains are blocked. Bundles a CC0 list of about 10,000 domains, regenerated by `scripts/disposable-domains.ts`.
+- `errorHandler` turns signet-ai's `AI_BUDGET_EXCEEDED` into 429 `AI_SPEND_CAP_EXCEEDED` (with `Retry-After` when the error carries one) and `AI_BUDGET_STORE_FAILED` into 503 `AI_SPEND_UNAVAILABLE`, instead of a 500. This covers concurrent calls that all passed `requireAiSpend` before the ledger refused them.
+- New `./http/ai-spend`: `requireAiSpend` (429 `AI_SPEND_CAP_EXCEEDED` naming the cap, with `Retry-After`) and `aiSpendAdminRoutes` (usage, top spenders, set and remove caps; deny by default).
+
+### signet-db: AI spend caps
+
+- New `./ai-spend`: `createAiSpend` with per-user, per-org and global caps per UTC day and month in cost units (micro-USD), counted in `usageCounters`. `spend.ledger` plugs into signet-ai's `createExtractor`; `spend.onUsage` records stream and chat spend. Admin caps live in the new `aiSpendCaps()` table (SQLite and Postgres) and win over the defaults.
+
+### signet-ui: abuse screens
+
+- New `./screens/abuse-screens`: `CaptchaWidget` (loads Turnstile or hCaptcha, reports the token; test mode loads nothing) and `AiSpendAdmin` (spend against caps, top users and orgs, set and remove caps).
+
+### signet-mcp: add-abuse-protection recipe
+
+- New recipe covering bot checks, disposable-email blocking and AI spend caps.
+
+### signet-lib: error codes for the abuse kit
+
+- `ERROR_CODES` and `DEFAULT_ERROR_COPY` add `CAPTCHA_REQUIRED`, `CAPTCHA_FAILED`, `CAPTCHA_UNAVAILABLE`, `DISPOSABLE_EMAIL`, `AI_SPEND_CAP_EXCEEDED` and `AI_SPEND_UNAVAILABLE`.
+
 ### Release: signet-db is public, ready for its first manual publish
 
 `@dapplelight/signet-db` is no longer private, so it is at the same step as `signet-payments` in PUBLISHING.md ("A new package's first release"): CI builds and tests both, but does not publish them. The owner publishes 0.1.0 of each by hand and adds the npm Trusted Publisher, and a later change then adds both, together with `create-signet-app` (whose full template depends on them), to the release order, release-status and publish verification.

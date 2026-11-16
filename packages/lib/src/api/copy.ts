@@ -47,6 +47,11 @@ export const DEFAULT_ERROR_COPY: Record<ErrorCode, ErrorCopy> = {
     detail: "Try again in a moment.",
     action: "retry",
   },
+  MAINTENANCE: {
+    title: "Down for maintenance",
+    detail: "We'll be back shortly. Try again in a few minutes.",
+    action: "wait",
+  },
   INTERNAL_ERROR: {
     title: "Something went wrong",
     detail: "It's on our side. Try again in a moment.",
@@ -196,10 +201,25 @@ export const DEFAULT_ERROR_COPY: Record<ErrorCode, ErrorCopy> = {
     detail: "Ask for a new code and try again.",
     action: "retry",
   },
+  BAD_TOKEN: {
+    title: "This link doesn't work",
+    detail: "It may have expired. Open the latest link from your purchase email.",
+    action: "go_back",
+  },
+  REDEEM_REFUSED: {
+    title: "This purchase can't be unlocked here",
+    detail: "It may already be unlocked on another account. Contact support if that's wrong.",
+    action: "go_back",
+  },
   TOO_MANY_ATTEMPTS: {
     title: "Too many tries",
     detail: "Ask for a new code to try again.",
     action: "retry",
+  },
+  OFFER_REFUSED: {
+    title: "Offer not available",
+    detail: "This offer has been used or isn't available to you.",
+    action: "go_back",
   },
   PRESIGN_UNSUPPORTED: {
     title: "Upload unavailable",
@@ -215,6 +235,36 @@ export const DEFAULT_ERROR_COPY: Record<ErrorCode, ErrorCopy> = {
     title: "Sign in to continue",
     detail: "Your access has expired or isn't valid.",
     action: "sign_in",
+  },
+  CAPTCHA_REQUIRED: {
+    title: "Complete the check",
+    detail: "Finish the bot check, then try again.",
+    action: "retry",
+  },
+  CAPTCHA_FAILED: {
+    title: "The check didn't pass",
+    detail: "Try the bot check again.",
+    action: "retry",
+  },
+  CAPTCHA_UNAVAILABLE: {
+    title: "Temporarily unavailable",
+    detail: "The bot check couldn't load. Try again in a moment.",
+    action: "retry",
+  },
+  DISPOSABLE_EMAIL: {
+    title: "Use a permanent email",
+    detail: "Temporary email addresses can't be used here.",
+    action: "edit",
+  },
+  AI_SPEND_CAP_EXCEEDED: {
+    title: "AI limit reached",
+    detail: "You've used this period's AI allowance. It resets soon.",
+    action: "wait",
+  },
+  AI_SPEND_UNAVAILABLE: {
+    title: "Temporarily unavailable",
+    detail: "Try again in a moment.",
+    action: "retry",
   },
   insufficient_scope: {
     title: "More access needed",

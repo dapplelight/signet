@@ -96,6 +96,33 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   contact support. `CustomerTimeline` is the admin view of one customer's
   purchases, renewals, refunds, cancellations, billing issues and grace
   periods across stores and web, with ledger totals.
+- `screens/experiment-screens`: `ExperimentList` and `ExperimentResults`,
+  the admin readout of a signet-db experiment (exposures, conversions, rate,
+  lift and p-value per variant against the control) with start, stop and
+  roll out a winner, over signet-server's `experimentAdminRoutes`.
+- `screens/status-screens`: `StatusPage`, the public status page from
+  signet-db's `status.summary()`: overall status, a maintenance notice,
+  components and recent incidents with their updates.
+  periods across stores and web, with ledger totals. `RemotePaywall` shows
+  the customer's best offer (free trial, intro or win-back, from
+  `customers.withOffers`), passes it to `onPurchase`, and calls
+  `onImpression` once per offering version for paywall conversion;
+  `PromotionalGrantForm` grants a plan for some days from admin.
+- `screens/funnel-screens`: `WebFunnel` walks a web-to-app funnel from
+  signet-server's funnel routes (questions, then `RemotePaywall` with the
+  URL discount priced in, then email and code) and hands the checkout to
+  you; `ExpressCheckout` mounts Stripe's Express Checkout Element (Apple Pay,
+  Google Pay) and Payment Element with Stripe.js loaded at runtime (nothing
+  bundled); `FunnelRedemption` waits for the webhook, then offers "Open the
+  app" and the code to paste. Fetch `GET /sessions/:id` from the same site with
+  `credentials: "include"`: only the checkout's browser (HttpOnly cookie) gets the
+  link; anyone else sees "paid, we emailed you the link".
+- `screens/subscription-charts`: `SubscriptionCharts` on signet-db
+  `createCharts`: MRR per currency (and a converted total), active
+  subscribers and trials, new versus renewal revenue and refunds, churn and
+  trial conversions, paywall views against conversions, with filters by
+  store, plan, country and offering, saved audiences and a CSV link. Needs
+  recharts (optional peer), so it is its own export path.
 - `screens/growth-screens`: `WaitlistJoin` (with the place in line),
   `InviteAccept`, `ReferralCard`, `OnboardingChecklist`, `FeedbackWidget` /
   `FeedbackForm` and `WhatsNew`, shaped like signet-db's growth results.
@@ -117,6 +144,12 @@ few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
   Load more) and `VersionHistory` (versions, a field diff, Restore, Undo with
   the server's conflict message), shaped like signet-db's `createCollab` and
   signet-server's `collabRoutes`. Demo: `screens-collab.html`.
+- `screens/abuse-screens`: `CaptchaWidget` (loads Cloudflare Turnstile or
+  hCaptcha and reports the token for signet-server's `requireCaptcha`;
+  `provider="test"` reports the test token with no script) and
+  `AiSpendAdmin` (spend against caps today and this month, top users and
+  orgs, set and remove caps), shaped like signet-server's
+  `aiSpendAdminRoutes`.
 - Real-time: `hooks/use-channel` and `screens/realtime-screens`, see
   [Real-time](#real-time). Demo: `screens-realtime.html`.
 - Data editing: `domain/csv-import`, `components/data-grid` and
@@ -250,6 +283,9 @@ without an app changing. Each component's source starts with its recipe:
 | `spinner` | live-region |
 | `screens/billing-screens` | selection + roving-focus + controllable-state + live-region |
 | `screens/monetisation-screens` | selection + roving-focus + controllable-state + live-region |
+| `screens/experiment-screens` | selection + live-region |
+| `screens/funnel-screens` | selection + controllable-state + live-region |
+| `screens/subscription-charts` | field-wiring (labelled filters) + controllable-state (filters) |
 | `screens/growth-screens` | selection + roving-focus + controllable-state + popup + dismiss + live-region + field-wiring |
 | `screens/workflow-screens` | roving-focus (timeline) + live-region + field-wiring |
 | `screens/org-screens` | popup + dismiss + live-region + field-wiring + controllable-state |

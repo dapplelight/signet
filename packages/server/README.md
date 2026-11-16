@@ -38,6 +38,9 @@ package ships all three rather than forcing them together.
 | `@dapplelight/signet-server/http/webhooks` | `hono`, `zod` (optional peers) | `webhookRoutes`: admin routes for signet-db's outbound webhooks. |
 | `@dapplelight/signet-server/http/orgs` | `hono` (optional peer) | `tenant`, `orgGuards` (`requireMember`, `requireRole`, `requirePermission`), `orgRoutes`: multi-tenant orgs on signet-db's `createOrgs`. See [Organisations](#organisations-and-tenants). |
 | `@dapplelight/signet-server/http/monetisation` | `hono` (optional peer) | `monetisationRoutes` (offerings, anonymous ids, merge, Customer Center) and `monetisationAdminRoutes` (offerings, placements, timelines, requests) on signet-db's `createOfferings` and `createCustomers`. See [Monetisation routes](#monetisation-routes). |
+| `@dapplelight/signet-server/abuse/captcha` | `hono` (optional peer) | `captchaVerifier` (Cloudflare Turnstile, hCaptcha, test mode) and `requireCaptcha` middleware. See [Bot checks](#bot-checks). |
+| `@dapplelight/signet-server/abuse/email` | `hono` (optional peer) | `isDisposableEmail`, `disposableEmailChecker`, `normalizeEmail`, `blockDisposableEmail` middleware, with a bundled CC0 domain list. See [Disposable email](#disposable-email). |
+| `@dapplelight/signet-server/http/ai-spend` | `hono` (optional peer) | `requireAiSpend` middleware and `aiSpendAdminRoutes` on signet-db's `createAiSpend`. See [AI spend routes](#ai-spend-routes). |
 | `@dapplelight/signet-server/mcp` | `@modelcontextprotocol/server` ^2.1, `zod` >=4.2 (optional peers; not `hono`) | `defineTool`, `createMcpServer`; stdio via the SDK's `serveStdio`. See [MCP servers](#mcp-servers). |
 | `@dapplelight/signet-server/jobs` | `zod` (optional peer) | `defineJob`, `createJobs`, retries, schedules, Cloudflare/QStash/Node runtimes. See [Jobs](#jobs). |
 | `@dapplelight/signet-server/http/workflows` | `hono` (optional peer) | `workflowRoutes` for signet-db's durable workflows: start, status, events, approve/reject, cancel, admin list. See [Workflow routes](#workflow-routes). |
@@ -470,6 +473,7 @@ app.route("/api/billing", monetisationRoutes({
 }))
 app.route("/api/admin/billing", monetisationAdminRoutes({
   offerings, customers,
+  charts,                                               // signet-db createCharts: charts, audiences, CSV
   authorize: (c) => c.get("session")?.role === "admin", // deny by default: anything but true is 403
   actor: (c) => ({ type: "user", id: me(c) }),
 }))
@@ -477,7 +481,9 @@ app.route("/api/admin/billing", monetisationAdminRoutes({
 
 | Route | What |
 |---|---|
-| `GET /offerings/:placement` | The offering and paywall for this audience (404 none). Country from `cf-ipcountry`, else `?country`; platform from `?platform`. Attributes come only from your `audience(c)`, never the query. |
+| `GET /offerings/:placement` | The offering and paywall for this audience (404 none). Country from `cf-ipcountry`, else `?country`; platform from `?platform`. Attributes come only from your `audience(c)`, never the query. Each product's `offers` are cut to the ones this customer may see (`customers.withOffers`; no subject is a new visitor). |
+| `POST /offerings/:placement/impression` | Log that the customer saw this placement's paywall, for paywall conversion (204; once per customer, offering and day). |
+| `POST /offerings/:placement/redeem` | `{ offerId }`: claim an offer once, before applying it at checkout; refused is 409 `OFFER_REFUSED` with the reason (`not_eligible`, `already_used`, `no_such_offer`). |
 | `POST /anonymous` | `{ anonymousId }` for a device before sign-in. |
 | `POST /merge` | `{ anonymousId }` into the signed-in user; refused is 409 `MERGE_REFUSED` with the reason. |
 | `GET /customer`, `GET /customer/timeline` | The Customer Center overview; the customer's own history. |
@@ -485,10 +491,129 @@ app.route("/api/admin/billing", monetisationAdminRoutes({
 | `POST /customer/retention` | Accept the retention offer. |
 | `POST /customer/refund`, `POST /customer/support` | Recorded and sent to the team through `notify`. A refund for a payment that is not the caller's is 404. |
 | Admin: `GET/POST /offerings/:key`, `GET /placements`, `PUT /placements/:placement`, `GET /customers/:subject[/timeline]`, `GET /requests`, `PATCH /requests/:id` | Publish versions, point placements, read any customer's timeline, close requests. |
+| Admin: `POST /customers/:subject/promotional`, `DELETE /customers/:subject/promotional/:id` | `{ plan, days \| expiresAt, note? }`: grant a promotional plan that lapses on its own; end one early. |
+| Admin: `GET /charts`, `GET /charts/csv` | `?from=&to=` (YYYY-MM-DD, default the last 30 days) `&store=&plan=&country=&offering=&audience=`: subscription charts, or one CSV row per day as an attachment. |
+| Admin: `GET /audiences`, `POST /audiences`, `DELETE /audiences/:id` | Saved chart filters: `{ name, filter: { store?, plan?, country?, offering? } }`. |
 
 signet-db errors become the envelope (`BAD_VALUE` is 400 `VALIDATION_FAILED`,
 `NOT_FOUND` 404). These are cookie-authenticated writes: put
 `csrfMiddleware` in front when the session cookie is `SameSite=None`.
+
+### Experiment routes
+
+`@dapplelight/signet-server/http/experiments` serves signet-db's
+`createExperiments`, typed by shape.
+
+```ts
+import { experimentAdminRoutes, experimentRoutes } from "@dapplelight/signet-server/http/experiments"
+
+app.route("/api/experiments", experimentRoutes({
+  experiments,
+  subject: (c) => ({ id: me(c) ?? c.req.header("x-app-user"), plan: c.get("session")?.plan }),
+}))
+app.route("/api/admin/experiments", experimentAdminRoutes({
+  experiments,
+  authorize: (c) => c.get("session")?.role === "admin", // deny by default
+  actor: (c) => ({ type: "user", id: me(c) }),
+}))
+```
+
+| Route | What |
+|---|---|
+| `GET /:key` | The caller's `{ assignment }`; nothing recorded. No subject is 401, an unknown key 404. |
+| `POST /:key/exposure` | Records the exposure (once per subject, only while running). |
+| Admin: `GET /`, `POST /` | List; create a draft `{ key, variants, goal, description?, audience?, salt? }`. |
+| Admin: `GET /:key[?goal=]`, `PATCH /:key` | `{ experiment, results }` (results null without the events table); edit a draft. |
+| Admin: `POST /:key/start`, `/stop`, `/rollout` | Start or resume, stop, `{ variant }` for everyone. A wrong move is 409 `CONFLICT`. |
+
+Subject plan and attributes come from your `subject(c)`, never the query.
+
+### Status page and maintenance mode
+
+`@dapplelight/signet-server/http/status` serves signet-db's `createStatus`;
+`@dapplelight/signet-server/middleware/maintenance` turns the API off for
+everyone but the allowlist.
+
+```ts
+import { statusAdminRoutes, statusRoutes } from "@dapplelight/signet-server/http/status"
+import { maintenanceMode } from "@dapplelight/signet-server/middleware/maintenance"
+
+app.use("*", maintenanceMode({
+  state: () => status.maintenance(),
+  paths: ["/health", "/api/status", "/api/admin"],   // always pass: health checks, status page, admin
+  allow: (c) => c.get("session")?.role === "admin",  // admins pass everywhere
+}))
+app.route("/api/status", statusRoutes({ status }))  // public, Cache-Control: public, max-age=30
+app.route("/api/admin/status", statusAdminRoutes({ status, authorize, actor }))
+```
+
+| Route | What |
+|---|---|
+| `GET /` (public) | `{ status, components, incidents, maintenance }` for the status page. |
+| Admin: `GET /components`, `PUT /components/:key`, `DELETE /components/:key` | Components and their status. |
+| Admin: `GET /incidents?days=`, `POST /incidents`, `POST /incidents/:id/updates` | Open an incident, post updates; `resolved` closes it. |
+| Admin: `GET /maintenance`, `PUT /maintenance` | `{ on, message?, until? }`: the maintenance switch. |
+
+While on, a request outside the allowlist gets 503 with the standard
+envelope (`code: "MAINTENANCE"`, the state's message) and `Retry-After`:
+seconds until `until`, else `retryAfterSeconds` (300). A path prefix
+matches itself and what is under it. The state is read at most once per
+`cacheMs` (5000) per isolate, so a toggle reaches every isolate within that.
+### Funnel routes
+
+`@dapplelight/signet-server/http/funnels` serves signet-db's `createFunnels`
+as a public hosted checkout and the redemption the app calls after install.
+
+```ts
+import { funnelRoutes, redemptionLink } from "@dapplelight/signet-server/http/funnels"
+
+app.route("/f", funnelRoutes({
+  funnels,
+  secret: env.FUNNEL_SECRET,                     // 32+ characters
+  redeemUrl: "https://app.example.com/redeem",   // a universal / app link, or example://redeem
+  userId: (c) => c.get("session")?.sub,
+  page: { stripePublishableKey: env.STRIPE_PUBLISHABLE_KEY, razorpayKeyId: env.RAZORPAY_KEY_ID },
+}))
+app.post("/webhooks/:gateway", (c) => payments.handleWebhook(c.req.param("gateway"), c.req.raw))
+```
+
+| Route | What |
+|---|---|
+| `GET /:key` | The hosted page: questions, plan picker, email and code, then the gateway. Plain HTML with one nonce'd script and a strict CSP. |
+| `GET /:key/config?code=` | Funnel, priced web products, the code priced per product. |
+| `POST /:key/events` | `{ step }`: a step view (only that funnel's steps). |
+| `POST /:key/checkout` | `{ productId, answers?, code?, email? }`: `{ session, checkout }`; a refused code is 400. |
+| `GET /sessions/:id` | Status; once paid, and only to the browser that started the checkout, `{ redemption: { link, token, expiresAt } }`. |
+| `POST /redeem` | `{ token }` as the signed-in user. 400 `BAD_TOKEN` (forged, expired), 409 `REDEEM_REFUSED` with the reason. |
+
+The page finishes the checkout the way the gateway answers: Stripe's
+**Express Checkout Element** (Apple Pay, Google Pay) and Payment Element,
+with Stripe.js loaded from Stripe at runtime; Razorpay Checkout for an
+order; a redirect `url`; or a POSTed `form` (PayU). Back from the gateway it
+waits for the webhook, then shows "Open the app" and the code to paste.
+
+**Redemption tokens** (`redemptionToken`, `readRedemptionToken`,
+`redemptionLink`): HMAC-signed with `secret`, expiring (`ttlSeconds`, default
+7 days), bound to their purpose so a session cookie signed with the same
+secret never passes as one. `previousSecrets` rotates keys. A token works
+once because redeeming claims its session for one account; `GET
+/sessions/:id` stops issuing them after that.
+
+The session id sits in the gateway's return URL, so it is not a secret.
+`POST /:key/checkout` sets an HttpOnly, SameSite=Lax cookie (`signet_funnel`,
+an HMAC of the session id under `secret`, scoped to the mount path), and
+`GET /sessions/:id` issues a redemption link only to the browser that holds
+it. Anyone else gets the status; a buyer who finishes on another device gets
+the link from the `onPaid` email.
+
+**Apple Pay domain verification.** Stripe needs no file: register the page's
+domain once with `stripe.raw("POST", "/payment_method_domains", { domain_name })`.
+Razorpay, PayPal and Dodo Payments hand you a file; serve it with
+signet-payments' `applePayDomainAssociation(file)` in front of the app:
+`applePayDomainAssociation(file)(request) ?? app.fetch(request)`.
+
+Put `rateLimit` in front of `/:key/checkout` and `/redeem`. Nothing is
+granted until signet-payments verifies the gateway's webhook signature.
 
 ## Real-time: presence, live updates, shared state
 
@@ -694,6 +819,98 @@ app.get("/stats", (c) =>
   Workers), and `varyBy` (the user or org) is part of the key. Only 200s
   without `Set-Cookie` are stored. `X-Cache` says `HIT`, `STALE` or `MISS`.
 
+
+## Abuse: bot checks, disposable email, AI spend caps
+
+Three guards for the routes bots and freeloaders aim at. Pair them with
+`rateLimit` (see [Middleware](#middleware)) on the same routes: this kit
+does not count requests itself.
+
+### Bot checks
+
+`@dapplelight/signet-server/abuse/captcha` verifies a Cloudflare Turnstile
+or hCaptcha token with a plain `fetch` to the provider's siteverify
+endpoint, and `requireCaptcha` refuses a route without a valid one.
+
+```ts
+import { captchaVerifier, requireCaptcha } from "@dapplelight/signet-server/abuse/captcha"
+
+const captcha = (c) =>
+  env(c).APP_ENV === "local"
+    ? captchaVerifier({ provider: "test" })
+    : captchaVerifier({ provider: "turnstile", secret: env(c).TURNSTILE_SECRET, hostname: "app.example.com" })
+const bots = requireCaptcha({ verifier: captcha, trust: "cloudflare" })
+app.use("/api/auth/sign-up/*", bots)
+app.use("/api/auth/forget-password", bots)
+```
+
+The token is read from the `x-captcha-token` header, else the JSON or form
+body field `captchaToken`, `cf-turnstile-response` or `h-captcha-response`
+(from a clone, so Better Auth's handler still reads the body). Refusals use
+the error envelope: 400 `CAPTCHA_REQUIRED` (no token), 403 `CAPTCHA_FAILED`
+(refused, or the wrong `hostname` or Turnstile `action`), 503
+`CAPTCHA_UNAVAILABLE` (the provider could not be reached: it fails closed).
+
+Test mode (`provider: "test"`) passes `CAPTCHA_TEST_PASS` and refuses every
+other token, with no network; it throws when `appEnv` is production or
+staging. In the browser, `CaptchaWidget` from
+`@dapplelight/signet-ui/screens/abuse-screens` loads the provider's script
+and hands you the token; `provider="test"` reports the test token at once.
+
+### Disposable email
+
+`@dapplelight/signet-server/abuse/email` blocks sign-ups from throwaway
+inboxes and gives you one key per inbox.
+
+```ts
+import { blockDisposableEmail, normalizeEmail } from "@dapplelight/signet-server/abuse/email"
+
+app.use("/api/auth/sign-up/*", blockDisposableEmail({ add: ["burner.example"], allow: ["partner.example"] }))
+// Store and look up normalizeEmail(email) to catch me+1@ and m.e@gmail.com as the same person.
+```
+
+A blocked address is 400 `DISPOSABLE_EMAIL` with `details.fieldErrors.email`.
+A subdomain of a listed domain is blocked too; `allow` beats both the list
+and `add`. `isDisposableEmail(email, { add, allow })` is the same check for
+your own handler (build one `disposableEmailChecker(opts)` to reuse).
+`normalizeEmail` lowercases, drops `+tag`, and for Gmail drops dots and
+reads googlemail.com as gmail.com; send mail to what the person typed.
+
+The bundled list (about 10,000 domains) comes from
+[disposable-email-domains](https://github.com/disposable-email-domains/disposable-email-domains),
+dedicated to the public domain (CC0). Refresh it with
+`bun run scripts/disposable-domains.ts` in this package and commit the result.
+
+### AI spend routes
+
+`@dapplelight/signet-server/http/ai-spend` serves signet-db's
+`createAiSpend` (see signet-db's AI spend caps), typed by shape.
+
+```ts
+import { aiSpendAdminRoutes, requireAiSpend } from "@dapplelight/signet-server/http/ai-spend"
+
+app.use("/api/ai/*", requireAiSpend({ spend, subject: (c) => ({ userId: me(c), orgId: currentTenant(c).id }) }))
+app.route("/api/admin/ai-spend", aiSpendAdminRoutes({
+  spend,
+  authorize: (c) => c.get("session")?.role === "admin", // deny by default: anything but true is 403
+  actor: (c) => ({ type: "user", id: me(c) }),
+}))
+```
+
+Over a cap, `requireAiSpend` answers 429 `AI_SPEND_CAP_EXCEEDED` in the
+envelope, with `details.formErrors` naming the cap (`user:day`,
+`org:month`, `global:day`...) and `Retry-After` until the period rolls
+over. A store error is 503 `AI_SPEND_UNAVAILABLE`: it fails closed.
+
+| Route | What |
+|---|---|
+| `GET /usage` | Global spend and caps today and this month, and the top users and orgs this month. |
+| `GET /usage/:scope/:id` | One user's or org's spend and caps (`global/*` for the app). |
+| `GET /caps`, `PUT /caps` | Stored caps; `{ scope, subject?, period, units }` sets one (`units: null` is unlimited). |
+| `DELETE /caps/:scope/:subject/:period` | Back to the `*` row or the app's default. |
+
+`AiSpendAdmin` from `@dapplelight/signet-ui/screens/abuse-screens` is the
+admin screen for these routes.
 
 ## Env — Workers-safe configuration
 

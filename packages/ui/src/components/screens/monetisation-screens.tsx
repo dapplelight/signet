@@ -51,6 +51,14 @@ import {
 
 // ---------------------------------------------------------------- data model
 
+/** signet-db `ProductOffer`: a free trial, intro or win-back offer. */
+export type RemoteOffer = {
+  id: string
+  type: "free_trial" | "intro" | "win_back"
+  days?: number
+  price?: { amount: number; currency: string }
+}
+
 /** signet-db `OfferingProduct`. */
 export type RemoteProduct = {
   id: string
@@ -58,6 +66,8 @@ export type RemoteProduct = {
   plan: string
   interval?: BillingInterval
   price?: { amount: number; currency: string }
+  /** The offers this customer may take, best first (`customers.withOffers` on the server). */
+  offers?: readonly RemoteOffer[]
 }
 
 /** signet-db `PaywallConfig`. */
@@ -157,8 +167,21 @@ export const DEFAULT_MONETISATION_LABELS = {
   paid: "Paid",
   refunded: "Refunded",
   approximate: "Includes App Store prices, not settled revenue",
+  offer: (o: RemoteOffer) =>
+    o.type === "free_trial"
+      ? `Try it free for ${o.days} days`
+      : `${o.type === "win_back" ? "Welcome back: " : ""}${o.price ? formatMoney(o.price.amount, o.price.currency) : ""}${o.days ? ` for ${o.days} days` : ""}`,
+  promotionalGrant: "Grant a promotional plan",
+  promotionalPlan: "Plan",
+  promotionalDays: "Days",
+  promotionalNote: "Note",
+  promotionalSubmit: "Grant",
+  promotionalSent: "Granted.",
   kind: {
     purchase: "Purchase",
+    trial: "Free trial",
+    refund_request: "Refund requested from the store",
+    promotional: "Promotional plan",
     renewal: "Renewal",
     refund: "Refund",
     cancellation: "Cancelled renewal",
@@ -168,6 +191,7 @@ export const DEFAULT_MONETISATION_LABELS = {
     expiration: "Expired",
     paused: "Paused",
     dispute: "Dispute",
+    discount: "Discount",
   } as Record<string, string>,
 }
 
@@ -223,7 +247,15 @@ export type RemotePaywallProps = Omit<
    * Buy the product through your checkout: signet-payments `checkout` on the
    * web, StoreKit or Play Billing (then `verifyPurchase`) in the app.
    */
-  onPurchase?: (product: RemoteProduct, plan: BillingPlan, interval: BillingInterval) => unknown
+  onPurchase?: (
+    product: RemoteProduct,
+    plan: BillingPlan,
+    interval: BillingInterval,
+    /** The product's best offer for this customer, to apply at checkout. */
+    offer?: RemoteOffer,
+  ) => unknown
+  /** Called once when the paywall is shown: post it to `/offerings/:placement/impression` for charts. */
+  onImpression?: (offering: RemoteOffering) => unknown
   labels?: Partial<MonetisationLabels>
 }
 
@@ -233,10 +265,18 @@ export function RemotePaywall({
   display,
   source = "web",
   onPurchase,
+  onImpression,
   labels: labelsProp,
   className,
   ...props
 }: RemotePaywallProps) {
+  const seenRef = React.useRef("")
+  const shown = `${offering.key}@${offering.version}`
+  React.useEffect(() => {
+    if (!onImpression || seenRef.current === shown) return
+    seenRef.current = shown
+    onImpression(offering)
+  }, [onImpression, offering, shown])
   const labels = useLabels(labelsProp)
   const pw = offering.paywall ?? {}
   const plans = React.useMemo(
@@ -254,8 +294,11 @@ export function RemotePaywall({
     const product = offering.products.find(
       (p) => p.store === source && p.plan === plan.key && (p.interval ?? "month") === interval,
     )
-    return product && onPurchase?.(product, plan, interval)
+    return product && onPurchase?.(product, plan, interval, product.offers?.[0])
   }
+  const offer = offering.products.find(
+    (p) => p.store === source && plans.some((x) => x.key === p.plan) && p.offers?.length,
+  )?.offers?.[0]
   return (
     <div
       data-slot="remote-paywall"
@@ -273,10 +316,21 @@ export function RemotePaywall({
         {...(pw.highlight ? { defaultValue: pw.highlight } : {})}
         {...(onPurchase ? { onSubscribe: buy } : {})}
       />
-      {pw.trial && (
-        <p data-slot="paywall-trial" className="text-center text-sm text-text-muted">
-          {pw.trial}
+      {offer ? (
+        <p
+          data-slot="paywall-offer"
+          data-offer={offer.id}
+          data-offer-type={offer.type}
+          className="text-center text-sm font-medium text-text-primary"
+        >
+          {labels.offer(offer)}
         </p>
+      ) : (
+        pw.trial && (
+          <p data-slot="paywall-trial" className="text-center text-sm text-text-muted">
+            {pw.trial}
+          </p>
+        )
       )}
     </div>
   )
@@ -529,6 +583,9 @@ const KIND_ICON: Record<string, typeof ShoppingBag> = {
   expiration: CircleSlash,
   paused: Pause,
   dispute: LifeBuoy,
+  trial: Gift,
+  promotional: Gift,
+  refund_request: Undo2,
 }
 const KIND_TONE: Record<string, string> = {
   refund: "border-accent-amber",
@@ -536,6 +593,7 @@ const KIND_TONE: Record<string, string> = {
   grace_period: "border-accent-amber",
   expiration: "border-accent-red",
   dispute: "border-accent-red",
+  refund_request: "border-accent-amber",
 }
 
 export type CustomerTimelineProps = Omit<React.ComponentProps<"section">, "children"> & {
@@ -626,5 +684,93 @@ export function CustomerTimeline({
         </Timeline>
       )}
     </section>
+  )
+}
+
+// --------------------------------------------------- promotional grant (admin)
+
+const fieldClass =
+  "h-8 w-full rounded-lg border border-input bg-transparent px-2 text-sm text-text-primary outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring dark:bg-input/30"
+
+export type PromotionalGrantFormProps = Omit<React.ComponentProps<"form">, "onSubmit"> & {
+  /** Plan keys an admin may grant. */
+  plans: readonly string[]
+  defaultDays?: number
+  /** POST `/customers/:subject/promotional` with `{ plan, days, note? }`. */
+  onGrant: (grant: { plan: string; days: number; note?: string }) => unknown
+  labels?: Partial<MonetisationLabels>
+}
+
+/** Grant a customer a plan for some days, from admin; it lapses on its own. */
+export function PromotionalGrantForm({
+  plans,
+  defaultDays = 30,
+  onGrant,
+  labels: labelsProp,
+  className,
+  ...props
+}: PromotionalGrantFormProps) {
+  const labels = useLabels(labelsProp)
+  const id = React.useId()
+  const [plan, setPlan] = React.useState(plans[0] ?? "")
+  const [days, setDays] = React.useState(String(defaultDays))
+  const [note, setNote] = React.useState("")
+  const [phase, run] = useAction()
+  const n = Number(days)
+  const valid = !!plan && Number.isInteger(n) && n > 0
+  return (
+    <form
+      data-slot="promotional-grant"
+      aria-labelledby={`${id}h`}
+      className={cn("flex flex-col gap-2", className)}
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (valid)
+          run(() => onGrant({ plan, days: n, ...(note.trim() ? { note: note.trim() } : {}) }))
+      }}
+      {...props}
+    >
+      <h3 id={`${id}h`} className="text-xs font-medium text-text-muted">
+        {labels.promotionalGrant}
+      </h3>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="flex flex-col gap-1 text-xs text-text-muted">
+          {labels.promotionalPlan}
+          <select className={fieldClass} value={plan} onChange={(e) => setPlan(e.target.value)}>
+            {plans.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-text-muted">
+          {labels.promotionalDays}
+          <input
+            className={fieldClass}
+            type="number"
+            min={1}
+            step={1}
+            value={days}
+            onChange={(e) => setDays(e.target.value)}
+          />
+        </label>
+      </div>
+      <label className="flex flex-col gap-1 text-xs text-text-muted">
+        {labels.promotionalNote}
+        <input
+          className={fieldClass}
+          value={note}
+          maxLength={500}
+          onChange={(e) => setNote(e.target.value)}
+        />
+      </label>
+      <Button type="submit" size="sm" disabled={!valid || phase === "pending"}>
+        {labels.promotionalSubmit}
+      </Button>
+      <p aria-live="polite" className="text-sm text-text-muted">
+        {phase === "done" ? labels.promotionalSent : phase === "failed" ? labels.sendFailed : ""}
+      </p>
+    </form>
   )
 }
