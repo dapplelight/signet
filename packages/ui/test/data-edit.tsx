@@ -794,7 +794,9 @@ await t("RichTextEditor", async () => {
         getData: (t: string) =>
           t === "text/html"
             ? '<p><em>pasted</em><script>alert(1)</script><img src=x onerror="alert(1)"></p>'
-            : "pasted",
+            : t === "text/plain"
+              ? "pasted"
+              : "",
       },
     })
   })
@@ -812,6 +814,24 @@ await t("RichTextEditor: uncontrolled, placeholder, content", () => {
   ok(
     "empty shows the placeholder",
     box.dataset.empty === "true" && box.dataset.placeholder === "Write…",
+  )
+  ok(
+    "keeps ProseMirror's own classes next to ours",
+    box.classList.contains("ProseMirror") && box.classList.contains("min-h-24"),
+    box.className,
+  )
+  cleanup()
+  const { rerender } = render(
+    <RichTextEditor aria-label="Note" defaultValue="" classNames={{ content: "note-a" }} />,
+  )
+  rerender(<RichTextEditor aria-label="Note" defaultValue="" classNames={{ content: "note-b" }} />)
+  const box2 = screen.getByRole("textbox", { name: "Note" })
+  ok(
+    "a className change swaps only our classes",
+    box2.classList.contains("note-b") &&
+      !box2.classList.contains("note-a") &&
+      box2.classList.contains("ProseMirror"),
+    box2.className,
   )
   cleanup()
   render(<RichTextContent value={"Hi <b>x</b> [a](javascript:void0)"} />)

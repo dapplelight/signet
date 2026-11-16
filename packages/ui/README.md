@@ -216,13 +216,17 @@ copy-in with `signet add data-grid`, `signet add rich-text-editor` or
   each cell (`aria-invalid`, `data-error`) and in a live region. It is a
   `role="grid"` with `aria-rowcount`, `aria-rowindex`, `aria-colindex`,
   `aria-selected` and `aria-sort`.
-- `components/rich-text-editor`: `RichTextEditor` is a contenteditable
-  editor with no editor library: bold, italic, inline code, links, two
-  heading levels, bulleted and numbered lists (Mod+B/I/E/K), a WAI-ARIA
-  toolbar, and `@` mentions with `onMentionSearch`, the same people search
-  `MentionTextarea` uses. The value is markdown written by walking the DOM
-  through an allowlist, so pasted scripts, handlers, styles and
-  `javascript:` links never reach it; mentions are stored as
+- `components/rich-text-editor`: `RichTextEditor` is built on Tiptap v3
+  (optional peers: `bun add @tiptap/react @tiptap/pm @tiptap/starter-kit
+  @tiptap/extension-mention @tiptap/extension-link`; like `chart`, it is not
+  in the barrel, so apps without Tiptap are unaffected). Bold, italic, inline
+  code, links, two heading levels, bulleted and numbered lists
+  (Mod+B/I/E/K), a WAI-ARIA toolbar, and `@` mentions through Tiptap's
+  suggestion API with `onMentionSearch`, the same people search
+  `MentionTextarea` uses. The value is markdown written by walking the
+  editor's HTML through an allowlist, and pasted HTML goes through the same
+  allowlist, so pasted scripts, handlers, styles and `javascript:` links
+  never reach it; mentions are stored as
   `@[Name](user:<id>)`, so signet-db's `createCollab` parses and notifies
   them as it does for comments. `RichTextContent` and `richTextToHtml`
   render stored markdown as HTML that is safe by construction. On the
