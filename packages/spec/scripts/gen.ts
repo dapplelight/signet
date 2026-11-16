@@ -14,6 +14,7 @@ import {
   analyticsIngestResponseSchema,
   trackedEventSchema,
 } from "../src/analytics"
+import { CASES } from "../src/cases"
 import { ERROR_CODE_STATUS, errorEnvelopeSchema, SPEC_VERSION } from "../src/error"
 import { webhookDeliverySchema } from "../src/webhooks"
 import { authOpenApi } from "./auth-openapi"
@@ -23,6 +24,7 @@ const ROOT = join(import.meta.dirname, "..")
 export const CONTRACT_MD = join(ROOT, "../tokens/CONTRACT.md")
 export const SCHEMAS_DIR = join(ROOT, "schemas")
 export const OPENAPI_DIR = join(ROOT, "openapi")
+export const CONFORMANCE_DIR = join(ROOT, "conformance")
 export const PUBLIC_DIR = join(ROOT, "../../apps/docs/public/spec", SPEC_VERSION)
 const BASE = `https://signet.dapplelight.in/spec/${SPEC_VERSION}`
 
@@ -64,17 +66,30 @@ export function generateOpenApi(): Record<string, string> {
   return { "auth.openapi.json": `${JSON.stringify(authOpenApi(), null, 2)}\n` }
 }
 
+/** `cases.json`, from `src/cases.ts`; written to `conformance/` and to the docs site as `conformance-cases.json`. */
+export function generateConformance(): string {
+  return `${JSON.stringify({ specVersion: SPEC_VERSION, cases: CASES }, null, 2)}\n`
+}
+
 if (import.meta.main) {
   const copies = [
     [SCHEMAS_DIR, generate()],
     [OPENAPI_DIR, generateOpenApi()],
-    [PUBLIC_DIR, { ...generate(), ...generateOpenApi() }],
+    [CONFORMANCE_DIR, { "cases.json": generateConformance() }],
+    [
+      PUBLIC_DIR,
+      {
+        ...generate(),
+        ...generateOpenApi(),
+        "conformance-cases.json": generateConformance(),
+      },
+    ],
   ] as const
   for (const [dir, files] of copies) {
     mkdirSync(dir, { recursive: true })
     for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, name), text)
   }
   console.log(
-    `spec ${SPEC_VERSION}: wrote ${[...Object.keys(generate()), ...Object.keys(generateOpenApi())].join(", ")}`,
+    `spec ${SPEC_VERSION}: wrote ${[...Object.keys(generate()), ...Object.keys(generateOpenApi()), "cases.json"].join(", ")}`,
   )
 }

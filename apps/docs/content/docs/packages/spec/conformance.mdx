@@ -1,0 +1,67 @@
+---
+title: "Conformance"
+description: "Language-neutral test cases for the wire contract, and a runner that checks any backend against them."
+---
+
+## Usage
+
+```ts
+import { runConformance } from "@dapplelight/signet-spec/conformance"
+
+const { failed, results } = await runConformance({
+  baseUrl: "http://localhost:3000",
+  authPrefix: "/api/auth",
+  ingestPath: "/api/e",
+})
+console.log(failed, results.filter((r) => !r.ok))
+```
+
+`fetch` is optional and defaults to the global one. The runner reads no environment variables.
+
+The cases are in [conformance-cases.json](/spec/v1/conformance-cases.json), and in the package as `@dapplelight/signet-spec/conformance/cases.json`. A test runs them against the real error handler, ingest route, client-login routes and session routes with in-memory stores, and requires every case to pass. A second test runs them against an app whose envelope lacks `success` and requires failures.
+
+## Cases
+
+| Case | Expects |
+| --- | --- |
+| `unknown-route-404` | 404 error envelope with code `NOT_FOUND` and a `requestId`. |
+| `invalid-json-400` | `POST` of a body that is not JSON answers 400 `INVALID_JSON`. Needs the `jsonPath` option. |
+| `ingest-invalid-payload-400` | `POST` to the ingest route with `events` that is not an array answers 400 `INVALID_PAYLOAD`. |
+| `ingest-accepted-202` | `POST` of two events answers 202 with `{ "success": true, "written": 2 }`. |
+| `token-bad-grant` | `POST /token` with an unknown grant answers 400 or 401 with an OAuth `{ error }` and `Cache-Control: no-store`. |
+| `revoke-any-token-200` | `POST /revoke` with any token answers 200. |
+| `authorize-without-session` | `GET /authorize` without a session answers 401 (error envelope) or 302. |
+| `sessions-list-without-cookie-401` | `GET` on the sessions route without a cookie answers a 401 error envelope with code `UNAUTHORIZED`. |
+| `sessions-revoke-others-without-cookie-401` | `POST /revoke-others` without a cookie answers a 401 error envelope with code `UNAUTHORIZED`. |
+
+Every error body is validated against [error-envelope.schema.json](/spec/v1/error-envelope.schema.json).
+
+## Other languages
+
+1. Fetch `/spec/v1/conformance-cases.json`.
+2. For each case, send `request` with `{authPrefix}`, `{ingestPath}`, `{sessionsPrefix}` and `{jsonPath}` replaced in `path`. A string `body` is sent as is. Any other `body` is sent as JSON. Do not follow redirects.
+3. Compare the status (a number, or a list of accepted numbers) and each header in `expect.headers`.
+4. Validate the body against `bodySchema`, a file under `/spec/v1/` or an inline JSON Schema, when the body is not empty. Then check that `body` is a subset of the JSON and that every key in `bodyRequired` is present.
+
+The envelope is described at [Error](/docs/packages/spec/error).
+
+## API
+
+`runConformance(options)` takes these fields.
+
+| Field | What it is |
+| --- | --- |
+| `baseUrl` | Origin of the backend, such as `http://localhost:3000`. |
+| `authPrefix` | Where the client-login routes are mounted, such as `/api/auth`. |
+| `ingestPath` | The analytics ingest route. |
+| `sessionsPrefix` | Where the session routes are mounted. Default `/api/sessions`. |
+| `jsonPath` | A route that parses a JSON body. Without it `invalid-json-400` is skipped and counts as passed. |
+| `fetch` | A `(Request) => Response` function. Default: the global `fetch`. |
+
+It resolves to this result. A network error becomes a failed result with the error message as `reason`. It does not throw.
+
+| Field | What it is |
+| --- | --- |
+| `passed` | How many cases passed. |
+| `failed` | How many cases failed. |
+| `results` | One `{ id, ok, reason }` per case, in file order. `reason` is `ok`, or one line naming what was expected and what came back. |

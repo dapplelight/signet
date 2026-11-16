@@ -20,4 +20,10 @@ OpenAPI documents in `openapi/`:
 
 - `auth.openapi.json`
 
+Conformance cases in `conformance/`:
+
+- `cases.json`
+
+How to run them from any language: signet.dapplelight.in/docs/packages/spec/conformance
+
 Docs: signet.dapplelight.in/docs/packages/spec

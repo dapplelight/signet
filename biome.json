@@ -21,6 +21,7 @@
       "!packages/mcp/src/generated",
       "!packages/spec/schemas",
       "!packages/spec/openapi",
+      "!packages/spec/conformance",
       "!apps/docs/public/spec"
     ]
   },

@@ -35,6 +35,7 @@ The Zod schemas in `src/error.ts` are the source of truth. The JSON files are ge
 | [webhook-delivery.schema.json](/spec/v1/webhook-delivery.schema.json) | Webhook body, signed headers and outbox message. |
 | [auth.openapi.json](/spec/v1/auth.openapi.json) | OpenAPI 3.1 for the session and client-login routes. |
 | [contract.json](/spec/v1/contract.json) | The theme contract: the 78 required and 16 optional CSS variable names. |
+| [conformance-cases.json](/spec/v1/conformance-cases.json) | Request and expected-response cases any backend can run. |
 
 Files under /spec/v1/ never change shape. A breaking change ships as v2 alongside.
 
@@ -109,4 +110,5 @@ Every code in `ERROR_CODES` from `@dapplelight/signet-lib/api`, in the same orde
   <Card title="Webhooks" href="/docs/packages/spec/webhooks" description="Delivery body, signed headers and outbox message." />
   <Card title="Schemas" href="/docs/packages/spec/schemas" description="The generated JSON files, as package exports." />
   <Card title="OpenAPI" href="/docs/packages/spec/openapi" description="OpenAPI 3.1 document for the session and client-login auth routes." />
+  <Card title="Conformance" href="/docs/packages/spec/conformance" description="Language-neutral test cases for the wire contract, and a runner that checks any backend against them." />
 </Cards>
