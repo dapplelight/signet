@@ -7,6 +7,17 @@
 @import "@dapplelight/signet-tokens/base.css";
 @source "../../../packages/ui/src";
 
+/* Signet's editorial theme shifts the type scale down a step (text-sm is
+   13px) for dense app screens. The docs site, previews included, uses
+   Tailwind's default scale, as shadcn/ui does. */
+@theme {
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+}
+
 /* Signet's base.css paints body with the theme background; the docs chrome
    keeps Fumadocs' neutral one. Previews set their own. */
 body {
