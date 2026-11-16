@@ -33,7 +33,7 @@ Peers: `drizzle-orm` ^0.45, `@dapplelight/signet-lib` ^0.3, `postgres` only
 for `./postgres` and `zod` only for `./zod`. Types flow from your table definitions: rows, inserts
 and updates are `InferSelectModel`/`InferInsertModel` of the table you pass.
 
-Not on npm yet (`private: true`).
+Published on npm as `@dapplelight/signet-db`.
 
 ## Quick start
 

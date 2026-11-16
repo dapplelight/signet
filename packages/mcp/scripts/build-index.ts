@@ -877,8 +877,13 @@ const RECIPES: RecipeSpec[] = [
       "diff",
       "collaboration",
     ],
-    // signet-db is `private: true`, so it is not in the install line.
-    install: ["@dapplelight/signet-server", "@dapplelight/signet-ui", "hono", "drizzle-orm"],
+    install: [
+      "@dapplelight/signet-server",
+      "@dapplelight/signet-db",
+      "@dapplelight/signet-ui",
+      "hono",
+      "drizzle-orm",
+    ],
     refs: [
       ["db", "Comments, mentions, activity and version history"],
       ["server", "Comments, mentions, activity and history routes"],
@@ -1091,8 +1096,13 @@ const RECIPES: RecipeSpec[] = [
       "stale-while-revalidate",
       "vary",
     ],
-    // signet-db is `private: true` (not on npm yet), so it is not in the install line.
-    install: ["@dapplelight/signet-server", "@dapplelight/signet-lib", "hono", "zod"],
+    install: [
+      "@dapplelight/signet-server",
+      "@dapplelight/signet-db",
+      "@dapplelight/signet-lib",
+      "hono",
+      "zod",
+    ],
     refs: [
       ["server", "OpenAPI from the validators"],
       ["server", "Outbound webhooks"],
@@ -1159,8 +1169,7 @@ const RECIPES: RecipeSpec[] = [
       "monetisation",
       "monetization",
     ],
-    // signet-db is `private: true`, so it is not in the install line.
-    install: ["@dapplelight/signet-server", "hono", "drizzle-orm"],
+    install: ["@dapplelight/signet-server", "@dapplelight/signet-db", "hono", "drizzle-orm"],
     refs: [
       ["db", "Offerings and remote paywalls"],
       ["db", "Customer timeline"],
@@ -1195,8 +1204,13 @@ const RECIPES: RecipeSpec[] = [
       "spend cap",
       "usage cap",
     ],
-    // signet-db is `private: true`, so it is not in the install line.
-    install: ["@dapplelight/signet-server", "@dapplelight/signet-ai", "hono", "drizzle-orm"],
+    install: [
+      "@dapplelight/signet-server",
+      "@dapplelight/signet-db",
+      "@dapplelight/signet-ai",
+      "hono",
+      "drizzle-orm",
+    ],
     refs: [
       ["server", "Bot checks"],
       ["server", "Disposable email"],
@@ -1230,8 +1244,7 @@ const RECIPES: RecipeSpec[] = [
       "price test",
       "incidents admin",
     ],
-    // signet-db is `private: true`, so it is not in the install line.
-    install: ["@dapplelight/signet-server", "hono", "drizzle-orm"],
+    install: ["@dapplelight/signet-server", "@dapplelight/signet-db", "hono", "drizzle-orm"],
     refs: [
       ["db", "Experiments"],
       ["db", "Pricing experiments"],
@@ -1266,9 +1279,9 @@ const RECIPES: RecipeSpec[] = [
       "audiences",
       "csv export",
     ],
-    // signet-db is not in the install line, as for add-monetisation.
     install: [
       "@dapplelight/signet-server",
+      "@dapplelight/signet-db",
       "@dapplelight/signet-ui",
       "recharts",
       "hono",
@@ -1307,8 +1320,13 @@ const RECIPES: RecipeSpec[] = [
       "google pay",
       "express checkout",
     ],
-    // signet-db is `private: true`, so it is not in the install line.
-    install: ["@dapplelight/signet-server", "@dapplelight/signet-payments", "hono", "drizzle-orm"],
+    install: [
+      "@dapplelight/signet-server",
+      "@dapplelight/signet-db",
+      "@dapplelight/signet-payments",
+      "hono",
+      "drizzle-orm",
+    ],
     refs: [
       ["db", "Funnels and checkout"],
       ["db", "URL discounts"],
