@@ -1,6 +1,6 @@
 ---
 title: "Observability"
-description: "Structured JSON logging with redaction, request tracing and logs, and Sentry reporting that runs on Workers."
+description: "Structured JSON logging with redaction, request tracing and logs, Sentry reporting that runs on Workers, and health routes."
 ---
 
 ## Usage
@@ -122,6 +122,33 @@ Fields are `method`, `route` (the pattern, never the raw path), `status`, `durat
 | `beforeSend` | `(event) => event \| null` | none | Last look; `null` drops it. Allowlist context here. |
 
 `captureException` resolves to whether Sentry accepted the event and never rejects. On Workers pass it to `ctx.waitUntil`, or return it from `errorHandler`'s `onError`. `scope` carries `tags`, `traceId` (sent as the `trace_id` tag), `request` (`url`, `method`, `query_string`, `headers`; headers matching `key|token|secret|auth|cookie|session|password` are dropped) and `user`. Context values, tags and user values are not scrubbed: send only what you mean to.
+
+### `observability/health`
+
+| Export | What it does |
+| --- | --- |
+| `healthRoutes(config)` | A Hono app with `GET /live` and `GET /ready`. Mount it under a prefix of your choosing. |
+| `HealthConfig` | Type. |
+
+| `healthRoutes` option | Type | Default | |
+| --- | --- | --- | --- |
+| `checks` | `Record<string, () => Promise<boolean>>` | required | One named check per dependency. Return `true` when it is usable. |
+| `timeoutMs` | `number` | `2000` | Longest a single check may take. |
+
+| Route | Returns |
+| --- | --- |
+| `GET /live` | 200 with `{ "ok": true }`. |
+| `GET /ready` | 200 with `{ "ok": true, "checks": { "db": true } }`, or 503 with `"ok": false` and the failed checks set to `false`. |
+
+`/live` always returns 200 and runs nothing. `/ready` runs every check at once. A check that returns false, throws, or takes longer than `timeoutMs` counts as failed. Any failure returns 503. The body holds only true or false per check, never error text. Keys keep the order of `checks`. Responses carry `Cache-Control: no-store`. No other route answers. Takes config and never reads env.
+
+```ts
+import { healthRoutes } from "@dapplelight/signet-server/observability/health"
+
+app.route("/health", healthRoutes({ checks: { db: () => pingDb(), kv: () => pingKv() } }))
+```
+
+Pass `/health/live` and `/health/ready` to `skipPaths` in `traceMiddleware` and `requestLog` so probes stay out of spans and logs.
 
 ### http/observability
 
