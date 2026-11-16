@@ -17,7 +17,7 @@ import { createInterface } from "node:readline/promises"
 
 const THEMES = ["editorial", "cinematic", "finance"] as const
 type Theme = (typeof THEMES)[number]
-const TEMPLATES = ["web", "api", "full", "cli"] as const
+const TEMPLATES = ["web", "api", "full", "cli", "extension"] as const
 type Template = (typeof TEMPLATES)[number]
 const TARGETS = ["cloudflare", "bun", "node", "vercel"] as const
 type Target = (typeof TARGETS)[number]
@@ -88,6 +88,7 @@ const TEMPLATE_DIRS: Record<Template, string> = {
   api: "template-api",
   full: "template-full",
   cli: "template-cli",
+  extension: "template-extension",
 }
 
 // The api template: a Hono Worker with Signet's request id, error envelope,
@@ -221,6 +222,21 @@ const CLI_PKG = {
   devDependencies: API_DEV_DEPS,
 }
 
+// The extension template: the web app's deps without the router, query and
+// toasts, built by plain Vite into popup, options and service worker.
+const EXT_OMIT = ["@tanstack/react-query", "@tanstack/react-router", "sonner"]
+const EXT_DEV_OMIT = ["@tanstack/router-plugin"]
+const omit = (o: Record<string, string>, keys: string[]) =>
+  Object.fromEntries(Object.entries(o).filter(([k]) => !keys.includes(k)))
+const EXT_SCRIPTS = {
+  dev: "vite build --watch",
+  build: "tsc --noEmit && vite build",
+  lint: "biome check .",
+  format: "biome check --write .",
+  typecheck: "tsc --noEmit",
+  test: "bun test",
+}
+
 const FULL_SCRIPTS = {
   // Both halves: the API (restarting on change) and Vite, which proxies /api to it.
   dev: "bun scripts/dev.ts",
@@ -282,7 +298,7 @@ function parseArgs(argv: string[]) {
 create-signet-app <directory> [options]
 
 Options:
-  --template <kind>    web | api | full | cli   (default: web)
+  --template <kind>    web | api | full | cli | extension   (default: web)
                        web: Vite + React + Signet UI
                        api: Hono Worker with the error envelope, request ids,
                             validation and Durable Object rate limiting
@@ -291,6 +307,9 @@ Options:
                             account, inbox, privacy, billing and admin
                        cli: Bun CLI compiled to one binary; login by device
                             code, logout, whoami
+                       extension: Chrome MV3 extension: popup, options page and
+                            service worker, signed in over PKCE with
+                            chrome.identity (plain Vite, no extension plugin)
   --target <runtime>   ${TARGETS.join(" | ")}   (default: cloudflare; api only)
                        cloudflare: Worker entry + wrangler.jsonc
                        bun: Bun.serve entry + Dockerfile
@@ -321,7 +340,7 @@ Examples:
 
   if (!name) throw new Error("Missing target directory.\nUsage: create-signet-app <directory>")
   if (target && template !== "api") throw new Error("--target applies to --template api only.")
-  if (mcp !== undefined && (template === "web" || template === "cli"))
+  if (mcp !== undefined && (template === "web" || template === "cli" || template === "extension"))
     throw new Error("--mcp / --no-mcp apply to --template api and full only.")
   if (theme !== "editorial" && template === "api")
     throw new Error("--theme applies to --template web and full only.")
@@ -383,6 +402,7 @@ async function main() {
   if (mcp && existsSync(mcpDir)) await cp(mcpDir, dest, { recursive: true })
   const mcpFiles: Record<Template, string[]> = {
     web: [],
+    extension: [],
     api: ["src/app.ts", "src/env.ts"],
     full: ["api/app.ts", "api/env.ts"],
     cli: [],
@@ -475,6 +495,12 @@ async function main() {
       ? { engines: API_TARGETS[target].engines }
       : {}),
   }
+  if (template === "extension")
+    Object.assign(pkg, {
+      scripts: EXT_SCRIPTS,
+      dependencies: omit(DEPS, EXT_OMIT),
+      devDependencies: omit(DEV_DEPS, EXT_DEV_OMIT),
+    })
   const final =
     template === "cli"
       ? JSON.parse(JSON.stringify(CLI_PKG).replaceAll("__APP_NAME__", appName))
@@ -494,6 +520,15 @@ async function main() {
   ${steps.replace(`${run} dev`, `${run} build`)}
 
   Then ./dist/${appName} login. README.md covers the server side.
+`
+      : template === "extension"
+        ? `
+  Created ${appName}, a Chrome extension with the ${theme} theme.
+
+  ${steps.replace(`${run} dev`, `${run} build`)}
+
+  Then load dist/ at chrome://extensions (Developer mode, Load unpacked), and
+  register its redirect URI on your server. README.md has both steps.
 `
       : template === "api"
         ? `

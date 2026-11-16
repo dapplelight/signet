@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "__APP_NAME__",
+  "version": "0.1.0",
+  "description": "A browser extension built with Signet.",
+  "permissions": ["storage", "identity"],
+  "host_permissions": ["http://localhost:8787/*"],
+  "action": { "default_popup": "popup.html", "default_title": "__APP_NAME__" },
+  "options_ui": { "page": "options.html", "open_in_tab": true },
+  "background": { "service_worker": "background.js", "type": "module" }
+}
