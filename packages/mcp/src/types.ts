@@ -92,6 +92,15 @@ export type Recipe = {
   verify: string[]
 }
 
+/** A page block from `packages/ui/src/blocks/<name>/block.json`. */
+export type BlockInfo = {
+  name: string
+  description: string
+  files: string[]
+  /** Registry items the block imports: components and helpers. */
+  deps: string[]
+}
+
 export type TemplateFile = { path: string; content: string }
 
 export type ScaffoldTemplate = {
@@ -110,5 +119,6 @@ export type SignetIndex = {
   tokens: TokenInfo[]
   contractCounts: { required: number; optional: number }
   recipes: Recipe[]
+  blocks: BlockInfo[]
   scaffold: { themes: string[]; web: ScaffoldTemplate; api: ScaffoldTemplate }
 }

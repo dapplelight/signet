@@ -52,6 +52,7 @@ All read-only.
 | `list_components()` | Each `signet-ui` component, its import path and exports. |
 | `get_component(name)` | Props, cva variants and defaults, a usage example, contract variables it reads. |
 | `compose_component(need, limit?)` | Closest components and behaviors for a need in words, with parts and an example. |
+| `plan_page({ description, target? })` | Blocks, components, server modules, recipe, data and files to create for a page described in words. |
 | `list_themes()` / `get_theme(name, include_css?)` | Shipped themes, how to import one, the CSS to copy. |
 | `list_tokens(kind?)` | The theme contract: 78 required and 16 optional variables. |
 | `check_theme(css)` | Findings against the contract: missing variables, optional slots, WCAG contrast. |
@@ -63,6 +64,37 @@ All read-only.
 | `migration(from, to?, package?)` | Changelog entries in the range, breaking bullets pulled out, current versions. |
 
 `recipe` tasks: `add-auth`, `add-rate-limit`, `add-csrf`, `add-error-envelope`, `add-env`, `add-api-client`, `add-web-push`, `add-ai-extraction`, `add-analytics`, `add-portability-adapters`, `add-db`, `add-mcp-tools`, `mcp-by-default`, `add-oauth`, `add-logging`, `add-theme`.
+
+## Plan a page
+
+`plan_page` turns a page described in words into a file plan: the block to add, the components and server modules it uses, the matching recipe, the data it needs and the files to create. It makes no LLM call and gives the same answer every time. `target` is `web` (the default), `api` or `full`. See [Build a page with an agent](/docs/guides/build-a-page-with-an-agent) for the whole flow.
+
+```json
+{ "description": "an analytics dashboard with a visitors chart", "target": "web" }
+```
+
+```json
+{
+  "target": "web",
+  "recipe": "add-analytics",
+  "blocks": [
+    {
+      "name": "analytics-dashboard",
+      "why": "Analytics overview page: range picker, stat row, area chart and a recent-activity table, ...",
+      "command": "npx @dapplelight/signet-cli add block analytics-dashboard"
+    }
+  ],
+  "components": [{ "name": "card", "importPath": "@dapplelight/signet-ui/components/card" }],
+  "modules": [],
+  "data": ["stats: label, value, meta and tone for each metric"],
+  "files": [
+    { "path": "src/routes/analytics-dashboard.tsx", "purpose": "Page route that renders the block with sample data" }
+  ],
+  "next": ["get_component({ name: \"badge\" })", "recipe({ task: \"add-analytics\" })", "check_app"]
+}
+```
+
+Every key is always present. When nothing matches, the arrays are empty and `hint` points to `compose_component` and `search_docs`.
 
 ## Resources and prompts
 

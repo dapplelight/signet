@@ -1,0 +1,96 @@
+---
+title: "Build a page with an agent"
+description: "Describe a page, get a file plan, add the block, wire the data, check the app."
+---
+
+Describe the page in words and the agent gets a plan: which block to add, which components and server modules it uses, what data it needs and which files to create. This guide builds an analytics dashboard that shows "Projects" and "Active users".
+
+## 1. Install the MCP server
+
+Add the Signet MCP server to your agent. The steps are on the [MCP server page](/docs/packages/mcp).
+
+## 2. Call plan_page
+
+Ask for the page in plain words.
+
+```json
+{ "description": "an analytics dashboard with a visitors chart", "target": "web" }
+```
+
+`plan_page` answers with the block, its command, the components, the matching recipe, the data and the files. It makes no LLM call, so the same description always gives the same plan.
+
+```json
+{
+  "target": "web",
+  "recipe": "add-analytics",
+  "blocks": [
+    {
+      "name": "analytics-dashboard",
+      "command": "npx @dapplelight/signet-cli add block analytics-dashboard"
+    }
+  ],
+  "data": [
+    "stats: label, value, meta and tone for each metric",
+    "series: label and value for each point of the chart"
+  ],
+  "files": [
+    { "path": "src/routes/analytics-dashboard.tsx", "purpose": "Page route that renders the block with sample data" }
+  ]
+}
+```
+
+Use `target: "api"` for the server side and `target: "full"` for both. If nothing matches, the plan is empty and `hint` suggests `compose_component` or `search_docs`.
+
+## 3. Run the block commands
+
+Run each command in `blocks`.
+
+```bash
+npx @dapplelight/signet-cli add block analytics-dashboard
+```
+
+This copies the block and the components it uses into your app. The [Page Blocks guide](/docs/guides/blocks) lists what every block takes and how to restyle it.
+
+Then create the route from `files`. It renders the block with its sample data first:
+
+```tsx
+import { AnalyticsDashboard } from "@/components/signet/blocks/analytics-dashboard"
+
+export function DashboardPage() {
+  return <AnalyticsDashboard />
+}
+```
+
+## 4. Follow the recipe
+
+Call `recipe` with the id from the plan. It returns the install line, the doc sections in order and how to verify.
+
+```json
+{ "task": "add-analytics" }
+```
+
+Replace the sample data with your own, shaped like the plan's `data` lines. Here that is `stats` for "Projects" and "Active users", `series` for the chart and `rows` for recent activity.
+
+```tsx
+<AnalyticsDashboard
+  data={{
+    stats: [
+      { label: "Projects", value: "1,207" },
+      { label: "Active users", value: "3,912" },
+    ],
+    series,
+    rows,
+  }}
+/>
+```
+
+## 5. Run check_app
+
+Finish with `check_app` on the project and fix every error it reports. Then run your lint, typecheck and test scripts.
+
+## Next
+
+<Cards>
+  <Card title="Page Blocks" href="/docs/guides/blocks" description="Every block, its props and its parts." />
+  <Card title="MCP server" href="/docs/packages/mcp" description="All the tools an agent can call." />
+</Cards>

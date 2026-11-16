@@ -34,7 +34,7 @@
   "scripts": {
     "gen": "bun run scripts/build-index.ts",
     "typecheck": "bun run gen && tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "bun run gen && bun run test/checks.ts && bun run test/e2e.ts",
+    "test": "bun run gen && bun run test/checks.ts && bun run test/plan.ts && bun run test/e2e.ts",
     "build": "bun run gen && rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/bin.js",
     "prepublishOnly": "bun run build"
   },
