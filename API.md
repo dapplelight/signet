@@ -20,6 +20,7 @@ Provider-agnostic structured LLM calls with budget caps, caching and failover.
 | `@dapplelight/signet-ai/fake` | fakeProvider |  |
 | `@dapplelight/signet-ai/ground` | embedDocuments, searchDocuments, groundedAnswer, Doc, EmbeddedDoc, SearchHit, … | Embeddings, similarity search and grounded answers over app-provided documents |
 | `@dapplelight/signet-ai/jev` | JEV_DEFAULT_MODEL, JEV_DEFAULT_MIN_CONFIDENCE, JEV_DEFAULT_TIMEOUT_MS, JEV_DEFAULT_BASE_URL, createJev, JevJson, … | Jev (TypeSafe System One): a classifier that returns a typed decision, never text |
+| `@dapplelight/signet-ai/otel` | otelUsage, onUsageAll, spendUsage, OtelApiLike, OtelUsageConfig, SpendSubject, … | Usage hooks for `onUsage`: put a call's tokens and cost on the active OpenTelemetry span, record spend per user or org, or run several hooks |
 | `@dapplelight/signet-ai/providers/ai-sdk` | modelIdOf, toUsage, aiSdkProvider, workersAiProvider, AiSdkProviderOptions | Vercel AI SDK adapter |
 | `@dapplelight/signet-ai/react` | sumUsage, useSignetChat, UseSignetChatOptions | Client half of `streamChat` |
 
