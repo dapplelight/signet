@@ -28,8 +28,9 @@ crawling. It is regenerated on main after each merge; a PR never edits it.
   and `bun run lint` (Biome) at the root. Suppress a rule only with a reason.
   Every assertion exists because something that read as correct
   turned out not to be when compiled.
-- **No domain vocabulary in a base package.** app-a's finance categories live in
-  `tokens/src/themes/finance.css`, not `editorial.css`. `trend-chip` is under
+- **No business logic or domain vocabulary in Signet.** An app's own categories,
+  rules and workflows live in the app (budget category colours are in the app's
+  CSS, not `finance.css`). `trend-chip` is under
   `ui/domain/`, not the barrel. Badge's default must stay `bg-primary`.
 - **Server modules take config, never read env at module scope.** Workers do not
   populate `process.env` at import time.
