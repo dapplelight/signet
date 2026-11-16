@@ -1,0 +1,43 @@
+---
+title: "Form"
+description: "TanStack Form helpers: readable field errors and server validation errors on fields."
+---
+
+## Usage
+```tsx
+import { useForm } from "@tanstack/react-form"
+import { firstError, submitWithServerErrors } from "@dapplelight/signet-lib/form"
+
+const form = useForm({
+  defaultValues: { email: "", teamName: "" },
+  onSubmit: submitWithServerErrors(
+    () => form,
+    ({ value }) => api.post("/teams", value),
+    { onFormError: (messages) => setBanner(messages.join(" ")) },
+  ),
+})
+
+<form.Field name="email">
+  {(field) => <small>{firstError(field.state.meta.errors)}</small>}
+</form.Field>
+```
+
+A 422 envelope's `details.fieldErrors` land on the matching fields. Anything that is not an `ApiError` is rethrown.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `errorMessages(errors)` | Strings from a field's `errors` (strings and issue objects), de-duplicated |
+| `firstError(errors)` | First message or `undefined` |
+| `applyServerErrors(form, error, options?)` | Puts `fieldErrors` on fields, returns form-level messages |
+| `clearServerErrors(form, fields, key?)` | Removes applied server errors before re-submitting |
+| `submitWithServerErrors(getForm, submit, options?)` | Wraps a submit handler; resolves `undefined` after a validation error |
+| `FieldError`, `FieldMeta`, `ServerErrorTarget`, `ServerErrorOptions` | Types |
+
+### ServerErrorOptions
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `key` | `string` | `"onServer"` | `errorMap` key, separate from `onChange`/`onBlur` so re-validating clears it |
+| `onFormError` | `(messages: string[]) => void` | none | Errors that belong to no field |
+
+Dotted server paths (`guests.2.name`) are mapped to TanStack's `guests[2].name`. Server-marked fields are set touched so the error shows.

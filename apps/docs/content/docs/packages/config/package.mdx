@@ -1,0 +1,20 @@
+---
+title: "Package"
+description: "The package's own package.json, exported for tooling that reads it."
+---
+
+## Usage
+
+```ts
+import pkg from "@dapplelight/signet-config/package.json" with { type: "json" }
+
+console.log(pkg.version)
+```
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `@dapplelight/signet-config/package.json` | The config package's `package.json`, for tools that read its name or version. |
+
+Most apps never import this. Use [Biome](/docs/packages/config/biome) and [TSConfig](/docs/packages/config/tsconfig) instead.

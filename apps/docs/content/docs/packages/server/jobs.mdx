@@ -1,0 +1,210 @@
+---
+title: "Jobs"
+description: "Background jobs with retries, schedules, durable steps and agent tools on any queue."
+---
+
+## Usage
+
+```ts
+import { z } from "zod"
+import { cloudflareKv, cloudflareQueue } from "@dapplelight/signet-server/adapters/cloudflare"
+import { cloudflareConsumer, cloudflareScheduled, createJobs, defineJob, defineSchedule } from "@dapplelight/signet-server/jobs"
+
+const sendReceipt = defineJob({
+  name: "send-receipt",
+  input: z.object({ orderId: z.string() }),
+  retry: { attempts: 5, backoff: "exponential", baseSeconds: 30 },
+  timeoutSeconds: 20,
+  run: async ({ orderId }, ctx) => mailer.receipt(orderId, { signal: ctx.signal }),
+})
+const cleanup = defineJob({ name: "cleanup", input: z.object({}), run: async () => purgeExpired() })
+const nightly = defineSchedule({ name: "nightly", cron: "30 2 * * *", job: cleanup, input: {} })
+
+// Built from bindings, per request or isolate.
+const make = (env: Env) =>
+  createJobs({ jobs: [sendReceipt, cleanup], schedules: [nightly], queue: cloudflareQueue(env.JOBS), store: cloudflareKv(env.KV) })
+
+export default {
+  fetch: app.fetch,
+  queue: (batch: MessageBatch, env: Env) => cloudflareConsumer(make(env))(batch as never),
+  scheduled: (event: ScheduledEvent, env: Env, ctx: ExecutionContext) => cloudflareScheduled(make(env))(event, env, ctx),
+}
+
+// In a route, after createJobs has run once in this isolate:
+await sendReceipt.enqueue({ orderId: "ord_1042" }, { key: "ord_1042" }) // once per key
+```
+
+Delivery is at least once. Make `run` safe to repeat, or key it. For long, multi-step or approval-gated work use signet-db workflows.
+
+## API
+
+### `jobs` (define and run)
+
+| Export | What it does |
+| --- | --- |
+| `defineJob(definition)` | A typed job. `job.enqueue(input, options)` validates, then sends. |
+| `createJobs(options)` | The runtime: `enqueue`, `handle`, dead letters, pause, events, status, cancel, outbox. |
+| `JobError(code, message, details?)` | Throw to fail a run with your own code. |
+| `kvDeadLetter(kv, prefix?)` | Dead-letter list on a `KeyValue` (the default). |
+| `retryDelay(policy, attempt)` | Seconds before the next attempt (capped at 12 h). |
+| `JobDefinition`, `Job`, `JobContext`, `JobMessage`, `JobActor`, `RetryPolicy`, `EnqueueOptions`, `EnqueueResult`, `JobStatus`, `DeadJob`, `DeadLetterSink`, `JobRunEvent`, `HandleResult`, `BudgetStoreLike`, `CreateJobsOptions`, `Jobs`, `Steps`, `ApprovalDecision`, `PendingApproval` | Types. |
+
+| `defineJob` field | Type | Default | |
+| --- | --- | --- | --- |
+| `name` | `string` | required | |
+| `input` | Zod schema | required | Checked at enqueue and again before each run. |
+| `run` | `(input, ctx) => unknown` | required | |
+| `retry` | `{ attempts?, backoff?, baseSeconds? }` | 3 attempts, 10 s base | `backoff`: `"exponential"` or `"fixed"`. |
+| `timeoutSeconds` | `number` | none | Aborts `ctx.signal`. |
+| `concurrency` | `{ key(input), limit }` | none | Over the limit: re-enqueued, never dropped. |
+| `rateLimit` | `{ key(input), max, windowSeconds }` | none | Over: re-enqueued for the next window. |
+| `budget` | `{ key(input), limitUsd, windowSeconds }` | none | Needs `budgetStore`. Exhausted: dead-lettered `BUDGET_EXCEEDED`, never retried. |
+
+`ctx` has `id`, `name`, `attempt`, `key`, `actor`, `signal`, `step`, `progress(done, total?, note?)` and `recordCost(usd)`.
+
+### createJobs(options)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `jobs` | `Job[]` | required | |
+| `queue` | `Queue<JobMessage>` | required | Cloudflare Queues, QStash, `memoryQueue`. |
+| `store` | `KeyValue` | `memoryKv()` | Keys, pause flags, dead jobs, steps. Use a real store in production. |
+| `schedules` | `Schedule[]` | none | For `runDueSchedules`. |
+| `triggers` | `Record<event, Job[]>` | none | Jobs started by `jobs.emit(event)`. |
+| `deadLetter` | `DeadLetterSink` | `kvDeadLetter(store)` | |
+| `idempotency` | `(key, scope, fn) => Promise` | none | e.g. signet-db's `withIdempotency`. |
+| `keyTtlSeconds` | `number` | 24 h | How long an enqueue key blocks a repeat. |
+| `pausedDelaySeconds` | `number` | `60` | |
+| `throttleDelaySeconds` | `number` | `5` | |
+| `stepTtlSeconds` | `number` | 30 days | |
+| `rateLimitStore` | `RateLimitStore` | `kvRateLimitStore(store)` | |
+| `budgetStore` | `BudgetStoreLike` | none | e.g. signet-ai's `kvBudgetStore`. |
+| `trackStatus` | `boolean` | `true` | One write per state change for `jobs.status`. |
+| `now` | `() => number` | `Date.now` | |
+| `onJobRun` | `(event) => unknown` | none | Name, id, attempt, `durationMs`, `ok`, `code`, `actor`, `costUsd`. |
+| `onError` | `(err) => void` | `console.error` | Errors from `onJobRun`. |
+
+`EnqueueOptions` are `delaySeconds`, `key` and `actor`.
+
+| `Jobs` method | What it does |
+| --- | --- |
+| `enqueue(job, input, options)`, `enqueueByName(name, input, options)` | Send a run. `{ id, enqueued }`. |
+| `handle(message)` | Run one message. The consumer entry point. |
+| `listDead()`, `retryDead(id)` | Dead-letter list, and resend from attempt 1. |
+| `pause(name)`, `resume(name)`, `isPaused(name)` | Pause a job. Queued runs come back every `pausedDelaySeconds`. |
+| `emit(event, payload, options)` / `send(...)` | Start jobs listed for the event and wake runs waiting on it. |
+| `on(event, jobs)` | Add triggers. |
+| `status(id)` | State, attempt, progress and last error. |
+| `cancel(id)` | The run does not start, or stops at its next step. |
+| `listApprovals()`, `approve(id, step, decision?)` | Steps waiting on `waitForApproval`. |
+| `runDueSchedules(now?)` | Enqueue schedules due this UTC minute. |
+| `outboxMessage(job, input)`, `outboxEvent(event, payload)`, `outboxQueue` | Enqueue in the same write as your data, then drain. |
+
+### Durable steps
+
+`run: async (input, { step }) => ...`. A retry resumes after the last finished step. Results replay as JSON.
+
+| Step | What it does |
+| --- | --- |
+| `step.run(name, fn)` | Run once; later attempts get the stored result. |
+| `step.sleep(name, seconds)` | Suspend for any length. |
+| `step.waitFor(name, { event, timeoutSeconds? })` | Resume on `jobs.emit(event, payload)`; `null` on timeout (default 7 days). |
+| `step.waitForApproval(name, summary, { timeoutSeconds? })` | Resume on `jobs.approve(...)`: `{ approved, by?, timedOut? }`. |
+
+### `jobs` (schedules)
+
+| Export | What it does |
+| --- | --- |
+| `defineSchedule({ name, cron, job, input? })` | A cron schedule. `input` may be a function called each tick. |
+| `parseCron(expr)` | Parse 5-field UTC cron (lists, ranges, steps). |
+| `cronMatches(cron, date)` | Whether a date matches. `dom` and `dow` either-match like Vixie cron. |
+| `runDueSchedules(jobs, schedules, now?)` | Enqueue each due schedule, keyed by minute so a double tick runs once. |
+| `cloudflareScheduled(jobs)` | `scheduled` handler. Add one `* * * * *` trigger. |
+| `startScheduler(jobs, onError?)` | Node and Bun: check at each minute. Returns a stop function. |
+| `Cron`, `Schedule` | Types. |
+
+### `jobs` (runtimes)
+
+| Export | What it does |
+| --- | --- |
+| `cloudflareConsumer(jobs, retryDelaySeconds?)` | Queue consumer. Acks each message; only plumbing errors retry. |
+| `qstashReceiver(jobs, { keys, url? })` | Fetch handler: verifies `Upstash-Signature`, runs, answers 200 (401 bad signature, 500 plumbing). |
+| `verifyQstashSignature({ signature, body, keys, url?, now? })` | The signature check on its own. |
+| `inProcessJobs(options, onError?)` | `createJobs` on `memoryQueue`. Pending runs die with the process. |
+| `startWorker(jobs, { receive, ack? }, { intervalMs?, onError? })` | Poll a queue you own. Returns a stop function. |
+| `createTestJobs(options)` | In-memory queue with a virtual clock. `await jobs.runAll({ advanceTime?, maxRuns? })`. |
+| `QueueBatchLike`, `QstashKeys`, `TestJobs` | Types. |
+
+### `jobs` (agent tools)
+
+| Export | What it does |
+| --- | --- |
+| `jobTools(jobs, { withoutApproval? })` | MCP tools: `list_failed_jobs`, `retry_job`, `pause_job`, `resume_job`, `list_pending_approvals`, `decide_job_approval`. |
+| `JobToolsOptions` | `retry_job` and `decide_job_approval` ask through `requireApproval` unless `withoutApproval` is set. |
+
+## Examples
+
+### Docker, Node or Bun in one container
+
+```ts
+import { inProcessJobs, startScheduler } from "@dapplelight/signet-server/jobs"
+import { upstashKv } from "@dapplelight/signet-server/adapters/upstash"
+
+const jobs = inProcessJobs({ jobs: [sendReceipt], schedules: [nightly], store: upstashKv({ url, token }) })
+const stop = startScheduler(jobs)
+process.on("SIGTERM", stop)
+```
+
+### QStash on any fetch runtime
+
+```ts
+import { qstashQueue, upstashKv } from "@dapplelight/signet-server/adapters/upstash"
+import { createJobs, qstashReceiver } from "@dapplelight/signet-server/jobs"
+
+const make = (env: Env) =>
+  createJobs({
+    jobs: [sendReceipt],
+    queue: qstashQueue({ token: env.QSTASH_TOKEN, destinationUrl: "https://app.example/api/jobs" }),
+    store: upstashKv({ url: env.UPSTASH_URL, token: env.UPSTASH_TOKEN }),
+  })
+
+app.post("/api/jobs", (c) =>
+  qstashReceiver(make(c.env), {
+    keys: { currentSigningKey: c.env.QSTASH_CURRENT_SIGNING_KEY, nextSigningKey: c.env.QSTASH_NEXT_SIGNING_KEY },
+  })(c.req.raw),
+)
+```
+
+### A durable approval step
+
+```ts
+const refund = defineJob({
+  name: "refund",
+  input: z.object({ orderId: z.string(), amount: z.number() }),
+  run: async ({ orderId, amount }, { step }) => {
+    const ok = await step.waitForApproval("manager", `Refund ${amount} on ${orderId}`)
+    if (!ok.approved) return "declined"
+    await step.run("charge-back", () => payments.refund(orderId, amount))
+    return "refunded"
+  },
+})
+// Later: await jobs.approve(runId, "manager", { approved: true, by: "user_7" })
+```
+
+### Test retries and sleeps
+
+```ts
+import { createTestJobs } from "@dapplelight/signet-server/jobs"
+
+const jobs = createTestJobs({ jobs: [sendReceipt] })
+await sendReceipt.enqueue({ orderId: "ord_1" })
+const results = await jobs.runAll() // retries and sleeps included, on a virtual clock
+```
+
+### Enqueue in the same write as your data
+
+```ts
+const m = jobs.outboxMessage(sendReceipt, { orderId })
+await db.batch([(tx) => tx.insert(orders).values(order), enqueue(db, m.topic, m.payload)])
+await drainOutbox(db, jobs.outboxQueue) // dedupes on the outbox row id
+```

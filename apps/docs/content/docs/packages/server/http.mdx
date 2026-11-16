@@ -1,0 +1,365 @@
+---
+title: "HTTP"
+description: "Error envelope, validation, OpenAPI, caching and ready-made route groups."
+---
+
+## Usage
+
+```ts
+import { Hono } from "hono"
+import { z } from "zod"
+import { ApiException, errorHandler } from "@dapplelight/signet-server/http"
+import { zValidator } from "@dapplelight/signet-server/http/validate"
+import { apiDoc, serveOpenApi } from "@dapplelight/signet-server/http/openapi"
+import { httpCache } from "@dapplelight/signet-server/http/cache"
+
+const OrderInput = z.object({ sku: z.string(), quantity: z.coerce.number().int().min(1) })
+
+const app = new Hono()
+  .get("/api/plans", httpCache({ maxAge: 300, staleWhileRevalidate: 60 }), (c) => c.json(listPlans()))
+  .post("/api/orders", apiDoc({ summary: "Place an order", tags: ["Orders"] }), zValidator("json", OrderInput), async (c) => {
+    const order = c.req.valid("json") // 400 + field errors if invalid
+    if (!(await inStock(order.sku))) throw new ApiException(409, "Out of stock", "OUT_OF_STOCK")
+    return c.json(await placeOrder(order), 201)
+  })
+
+app.onError(errorHandler({
+  isProduction: () => getRuntimeEnv().NODE_ENV === "production", // read per request
+  onError: (err, meta) => sentry.captureException(err, meta),
+}))
+
+serveOpenApi(app, { info: { title: "Shop API", version: "1.0.0" } }) // /openapi.json and /docs
+
+export type AppType = typeof app // for a typed `hc` client
+```
+
+Every error is one envelope with a stable `code`, plus a `requestId` when `requestId()` middleware runs. Unhandled messages are replaced in production.
+
+## API
+
+### `http/errors`
+
+| Export | What it does |
+| --- | --- |
+| `errorHandler(options)` | `app.onError` handler: writes the error envelope. |
+| `ApiException(status, message, code?, details?)` | Throw for a deliberate status and code. |
+| `STATUS_CODES` | Default code per HTTP status. |
+| `defaultRequestId(c)` | Reads `c.get("reqId")`. |
+| `ErrorHandlerOptions`, `ApiErrorStatus` | Types. Statuses: 400, 401, 403, 404, 405, 409, 410, 422, 429, 502, 503, 504. |
+
+| `errorHandler` option | Type | Default | |
+| --- | --- | --- | --- |
+| `isProduction` | `() => boolean` | required | `true` hides unhandled error messages. |
+| `onError` | `(err, { path, method, reqId }) => void \| Promise` | none | Report unhandled errors. A returned promise goes to `waitUntil` on Workers. |
+| `getRequestId` | `(c) => string \| undefined` | `c.get("reqId")` | |
+
+### `http/validate`
+
+| Export | What it does |
+| --- | --- |
+| `zValidator(target, schema)` | Hono validator on Zod. Types flow to `c.req.valid()` and `hc`. |
+| `parseBody(c, schema)` | Read and validate a JSON body inside a handler. |
+| `parseQuery(c, schema)` | Validate the query string (a repeated key is an array). |
+| `parseParams(c, schema)` | Validate route params. |
+| `VALIDATES` | Symbol that marks a `zValidator`; read by `appTools`. |
+
+Failures are 400 `VALIDATION_FAILED` with `details.fieldErrors` (dotted paths) and `details.formErrors`. Query, param and header values are strings: coerce them.
+
+### `http/openapi`
+
+| Export | What it does |
+| --- | --- |
+| `serveOpenApi(app, options)` | Adds `GET /openapi.json` and `GET /docs`. Built on first request. |
+| `openApiSpec(app, options)` | The OpenAPI 3.1 document, without serving it. |
+| `apiDoc(options \| false)` | Route middleware: describe a route, or `false` to hide it. |
+| `apiDocsHtml(spec, options)` | The HTML reference page. No script. |
+| `ERROR_ENVELOPE_SCHEMA` | The envelope as JSON Schema. |
+| `SecuritySchemeName`, `ApiDocOptions`, `OpenApiOptions`, `OpenApiDocument`, `ServeOpenApiOptions`, `ApiDocsHtmlOptions` | Types. |
+
+| `serveOpenApi` option | Type | Default | |
+| --- | --- | --- | --- |
+| `info` | `{ title, version, description? }` | required | |
+| `servers` | `{ url, description? }[]` | none | |
+| `security` | `{ session?: { cookieName }, apiKey?: { prefix? } }` | none | Schemes on every route. |
+| `include` | `({ method, path }) => boolean` | all | Leave routes out. |
+| `specPath` | `string` | `"/openapi.json"` | |
+| `docsPath` | `string \| false` | `"/docs"` | `false`: no HTML page. |
+| `docs` | `ApiDocsHtmlOptions` | none | `specUrl`, `stylesheet` (your theme CSS). |
+
+`apiDoc` takes `summary`, `description`, `tags`, `operationId`, `deprecated`, `response`, `responses` and `security` (`false` or a list of `"session"` / `"apiKey"`).
+
+### `http/cache`
+
+| Export | What it does |
+| --- | --- |
+| `httpCache(options)` | Middleware for GET and HEAD 2xx: `Cache-Control`, `ETag`, 304. |
+| `cachedResponse(c, options, render)` | Stale-while-revalidate in a `KeyValue`. `X-Cache`: `HIT`, `STALE`, `MISS`. |
+| `cacheControlValue(options)` | The `Cache-Control` string. |
+| `mergeVary(existing, ...names)` | Add `Vary` names without duplicates. |
+| `etagMatches(etag, ifNoneMatch)` | Weak `If-None-Match` comparison. |
+| `CacheControlOptions`, `ResponseCacheOptions` | Types. |
+
+| `httpCache` option | Type | Default | |
+| --- | --- | --- | --- |
+| `maxAge` | `number` | `0` | Always revalidate; the ETag makes it cheap. |
+| `sMaxAge` | `number` | none | Shared caches only. |
+| `staleWhileRevalidate` | `number` | none | |
+| `staleIfError` | `number` | none | |
+| `private` | `boolean` | `false` | `private` plus `Vary: Cookie, Authorization`. |
+| `noStore` | `boolean` | `false` | Overrides the rest. |
+| `vary` | `string[]` | none | More request headers the body depends on. |
+
+| `cachedResponse` option | Type | Default | |
+| --- | --- | --- | --- |
+| `kv` | `KeyValue` | required | |
+| `freshSeconds` | `number` | required | Served without rendering. |
+| `staleSeconds` | `number` | required | Served while one background render refreshes. |
+| `varyBy` | `string` | none | User or org id; part of the key. Leave out only if the body is the same for everyone. |
+| `key` | `string` | method and URL | |
+| `defer` | `Defer` | `waitUntil` on Workers | |
+| `prefix` | `string` | `"signet-rc"` | |
+
+### `http/sanitize`
+
+| Export | What it does |
+| --- | --- |
+| `sanitizeMarkdown(text)` | Escape raw HTML, neutralise unsafe link targets, strip control characters. Idempotent. |
+| `isSafeLinkTarget(url)` | Allows relative, `#`, http(s), `mailto`, `tel`. |
+
+### `http/routes`
+
+| Export | What it does |
+| --- | --- |
+| `entitlementRoutes({ entitlements, subject })` | `GET /` the plan and limits, `GET /usage`. |
+| `flagRoutes({ flags, subject })` | `GET /` every flag value for the caller. |
+| `approvalRoutes({ approvals, subject })` | `GET /` pending, `POST /:id/approve`, `POST /:id/deny`. Someone else's id is 404. |
+| `EntitlementRoutes`, `FlagRoutes` | Route types for `hc` (`import type`). |
+
+### `http/admin`
+
+| Export | What it does |
+| --- | --- |
+| `adminRoutes(admin, { db, ctx })` | Mount signet-db's `defineAdmin(...)`: list, create, read, patch, delete, bulk-delete, actions. |
+| `AdminHttpRequest`, `AdminHandler`, `AdminRoutesOptions` | Types. |
+
+`ctx` returning `undefined` or `null` answers 401. signet-db errors become the envelope.
+
+### `http/orgs` (multi-tenant)
+
+| Export | What it does |
+| --- | --- |
+| `tenant(options)` | Resolve the org per request: custom domain, subdomain of `rootDomain`, route `param`, `x-org` header, `signet_org` cookie. Names the org; grants nothing. |
+| `currentTenant(c)` | The resolved org. 404 if none. |
+| `currentMembership(c)` | Role and permissions (set by a guard). |
+| `orgGuards({ orgs, userId })` | `requireMember()`, `requireRole(...roles)`, `requirePermission(...perms)`. |
+| `orgRoutes(options)` | My orgs, create, switch, settings, members, invites. |
+| `orgCookie(orgId, options)` | `Set-Cookie` value for the org switch cookie. |
+| `grants(permissions, permission)` | `*`, exact and `table:*` matching. |
+| `TenantOrg`, `TenantMembership`, `TenantLookup`, `MembershipLookup`, `OrgStore`, `TenantOptions`, `OrgGuardOptions`, `OrgRoutesOptions`, `OrgCookieOptions`, `OrgRoutes` | Types. |
+
+Guards answer 401 signed out, 404 for a non-member (outsiders learn nothing), 403 without the role or permission.
+
+| `tenant` option | Type | Default | |
+| --- | --- | --- | --- |
+| `orgs` | `TenantLookup` | required | `get`, `bySlug`, `byDomain`; signet-db's `createOrgs`. |
+| `rootDomain` | `string` | none | e.g. `"app.example"`. |
+| `param` | `string` | none | Route param holding the slug or id. |
+| `header` | `string \| false` | `"x-org"` | |
+| `cookie` | `string \| false` | `"signet_org"` | |
+| `host` | `(c) => string` | URL hostname | Behind a proxy, read `X-Forwarded-Host` yourself. |
+| `required` | `boolean` | `false` | 404 when no org resolves. |
+
+| `orgRoutes` option | Type | Default | |
+| --- | --- | --- | --- |
+| `orgs` | `OrgStore` | required | |
+| `userId` | `(c) => string \| undefined` | required | Undefined is 401. |
+| `email` | `(c) => string \| undefined` | none | Verified email, checked against an invite's address. |
+| `users` | `(ids) => Promise<Record<id, { name?, email?, image? }>>` | ids only | Names for the member list. |
+| `onInvite` | `(c, { invitation, token, org }) => Promise<void>` | none | Send the invite. Without it the token is only in the response. |
+| `cookie` | `string` | `"signet_org"` | Must match `tenant({ cookie })`. |
+| `cookieOptions` | `{ secure?, sameSite?, domain? }` | `secure: true` | |
+
+Routes: `GET /`, `POST /`, `POST /switch`, `GET|PATCH /current`, `GET /current/members`, `PATCH|DELETE /current/members/:userId`, `GET|POST /current/invites`, `DELETE /current/invites/:id`, `GET /invites/:token`, `POST /invites/:token/accept`. A `domain` in the settings body is 400.
+
+### `http/collab` (comments, mentions, history)
+
+| Export | What it does |
+| --- | --- |
+| `collabRoutes({ collab, userId })` | Comments, mention picker, timeline, versions, diff, restore, undo. |
+| `mentionTemplates({ url? })` | The `comment.mention` notification template (email and in-app). |
+| `notifyMentions(notifier)` | A `notify` hook for signet-db's collab; sends each mention once. |
+| `CollabStore`, `CollabRoutesOptions`, `CollabRoutes`, `MentionData` | Types. |
+
+Routes: `GET /mentions`, `GET|POST /:table/:id/comments`, `PATCH|DELETE /comments/:commentId`, `GET /:table/:id/timeline`, `GET /:table/:id/versions`, `GET /:table/:id/versions/diff`, `POST /:table/:id/versions/:n/restore`, `POST /:table/:id/undo`. Mount after `tenant()`.
+
+### `http/monetisation`
+
+| Export | What it does |
+| --- | --- |
+| `monetisationRoutes(options)` | Offerings, impressions, offer redeem, anonymous ids, merge, Customer Center. |
+| `monetisationAdminRoutes(options)` | Offerings, placements, customers, requests, promotions, charts, audiences, pricing. |
+| `OfferingStore`, `PricingStore`, `CustomerStore`, `ChartStore`, `MonetisationRoutesOptions`, `MonetisationAdminOptions` | Types, by shape. |
+
+| `monetisationRoutes` option | Type | Default | |
+| --- | --- | --- | --- |
+| `customers` | `CustomerStore` | required | signet-db's `createCustomers`. |
+| `offerings` | `OfferingStore` | none | signet-db's `createOfferings`. |
+| `subject` | `(c) => string \| undefined` | required | Signed-in user or an anonymous id. Undefined is 401. |
+| `userId` | `(c) => string \| undefined` | none | Signed-in user, for merge. |
+| `orgId` | `(c) => string \| undefined` | none | Tenant id. |
+| `audience` | `(c) => Audience` | `cf-ipcountry` and query platform | Add trusted attributes from the session; query attributes are not trusted. |
+
+| `monetisationAdminRoutes` option | Type | Default | |
+| --- | --- | --- | --- |
+| `authorize` | `(c) => unknown` | required | Deny by default: anything but `true` is 403. |
+| `actor` | `(c) => { type, id }` | required | For the audit log. |
+| `offerings`, `customers`, `charts`, `pricing` | stores | none | signet-db's `createOfferings`, `createCustomers`, `createCharts`, `createPricing`. |
+
+### `http/experiments`
+
+| Export | What it does |
+| --- | --- |
+| `experimentRoutes({ experiments, subject })` | `GET /:key` the caller's variant, `POST /:key/exposure`. |
+| `experimentAdminRoutes({ experiments, authorize, actor })` | List, create draft, read with results, edit, start, stop, rollout. |
+| `ExperimentStore`, `ExperimentRoutesOptions`, `ExperimentAdminOptions`, `ExperimentRoutes` | Types. |
+
+`subject` returns `{ id, plan?, attributes? }` from your session, never the query. No subject is 401.
+
+### `http/status`
+
+| Export | What it does |
+| --- | --- |
+| `statusRoutes({ status, maxAge? })` | Public `GET /`: components, incidents, maintenance. `Cache-Control: public, max-age=30` by default. |
+| `statusAdminRoutes({ status, authorize, actor })` | Components, incidents and updates, maintenance switch. |
+| `StatusStore`, `StatusAdminOptions` | Types. |
+
+### `http/funnels` (web-to-app checkout)
+
+| Export | What it does |
+| --- | --- |
+| `funnelRoutes(options)` | Hosted checkout page, config, events, checkout, session status, redeem. |
+| `redemptionToken(options, sessionId)` | Signed, expiring token: `{ token, expiresAt }`. |
+| `readRedemptionToken(options, token)` | The session id, or `null`. |
+| `redemptionLink(options, sessionId)` | `redeemUrl` with a fresh token: `{ link, token, expiresAt }`. |
+| `funnelPage(options)` | The hosted page HTML. |
+| `funnelPageCsp(nonce)` | The page's strict CSP. |
+| `DEFAULT_FUNNEL_PAGE_LABELS` | Default page copy. |
+| `FunnelStore`, `RedemptionOptions`, `FunnelPageOptions`, `FunnelRoutesOptions` | Types. |
+
+| `funnelRoutes` option | Type | Default | |
+| --- | --- | --- | --- |
+| `funnels` | `FunnelStore` | required | signet-db's `createFunnels`. |
+| `secret` | `string` | required | 32+ characters, its own secret. |
+| `redeemUrl` | `string` | required | Universal link or `example://redeem`. |
+| `previousSecrets` | `string[]` | none | Keys being rotated out. |
+| `ttlSeconds` | `number` | 7 days | Redemption token lifetime. |
+| `userId` | `(c) => string \| undefined` | none | For `POST /redeem`. Undefined is 401. |
+| `orgId` | `(c) => string \| undefined` | none | |
+| `country` | `(c) => string \| undefined` | `cf-ipcountry` | |
+| `page` | `{ stripePublishableKey?, razorpayKeyId?, labels? }` | none | |
+
+### `http/webhooks` (outbound admin routes)
+
+| Export | What it does |
+| --- | --- |
+| `webhookRoutes({ webhooks, owner })` | Endpoints, secret rotation, delivery log, redeliver. |
+| `WebhookEndpointInput`, `WebhookEndpointPatch`, `WebhookDeliveryQuery` | Zod schemas for the bodies and query. |
+| `WebhookStore`, `WebhookDeliveryStatus`, `WebhookRoutes` | Types. |
+
+Routes: `GET|POST /endpoints` (POST answers 201 with the secret once), `PATCH|DELETE /endpoints/:id`, `POST /endpoints/:id/rotate-secret`, `GET /deliveries`, `POST /deliveries/:id/redeliver`. Another owner's id is 404.
+
+### `http/workflows`
+
+| Export | What it does |
+| --- | --- |
+| `workflowRoutes({ workflows, subject, isAdmin?, canStart? })` | Start, status, cancel, events, approve and reject steps. |
+| `WorkflowEngineLike`, `WorkflowRoutesOptions`, `WorkflowRoutes` | Types. |
+
+| Route | Who |
+| --- | --- |
+| `GET /runs` | Admins: every run. Others: runs they started. |
+| `POST /runs` | `canStart` (default admins only). |
+| `GET /runs/:id` | Admins, the starter, the run's approvers. Others get 404. |
+| `POST /runs/:id/cancel` | Admins, the starter. |
+| `POST /runs/:id/steps/:step/approve`, `/reject` | A listed approver. 409 once decided. |
+| `POST /events` | Admins. |
+| `GET /approvals` | Approval steps waiting on the caller. |
+
+### `http/ai-spend`
+
+| Export | What it does |
+| --- | --- |
+| `requireAiSpend(options)` | Middleware: 429 `AI_SPEND_CAP_EXCEEDED` over a cap, 503 `AI_SPEND_UNAVAILABLE` on a store error. |
+| `aiSpendAdminRoutes(options)` | `GET /usage`, `GET /usage/:scope/:id`, `GET /caps`, `PUT /caps`, `DELETE /caps/:scope/:subject/:period`. |
+| `AiSpendStore`, `RequireAiSpendOptions`, `AiSpendAdminOptions` | Types. |
+
+| `requireAiSpend` option | Type | Default | |
+| --- | --- | --- | --- |
+| `spend` | `AiSpendStore` | required | signet-db's `createAiSpend`. |
+| `subject` | `(c) => { userId?, orgId? }` | required | Who is charged. |
+| `estimateUnits` | `number \| (c) => number` | `0` | Refuse only once a cap is reached. |
+| `message` | `({ scope, period }) => string` | names scope and period | |
+
+## Examples
+
+### Multi-tenant API with roles
+
+```ts
+import { currentTenant, orgGuards, orgRoutes, tenant } from "@dapplelight/signet-server/http/orgs"
+
+const userId = (c) => c.get("session")?.sub
+const { requirePermission } = orgGuards({ orgs, userId })
+
+app.use("/api/*", tenant({ orgs, rootDomain: "app.example" }))
+app.get("/api/projects", requirePermission("projects:read"), async (c) =>
+  c.json(await listProjects(currentTenant(c).id)))
+app.route("/api/orgs", orgRoutes({ orgs, userId, email: (c) => c.get("session")?.email }))
+```
+
+### Admin API, deny by default
+
+```ts
+import { adminRoutes } from "@dapplelight/signet-server/http/admin"
+
+app.route("/admin", adminRoutes(admin, {
+  db: (c) => createDb(c.env.DB, { audit }),
+  ctx: async (c) => {
+    const user = await currentUser(c)
+    return user ? { actor: { type: "user", id: user.id }, role: user.role } : undefined // undefined: 401
+  },
+}))
+```
+
+### Refuse AI calls over budget
+
+```ts
+import { requireAiSpend } from "@dapplelight/signet-server/http/ai-spend"
+
+app.use("/api/ai/*", requireAiSpend({
+  spend,
+  subject: (c) => ({ userId: c.get("session").sub, orgId: currentTenant(c).id }),
+}))
+```
+
+### Clean user markdown before saving
+
+```ts
+import { sanitizeMarkdown } from "@dapplelight/signet-server/http/sanitize"
+
+const NoteInput = z.object({ body: z.string().max(20_000).transform(sanitizeMarkdown) })
+```
+
+### Maintenance and status page
+
+```ts
+import { statusAdminRoutes, statusRoutes } from "@dapplelight/signet-server/http/status"
+import { maintenanceMode } from "@dapplelight/signet-server/middleware/maintenance"
+
+app.use("*", maintenanceMode({ state: () => status.maintenance(), paths: ["/health", "/api/status", "/api/admin"] }))
+app.route("/api/status", statusRoutes({ status }))
+app.route("/api/admin/status", statusAdminRoutes({
+  status,
+  authorize: (c) => c.get("session")?.role === "admin",
+  actor: (c) => ({ type: "user", id: c.get("session").sub }),
+}))
+```

@@ -1,0 +1,42 @@
+---
+title: "Postgres"
+description: "Postgres driver on postgres-js for Supabase, Neon, RDS or a local server."
+---
+
+## Usage
+```ts
+import { createDb } from "@dapplelight/signet-db/postgres"
+import * as schema from "./schema"
+
+export function makeDb(databaseUrl: string) {
+  return createDb(databaseUrl, { schema, audit: schema.auditLog })
+}
+```
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createDb(client, config)` | Connect with postgres-js and return a `SignetDb`. |
+
+### createDb(client, config)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `client` | `string \| Sql` | required | A database URL, or a `postgres()` client. |
+| `config.schema` | Drizzle schema object | none | Typed `db.orm` queries. |
+| `config.cipher` | `Cipher` | none | Encrypts `encrypted()` columns. |
+| `config.audit` | table | none | The `auditLog()` table; turns on `audited()`. |
+| `config.outbox` | table | none | The `outbox()` table. |
+| `config.idempotency` | table | none | The `idempotencyKeys()` table. |
+| `config.versions` | `{ table, track }` | none | Row version history. |
+
+Atomic groups run as interactive transactions.
+
+## Examples
+### Supabase transaction pooler
+Pass your own client with prepared statements off.
+```ts
+import postgres from "postgres"
+import { createDb } from "@dapplelight/signet-db/postgres"
+
+export const db = createDb(postgres(poolerUrl, { prepare: false }), { schema })
+```

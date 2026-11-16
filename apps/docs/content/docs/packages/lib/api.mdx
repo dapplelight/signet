@@ -1,0 +1,100 @@
+---
+title: "API"
+description: "Fetch client, typed Hono RPC client, error classes, stream readers and TanStack Query defaults."
+---
+
+## Usage
+```ts
+import { createApiClient, qs, errorCopy, ApiError } from "@dapplelight/signet-lib/api"
+
+const api = createApiClient({
+  baseUrl: "/api",
+  onAuthError: () => location.assign("/login"),
+})
+
+try {
+  const orders = await api.get<Order[]>(`/orders${qs({ status: "open", tag: ["rush", "gift"] })}`)
+  await api.post("/orders", { sku: "BOARD-01", qty: 2 })
+} catch (err) {
+  if (err instanceof ApiError) toast(errorCopy(err.code).title)
+}
+```
+
+Errors are enveloped, successes are not. Every response is checked: non-2xx throws `ApiError`, a 401 throws `AuthError`.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createApiClient(options?)` | Fetch wrapper with `get`, `post`, `put`, `patch`, `delete`, `postForm`, `request`, `send`, `raw` |
+| `createRpcClient(hc, options?)` | Typed client for a Hono app; pass `hc<AppType>` from `hono/client` |
+| `timeout(ms, init?)` | Per-call timeout for an RPC call, as hc's `init` |
+| `qs(params)` | Query string; drops empty values, arrays append one pair per item |
+| `toApiError(res)` | `ApiError` from a failed `Response` |
+| `retryAfterSeconds(headers, now?)` | Seconds until retry, from `Retry-After` or rate-limit headers |
+| `ApiError`, `AuthError`, `TimeoutError` | Error classes. `TimeoutError` is a 408 with code `TIMEOUT` |
+| `isAuthError(e)`, `isTimeoutError(e)` | Type guards |
+| `ERROR_CODES`, `ErrorCode`, `isErrorCode(v)` | Every code the server kit emits |
+| `DEFAULT_ERROR_COPY`, `errorCopy(code, table?)`, `ErrorCopy`, `ErrorAction` | User-facing copy per code |
+| `ErrorEnvelope`, `isErrorEnvelope(v)` | The wire error shape |
+| `readText`, `readNdjson`, `readSse`, `readSseJson`, `SseEvent` | Async iterators over a streamed `Response` |
+| `QueryValue`, `ApiClient`, `ApiClientOptions`, `RpcClientOptions` | Types |
+
+### createApiClient(options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `baseUrl` | `string` | `""` | Prefix for every path |
+| `credentials` | `RequestCredentials` | `"include"` | Use `"omit"` with tokens |
+| `headers` | `() => Record<string,string>` (may be async) | none | Added to every request |
+| `onAuthError` | `(error: AuthError) => void` | none | Called once per 401 before it throws |
+| `token` | `() => Promise<string \| null>` | none | Sent as `Authorization: Bearer` |
+| `refresh` | `() => Promise<string \| null>` | none | On a 401, return a new token and the request is retried once |
+
+`createSession().token` and `.refresh` fit the last two. `send` returns the `Response` untouched (only a 401 throws); `raw` throws on non-2xx and returns the `Response` for binaries.
+
+### createRpcClient(hc, options)
+Takes the `createApiClient` options (`baseUrl`, `credentials`, `headers`, `onAuthError`, `token`, `refresh`), plus:
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `retries` | `number` | `0` | GET and HEAD only; waits `Retry-After`, else 0.5s, 1s, 2s |
+| `fetch` | `typeof fetch` | `globalThis.fetch` | E.g. a service binding |
+| `timeoutMs` | `number` | none | Per attempt, until headers arrive |
+
+Each request gets an `x-request-id`, kept across retries.
+
+## TanStack Query defaults
+`@dapplelight/signet-lib/api/query-client` needs `@tanstack/react-query`.
+
+```ts
+import { QueryClient } from "@tanstack/react-query"
+import { onAuthErrorRedirect, queryDefaults } from "@dapplelight/signet-lib/api/query-client"
+
+const queryClient = new QueryClient({ defaultOptions: queryDefaults({ staleTimeMs: 60_000 }) })
+onAuthErrorRedirect(queryClient, () => location.assign("/login"))
+```
+
+| Export | What it does |
+| --- | --- |
+| `queryDefaults(options?)` | Default options: retry only network errors, 5xx, 408, 429; honours `retryAfter`; mutations never retry |
+| `isRetryable(error)` | The default retry filter. Auth errors are never retried |
+| `onAuthErrorRedirect(client, redirect)` | Calls `redirect` once on the first `AuthError`. Returns unsubscribe |
+| `QueryDefaultsOptions` | `staleTimeMs` (5 min), `maxRetries` (2), `shouldRetry` |
+
+## Examples
+### Read a streamed chat reply
+```ts
+import { readSseJson } from "@dapplelight/signet-lib/api"
+
+const res = await fetch("/api/chat", { method: "POST", body: JSON.stringify({ messages }) })
+for await (const chunk of readSseJson<{ type: string; delta?: string }>(res)) {
+  if (chunk.type === "text-delta") append(chunk.delta ?? "")
+}
+```
+
+### Override copy for one code
+```ts
+import { DEFAULT_ERROR_COPY, errorCopy } from "@dapplelight/signet-lib/api"
+
+const copy = { ...DEFAULT_ERROR_COPY, RATE_LIMITED: { title: "Easy there", detail: "Search again shortly.", action: "wait" as const } }
+errorCopy(err.code, copy)
+```

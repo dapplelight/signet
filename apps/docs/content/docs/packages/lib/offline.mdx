@@ -1,0 +1,47 @@
+---
+title: "Offline"
+description: "An outbox that saves work done offline and sends it when you are back online."
+---
+
+## Usage
+```ts
+import { createOutbox } from "@dapplelight/signet-lib/offline"
+import { indexedDbStorage } from "@dapplelight/signet-lib/storage"
+
+const outbox = createOutbox<NewExpense>({ storage: indexedDbStorage() })
+
+async function saveExpense(expense: NewExpense) {
+  if (!navigator.onLine) return outbox.add(expense)
+  await api.post("/expenses", expense)
+}
+
+addEventListener("online", () =>
+  outbox.flush((expense, id) => api.post("/expenses", expense, { headers: { "Idempotency-Key": id } })),
+)
+```
+
+<Callout type="warn">
+`send` must be safe to repeat for the same `id`. A crash between sending and removing can deliver an item twice, so send `id` as an idempotency key.
+</Callout>
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createOutbox<T>(options)` | Returns an `Outbox<T>` |
+| `OutboxOptions`, `Outbox` | Types |
+
+### createOutbox(options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `storage` | `StorageAdapter` | required | Any adapter from Storage |
+| `key` | `string` | `"signet-outbox"` | One per outbox |
+
+### Outbox methods
+| Method | Returns |
+| --- | --- |
+| `add(item)` | The new item's id |
+| `count()` | Items waiting |
+| `flush(send)` | Sends each item in order, removes sent ones, keeps failures. Resolves to how many were sent |
+| `clear()` | Drops everything |
+
+One flush runs at a time. Where Web Locks exist, tabs and the service worker sharing a `key` take turns. Items are stored as one JSON array: fine for hundreds, not thousands.

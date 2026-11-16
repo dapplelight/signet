@@ -1,0 +1,62 @@
+---
+title: "Extract"
+description: "Typed, validated model output with retry, failover, cache and budget."
+---
+
+## Usage
+```ts
+import { z } from "zod"
+import { createExtractor } from "@dapplelight/signet-ai/extract"
+import { aiSdkProvider } from "@dapplelight/signet-ai/providers/ai-sdk"
+
+const ai = createExtractor({
+  providers: [
+    aiSdkProvider({ name: "primary", model: primaryModel, pricing: { perCallUsd: 0.0005 } }),
+    aiSdkProvider({ name: "backup", model: backupModel, pricing: { inputPerMTokens: 0.15, outputPerMTokens: 0.6 } }),
+  ],
+  onUsage: (r) => log.info("ai.usage", r),
+})
+
+const { value, meta } = await ai.extract({
+  schema: z.object({ invoiceNumber: z.string(), total: z.number() }),
+  input: emailBody,
+  instructions: "Read the invoice number and total.",
+  budget: { maxCostUsd: 0.002, key: user.id },
+  fallback: { value: { invoiceNumber: "", total: 0 } },
+})
+```
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createExtractor(config)` | Returns `{ extract }` |
+| `ExtractConfig`, `ExtractArgs`, `Extractor` | Types |
+| `ExtractResult<T>`, `ExtractMeta` | Result `{ value, meta }`; meta has `provider`, `model`, `usage`, `costUsd`, `cacheHit`, `attempts`, `durationMs` |
+| `Provider`, `Pricing`, `Usage`, `BudgetOptions` | Types from the root |
+
+### createExtractor(config)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `providers` | `Provider[]` | required | Tried in order |
+| `cache` | `Cache` | none | See Cache |
+| `cacheTtlSeconds` | `number` | `3600` | |
+| `ledger` | `BudgetLedger` | none | Needs `pricing` on every provider |
+| `allowUnpriced` | `boolean` | `false` | Skip the pricing check for a free provider |
+| `timeoutMs` | `number` | `20000` | Per attempt |
+| `maxRetriesPerProvider` | `number` | `1` | Transient errors only |
+| `onEvent` | `(event, data) => void` | none | `ai.ok`, `ai.attempt_failed`, `ai.cache_hit`, `ai.cache_error`, `ai.fallback_used` |
+| `onUsage` | `OnUsage` | none | One report per call that reached a model |
+
+### extract(args)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `schema` | Zod schema | required | Result type is inferred from it |
+| `input` | `string` | required | |
+| `instructions` | `string` | required | |
+| `budget` | `{ maxCostUsd?, key? }` | none | Per-call cap; `key` charges a user |
+| `fallback` | `"throw"` or `{ value }` | `"throw"` | Used when every provider fails |
+| `cache` | `boolean` | `true` | `false` skips the cache |
+
+<Callout type="info">
+A `fallback` never masks a budget refusal. Running out of money must be visible.
+</Callout>

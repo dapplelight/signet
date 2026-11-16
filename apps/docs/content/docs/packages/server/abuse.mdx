@@ -1,0 +1,108 @@
+---
+title: "Abuse"
+description: "Bot checks and disposable-email blocking for sign-up and reset routes."
+---
+
+## Usage
+
+```ts
+import { Hono } from "hono"
+import { captchaVerifier, requireCaptcha } from "@dapplelight/signet-server/abuse/captcha"
+import { blockDisposableEmail } from "@dapplelight/signet-server/abuse/email"
+
+type Env = { Bindings: { APP_ENV: string; TURNSTILE_SECRET: string } }
+const app = new Hono<Env>()
+
+// Built per request, so the secret comes from c.env, never module scope.
+const bots = requireCaptcha({
+  verifier: (c) =>
+    c.env.APP_ENV === "local"
+      ? captchaVerifier({ provider: "test" })
+      : captchaVerifier({ provider: "turnstile", secret: c.env.TURNSTILE_SECRET, hostname: "app.example.com" }),
+  trust: "cloudflare",
+})
+
+app.use("/api/auth/sign-up/*", bots, blockDisposableEmail({ add: ["burner.example"], allow: ["partner.example"] }))
+app.use("/api/auth/forget-password", bots)
+```
+
+Pair both with `rateLimit` on the same routes. This module does not count requests.
+
+## API
+
+### `abuse/captcha`
+
+| Export | What it does |
+| --- | --- |
+| `captchaVerifier(options)` | Verifies a Turnstile or hCaptcha token with a plain `fetch` to siteverify. |
+| `requireCaptcha(options)` | Middleware: refuses the request without a valid token. |
+| `captchaToken(c)` | Default token reader: header, then JSON or form body (from a clone). |
+| `CAPTCHA_HEADER` | `"x-captcha-token"`. |
+| `CAPTCHA_TEST_PASS` | The one token test mode accepts. |
+| `SITEVERIFY_URLS` | Provider siteverify endpoints. |
+| `CaptchaProvider`, `CaptchaOptions`, `CaptchaResult`, `CaptchaVerifier`, `RequireCaptchaOptions` | Types. |
+
+### `abuse/email`
+
+| Export | What it does |
+| --- | --- |
+| `blockDisposableEmail(options)` | Middleware: 400 `DISPOSABLE_EMAIL` for a throwaway address. |
+| `isDisposableEmail(email, options)` | The same check inside your own handler. |
+| `disposableEmailChecker(options)` | Build one checker `(email) => boolean` and reuse it. |
+| `normalizeEmail(email)` | One key per inbox: lowercase, drop `+tag`, Gmail dots. `null` if not an address. |
+| `emailDomain(email)` | The domain part, or `null`. |
+| `DisposableEmailOptions`, `BlockDisposableEmailOptions` | Types. |
+
+### captchaVerifier(options)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `provider` | `"turnstile" \| "hcaptcha" \| "test"` | required | `test` makes no network call. |
+| `secret` | `string` | none | Provider secret. Required except in test mode. |
+| `siteKey` | `string` | none | hCaptcha: the site key the token must belong to. |
+| `hostname` | `string \| string[]` | any | Refuse tokens solved on another hostname. |
+| `action` | `string` | any | Turnstile: refuse a different widget `action`. |
+| `timeoutMs` | `number` | `5000` | Per verify. |
+| `fetch` | `typeof fetch` | global | |
+| `appEnv` | `string` | `"local"` | Test mode throws when this is `production` or `staging`. |
+
+`verifier.verify(token, { ip })` resolves to `{ ok: true }` or `{ ok: false, reason, errorCodes }`, where `reason` is `"missing"`, `"invalid"` or `"unavailable"`.
+
+### requireCaptcha(options)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `verifier` | `CaptchaVerifier \| (c) => CaptchaVerifier` | required | A function builds one per request. |
+| `token` | `(c) => string \| null \| undefined` (may be async) | `captchaToken` | Where the token is. |
+| `trust` | `ClientIpTrust` | `"none"` | Which proxy to believe for the IP sent to the provider. |
+| `onRefuse` | `(result, c) => void` | none | Told about every refusal. |
+
+| Refusal | Status | Code |
+| --- | --- | --- |
+| No token | 400 | `CAPTCHA_REQUIRED` |
+| Provider said no, or wrong hostname or action | 403 | `CAPTCHA_FAILED` |
+| Provider unreachable (fails closed) | 503 | `CAPTCHA_UNAVAILABLE` |
+
+The default reader checks the `x-captcha-token` header, then the body field `captchaToken`, `cf-turnstile-response` or `h-captcha-response`.
+
+### blockDisposableEmail(options)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `add` | `string[]` | none | More domains to block, subdomains included. |
+| `allow` | `string[]` | none | Never blocked. Beats the list and `add`. |
+| `field` | `string` | `"email"` | Body field holding the address. |
+| `message` | `string` | `"Use a permanent email address."` | |
+
+A blocked address answers 400 `DISPOSABLE_EMAIL` with `details.fieldErrors.email`. A missing or malformed address passes through for your own validation.
+
+## Examples
+
+### One account per inbox
+
+```ts
+import { normalizeEmail } from "@dapplelight/signet-server/abuse/email"
+
+const key = normalizeEmail("M.E+promo@Gmail.com") // "me@gmail.com"
+// Store and look up `key`. Send mail to what the person typed.
+```

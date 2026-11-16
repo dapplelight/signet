@@ -1,0 +1,49 @@
+---
+title: "UI"
+description: "Token-driven React components on Tailwind v4, plus hooks, screens and domain blocks."
+---
+
+```bash
+npm i @dapplelight/signet-ui @dapplelight/signet-tokens
+```
+
+## Quick start
+
+```css title="app.css"
+@import "tailwindcss";
+@import "@dapplelight/signet-tokens/editorial.css";
+@import "@dapplelight/signet-tokens/base.css";
+/* Tailwind does not scan node_modules; the kit's class names must be seen. */
+@source "../node_modules/@dapplelight/signet-ui/dist";
+```
+
+```tsx
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { Card } from "@dapplelight/signet-ui/components/card"
+
+export function Invoice() {
+  return (
+    <Card>
+      <Button>Pay now</Button>
+    </Card>
+  )
+}
+```
+
+The barrel works too: `import { Button, Card } from "@dapplelight/signet-ui"`. Swap the theme file and every component changes.
+
+## Components
+
+<Cards>
+  <Card title="Components" href="/docs/components/button" description="Every component, with props and examples." />
+</Cards>
+
+## Modules
+
+<Cards>
+  <Card title="Behaviors" href="/docs/packages/ui/behaviors" description="Shortcuts, controllable state, fuzzy match." />
+  <Card title="Domain" href="/docs/packages/ui/domain" description="Amount, CSV import, kanban, upload, job runs." />
+  <Card title="Hooks" href="/docs/packages/ui/hooks" description="Copy, debounce, storage, media query, realtime." />
+  <Card title="Screens" href="/docs/packages/ui/screens" description="Auth, account, billing, admin, orgs and more." />
+  <Card title="Utils" href="/docs/packages/ui/utils" description="cn() and the type ramp." />
+</Cards>

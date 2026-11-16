@@ -1,0 +1,106 @@
+---
+title: "Orgs"
+description: "Multi-tenant organisations: members, roles, permissions, custom domains and invites."
+---
+
+## Usage
+```ts
+import { orgTables } from "@dapplelight/signet-db/columns/sqlite"
+import { scoped } from "@dapplelight/signet-db"
+import { createOrgs } from "@dapplelight/signet-db/orgs"
+
+// schema.ts
+export const { organizations, memberships, invitations, orgRoles } = orgTables()
+
+// app
+const orgs = createOrgs(db, { tables: { organizations, memberships, invitations, orgRoles } })
+
+const org = await orgs.create({ name: "Acme", ownerId: userId })
+const { token } = await orgs.invite({ orgId: org.id, email, role: "member", invitedBy: userId })
+const joined = await orgs.acceptInvite(token, { userId: otherId, email })
+if (!joined.ok) console.log(joined.reason) // not_found | expired | used | revoked | email_mismatch
+
+await orgs.can(org.id, otherId, "members:invite") // false
+const data = scoped(db, { orgId: org.id })       // this org's rows only
+```
+
+Give your tenant tables an `orgId: text("org_id").notNull()` column so `scoped(db, { orgId })` keeps each org to its own rows.
+
+Safe by default:
+- Nobody can grant a role with a permission they do not hold (`by`).
+- An org always keeps at least one owner.
+- Invite tokens are 256 random bits, shown once, stored as SHA-256, and expire in 7 days.
+- A member, invite or role of another org reads as not found.
+- With an `audit` table, every write leaves an entry. Tokens are never logged.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createOrgs(db, options)` | The orgs store. Methods below. |
+| `defineRoles(roles)` | Validate and declare your roles (names: lower-case letters, digits, `-`, `_`). |
+| `hasPermission(perms, permission)` | Matches `*`, the exact string, or `group:*`. |
+| `canGrant(mine, theirs)` | Whether you hold every permission you want to hand out. |
+| `ORG_PERMISSIONS` | `update`, `readMembers`, `invite`, `manageMembers`, `manageRoles`, `admin` as permission strings. |
+| `DEFAULT_ORG_ROLES` | `owner` (`*`), `admin` (everything but roles), `member` (`members:read`). |
+| `slugify(name)` | `"Acme Labs!"` becomes `"acme-labs"`. |
+| `normalizeDomain(host)` | Lower-case, no port, no trailing dot. |
+| `OrgError` | Error with an HTTP `status` (400, 403, 404, 409) for the error envelope. |
+| `OrgTables`, `OrgsOptions`, `Orgs`, `Org`, `OrgSettings`, `Membership`, `MembershipWithPermissions`, `Invitation`, `InvitationStatus`, `AcceptInviteResult`, `By`, `Permission`, `RoleMap` | Types. |
+
+### createOrgs(db, options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `tables` | `OrgTables` | required | From `orgTables()`. `orgRoles` is optional; without it only code roles exist. |
+| `roles` | `RoleMap` | `DEFAULT_ORG_ROLES` | Must include `ownerRole`. |
+| `ownerRole` | `string` | `"owner"` | Creator's role; an org always needs one. |
+| `inviteTtlMs` | `number` | 7 days | Invite lifetime. |
+| `now` | `() => Date` | `new Date()` | Clock, for tests. |
+
+### Methods
+Pass `{ by: userId }` where shown to check the actor's permissions; omit it for system jobs.
+
+| Method | What it does |
+| --- | --- |
+| `create({ name, ownerId, slug?, domain?, theme?, brandColor?, personal? })` | New org and its owner in one atomic write. Slug is made unique from the name. |
+| `get(id)` / `bySlug(slug)` / `byDomain(host)` | Look up an org. |
+| `update(orgId, settings, { by? })` | Name, slug, domain, theme, brand colour (`#rrggbb`). `by` needs `org:update`. |
+| `listForUser(userId)` | `{ org, role }` for each membership. |
+| `membership(orgId, userId)` | Membership with its permissions, or null. |
+| `can(orgId, userId, permission)` | Whether their role grants it. |
+| `members(orgId)` | Members, oldest first. |
+| `addMember(orgId, userId, role, { by? })` | Add directly. `by` needs `members:manage`. |
+| `setRole(orgId, userId, role, { by? })` | Change a role. |
+| `removeMember(orgId, userId, { by? })` | Remove, or leave when `by` is the member. |
+| `roles(orgId)` | Code roles plus the org's custom roles. |
+| `saveRole(orgId, name, permissions, { by? })` | Create or replace a custom role. Needs `roles:manage`. |
+| `deleteRole(orgId, name, { by? })` | Delete a custom role nobody holds. |
+| `invite({ orgId, role, invitedBy, email?, ttlMs? })` | Returns `{ invitation, token }`. |
+| `previewInvite(token)` | `{ invitation, org }` to show before accepting. |
+| `acceptInvite(token, { userId, email? })` | Join the org. If the invite names an email, pass the verified one. |
+| `revokeInvite(orgId, id, { by? })` | Needs `members:invite`. |
+| `invitations(orgId, { pending? })` | Newest first. |
+| `permissionsOf(orgId, role)`, `codeRoles`, `ownerRole` | Role lookups. |
+
+## Examples
+### Custom role per org
+```ts
+await orgs.saveRole(org.id, "billing", ["members:read", "billing:*"], { by: ownerId })
+await orgs.setRole(org.id, accountantId, "billing", { by: ownerId })
+```
+
+### Resolve the org from the request host
+```ts
+const org = (await orgs.byDomain(request.headers.get("host") ?? "")) ?? null
+```
+
+### Your own roles
+```ts
+import { defineRoles, ORG_PERMISSIONS } from "@dapplelight/signet-db/orgs"
+
+const roles = defineRoles({
+  owner: ["*"],
+  editor: ["members:read", "posts:*"],
+  viewer: [ORG_PERMISSIONS.readMembers],
+})
+const orgs = createOrgs(db, { tables, roles })
+```

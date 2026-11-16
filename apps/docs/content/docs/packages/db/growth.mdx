@@ -1,0 +1,95 @@
+---
+title: "Growth"
+description: "Waitlist, invites, referrals, onboarding progress, changelog and feedback."
+---
+
+## Usage
+```ts
+import { growthTables } from "@dapplelight/signet-db/columns/sqlite"
+import { createGrowth } from "@dapplelight/signet-db/growth"
+
+// schema.ts
+export const { waitlist, invites, referralCodes, referrals, marks, feedback } = growthTables()
+
+// app
+const growth = createGrowth(db, {
+  tables: { waitlist, invites, referralCodes, referrals, marks, feedback },
+})
+
+await growth.joinWaitlist("maya@example.com", { source: "landing" })
+const { token } = await growth.createInvite({ invitedBy: userId, scope: teamId, role: "member" })
+const result = await growth.acceptInvite(token, { userId, email })
+if (!result.ok) console.log(result.reason) // not_found | expired | used | revoked | email_mismatch
+```
+
+Use `@dapplelight/signet-db/columns/pg` for Postgres. These writes are not audited: they are the user's own actions.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createGrowth(db, options)` | The growth store. Methods below. |
+| `growthTools(options)` | Plain MCP tools for an operator agent. |
+| `normalizeEmail(email)` | Lower-case and trim; throws `BAD_INPUT` if it is not an address. |
+| `DEFAULT_FEEDBACK_KINDS` | `bug`, `idea`, `praise`, `other`. |
+| `GrowthTables`, `GrowthOptions`, `GrowthToolsOptions` | Option types. |
+| `WaitlistEntry`, `Invite`, `InviteStatus`, `AcceptResult`, `Referral`, `ReferResult`, `Feedback`, `FeedbackStatus`, `Growth` | Result types. |
+
+### createGrowth(db, options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `tables` | `GrowthTables` | required | From `growthTables()`. |
+| `inviteTtlMs` | `number` | 7 days | How long an invite stays valid. |
+| `feedbackKinds` | `string[]` | `DEFAULT_FEEDBACK_KINDS` | Allowed feedback kinds. |
+| `now` | `() => Date` | `new Date()` | Clock, for tests. |
+
+### Methods
+| Method | What it does |
+| --- | --- |
+| `joinWaitlist(email, { source?, referralCode? })` | Idempotent. Returns `{ email, position, joined }`. |
+| `waitlistPosition(email)` | Place in line; 0 once invited; null if not listed. |
+| `listWaitlist({ pending?, limit?, offset? })` | Oldest first. |
+| `waitlistStats()` | `{ total, pending, invited }`. |
+| `markInvited(emails)` | Mark people as let in; returns how many changed. |
+| `createInvite({ invitedBy, email?, scope?, role?, ttlMs? })` | Returns `{ invite, token }`. The token is shown once; only its SHA-256 is stored. |
+| `acceptInvite(token, { userId, email? })` | Once only. The same user again gets `already: true`. |
+| `revokeInvite(id)` | Revoke a pending invite. |
+| `listInvites({ invitedBy?, scope?, limit?, offset? })` | Newest first. |
+| `referralCode(subject)` | The subject's 8-character code, made on first call. |
+| `refer(code, referee)` | Record a signup. Reasons: `unknown_code`, `self`, `already_referred`. |
+| `convertReferral(referee)` | `{ referral, first }`. `first` is true only once. |
+| `markRewarded(referee)` | False if already rewarded. |
+| `referralStats(subject)` | `{ code, referred, converted, rewarded }`. |
+| `referralsBy(subject)` | Referrals the subject made. |
+| `mark(subject, key)` / `unmark` / `marksOf(subject, prefix?)` | Timestamped flags per subject. |
+| `completeStep(subject, step)` | Mark an onboarding step done. |
+| `onboarding(subject, steps)` | `{ done, next, complete, percent }`. |
+| `unseenChangelog(subject, entries)` | Entries newer than the subject last looked. |
+| `markChangelogSeen(subject)` | Record that they looked now. |
+| `sendFeedback({ subject?, kind, message, rating?, page?, meta? })` | Message is 1 to 5000 characters; rating 1 to 5. |
+| `listFeedback({ status?, kind?, limit?, offset? })` | Newest first. |
+| `setFeedbackStatus(id, status)` | `new`, `seen` or `done`. |
+
+### growthTools(options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `growth` | `Growth` | required | The store. |
+| `allowWrites` | `boolean` | `false` | Adds `create_invite`, `revoke_invite`, `set_feedback_status`. |
+| `invitedBy` | `string` | `"agent"` | Sender recorded on agent invites. |
+| `approve` | `Approve` | none | Return `undefined` to allow. Without it, write tools change nothing and return `APPROVAL_REQUIRED`. |
+
+Read tools: `waitlist_stats`, `list_waitlist`, `list_feedback`, `referral_stats`, `list_invites`.
+
+## Examples
+### Reward a referrer once
+```ts
+const conv = await growth.convertReferral(newUserId)
+if (conv?.first && (await growth.markRewarded(newUserId))) {
+  await grantCredit(conv.referral.referrer)
+}
+```
+
+### Onboarding checklist
+```ts
+await growth.completeStep(userId, "profile")
+const { next, percent } = await growth.onboarding(userId, ["profile", "first-project", "invite-team"])
+```

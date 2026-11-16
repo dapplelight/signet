@@ -1,0 +1,55 @@
+---
+title: "Razorpay"
+description: "Razorpay Orders, saved methods, subscriptions, RazorpayX payouts and settlement recon."
+---
+
+## Usage
+
+```ts
+import { razorpay } from "@dapplelight/signet-payments/razorpay"
+
+const rzp = razorpay({
+  keyId: env.RAZORPAY_KEY_ID,
+  keySecret: env.RAZORPAY_KEY_SECRET,
+  webhookSecret: env.RAZORPAY_WEBHOOK_SECRET,
+})
+
+// Creates an Order. Pass gatewayId as order_id to Razorpay Checkout in the browser.
+const order = await rzp.createCheckout({ amount: 49_900, currency: "INR", idempotencyKey: "order-1042" })
+
+// Webhook: X-Razorpay-Signature, HMAC-SHA256 hex of the raw body
+app.post("/webhooks/razorpay", (c) => payments.handleWebhook("razorpay", c.req.raw))
+```
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `razorpay(config)` | A `PaymentGateway` named `razorpay` over `api.razorpay.com/v1` (HTTP Basic) |
+| `toPayment(payload)` | Map a Razorpay payment object to the canonical `Payment` |
+| `RazorpayConfig` | Config type |
+
+### razorpay(config)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `keyId` | `string` | | Required |
+| `keySecret` | `string` | | Required |
+| `webhookSecret` | `string` | | Needed for `verifyWebhook` |
+| `accountNumber` | `string` | | RazorpayX account. Enables `payouts` |
+
+Plus the shared `baseUrl`, `fetch`, `retries`, `retryDelayMs`. Test and live share the host: the key decides, so `sandbox` does nothing.
+
+## Capabilities
+
+Methods: `upi`, `card`, `netbanking`, `wallet`, `emi`, `applepay`. Features: capture, refunds, partial refunds, customers, saved methods, subscriptions, settlements, webhooks, and payouts when `accountNumber` is set.
+
+## Quirks
+
+- **Checkout is an Order.** `capture: "manual"` sets the order's `payment.capture`. Leave it out to keep the Dashboard auto-capture setting.
+- **`receipt`** is `reference ?? idempotencyKey`, cut to 40 characters.
+- **Refund idempotency keys** must be 10 or more letters, digits, `-` and `_`, or the call is `BAD_INPUT`.
+- **Payouts** are RazorpayX: `destination` is a fund account id, sent as IMPS.
+- **Settlements** come from settlement recon for the day.
+- **Webhook id** is the `x-razorpay-event-id` header.
+- **Apple Pay** shows in Standard Checkout once enabled. Host the domain file with `applePayDomainAssociation(file)`. Google Pay in India is `upi`, so there is no `googlepay` method.

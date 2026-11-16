@@ -1,0 +1,85 @@
+---
+title: "Themes"
+description: "CSS theme files and base styles. Pick one theme, then import base.css."
+---
+
+## Usage
+
+```css title="src/app.css"
+@import "tailwindcss";
+@import "@dapplelight/signet-tokens/cinematic.css"; /* pick one theme */
+@import "@dapplelight/signet-tokens/base.css";      /* after the theme */
+```
+
+Dark mode: the `dark` class on any ancestor. Every theme defines light and dark.
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `@dapplelight/signet-tokens/base.css` | Body defaults, scrollbars, focus outline, overlay animations, reduced-motion rule. Import after a theme. |
+| `@dapplelight/signet-tokens/editorial.css` | Warm neutrals, green accent, dense data-first geometry. |
+| `@dapplelight/signet-tokens/cinematic.css` | Dark-first, cool neutrals, violet accent, sharp radii, large type scale, slow motion. |
+| `@dapplelight/signet-tokens/finance.css` | Editorial plus optional money slots: `--money-credit`, `--money-debit`, `--money-transfer`. |
+
+### Pick a theme
+
+Import exactly one theme file. `finance.css` already imports `editorial.css`, so do not import both.
+
+<Tabs items={["Editorial", "Cinematic", "Finance"]}>
+  <Tab value="Editorial">
+```css
+@import "@dapplelight/signet-tokens/editorial.css";
+```
+  </Tab>
+  <Tab value="Cinematic">
+```css
+@import "@dapplelight/signet-tokens/cinematic.css";
+```
+  </Tab>
+  <Tab value="Finance">
+```css
+@import "@dapplelight/signet-tokens/finance.css";
+```
+  </Tab>
+</Tabs>
+
+## The contract
+
+Every theme defines the same variables, listed in `CONTRACT.md` in the package: 78 required, 16 optional. `@dapplelight/signet-ui` reads only those, so any file that defines them all is a valid theme.
+
+| Group | Variables |
+| --- | --- |
+| Surfaces and text | `--color-background`, `--color-card`, `--color-text-primary`, `--color-text-muted`, ... |
+| Intent | `--color-primary`, `--color-secondary`, `--color-muted`, `--color-accent`, `--color-destructive` |
+| Lines and focus | `--color-border`, `--color-input`, `--color-ring` |
+| Status | `--color-accent-green`, `-red`, `-amber`, `-blue` (each with `-subtle`) |
+| Form | `--text-xs` to `--text-xl`, `--radius-sm` to `--radius-full`, `--spacing` |
+| Optional slots | `--chart-1` to `--chart-6`, `--focus-ring`, `--accent-primary`, `--leading-display` |
+
+## Examples
+
+### Tighten one screen
+
+`data-density` scales `--spacing` for everything inside. Values: `compact` (0.8), `comfortable` (1), `spacious` (1.25).
+
+```tsx
+<main data-density="compact">
+  <InvoiceTable rows={invoices} />
+</main>
+```
+
+### Tighten one component everywhere
+
+```css
+:root {
+  --density-button: 0.8;
+  --density-card: 1.25;
+}
+```
+
+Slots: `button`, `input`, `textarea`, `select-trigger`, `badge`, `card`, `tabs-list`, `dialog-content`, `sidebar`.
+
+### Make your own theme
+
+Copy a theme file and keep every contract variable, or generate one from a brand colour with [Theme](/docs/packages/tokens/theme).

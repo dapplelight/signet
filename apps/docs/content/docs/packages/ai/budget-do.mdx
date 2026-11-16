@@ -1,0 +1,35 @@
+---
+title: "Budget (Durable Object)"
+description: "An exact, global AI budget on Cloudflare Workers."
+---
+
+## Usage
+```ts
+// worker entry: export the class so the binding can find it
+export { BudgetCounter } from "@dapplelight/signet-ai/budget-do"
+
+// in a handler
+import { createBudgetLedger } from "@dapplelight/signet-ai"
+import { durableObjectBudgetStore } from "@dapplelight/signet-ai/budget-do"
+
+const ledger = createBudgetLedger(5, 86_400, {
+  store: durableObjectBudgetStore(env.AI_BUDGET),
+  perKeyUsd: 0.5,
+})
+```
+
+```jsonc
+// wrangler.jsonc
+"durable_objects": { "bindings": [{ "name": "AI_BUDGET", "class_name": "BudgetCounter" }] },
+"migrations": [{ "tag": "v1", "new_sqlite_classes": ["BudgetCounter"] }]
+```
+
+## API
+| Export | What it does |
+| --- | --- |
+| `BudgetCounter` | Durable Object class. Keeps spend in 60 buckets per window and empties itself after the window |
+| `durableObjectBudgetStore(namespace)` | A `BudgetStore` over a `BudgetCounter` namespace. Throws when the object is unreachable |
+| `BudgetCounterState` | Type: the `DurableObjectState` subset used |
+| `BudgetNamespace` | Type: the `DurableObjectNamespace` subset used |
+
+Each budget key maps to one single-threaded object, so the total is the real one. It loads under Bun and Node too, since it does not import `cloudflare:workers`.

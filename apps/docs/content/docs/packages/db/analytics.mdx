@@ -1,0 +1,72 @@
+---
+title: "Analytics"
+description: "Analytics events stored in your own database, with typed questions over them."
+---
+
+## Usage
+```ts
+import { analyticsEvents } from "@dapplelight/signet-db/columns/sqlite" // or /columns/pg
+import { createAnalyticsStore } from "@dapplelight/signet-db/analytics"
+
+export const events = analyticsEvents() // add it to your migrations
+
+const store = createAnalyticsStore(db, { table: events, privacy })
+
+await store.write([{ name: "checkout_started", userId, props: { plan: "pro" } }])
+await store.count({ event: "checkout_started", where: { plan: "pro" } })
+await store.trend({ event: "signup", period: "week" }) // { current, previous, change }
+await store.prune() // from a daily cron
+```
+
+The store is a signet-server `AnalyticsSink`, so [`registerIngest` and `serverTracker`](/docs/packages/server/analytics) from signet-server can write to it. A person is `userId`, else `anonymousId`; a `$identify` event links a browser's anonymous events to its user.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createAnalyticsStore(db, options)` | The store |
+| `analyticsTools({ store })` | Read-only agent tools: `list_events`, `query_analytics` |
+| Types | `StoredEventInput`, `AnalyticsStoreOptions`, `AnalyticsToolsOptions`, `AnalyticsStore`, `Bucket`, `Period`, `Range`, `Filter`, `TrendResult`, `CohortRow` |
+
+### createAnalyticsStore(db, options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `table` | `Table` | required | The `analyticsEvents()` table |
+| `retentionDays` | `number \| null` | `395` | `prune()` deletes older events; `null` keeps all |
+| `privacy` | `{ has(subject, purpose) }` | none | Keep a `userId` only for people who consented |
+| `purpose` | `string` | `"analytics"` | The consent purpose checked |
+| `now` | `() => Date` | `new Date` | Clock for tests |
+
+Store methods:
+
+| Method | What it does |
+| --- | --- |
+| `write(events)` | Store events; returns how many |
+| `identify(anonymousId, userId)` | Give anonymous events to a user; returns how many moved |
+| `count(filter)` | Number of events |
+| `uniques({ ...filter, by })` | Distinct people, or `by: "session"` |
+| `series({ ...filter, bucket, unique, utcOffsetMinutes })` | `{ start, value }` per `hour`, `day` or `week` |
+| `breakdown({ ...filter, property, limit, unique })` | Top values of a property |
+| `funnel({ steps, withinMs, from, to })` | People reaching each step in order, with `rate` |
+| `retention({ startEvent, returnEvent, bucket, periods })` | Cohorts and who returned |
+| `trend({ ...filter, period, unique })` | This period against the one before |
+| `events({ from, to })` | Event names and counts |
+| `prune()` | Apply `retentionDays` |
+
+A filter is `{ event?, where?, from?, to? }`; `from` and `to` default to the last 7 days.
+
+## Examples
+
+### Signup funnel and weekly retention
+```ts
+const steps = await store.funnel({ steps: ["signup", "first_order", "second_order"], withinMs: 7 * 86_400_000 })
+// [{ event: "signup", count: 120, rate: 1 }, ...]
+
+const cohorts = await store.retention({ startEvent: "signup", returnEvent: "order_placed", bucket: "week", periods: 8 })
+```
+
+### Give an agent the numbers
+```ts
+import { analyticsTools } from "@dapplelight/signet-db/analytics"
+
+const tools = analyticsTools({ store }) // aggregates only; mount on a staff server
+```

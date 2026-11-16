@@ -1,0 +1,305 @@
+---
+title: "MCP"
+description: "Typed MCP tools, resources and prompts served from Hono or stdio, with approvals."
+---
+
+## Usage
+
+```ts
+import { Hono } from "hono"
+import { z } from "zod"
+import { ApiException } from "@dapplelight/signet-server/http"
+import { defineTool } from "@dapplelight/signet-server/mcp"
+import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
+import { registerProtectedResourceMetadata, requireToken } from "@dapplelight/signet-server/oauth-rs/hono"
+
+const RESOURCE = "https://api.example.com/mcp"
+const META = "https://api.example.com/.well-known/oauth-protected-resource"
+
+// Module scope: defined once, shared by every request.
+const tools = [
+  defineTool({
+    name: "get_order",
+    description: "Read back an order by id.",
+    input: z.object({ id: z.string().uuid(), expand: z.boolean().default(false) }),
+    scopes: ["orders:read"], // checked against the verified token
+    annotations: { readOnlyHint: true },
+    handler: async ({ id, expand }, { token, c }) => {
+      const order = await ordersFor(c!.env).get(id, token!.claims.sub)
+      if (!order) throw new ApiException(404, "Order not found", "ORDER_NOT_FOUND")
+      return expand ? order : { id: order.id, status: order.status }
+    },
+  }),
+]
+
+const app = new Hono()
+registerProtectedResourceMetadata(app, { resource: RESOURCE, authorizationServers: ["https://auth.example.com"] })
+mountMcp(app, "/mcp", {
+  name: "orders",
+  version: "1.0.0",
+  tools,
+  middleware: [requireToken({ verifier, resourceMetadataUrl: META })],
+  onError: (err, { tool }) => sentry.captureException(err, { tool }),
+})
+```
+
+One endpoint serves both 2026-07-28 and 2025-era clients. A handler and server are built per request; the tools are the shared part.
+
+<Callout type="info">
+Needs `@modelcontextprotocol/server` (^2.1) and `zod` (`>=4.2`) as peers. Keep one copy of zod in the tree. `/mcp/hono` also needs `hono`.
+</Callout>
+
+## API
+
+### `mcp` (tools and server)
+
+| Export | What it does |
+| --- | --- |
+| `defineTool(definition)` | A typed tool. The handler input is `z.output` of the schema. |
+| `createMcpServer(options)` | Build an `McpServer` with tools, resources and prompts. Use as a `serveStdio` factory. |
+| `resolveMcpServer(options)` | Same, but lists may be functions of the caller (per-user tools). |
+| `toolResult(result)` | Send an exact `CallToolResult`. |
+| `toMcpTool(tool)` | A `PlainTool` as an `McpTool`. |
+| `toolErrorResult(info)`, `describeToolError(err)`, `INTERNAL_ERROR` | Error envelope helpers. |
+| `ToolDefinition`, `McpTool`, `PlainTool`, `AnyTool`, `ToolContext`, `ToolAnnotations`, `CallToolResult`, `ToolReturn`, `ToolRateLimit`, `McpCaller`, `Resolvable`, `ToolCallEvent`, `CreateMcpServerOptions`, `ResolveMcpServerOptions`, `ToolErrorInfo`, `ToolErrorOptions`, `ErrorMeta` | Types. |
+
+| `defineTool` field | Type | Default | |
+| --- | --- | --- | --- |
+| `name`, `description` | `string` | required | |
+| `handler` | `(input, ctx) => result` | required | A string is sent as is; anything else as JSON. |
+| `input` | `z.object(...)` | none | Omit for a tool with no arguments. |
+| `output` | `z.object(...)` | none | Advertised as `outputSchema`; sent as `structuredContent` plus JSON text. |
+| `title`, `annotations` | | none | `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`. Hints, not enforcement. |
+| `scopes` | `string[]` | none | Needs a token carrying them. No token: refused. |
+| `listed` | `boolean` | `true` | `false`: callable but hidden from `tools/list`. |
+| `visible` | `(caller) => boolean` | always | Hidden tools are neither listed nor callable. Needs `resolveMcpServer` or `mcpHandler`. |
+| `rateLimit` | `{ max, windowSeconds }` | none | Per principal. |
+| `timeoutMs` | `number` | server default | Answers `TIMEOUT`; `ctx.signal` aborts. |
+
+`ctx` has `tool`, `c` (Hono context), `token` (claims only, never the raw token), `signal`, `mcp` (the SDK's context), `principal` and `approvals`. Over stdio there is no `c` or `token`.
+
+### createMcpServer(options)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `name`, `version` | `string` | required | |
+| `tools` | `AnyTool[]` | required | `defineTool`s and plain `{ name, description, inputSchema, run }` objects. |
+| `resources`, `prompts` | `McpResource[]`, `McpPrompt[]` | none | |
+| `instructions` | `string` | none | How to use the tools together. |
+| `listChanged` | `boolean` | `false` | Set for lists that change while connected. |
+| `principal` | `(caller) => string` | token `sub` | Rate-limit key and approval owner. |
+| `rateLimit` | `{ store?, max?, windowSeconds? }` | per-isolate memory | Default for tools without their own. |
+| `timeoutMs` | `number` | none | Per call. |
+| `onToolCall` | `(event) => void` | none | Name, principal, actor, `durationMs`, `ok`, `code`. |
+| `confirm` | `{ key, ttlSeconds? }` | none | `key` 32+ bytes; binds a confirmation to its arguments. `ttlSeconds` default 600. |
+| `approvals` | `Approvals` | none | Pending approvals for clients that cannot ask. |
+| `mapError` | `(err) => { code, message, details? }` | none | Map your own error types. |
+| `errorResult` | `(err, { tool }) => CallToolResult` | none | Build the whole error result; runs first. |
+| `onError` | `(err, { tool, kind? }) => void` | none | Hears unexpected errors; the client sees `Internal error`. |
+
+### `mcp/hono`
+
+| Export | What it does |
+| --- | --- |
+| `mountMcp(app, path, options)` | Route GET, POST and DELETE through `middleware`, then `mcpHandler`. |
+| `mcpHandler(options)` | The route handler, to place yourself. |
+| `createMcpChanges()` | In-process `list_changed` notifier: `toolsChanged(principal?)`, `promptsChanged`, `resourcesChanged`. |
+| `McpChanges`, `McpHandlerOptions` | Types. |
+
+`McpHandlerOptions` are the `resolveMcpServer` options plus `changes`, `http` and `middleware` (mount only). Pass `server: (c, { era }) => McpServer` instead of `tools` to build the server yourself, a new one per call. `http` goes to the SDK's `createMcpHandler`: `legacy: "reject"` serves 2026-07-28 only, `responseMode: "sse"` always streams.
+
+### `mcp` (routes as tools)
+
+| Export | What it does |
+| --- | --- |
+| `appTools(app, options)` | Every `zValidator` route becomes a tool. Call after registering routes. |
+| `asTool(options \| false)` | Per-route say: name, description, approval; `false` never a tool. |
+| `routesAsTools(app, routes)` | Expose the routes you list. |
+| `routeToolName(method, path)` | `GET /api/notes/:id` to `get_api_notes_by_id`. |
+| `RouteTool`, `AsToolOptions`, `AppToolsOptions`, `RequestableApp`, `RoutableApp` | Types. |
+
+Each call runs the route in-process with the caller's `authorization` and `cookie`, so the route's own auth and validation decide. GET is `readOnlyHint`. Every other method asks through `requireApproval` first.
+
+| `appTools` option | Type | Default | |
+| --- | --- | --- | --- |
+| `optIn` | `boolean` | `false` | Only routes marked `asTool(...)`. |
+| `approval` | `boolean` | `true` | Ask before every non-GET. `asTool({ approval })` overrides per route. |
+
+### `mcp` (resources and prompts)
+
+| Export | What it does |
+| --- | --- |
+| `defineResource(definition)` | A fixed `uri`, or a `template` with `{vars}`; `read` returns JSON, a string, bytes or `null` for not found. |
+| `definePrompt(definition)` | `args` (strings) and `render` returning a string, messages or a `GetPromptResult`. |
+| `resourceResult(result)` | Send an exact `ReadResourceResult`. |
+| `McpResource`, `McpPrompt`, `ResourceDefinition`, `PromptDefinition`, `ResourceContext`, `PromptContext`, `ListedResource`, `PromptMessageInput`, `PromptReturn`, `ResourceReturn` | Types. |
+
+A resource template's optional `list` adds its instances to `resources/list`. A failed read or render is a JSON-RPC error (-32603 for a 5xx, -32602 otherwise).
+
+### `mcp` (confirm and approvals)
+
+| Export | What it does |
+| --- | --- |
+| `requireApproval(ctx, options)` | Gate a risky action. `undefined` means approved; anything else, return as is. |
+| `approvalGate` | `requireApproval` shaped for other packages' tool factories (`approve: approvalGate`). |
+| `confirm(ctx, options)` | Ask the person: `"confirmed"`, `"declined"`, `"unsupported"`, or a pending sentinel. |
+| `isConfirmPending(value)` | Narrows `confirm`'s pending case. |
+| `progress(ctx, done, total?, message?)` | Send `notifications/progress`. A no-op without a progress token. Never throws. |
+| `kvApprovals(kv, options)` | `Approvals` on any `KeyValue`. |
+| `Approvals`, `ApprovalRecord`, `ApprovalStatus`, `ApprovalEvent`, `ApprovalCall`, `KvApprovalsOptions`, `ApprovalOptions`, `ConfirmOptions`, `ConfirmPayload`, `ConfirmResult` | Types. |
+
+| `requireApproval` option | Type | Default | |
+| --- | --- | --- | --- |
+| `summary` | `string` | required | One line the person approves. |
+| `details` | `string \| Record` | none | What will change. |
+| `args` | `unknown` | `details` | The approval is bound to a hash of these: pass the tool input. |
+| `key` | `string` | tool name | |
+
+Results: `APPROVAL_DECLINED` (a no), `APPROVAL_PENDING` (store set, waiting for the person in the app), `APPROVAL_REQUIRED` (no store, client cannot ask). Nothing is done in any of them.
+
+| `kvApprovals` option | Type | Default | |
+| --- | --- | --- | --- |
+| `ttlSeconds` | `number` | `86400` | How long it can be approved, then used. |
+| `keepSeconds` | `number` | 7 days | History kept after expiry. |
+| `prefix` | `string` | `"signet-approval"` | |
+| `onEvent` | `({ type, record }) => void` | none | `requested`, `approved`, `denied`, `used`. For an audit log. |
+
+### `mcp/client`
+
+| Export | What it does |
+| --- | --- |
+| `createMcpClient(options)` | Fetch-only client: `listTools()`, `callTool(name, args)`, `close()`. |
+| `McpClientError` | JSON-RPC and HTTP failures (`code`, `data`, `status`). |
+| `McpClientOptions`, `McpToolInfo`, `McpCallResult`, `McpClient` | Types. |
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `url` | `string \| URL` | required | The server's MCP endpoint. |
+| `token` | `string \| () => string \| Promise<string>` | none | Sent as a bearer token; a function runs per request. |
+| `era` | `"legacy" \| "modern"` | `"legacy"` | `modern` for a 2026-07-28-only server. |
+| `clientInfo` | `{ name, version }` | `signet-mcp-client` | |
+| `headers` | `Record<string, string>` | none | |
+| `fetch` | `(Request) => Promise<Response>` | global | Pass an app-backed one for tests. |
+
+An `isError` result is returned, not thrown. The client declares no capabilities, so it is never asked for input.
+
+## Examples
+
+### Per-user tools
+
+```ts
+mountMcp(app, "/mcp", {
+  name: "orders",
+  version: "1.0.0",
+  middleware: [requireToken({ verifier, resourceMetadataUrl: META })],
+  tools: async ({ token }) => ((await isAdmin(token!.claims.sub)) ? [...base, ...admin] : base),
+})
+```
+
+### Routes as tools
+
+```ts
+import { appTools, asTool } from "@dapplelight/signet-server/mcp"
+import { zValidator } from "@dapplelight/signet-server/http/validate"
+
+const app = new Hono()
+  .get("/api/notes", zValidator("query", z.object({ q: z.string().optional() }).describe("Search my notes")), list)
+  .post("/api/notes", asTool({ description: "Save a note" }), zValidator("json", Note), save)
+  .post("/api/webhook", asTool(false), zValidator("json", Event), hook) // never a tool
+
+mountMcp(app, "/mcp", { name: "notes", version: "1.0.0", tools: appTools(app) })
+```
+
+### Approve a refund in the app
+
+```ts
+import { approvalGate, appTools, kvApprovals } from "@dapplelight/signet-server/mcp"
+import { approvalRoutes } from "@dapplelight/signet-server/http/routes"
+
+const approvals = kvApprovals(kv, { ttlSeconds: 86_400, onEvent: (e) => audit.write(e) })
+
+mountMcp(app, "/mcp", {
+  name: "orders",
+  version: "1.0.0",
+  approvals,
+  middleware: [requireStoredSession(sessions)],
+  principal: ({ c }) => c?.get("session")?.record.sub,
+  tools: [...appTools(app), refundTool],
+})
+app.use("/api/approvals/*", requireStoredSession(sessions))
+app.route("/api/approvals", approvalRoutes({ approvals, subject: (c) => c.get("session").record.sub }))
+```
+
+```ts
+const refundTool = defineTool({
+  name: "refund_order",
+  description: "Refund an order.",
+  input: z.object({ id: z.string(), amount: z.number() }),
+  annotations: { destructiveHint: true },
+  handler: async (input, ctx) => {
+    const gate = await requireApproval(ctx, { summary: `Refund ${input.amount} on ${input.id}`, args: input })
+    if (gate) return gate
+    await refund(input.id, input.amount)
+    return "Refunded."
+  },
+})
+```
+
+### Confirm and report progress
+
+```ts
+import { confirm, isConfirmPending, progress } from "@dapplelight/signet-server/mcp"
+
+handler: async (input, ctx) => {
+  const ok = await confirm(ctx, { message: `Delete ${input.count} invoices?`, args: input })
+  if (isConfirmPending(ok)) return ok
+  if (ok !== "confirmed") return "Cancelled."
+  for (let i = 0; i < input.count; i++) {
+    await deleteInvoice(i)
+    await progress(ctx, i + 1, input.count)
+  }
+  return "Deleted."
+}
+```
+
+### Resources and prompts
+
+```ts
+import { definePrompt, defineResource } from "@dapplelight/signet-server/mcp"
+
+const resources = [
+  defineResource({ name: "plans", uri: "app://plans", read: () => listPlans() }),
+  defineResource({
+    name: "invoice",
+    template: "app://invoices/{id}",
+    scopes: ["billing:read"],
+    read: ({ variables }) => getInvoice(variables.id), // null: not found
+  }),
+]
+const prompts = [
+  definePrompt({
+    name: "monthly_review",
+    args: z.object({ month: z.string() }),
+    render: ({ month }) => `Review ${month}. Call \`get_report\` first.`,
+  }),
+]
+```
+
+### stdio
+
+```ts
+import { serveStdio } from "@modelcontextprotocol/server/stdio"
+import { createMcpServer } from "@dapplelight/signet-server/mcp"
+
+serveStdio(() => createMcpServer({ name: "orders", version: "1.0.0", tools }))
+```
+
+### Call another MCP server
+
+```ts
+import { createMcpClient } from "@dapplelight/signet-server/mcp/client"
+
+const remote = createMcpClient({ url: "https://tools.example.com/mcp", token: () => getToken() })
+const r = await remote.callTool<{ total: number }>("get_report", { month: "2026-10" })
+if (!r.isError) console.log(r.structuredContent?.total)
+```

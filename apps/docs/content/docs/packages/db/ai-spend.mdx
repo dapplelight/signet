@@ -1,0 +1,73 @@
+---
+title: "AI Spend"
+description: "Per-user, per-org and global AI spend caps per day and month."
+---
+
+## Usage
+```ts
+import { aiSpendCaps, entitlementTables } from "@dapplelight/signet-db/columns/sqlite"
+import { createAiSpend, spendKey } from "@dapplelight/signet-db/ai-spend"
+
+export const { usageCounters } = entitlementTables()
+export const spendCaps = aiSpendCaps()
+
+const spend = createAiSpend(db, {
+  tables: { usageCounters, aiSpendCaps: spendCaps },
+  caps: { user: { day: 200_000 }, org: { month: 20_000_000 }, global: { month: 100_000_000 } },
+})
+
+const extractor = createExtractor({ providers, ledger: spend.ledger })
+await extractor.extract({ ...args, budget: { key: spendKey({ userId, orgId }) } })
+```
+
+Amounts are cost units: 1 unit is one millionth of a US dollar, so spend stays an integer.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createAiSpend(db, options)` | Spend tracker with caps |
+| `spendKey({ userId, orgId })` | Budget key for signet-ai |
+| `parseSpendKey(key)` | Back to `{ userId, orgId }`; a plain string is a user id |
+| `usdToUnits(usd)` | Dollars to cost units |
+| `UNITS_PER_USD` | `1_000_000` |
+| `SPEND_KEY` | Counter key, `"ai.spend"` |
+| `periodEnd(period, at)` | Start of the next UTC day or month |
+| Types | `SpendScope`, `SpendPeriod`, `SpendSubject`, `SpendCaps`, `SpendRefusal`, `SpendCheck`, `PeriodUsage`, `SubjectUsage`, `SpendCapRow`, `AiSpendOptions`, `AiSpend` |
+
+### createAiSpend(db, options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `tables` | `{ usageCounters, aiSpendCaps }` | required | From `entitlementTables()` and `aiSpendCaps()` |
+| `caps` | `{ user?, org?, global? }` of `{ day?, month? }` | none | Used when no stored cap applies |
+| `now` | `() => Date` | `new Date` | Clock for tests |
+
+Returned methods:
+
+| Method | What it does |
+| --- | --- |
+| `check(subject, estimateUnits?)` | `{ ok: true }` or a refusal with `scope`, `period`, `capUnits`, `usedUnits`, `resetsAt` |
+| `record(subject, units)` | Add spend to the user, org and global counters |
+| `usage(scope, id?)` | Day and month usage for an admin screen |
+| `top("user" \| "org", period?, limit?)` | Biggest spenders |
+| `caps()` | Stored caps |
+| `setCap({ scope, subject?, period, units }, { actor? })` | Store a cap; `units: null` is unlimited |
+| `removeCap(scope, subject, period)` | Back to the option |
+| `ledger` | The `ledger` for signet-ai's `createExtractor` |
+| `onUsage` | The `onUsage` for `streamChat`, `chat` and `ground` |
+
+## Examples
+
+### Check first, then record a streamed chat
+```ts
+const gate = await spend.check({ userId, orgId })
+if (!gate.ok) return c.json({ error: "AI_BUDGET_EXCEEDED", resetsAt: gate.resetsAt }, 429)
+
+await streamChat({ ...args, key: spendKey({ userId, orgId }), onUsage: spend.onUsage })
+```
+
+Do not give an extractor both `ledger` and `onUsage`: spend would count twice.
+
+### Raise one org's cap
+```ts
+await spend.setCap({ scope: "org", subject: orgId, period: "month", units: 50_000_000 }, { actor: { id: adminId } })
+```

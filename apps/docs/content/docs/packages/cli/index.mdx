@@ -1,0 +1,127 @@
+---
+title: "CLI"
+description: "Copy components and backend modules into your app as source, then merge upstream changes."
+---
+
+```bash
+npx @dapplelight/signet-cli add dialog
+```
+
+The package is not on npm yet. In the Signet repo, run `bun packages/cli/src/index.ts <command> --cwd <app>` after `bun run build` in `packages/cli`.
+
+## Quick start
+
+```bash
+signet add dialog          # copies dialog and what it imports into src/components/signet/
+signet add auth payments   # wires backend modules into an api-template app
+signet upgrade --dry-run   # preview upstream changes against your edits
+signet upgrade             # merge them
+```
+
+Then import from your copy:
+
+```ts
+import { Dialog } from "@/components/signet/components/ui/dialog"
+```
+
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| `signet add <name...>` | Copy items and their dependencies into the app as source. |
+| `signet upgrade [name...]` | Merge upstream changes into added items (default: all), then run the codemods your installed Signet versions need. |
+| `signet diff <name>` | Show what changed upstream since you copied the item. |
+| `signet list` | Every item, with what is added, edited or out of date. |
+| `signet theme <hex>` | A whole theme from one brand colour. |
+
+## Flags
+
+| Flag | Applies to | What it does |
+| --- | --- | --- |
+| `--force` | `add` | Overwrite files you have edited. |
+| `--dry-run` | `upgrade` | Report what would change; write nothing. |
+| `--no-install` | `add` | Print the install command instead of running it. |
+| `--dir <path>` | `add` | Where copies go. Default `src/components/signet`; saved in `signet.json`. |
+| `--alias <prefix>` | `add` | Import prefix for that dir. Default `@/components/signet`. `""` keeps relative imports. |
+| `--cwd <path>` | all | App root. Default: current directory. |
+| `--registry <file>` | all | Use this `registry.json` instead of the bundled one. |
+| `--json` | all | Print the result as JSON. |
+
+## Components
+
+Any subpath of signet-ui's exports map is an item: `button`, `data-table`, `utils`, `behaviors`, `trend-chip`. Run `signet list` for every name.
+
+`add` prints the npm packages the copies need that your `package.json` lacks. It never overwrites a file you edited when signet-ui also changed it: it writes nothing, lists the files and points to `signet upgrade`. `--force` overwrites them.
+
+## Backend modules
+
+Five modules wire Signet's server packages into an app made with `create-signet-app --template api`.
+
+| Module | Files | Wires |
+| --- | --- | --- |
+| `auth` | `src/server/auth.ts` | Stored sessions: `signIn`, `requireAuth`, `/api/sessions`; `SESSION_SECRET`. |
+| `db` | `src/server/db.ts`, `schema.ts` | signet-db on D1 (binding `DB`): `dbFor`, a table, the audit log. |
+| `admin` | `src/server/admin.ts` | `/api/admin` over the schema, deny by default. Adds `auth` and `db`. |
+| `payments` | `src/server/payments.ts` | Razorpay and Stripe, the webhook inbox at `/webhooks/:gateway`; their keys. |
+| `notify` | `src/server/notify.ts` | A notifier with one template, unsubscribe and Resend webhook at `/notify`. |
+
+Each adds an import and a `.route(...)` line to `src/app.ts`, its keys to `envSchema` in `src/env.ts`, and entries to `.env.example`. Running it again adds nothing twice. Where an anchor is missing, it prints the lines to add by hand.
+
+It then installs the npm packages with the app's package manager, read from its lockfile. `--no-install` prints the command instead.
+
+## Upgrade
+
+```bash
+signet diff dialog          # what changed in signet-ui since you copied it
+signet upgrade --dry-run    # what an upgrade would do
+signet upgrade dialog       # or no name: every added item
+```
+
+| Your copy | On upgrade |
+| --- | --- |
+| Never edited | Replaced. |
+| Only you changed it | Kept. |
+| Both changed it | `git merge-file` (base, upstream, yours). |
+
+Where the same lines changed on both sides, the file keeps git conflict markers: yours under `<<<<<<< app`, signet-ui's under `=======`, closed by `>>>>>>> signet-ui <version>`. The command exits 1 when any file has conflicts or could not be merged. Without git, edited files are reported as `needs-merge` and left untouched.
+
+### Codemods
+
+`upgrade` also migrates your own code when an installed package needs it, once per app (recorded in `signet.json`). `--dry-run` prints the diffs.
+
+- signet-ai 0.4: `generateObject` becomes `generateText({ output: Output.object({ schema }) })`, `result.object` becomes `result.output`.
+- signet-db: each `setPlan(` call is listed.
+- signet-server after 0.4.0: each `registerIngest(` without a `userId` resolver or `trustClientUserId` is listed.
+
+## Configuration
+
+`signet.json` at the app root; `add` creates it on first use.
+
+```json title="signet.json"
+{
+  "dir": "src/components/signet",
+  "alias": "@/components/signet",
+  "items": { "dialog": { "version": "0.2.2", "hash": "…" } },
+  "files": { "components/ui/dialog.tsx": "…" }
+}
+```
+
+`.signet/base/` holds the copies exactly as written; upgrades merge against them. Commit both `signet.json` and `.signet/`.
+
+## Theme
+
+```bash
+signet theme "#e11d48" --base cinematic --out src/brand.css
+signet theme --import tokens.json --out src/brand.css
+```
+
+| Flag | Values | Default | |
+| --- | --- | --- | --- |
+| `--base` | `editorial`, `cinematic`, `finance` | `editorial` | Shipped theme to layer over. |
+| `--mode` | `light`, `dark`, `both` | `both` | |
+| `--density` | `compact`, `comfortable`, `spacious` | none | For the whole app. |
+| `--format` | `css`, `tokens`, `figma` | `css` | `tokens` is W3C Design Tokens JSON; `figma` is the Variables API body. |
+| `--import <file>` | W3C Design Tokens JSON | none | Read a token file instead of a hex colour. |
+| `--out <file>` | path | stdout | Write here. |
+
+Tokens moved to meet contrast are printed to stderr, so stdout stays a clean file. See [Tokens](/docs/packages/tokens/theme).

@@ -1,0 +1,82 @@
+---
+title: "Columns"
+description: "Column helpers and ready-made tables for SQLite, D1 and Postgres."
+---
+
+## Usage
+```ts
+import { sqliteTable, text } from "drizzle-orm/sqlite-core"
+import { id, money, softDelete, timestamps } from "@dapplelight/signet-db/columns/sqlite" // or /columns/pg
+
+export const orders = sqliteTable("orders", {
+  id: id(), // text primary key, newId() on insert
+  userId: text("user_id").notNull(),
+  item: text("item").notNull(),
+  ...money("total", { currency: "INR" }), // total (minor units), totalCurrency
+  ...timestamps(), // createdAt, updatedAt
+  ...softDelete(), // deletedAt
+})
+```
+
+`/columns/sqlite` serves SQLite and D1; `/columns/pg` has the same exports for Postgres (money is `bigint`).
+
+## API
+
+### Column helpers
+| Export | What it does |
+| --- | --- |
+| `id(name?)` | Text primary key, filled with a sortable `newId()` |
+| `timestamps()` | `createdAt`, `updatedAt` (moves on every Drizzle update) |
+| `softDelete()` | Nullable `deletedAt`; `scoped` hides rows where it is set |
+| `money(name, { currency? })` | `<name>` integer minor units and `<name>Currency` |
+| `encrypted(name)` | Text column holding AES-GCM ciphertext |
+
+### Single tables
+| Export | Default name | Used by |
+| --- | --- | --- |
+| `auditLog(name?)` | `audit_log` | `createDb(..., { audit })` |
+| `outbox(name?)` | `outbox` | `createDb(..., { outbox })`, `enqueue`, `drainOutbox` |
+| `idempotencyKeys(name?)` | `idempotency_keys` | `withIdempotency` |
+| `aiCache(name?)` | `ai_cache` | `dbCache` |
+| `aiSpendCaps(name?)` | `ai_spend_caps` | `createAiSpend` |
+| `flagOverrides(name?)` | `flag_overrides` | `createFlags` |
+| `analyticsEvents(name?)` | `analytics_events` | `createAnalyticsStore` |
+| `sequences(name?)` | `sequences` | `nextSequence` |
+
+### Table sets
+Each takes an optional `prefix` for table names. Destructure into your schema.
+
+| Export | Tables |
+| --- | --- |
+| `webhookTables()` | `webhookEndpoints`, `webhookDeliveries` |
+| `entitlementTables()` | `subjectPlans`, `entitlementOverrides`, `usageCounters` |
+| `growthTables()` | `waitlist`, `invites`, `referralCodes`, `referrals`, `marks`, `feedback` |
+| `privacyTables()` | `consents`, `dataRequests` |
+| `orgTables()` | `organizations`, `memberships`, `invitations`, `orgRoles` |
+| `workflowTables()` | `workflowRuns`, `workflowSteps`, `workflowEvents` |
+| `collabTables()` | `comments`, `recordVersions` |
+| `monetisationTables()` | `offerings`, `placements`, `customerIdentities`, `customerEvents`, `customerRequests`, `chartAudiences` |
+| `funnelTables()` | `funnelSessions`, `discountUses` |
+| `experimentTables()` | `experiments`, `experimentExposures` |
+| `statusTables()` | `statusComponents`, `statusIncidents`, `maintenance` |
+
+Add every table to your migrations.
+
+## Examples
+
+### Add the audit trail and outbox
+```ts
+import { auditLog, outbox } from "@dapplelight/signet-db/columns/sqlite"
+import { createDb } from "@dapplelight/signet-db/d1"
+import * as schema from "./schema" // exports audit = auditLog(), queue = outbox()
+
+const db = createDb(bindings.DB, { schema, audit: schema.audit, outbox: schema.queue })
+```
+
+### Pull in a feature's tables
+```ts
+import { entitlementTables, experimentTables } from "@dapplelight/signet-db/columns/sqlite"
+
+export const { subjectPlans, entitlementOverrides, usageCounters } = entitlementTables()
+export const { experiments, experimentExposures } = experimentTables()
+```

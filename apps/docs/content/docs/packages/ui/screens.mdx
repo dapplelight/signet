@@ -1,0 +1,360 @@
+---
+title: "Screens"
+description: "Ready-made app screens: auth, account, billing, admin, orgs, notifications and more."
+---
+
+## Usage
+
+```tsx
+import { AuthScreen } from "@dapplelight/signet-ui/screens/auth-screens"
+
+export function SignIn() {
+  return (
+    <AuthScreen
+      onRequestCode={({ channel, to, mode }) =>
+        fetch("/api/auth/code", { method: "POST", body: JSON.stringify({ channel, to, mode }) })
+      }
+      onVerify={({ to, code }) =>
+        fetch("/api/auth/verify", { method: "POST", body: JSON.stringify({ to, code }) })
+      }
+    />
+  )
+}
+```
+
+Every screen is plain data in, callbacks out: no fetch or router inside. A callback that returns a Promise keeps its button pending; one that throws shows its message. Each module also exports `DEFAULT_*_LABELS` and takes a `labels` prop to translate or reword any string.
+
+## API
+
+Each module is its own path, `@dapplelight/signet-ui/screens/<name>`. Shapes of the data props match `signet-server` and `signet-db` results (or their JSON).
+
+### auth-screens
+
+Sign in and up with a one-time code by email or phone, plus OAuth buttons.
+
+| Export | What it does |
+| --- | --- |
+| `AuthScreen` | The whole sign-in / sign-up flow. |
+| `VerifyCodeScreen`, `VerifyCodeForm` | The code step on its own. |
+| `CodeRequestForm`, `OAuthButtons` | The first-step form and the provider buttons. |
+| `SessionExpiredScreen` | "Session expired" with a sign-in action. |
+| `AuthCard`, `AuthHeader`, `AuthDivider`, `AuthError` | Layout parts. |
+| `DEFAULT_AUTH_LABELS` | Default strings. |
+| Types | `AuthMode`, `AuthChannel`, `OAuthProvider`, `CodeRequest`, `AuthLabels`, plus `*Props` for each component. |
+
+### account-screens
+
+| Export | What it does |
+| --- | --- |
+| `ProfileCard` | Name, email, phone, avatar; optional name save. |
+| `SessionsList`, `SessionItem` | "Your devices" with sign out and sign out everywhere else. |
+| `ApiKeysManager`, `ApiKeyReveal` | List, create (token shown once) and revoke API keys. |
+| `AccountSection`, `AccountSectionHeader` | Layout parts. |
+| `DEFAULT_ACCOUNT_LABELS` | Default strings. |
+| Types | `When`, `SessionRow`, `ApiKeyRow`, `Profile`, `AccountLabels`, `ProfileCardProps`, `SessionsListProps`, `SessionItemProps`, `ApiKeysManagerProps`. |
+
+### billing-screens
+
+| Export | What it does |
+| --- | --- |
+| `BillingScreen` | The billing page: current plan, usage, plans, invoices, wallet. |
+| `Paywall` | Headline, plan picker, and Restore in a store build. |
+| `PlanPicker` | Plan cards as a radio group with an interval switch. |
+| `CurrentPlanCard` | Plan, status, renewal or end date, where it was bought. |
+| `UsageMeters` | One bar per limit; amber at 75%, red at 90%. |
+| `InvoiceList` | Invoices newest first, each linking to its GST HTML invoice. |
+| `WalletCard` | Balance with optional top-up. |
+| `RestorePurchasesButton` | Restore App Store or Google Play purchases. |
+| `plansFromEntitlements(...)` | Billing plans from a `definePlans` object plus names and prices. |
+| `formatMoney(...)` | Minor units to a localised amount: 49900 INR is ₹499. |
+| `DEFAULT_BILLING_LABELS` | Default strings. |
+| Types | `BillingSource`, `BillingInterval`, `BillingPrice`, `BillingPlan`, `BillingStatus`, `BillingSubscription`, `BillingUsage`, `BillingInvoice`, `BillingLabels`, `PlanPickerProps`, `RestorePurchasesButtonProps`, `CurrentPlanCardProps`, `UsageMetersProps`, `InvoiceListProps`, `WalletCardProps`, `PaywallProps`, `BillingScreenProps`. |
+
+### monetisation-screens
+
+| Export | What it does |
+| --- | --- |
+| `RemotePaywall` | The paywall the server configured: copy, plans, highlight, trial text. |
+| `CustomerCenter` | Self-serve plan management: cancel with retention offer, refund, support. |
+| `CustomerTimeline` | One customer's billing history across stores and web (admin). |
+| `PromotionalGrantForm` | Grant a plan for some days (admin). |
+| `plansFromOffering(...)` | Billing plans for one source from an offering. |
+| `DEFAULT_MONETISATION_LABELS` | Default strings. |
+| Types | `RemoteOffer`, `RemoteProduct`, `RemotePaywallConfig`, `RemoteOffering`, `RetentionOfferView`, `CustomerOverview`, `CustomerTimelineEntry`, `CustomerTimelineTotal`, `MonetisationLabels`, `RemotePaywallProps`, `CustomerCenterProps`, `CustomerTimelineProps`, `PromotionalGrantFormProps`. |
+
+### subscription-charts
+
+Needs the optional peer `recharts`, so it is never in the barrel.
+
+| Export | What it does |
+| --- | --- |
+| `SubscriptionCharts` | MRR, subscribers, revenue, churn and paywall conversion, with filters, saved audiences and CSV link. |
+| `DEFAULT_CHART_LABELS` | Default strings. |
+| Types | `ChartDayView`, `ChartResultView`, `ChartFilterView`, `ChartAudienceView`, `ChartLabels`, `SubscriptionChartsProps`. |
+
+### admin-screens
+
+An admin panel generated from signet-db's `defineAdmin` metadata and signet-server's `adminRoutes`.
+
+| Export | What it does |
+| --- | --- |
+| `AdminScreen` | The whole panel, drop in. |
+| `createAdminApi(options?)` | `AdminApi` over fetch for `adminRoutes`. |
+| `AdminApiError` | A failed call; `fieldErrors` maps column key to messages. |
+| `AdminPanel`, `useAdmin()` | State holder and its hook, for custom layouts. |
+| `AdminNav`, `AdminMain`, `AdminHeader`, `AdminToolbar`, `AdminFilterButton` | Layout parts. |
+| `AdminTable`, `AdminRowActions`, `AdminPager` | Rows, row menu, cursor paging. |
+| `AdminRecordSheet`, `AdminRecordForm`, `AdminAuditTrail` | Record panel, form built from column types, change history. |
+| `DEFAULT_ADMIN_LABELS` | Default strings. |
+| Types | `AdminApi`, `AdminApiOptions`, `AdminColumn`, `AdminMeta`, `AdminTableMeta`, `AdminRow`, `AdminFilter`, `AdminFilterOp`, `AdminOp`, `AdminListQuery`, `AdminListResult`, `AdminRecordTarget`, `AdminLabels`, `AdminPanelProps`, `AdminTableProps`, `AdminRecordFormProps`, `AdminRecordSheetProps`, `AdminScreenProps`. |
+
+### org-screens
+
+| Export | What it does |
+| --- | --- |
+| `OrgSwitcher` | Current org as a button; pick another. |
+| `MembersList` | Members with roles; change role, remove, revoke invites. |
+| `InviteDialog` | Email and role in, one-time invite link out. |
+| `AcceptInvitePage` | Full page around `InviteAccept`. |
+| `OrgSettings` | Name, theme and brand colour with live preview. |
+| `DEFAULT_ORG_LABELS` | Default strings. |
+| Types | `OrgSummary`, `OrgMember`, `OrgInvitation`, `OrgSettingsValue`, `OrgLabels`, `OrgSwitcherProps`, `MembersListProps`, `InviteDialogProps`, `AcceptInvitePageProps`, `OrgSettingsProps`. |
+
+### notification-screens
+
+| Export | What it does |
+| --- | --- |
+| `NotificationInbox`, `InboxItem`, `InboxItemBody` | In-app inbox: all or unread, mark read, archive, load more. |
+| `NotificationPreferences` | One switch per category and channel. |
+| `DEFAULT_NOTIFICATION_LABELS` | Default strings. |
+| Types | `NotifyChannel`, `InboxEntry`, `InboxFilter`, `ChannelPrefs`, `PreferenceCategory`, `NotificationLabels`, `NotificationInboxProps`, `InboxItemProps`, `NotificationPreferencesProps`. |
+
+### privacy-screens
+
+Consent and data requests for India's DPDP Act.
+
+| Export | What it does |
+| --- | --- |
+| `ConsentList` | One switch per purpose; withdrawing is as easy as giving. |
+| `DataRequests` | Export and erasure requests with status; erasure confirms first. |
+| `PrivacySection` | Layout part. |
+| `DEFAULT_PRIVACY_LABELS` | Default strings. |
+| Types | `ConsentRecord`, `DataRequestRow`, `ConsentPurpose`, `PrivacyLabels`, `ConsentListProps`, `DataRequestsProps`. |
+
+### collab-screens
+
+| Export | What it does |
+| --- | --- |
+| `CommentThreads` | Threads with replies, edit, delete and an @mention composer. |
+| `MentionTextarea` | Textarea with an `@` member picker. |
+| `CommentBody` | A comment body with mentions as chips. |
+| `ActivityFeed` | What happened to a record, newest first. |
+| `VersionHistory`, `VersionDiff` | Versions with a field diff; Restore or undo. |
+| `mentionsToText(...)`, `textToMentions(...)` | Convert between stored `@[Name](user:id)` and display text. |
+| `DEFAULT_COLLAB_LABELS` | Default strings. |
+| Types | `CollabPerson`, `CollabComment`, `CollabThread`, `CollabFieldChange`, `CollabTimelineItem`, `CollabVersion`, `CollabLabels`, `MentionTextareaProps`, `CommentThreadsProps`, `ActivityFeedProps`, `VersionHistoryProps`. |
+
+### realtime-screens
+
+Pairs with [`hooks/use-channel`](/docs/packages/ui/hooks).
+
+| Export | What it does |
+| --- | --- |
+| `AvatarStack` | Who is viewing. |
+| `EditingBadge` | Who is editing a field. |
+| `TypingIndicator` | "Asha is typing". |
+| `RecordChangedBanner` | "This record changed, reload?" |
+| `DEFAULT_REALTIME_LABELS` | Default strings. |
+| Types | `PresenceMemberView`, `RealtimeLabels`, `AvatarStackProps`, `EditingBadgeProps`, `TypingIndicatorProps`, `RecordChangedBannerProps`. |
+
+### growth-screens
+
+| Export | What it does |
+| --- | --- |
+| `WaitlistJoin` | Email box; then the place in line. |
+| `InviteAccept` | Who invited you to what; Accept or Decline. |
+| `ReferralCard` | Code, copyable link, share, friends joined. |
+| `OnboardingChecklist` | Progress ring and steps. |
+| `FeedbackForm`, `FeedbackWidget` | Kind, message, stars; widget opens it in a popover. |
+| `WhatsNew` | Button with unseen count; opens latest changes. |
+| `DEFAULT_GROWTH_LABELS` | Default strings. |
+| Types | `GrowthLabels`, `WaitlistResult`, `WaitlistJoinProps`, `InviteDetails`, `InviteAcceptResult`, `InviteAcceptProps`, `ReferralCardProps`, `OnboardingStep`, `OnboardingChecklistProps`, `FeedbackInput`, `FeedbackFormProps`, `FeedbackWidgetProps`, `ChangelogEntry`, `WhatsNewProps`. |
+
+### experiment-screens
+
+| Export | What it does |
+| --- | --- |
+| `ExperimentList`, `ExperimentStatusBadge` | Experiments with status and goal. |
+| `ExperimentResults` | Per-variant exposures, conversions, lift, p-value; start, stop, roll out. |
+| `ExperimentForm` | Create or edit: key, goal event, audience, 2 to 10 variants. |
+| `PricingExperimentResults` | Pricing readout with one-click rollout of the winning offering. |
+| `DEFAULT_EXPERIMENT_LABELS` | Default strings. |
+| Types | `ExperimentStatus`, `ExperimentView`, `VariantResultView`, `ExperimentResultsView`, `OfferingChoice`, `ExperimentInputView`, `PricingVariantView`, `PricingReadoutView`, `ExperimentLabels`, `ExperimentListProps`, `ExperimentResultsProps`, `ExperimentFormProps`, `PricingExperimentResultsProps`. |
+
+### funnel-screens
+
+Web-to-app funnels: questions, paywall, checkout, then redemption.
+
+| Export | What it does |
+| --- | --- |
+| `WebFunnel` | Questions, remote paywall with URL discount, then email and code. |
+| `FunnelQuestion` | One question as large toggle buttons. |
+| `ExpressCheckout` | Apple Pay, Google Pay and card via Stripe. |
+| `FunnelRedemption` | After purchase: app link and code to paste. |
+| `discountedOffering(...)` | The offering with valid discounts priced in. |
+| `loadScript(...)` | Load a script once per page. |
+| `STRIPE_JS_URL` | Stripe.js URL. |
+| `DEFAULT_FUNNEL_LABELS` | Default strings. |
+| Types | `FunnelQuestionView`, `FunnelDiscountView`, `FunnelPageView`, `FunnelAnswers`, `FunnelCheckoutRequest`, `FunnelSessionView`, `FunnelLabels`, `FunnelQuestionProps`, `WebFunnelProps`, `ExpressCheckoutProps`, `FunnelRedemptionProps`. |
+
+### status-screens
+
+| Export | What it does |
+| --- | --- |
+| `StatusPage` | Public page: overall status, maintenance, components, incidents. |
+| `StatusAdmin` | Admin: maintenance switch, component statuses, incidents. |
+| `MaintenanceForm`, `ComponentStatusList`, `IncidentForm`, `IncidentUpdateForm` | The admin parts. |
+| `DEFAULT_STATUS_LABELS`, `DEFAULT_STATUS_ADMIN_LABELS` | Default strings. |
+| Types | `ComponentStatus`, `StatusIncidentView`, `StatusSummaryView`, `StatusLabels`, `StatusAdminLabels`, `MaintenanceInput`, `IncidentInput`, `StatusPageProps`, `StatusAdminProps`, `MaintenanceFormProps`, `ComponentStatusListProps`, `IncidentFormProps`, `IncidentUpdateFormProps`. |
+
+### workflow-screens
+
+| Export | What it does |
+| --- | --- |
+| `WorkflowRunTimeline` | A run: status, what it waits on, every step with retries. |
+| `ApprovalInboxCard` | Pending approvals with Approve and Reject. |
+| `waitingText(...)` | One line on what a run is blocked on, or `null`. |
+| `DEFAULT_WORKFLOW_LABELS` | Default strings. |
+| Types | `RunStatus`, `WorkflowRunView`, `WorkflowStepView`, `WorkflowApprovalView`, `WorkflowLabels`, `WorkflowRunTimelineProps`, `ApprovalInboxCardProps`. |
+
+### api-screens
+
+| Export | What it does |
+| --- | --- |
+| `ApiReference` | Endpoint reference from an OpenAPI 3.1 document, grouped by tag. |
+| `WebhookDeliveryLog` | Deliveries with status filter, response details and redeliver. |
+| `DEFAULT_API_LABELS` | Default strings. |
+| Types | `ApiParameter`, `ApiOperation`, `ApiSpec`, `WebhookDeliveryEntry`, `WebhookStatusFilter`, `ApiLabels`, `ApiReferenceProps`, `WebhookDeliveryLogProps`. |
+
+### abuse-screens
+
+| Export | What it does |
+| --- | --- |
+| `CaptchaWidget` | Cloudflare Turnstile or hCaptcha; reports a token. `provider="test"` loads nothing. |
+| `AiSpendAdmin` | Admin AI spend against caps, top spenders, and setting caps. |
+| `CAPTCHA_TEST_PASS`, `CAPTCHA_SCRIPTS` | The test-mode token; script URLs per provider. |
+| `UNITS_PER_USD`, `formatUnits(...)` | Cost units per dollar; `$0.0123` from units. |
+| `DEFAULT_CAPTCHA_LABELS`, `DEFAULT_AI_SPEND_LABELS` | Default strings. |
+| Types | `CaptchaProvider`, `CaptchaWidgetProps`, `SpendScope`, `SpendPeriod`, `PeriodUsage`, `SubjectUsage`, `TopSpender`, `AiSpendOverview`, `AiSpendCap`, `AiSpendCapInput`, `AiSpendLabels`, `AiSpendAdminProps`. |
+
+## Examples
+
+### Account page
+
+```tsx
+import { ApiKeysManager, ProfileCard, SessionsList } from "@dapplelight/signet-ui/screens/account-screens"
+
+export function AccountPage({ me, sessions, keys }: AccountData) {
+  return (
+    <>
+      <ProfileCard profile={me} onSave={({ name }) => api.profile.update({ name })} />
+      <SessionsList
+        sessions={sessions}
+        onRevoke={(s) => api.sessions.revoke(s.id)}
+        onRevokeOthers={() => api.sessions.revokeOthers()}
+      />
+      <ApiKeysManager
+        keys={keys}
+        onCreate={({ name }) => api.keys.create({ name })} // returns { token }, shown once
+        onRevoke={(k) => api.keys.revoke(k.id)}
+      />
+    </>
+  )
+}
+```
+
+### Billing page
+
+```tsx
+import { BillingScreen, plansFromEntitlements } from "@dapplelight/signet-ui/screens/billing-screens"
+
+export function Billing({ subscription, usage, invoices }: BillingData) {
+  return (
+    <BillingScreen
+      plans={[
+        { key: "free", name: "Free" },
+        { key: "pro", name: "Pro", badge: "Popular", prices: { month: { amount: 49900, currency: "INR" } } },
+      ]}
+      subscription={subscription}
+      usage={usage}
+      invoices={invoices}
+      onSubscribe={(plan, interval) => startCheckout(plan.key, interval)}
+      onManage={() => openCustomerPortal()}
+    />
+  )
+}
+```
+
+Use `plansFromEntitlements` to build `plans` from your `definePlans` object. See `BillingPrice` and `BillingInterval` for the exact price shape.
+
+### Admin panel for every table
+
+```tsx
+import { AdminScreen, createAdminApi } from "@dapplelight/signet-ui/screens/admin-screens"
+
+const api = createAdminApi({ baseUrl: "/admin" })
+
+export function Admin() {
+  return <AdminScreen api={api} pageSize={50} />
+}
+```
+
+`createAdminApi` options: `baseUrl` (default `"/admin"`), `fetch`, and `headers` (a function returning extra headers). Cookies are sent.
+
+### Notification inbox and preferences
+
+```tsx
+import { NotificationInbox, NotificationPreferences } from "@dapplelight/signet-ui/screens/notification-screens"
+
+export function Notifications({ items, prefs }: NotificationData) {
+  return (
+    <>
+      <NotificationInbox
+        items={items}
+        onMarkRead={(ids) => api.inbox.markRead(ids)}
+        onMarkAllRead={() => api.inbox.markAllRead()}
+        onArchive={(item) => api.inbox.archive(item.id)}
+      />
+      <NotificationPreferences
+        categories={[
+          { id: "invoices", label: "Invoices", description: "Sent, paid and overdue" },
+          { id: "security", label: "Security", required: true },
+        ]}
+        defaultValue={prefs}
+        onToggle={(change) => api.prefs.update(change)}
+      />
+    </>
+  )
+}
+```
+
+### Live presence on a record
+
+```tsx
+import { createRealtimeClient, useRecordChanges, usePresence } from "@dapplelight/signet-ui/hooks/use-channel"
+import { AvatarStack, RecordChangedBanner } from "@dapplelight/signet-ui/screens/realtime-screens"
+
+const live = createRealtimeClient({ url: "/realtime" })
+
+export function InvoiceHeader({ id, me }: { id: string; me: string }) {
+  const channel = `record:invoices:${id}`
+  const members = usePresence(live, channel)
+  const { changed, dismiss } = useRecordChanges(live, channel, { selfId: me })
+  return (
+    <>
+      <AvatarStack members={members} selfId={me} />
+      <RecordChangedBanner changed={changed} onReload={() => location.reload()} onDismiss={dismiss} />
+    </>
+  )
+}
+```

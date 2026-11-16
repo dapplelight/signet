@@ -1,0 +1,56 @@
+---
+title: "Import"
+description: "Validated, chunked, idempotent bulk insert with a report per row."
+---
+
+## Usage
+```ts
+import { scoped } from "@dapplelight/signet-db"
+import { bulkInsert } from "@dapplelight/signet-db/import"
+import { contacts } from "./schema"
+import { db } from "./db"
+
+const report = await bulkInsert(scoped(db, { userId }), contacts, rows, { key: "email" })
+// { inserted: 118, skipped: 4, errors: [{ row: 7, field: "email", message: "..." }] }
+```
+
+## API
+| Export | What it does |
+| --- | --- |
+| `bulkInsert(ops, table, rows, options)` | Validate, de-duplicate and insert rows. Never throws for a bad row. |
+| `BulkInsertOptions` | The options type. |
+| `BulkInsertReport` | `{ inserted, skipped, errors }`. |
+| `BulkInsertError` | Entry of `errors`: `{ row, field?, message }`; `row` indexes into `rows`. |
+| `BulkInsertSchema` | The part of a Zod schema it uses (`safeParse`). |
+
+### bulkInsert(ops, table, rows, options)
+`ops` is a `scoped(...)` or `audited(...)` handle, so owner columns, encryption, audit and version history apply.
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `key` | `string` | required | JS key of a unique column. A row whose key exists, or repeats in this import, is skipped. |
+| `schema` | `BulkInsertSchema` | `toZod(table, { mode: "insert" })` | Validates and shapes each row. |
+| `chunkSize` | `number` | 500 on Postgres; as many as fit in 100 bound parameters on SQLite | Rows per insert statement. |
+
+- A row that fails validation is reported and left out; the rest still go in.
+- A missing or empty `key` value is reported as an error.
+- When a chunk fails, its rows are retried one at a time to find the ones the database refuses.
+- An unknown `key` throws `UNKNOWN_KEY`.
+
+## Examples
+### Re-run the same file safely
+```ts
+await bulkInsert(ops, contacts, rows, { key: "email" })
+const again = await bulkInsert(ops, contacts, rows, { key: "email" })
+// again.inserted === 0, again.skipped === rows.length
+```
+
+### Custom row schema
+```ts
+import { z } from "zod"
+
+await bulkInsert(ops, contacts, rows, {
+  key: "email",
+  schema: z.object({ email: z.string().email().toLowerCase(), name: z.string().min(1) }),
+})
+```

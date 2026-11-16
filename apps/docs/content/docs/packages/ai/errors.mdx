@@ -1,0 +1,32 @@
+---
+title: "Errors"
+description: "AiError and the error codes, handled like any other API failure."
+---
+
+## Usage
+```ts
+import { AiError, BUDGET_EXCEEDED, ALL_PROVIDERS_FAILED } from "@dapplelight/signet-ai/errors"
+
+try {
+  await ai.extract({ schema, input, instructions })
+} catch (err) {
+  if (err instanceof AiError && err.code === BUDGET_EXCEEDED) {
+    return Response.json({ error: "Daily AI limit reached" }, { status: err.status }) // 429
+  }
+  throw err
+}
+```
+
+## API
+| Export | Value | Status |
+| --- | --- | --- |
+| `AiError` | extends `ApiError` from `@dapplelight/signet-lib/api`; has `code`, `status`, `cause` | 502 default |
+| `BUDGET_EXCEEDED` | `"AI_BUDGET_EXCEEDED"` | 429 |
+| `ALL_PROVIDERS_FAILED` | `"AI_ALL_PROVIDERS_FAILED"` | 502 |
+| `SCHEMA_INVALID` | `"AI_SCHEMA_INVALID"` | 502 |
+| `NO_PROVIDERS` | `"AI_NO_PROVIDERS"` | 500 |
+| `UNPRICED_PROVIDER` | `"AI_UNPRICED_PROVIDER"` | 500 |
+| `BUDGET_STORE_FAILED` | `"AI_BUDGET_STORE_FAILED"` | 503 |
+| `isTransient(err)` | `true` for aborts, timeouts, 408, 429, 5xx and rate-limit messages | |
+
+Only transient errors are retried. Unknown error shapes count as permanent.

@@ -1,0 +1,54 @@
+---
+title: "SQLite"
+description: "SQLite driver on bun:sqlite for Bun, Docker and self-hosted boxes."
+---
+
+## Usage
+```ts
+import { createDb } from "@dapplelight/signet-db/sqlite"
+import * as schema from "./schema"
+
+export const db = createDb("data.db", {
+  schema,
+  audit: schema.auditLog,
+})
+```
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createDb(file, config)` | Open a `bun:sqlite` database and return a `SignetDb`. |
+
+### createDb(file, config)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `file` | `string \| Database` | `":memory:"` | Path, or an existing `bun:sqlite` `Database`. |
+| `config.schema` | Drizzle schema object | none | Typed `db.orm` queries. |
+| `config.cipher` | `Cipher` | none | Encrypts `encrypted()` columns. |
+| `config.audit` | table | none | The `auditLog()` table; turns on `audited()`. |
+| `config.outbox` | table | none | The `outbox()` table. |
+| `config.idempotency` | table | none | The `idempotencyKeys()` table. |
+| `config.versions` | `{ table, track }` | none | Row version history. |
+
+Atomic groups run as synchronous transactions.
+
+## Examples
+### In-memory database for tests
+```ts
+import { createDb } from "@dapplelight/signet-db/sqlite"
+
+const db = createDb() // ":memory:"
+```
+
+### better-sqlite3 on Node
+`createDb` needs Bun. On Node, wrap the Drizzle instance yourself.
+```ts
+import Database from "better-sqlite3"
+import { drizzle } from "drizzle-orm/better-sqlite3"
+import { fromDrizzle } from "@dapplelight/signet-db"
+
+const db = fromDrizzle(drizzle(new Database("data.db")), {
+  dialect: "sqlite",
+  atomicity: "sync-transaction",
+})
+```

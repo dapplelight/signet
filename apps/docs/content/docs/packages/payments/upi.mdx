@@ -1,0 +1,67 @@
+---
+title: "UPI"
+description: "Build upi://pay intents for links and QR codes."
+---
+
+## Usage
+
+```ts
+import { upiIntent } from "@dapplelight/signet-payments/upi"
+
+const link = upiIntent({
+  pa: "shop@okbank",
+  pn: "Corner Shop",
+  amount: 49_900, // paise
+  tr: "order-1042",
+  note: "Order 1042",
+})
+// upi://pay?pa=shop%40okbank&pn=Corner%20Shop&tr=order-1042&tn=Order%201042&am=499.00&cu=INR
+```
+
+Use it as an `href` on mobile, or as the payload of a QR code. No QR encoder ships: render the string with the QR library of your choice.
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `upiIntent(intent)` | Build the `upi://pay?...` string. Throws `BAD_INPUT` on a field UPI apps would reject |
+| `isVpa(value)` | Loose check that a string looks like `name@provider` |
+| `UpiIntent` | Input type |
+
+### upiIntent(intent)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `pa` | `string` | | Required. Payee VPA |
+| `pn` | `string` | | Required. Payee name, at most 99 characters |
+| `amount` | `number` | | Paise. Leave out to let the payer type it |
+| `minAmount` | `number` | | Paise. Needs `amount`, and cannot exceed it |
+| `note` | `string` | | Shown to the payer, 1 to 80 characters (`tn`) |
+| `tr` | `string` | | Your order reference, at most 35 characters |
+| `tid` | `string` | | Transaction id, at most 35 characters |
+| `mc` | `string` | | Merchant category code, 4 digits |
+| `url` | `string` | | An `https` link with order details |
+
+`cu` is always `INR`. Amounts go in as paise and come out as rupees with two decimals. Values are percent-encoded.
+
+## Notes
+
+- Not supported: signed intents (`sign`, `orgid`), `mode` and `purpose` codes, and mandates.
+- A UPI app opening the link is not a payment. Confirm through your gateway's webhook or a status call.
+
+## Examples
+
+### Show a QR payload on an invoice page
+
+```ts
+import { toMinor } from "@dapplelight/signet-payments"
+import { upiIntent } from "@dapplelight/signet-payments/upi"
+
+const payload = upiIntent({
+  pa: config.merchantVpa,
+  pn: "Corner Shop",
+  amount: toMinor("1250.00", "INR"),
+  tr: invoice.id,
+})
+// pass `payload` to your QR library
+```

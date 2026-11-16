@@ -1,0 +1,41 @@
+---
+title: "Fake"
+description: "A deterministic provider for tests: no network, no spend."
+---
+
+## Usage
+```ts
+import { createExtractor, fakeProvider } from "@dapplelight/signet-ai"
+
+const ai = createExtractor({
+  providers: [fakeProvider({ invoiceNumber: "INV-1042", total: 8000 })],
+})
+
+const { value } = await ai.extract({ schema: invoiceSchema, input: "any", instructions: "Read it." })
+```
+
+## API
+### fakeProvider(responses, options)
+| Argument | Type | Default | |
+| --- | --- | --- | --- |
+| `responses` | value, array, or `(input) => value` | required | An array is returned in order, repeating the last |
+| `options.name` | `string` | `"fake"` | |
+| `options.model` | `string` | `"fake-1"` | |
+| `options.usage` | `{ inputTokens, outputTokens }` | none | Reported usage |
+| `options.failTimes` | `number` | `0` | Fail this many calls first |
+| `options.error` | `unknown` | a 503 error | What to throw when failing |
+
+It is priced at $0, so it passes the ledger's pricing check.
+
+## Examples
+### Test failover
+```ts
+const ai = createExtractor({
+  providers: [
+    fakeProvider(null, { name: "primary", failTimes: 99, error: new Error("bad key") }),
+    fakeProvider({ total: 120 }, { name: "backup" }),
+  ],
+})
+const { meta } = await ai.extract({ schema, input: "x", instructions: "y" })
+// meta.provider === "backup"
+```

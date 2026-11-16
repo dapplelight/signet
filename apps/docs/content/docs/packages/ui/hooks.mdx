@@ -1,0 +1,132 @@
+---
+title: "Hooks"
+description: "Copy, debounce, media query, local storage, intersection and realtime channel hooks."
+---
+
+## Usage
+
+```tsx
+import { useDebounce } from "@dapplelight/signet-ui/hooks/use-debounce"
+import { useState } from "react"
+
+export function CustomerSearch() {
+  const [query, setQuery] = useState("")
+  const debounced = useDebounce(query, 300)
+  // fetch on `debounced`, not on every keystroke
+  return <input value={query} onChange={(e) => setQuery(e.target.value)} />
+}
+```
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `hooks/use-copy`: `useCopy(timeout?)` | `{ copy, copied }`. `copied` is true for `timeout` ms (default 2000). |
+| `hooks/use-debounce`: `useDebounce(value, delay?)` | `value` after it stops changing for `delay` ms (default 300). |
+| `hooks/use-intersection`: `useIntersection(options?)` | `{ ref, isIntersecting, entry }` for lazy loading and infinite lists. |
+| `hooks/use-local-storage`: `useLocalStorage(key, initial)` | `[value, set]`, JSON in localStorage, synced across tabs and components. |
+| `hooks/use-media-query`: `useMediaQuery(query)` | Tracks a CSS media query; `false` without `window`. |
+| `hooks/use-media-query`: `DESKTOP_QUERY` | `"(min-width: 768px)"`, the `md` breakpoint. |
+| `hooks/use-channel`: `createRealtimeClient(options)` | Plain TypeScript client for signet-server's realtime hub. |
+| `hooks/use-channel`: `useChannel(client, channel, options?)` | Join a channel while mounted; presence, shared state, status. |
+| `hooks/use-channel`: `usePresence(client, channel, selfId?)` | Who is in a channel, excluding `selfId`. |
+| `hooks/use-channel`: `useRecordChanges(client, channel, options?)` | `{ change, changed, dismiss }` for a "this record changed" banner. |
+| `hooks/use-channel` types | `PresenceMember`, `StateEntry`, `ChannelEvent`, `ConnectionStatus`, `ChannelSnapshot`, `RealtimeClientOptions`, `RealtimeClient`. |
+
+Each hook is its own path, for example `@dapplelight/signet-ui/hooks/use-copy`.
+
+## Examples
+
+### Copy button
+
+```tsx
+import { useCopy } from "@dapplelight/signet-ui/hooks/use-copy"
+
+export function CopyInvoiceLink({ url }: { url: string }) {
+  const { copy, copied } = useCopy()
+  return (
+    <button type="button" onClick={() => copy(url)}>
+      {copied ? "Copied" : "Copy link"}
+    </button>
+  )
+}
+```
+
+`copy` resolves `false` when the clipboard is unavailable or denied.
+
+### Phone gets a drawer, desktop a dialog
+
+Use `useMediaQuery` only when the component changes. For style changes, use Tailwind responsive classes.
+
+```tsx
+import { DESKTOP_QUERY, useMediaQuery } from "@dapplelight/signet-ui/hooks/use-media-query"
+
+export function useIsDesktop() {
+  return useMediaQuery(DESKTOP_QUERY)
+}
+```
+
+### Remember a setting
+
+The server render and first client render use `initial`, so hydration matches. Setting `undefined` removes the key.
+
+```tsx
+import { useLocalStorage } from "@dapplelight/signet-ui/hooks/use-local-storage"
+
+export function useCompactTable() {
+  return useLocalStorage<boolean>("orders.compact", false)
+}
+```
+
+### Load more on scroll
+
+Without IntersectionObserver the element counts as visible, so content still loads.
+
+```tsx
+import { useIntersection } from "@dapplelight/signet-ui/hooks/use-intersection"
+import { useEffect } from "react"
+
+export function LoadMore({ onVisible }: { onVisible: () => void }) {
+  const { ref, isIntersecting } = useIntersection<HTMLDivElement>({ rootMargin: "200px" })
+  useEffect(() => {
+    if (isIntersecting) onVisible()
+  }, [isIntersecting, onVisible])
+  return <div ref={ref} />
+}
+```
+
+Options extend `IntersectionObserverInit`, plus `once` (default `false`) to stop after first sight.
+
+### Live presence on a document
+
+```tsx
+import { createRealtimeClient, useChannel } from "@dapplelight/signet-ui/hooks/use-channel"
+
+const live = createRealtimeClient({ url: "/realtime?org=acme" })
+
+export function InvoiceEditor({ id }: { id: string }) {
+  const ch = useChannel(live, `record:invoices:${id}`)
+  return (
+    <>
+      <p>{ch.members.length} here</p>
+      <textarea
+        onFocus={() => ch.setEditing("notes")}
+        onBlur={() => ch.setEditing(null)}
+        onChange={(e) => ch.set("notes", e.target.value)}
+      />
+    </>
+  )
+}
+```
+
+### createRealtimeClient(options)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `url` | `string` | required | The hub's WebSocket URL; a path like `/realtime` resolves against the page. |
+| `WebSocket` | constructor | global `WebSocket` | Inject one for tests or non-browser runtimes. |
+| `backoff` | `(attempt: number) => number` | 0.5 s doubling to 30 s, with jitter | Delay before reconnect attempt `n` (1-based). |
+
+The client reconnects, rejoins every channel resuming from the last event, drops duplicate events and applies shared state by version. Methods: `join`, `snapshot`, `subscribe`, `onEvent`, `presence`, `set`, `acknowledge`, `close`.
+
+`useChannel` returns the snapshot (`status`, `joined`, `error`, `members`, `state`, `stale`, `conflict`) plus `setTyping`, `setEditing`, `set` and `acknowledge`. Pair it with the server's `@dapplelight/signet-server/realtime` hub.

@@ -1,0 +1,78 @@
+---
+title: "Privacy"
+description: "DPDP building blocks: consent records, withdrawal, data export and erasure requests."
+---
+
+## Usage
+```ts
+import { privacyTables } from "@dapplelight/signet-db/columns/sqlite"
+import { createPrivacy } from "@dapplelight/signet-db/privacy"
+
+// schema.ts
+export const { consents, dataRequests } = privacyTables()
+
+// app
+const privacy = createPrivacy(db, {
+  tables: { consents, dataRequests },
+  userTables: [notes, [users, users.id]], // children before parents
+  respondWithinMs: 30 * 24 * 3600 * 1000,
+})
+
+await privacy.give(userId, "marketing-email", { noticeVersion: "2026-11-01", source: "signup" })
+await privacy.has(userId, "marketing-email") // true
+await privacy.withdraw(userId, "marketing-email") // as easy as giving it
+
+const req = await privacy.requestErasure(userId)
+await privacy.fulfil(req.id, { actor: { type: "user", id: staffId } })
+```
+
+Records are append-only: withdrawing sets `withdrawnAt`, giving again adds a row. This is record-keeping, not legal advice.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createPrivacy(db, options)` | The privacy store. Methods below. |
+| `privacyTools(options)` | Plain MCP tools for an agent acting for one person. |
+| `PrivacyTables`, `PrivacyOptions`, `PrivacyToolsOptions`, `Consent`, `DataRequest`, `DataRequestKind`, `DataRequestStatus`, `Privacy` | Types. |
+
+### createPrivacy(db, options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `tables` | `{ consents, dataRequests }` | required | From `privacyTables()`. |
+| `userTables` | `readonly UserTable[]` | none | Tables `fulfil` exports from and erases. Needed to fulfil. |
+| `respondWithinMs` | `number` | none | Sets `dueAt` on new requests. |
+| `now` | `() => Date` | `new Date()` | Clock, for tests. |
+
+### Methods
+| Method | What it does |
+| --- | --- |
+| `give(subject, purpose, { noticeVersion, source? })` | Record consent. Already active for that notice: returns it. |
+| `withdraw(subject, purpose?)` | Withdraw one purpose, or all. Returns how many records closed. |
+| `has(subject, purpose, { noticeVersion? })` | Whether consent is in force. |
+| `active(subject)` | Consents in force, newest first. |
+| `history(subject)` | Every record, withdrawn ones included. |
+| `requestExport(subject)` / `requestErasure(subject)` | Open a request; an open one of the same kind is returned instead. |
+| `listRequests({ subject?, status?, kind? })` | Newest first. |
+| `overdue()` | Pending requests past `dueAt`. |
+| `fulfil(id, { actor })` | Export returns `data` (not stored). Erasure runs `deleteUser`, withdraws all consent, stores row counts. |
+| `reject(id, { actor, reason })` | Close without acting; the reason goes to the person. |
+
+### privacyTools(options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `privacy` | `Privacy` | required | The store. |
+| `subject` | `string` | required | The person the agent acts for. |
+| `approve` | `Approve` | none | Return `undefined` to allow. Without it, writes change nothing and return `APPROVAL_REQUIRED`. |
+
+Tools: `list_consents`, `list_data_requests`, `withdraw_consent`, `request_data_export`, `request_erasure`. Agents only open requests; fulfilling is a staff action.
+
+## Examples
+### Gate a marketing send on consent
+```ts
+if (await privacy.has(user.id, "marketing-email")) await sendNewsletter(user.email)
+```
+
+### Overdue requests report
+```ts
+for (const r of await privacy.overdue()) console.log(r.id, r.kind, r.dueAt)
+```

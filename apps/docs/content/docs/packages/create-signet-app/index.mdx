@@ -1,0 +1,142 @@
+---
+title: "Create Signet App"
+description: "Scaffold a Vite + React app, a Hono API, a CLI, an extension or a desktop app wired to Signet."
+---
+
+```bash
+npx create-signet-app my-app
+```
+
+## Quick start
+
+```bash
+npx create-signet-app my-app --theme cinematic
+cd my-app && bun install && bun dev
+```
+
+Bun, npm and pnpm all work (`bunx`, `npm create signet-app my-app -- --template full --pm npm`).
+
+## Flags
+
+| Flag | Values | Default | |
+| --- | --- | --- | --- |
+| `<directory>` | path | required | Must not exist or be empty. |
+| `--template` | `web`, `api`, `full`, `cli`, `extension`, `desktop` | `web` | What to scaffold. |
+| `--theme`, `-t` | `editorial`, `cinematic`, `finance` | `editorial` | `web` and `full` only. |
+| `--target` | `cloudflare`, `bun`, `node`, `vercel` | `cloudflare` | `api` only. |
+| `--mcp`, `--no-mcp` | flag | asks on a terminal, else `--mcp` | `api` and `full` only. Serve routes to agents at `/mcp`. |
+| `--pm` | `bun`, `npm`, `pnpm` | the one that ran it, else `bun` | Sets the printed commands, the CI workflow and the full template's README. |
+| `-h`, `--help` | | | Print usage. |
+
+## Templates
+
+| Template | You get |
+| --- | --- |
+| `web` | Vite + React 19 + Tailwind v4 + TanStack Router, `signet-ui`, `signet-tokens`, `signet-lib`. |
+| `api` | Hono API: request ids, error envelope, validation, rate limiting. Entry and config follow `--target`. |
+| `full` | `web` + `api` in one project: typed client, SQLite with migrations, phone sign-in, account, inbox, privacy, billing, admin, organisations. |
+| `cli` | Bun CLI compiled to one binary; device-code `login`, `logout`, `whoami`. |
+| `extension` | Chrome MV3 extension: popup, options page, service worker, PKCE sign-in with `chrome.identity`. |
+| `desktop` | Tauri v2 desktop and menu-bar app with browser sign-in (PKCE, loopback redirect); CI on macOS, Windows and Linux. |
+
+### API targets
+
+| `--target` | Entry | Config | Rate limit store |
+| --- | --- | --- | --- |
+| `cloudflare` | `src/index.ts` (Worker) | `wrangler.jsonc` | `RateLimitCounter` Durable Object: exact |
+| `bun` | `src/server.ts` (`Bun.serve`) | `Dockerfile` | in-process |
+| `node` | `src/server.ts` (`node:http`, Node 22.18+) | `engines.node` | in-process |
+| `vercel` | `index.ts` | `vercel.json` | per function instance |
+
+## What gets scaffolded
+
+<Tabs items={["web", "api", "full"]}>
+  <Tab value="web">
+```text
+my-app/
+├─ .github/workflows/ci.yml     lint, typecheck, test, build
+├─ public/
+├─ src/
+│  ├─ app.css                   imports the chosen theme
+│  ├─ main.tsx                  ThemeProvider, QueryClient, router
+│  ├─ router.ts
+│  ├─ router.test.ts
+│  ├─ routeTree.gen.ts          generated, committed
+│  ├─ components/toaster.tsx
+│  ├─ lib/api.ts                createApiClient
+│  └─ routes/
+│     ├─ __root.tsx
+│     ├─ index.tsx
+│     └─ login.tsx
+├─ index.html
+├─ biome.json
+├─ tsconfig.json
+├─ tsconfig.app.json
+├─ tsconfig.node.json
+└─ vite.config.ts
+```
+  </Tab>
+  <Tab value="api">
+```text
+my-api/
+├─ .github/workflows/ci.yml
+├─ src/
+│  ├─ app.ts                    shared Hono app
+│  ├─ env.ts                    zod schema through createEnv
+│  └─ index.ts                  entry for the chosen target
+├─ test/
+├─ biome.json
+├─ tsconfig.json
+└─ wrangler.jsonc               cloudflare target (Dockerfile, vercel.json for others)
+```
+  </Tab>
+  <Tab value="full">
+```text
+my-app/
+├─ .github/workflows/ci.yml
+├─ api/                         Hono on Bun
+│  ├─ app.ts
+│  ├─ env.ts
+│  ├─ plans.ts
+│  ├─ server.ts                 serves /api and the built web app
+│  ├─ services.ts
+│  └─ db/                       schema
+├─ drizzle/                     migrations, applied on start
+├─ e2e/smoke.spec.ts            Playwright
+├─ src/
+│  ├─ main.tsx
+│  ├─ lib/api.ts                typed client over the API's routes
+│  └─ routes/                   login, account, notifications, privacy, billing, admin, org, invite
+├─ test/api.test.ts
+├─ drizzle.config.ts
+├─ playwright.config.ts
+└─ vite.config.ts
+```
+  </Tab>
+</Tabs>
+
+The generated env file gets fresh `SESSION_SECRET` and `OTP_SECRET` values in the `full` template. Templates ship `_gitignore` and `_github`, renamed to `.gitignore` and `.github` on scaffold.
+
+## Examples
+
+### A Bun API
+
+```bash
+npx create-signet-app my-api --template api --target bun --no-mcp
+```
+
+### Add MCP later
+
+If you chose `--no-mcp` and want it back:
+
+```bash
+bun add @modelcontextprotocol/server
+```
+
+```ts title="src/app.ts"
+import { appTools } from "@dapplelight/signet-server/mcp"
+import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
+
+// at the end of createApp, after the routes
+mountMcp(app, "/mcp", { name: "api", version: "0.0.0", tools: appTools(app) })
+```

@@ -1,0 +1,54 @@
+---
+title: "ANSI"
+description: "Theme colours as terminal escapes, truecolor or 256-colour."
+---
+
+## Usage
+
+```ts
+import { ansi } from "@dapplelight/signet-tokens/ansi"
+
+const c = ansi("editorial", {
+  mode: "dark",
+  depth: process.env.COLORTERM ? "truecolor" : "256",
+})
+
+console.log(c.fg.primary("deployed"), c.fg.textMuted("3 invoices synced"))
+```
+
+Translucent tokens are flattened onto the mode's background, since a terminal has no alpha. This module reads no environment: you choose the depth and honour `NO_COLOR`.
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `ansi(name, opts?)` | Build an `AnsiTheme` for a theme. |
+| `ansiCode(hex, layer, depth?)` | The escape that sets one colour; `layer` is `"fg"` or `"bg"`. |
+| `nearest256(hex)` | Nearest xterm 256-colour index to a `#rrggbb`. |
+| `RESET` | The reset escape, `\x1b[0m`. |
+| `Depth` | Type: `"truecolor" \| "256"`. |
+| `AnsiTheme` | Type: `{ hex, fg, bg }`. |
+
+### ansi(name, opts?)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `name` | `ThemeName` | required | Throws on an unknown theme. |
+| `opts.mode` | `"light" \| "dark"` | `"dark"` | Which mode's colours. |
+| `opts.depth` | `Depth` | `"truecolor"` | `"256"` snaps to the xterm palette. |
+
+Returns `hex` (opaque `#rrggbb` per token), and `fg` / `bg`: one function per token that wraps text in the colour then `RESET`.
+
+## Examples
+
+### Respect NO_COLOR
+
+```ts
+import { ansi } from "@dapplelight/signet-tokens/ansi"
+
+const plain = (text: string) => text
+const c = ansi("cinematic")
+const ok = process.env.NO_COLOR ? plain : c.fg.accentGreen
+
+console.log(ok("12 orders shipped"))
+```

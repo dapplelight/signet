@@ -1,0 +1,60 @@
+---
+title: "Analytics"
+description: "Batched client event tracking that is safe to call and honours opt-out."
+---
+
+## Usage
+```ts
+import { beaconTransport, createAnalytics } from "@dapplelight/signet-lib/analytics"
+
+export const analytics = createAnalytics({
+  transport: beaconTransport("/api/analytics"),
+  requireConsent: true,          // track nothing until optIn()
+  traitKeys: ["plan"],           // the only traits identify() may send
+})
+
+analytics.optIn()
+analytics.pageview()
+analytics.track("invoice_paid", { invoiceId: "INV-1042", amount: 8000 })
+analytics.identify(user.id, { plan: "team" })
+
+await api.post("/invoices/INV-1042/pay", {}, { headers: analytics.headers() })
+```
+
+With no `transport`, every call is a no-op, so you can instrument first and wire it later.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createAnalytics(config?)` | Client with `track`, `pageview`, `identify`, `reset`, `flush`, `headers`, `optIn`, `optOut` |
+| `noopAnalytics` | A client that does nothing |
+| `beaconTransport(url)` | POSTs `{ events }` with `sendBeacon`, falling back to `fetch` with `keepalive` |
+| `continueSession(prev, now, timeoutMs?)` | Pure rule: continue a visit or start a new one |
+| `ANALYTICS_HEADERS` | Header names `headers()` sets: `anonymousId`, `sessionId` |
+| `EventProps`, `AnalyticsEvent`, `SessionState`, `AnalyticsContext`, `Transport`, `AnalyticsConfig`, `Analytics` | Types |
+
+### createAnalytics(config)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `transport` | `(events) => void \| Promise<void>` | none | Omit for a no-op client |
+| `batchSize` | `number` | `10` | Flush after this many events |
+| `flushIntervalMs` | `number` | `5000` | |
+| `respectDoNotTrack` | `boolean` | `true` | Honour `navigator.doNotTrack` |
+| `optOutKey` | `string` | `"signet-analytics-optout"` | localStorage key for the choice |
+| `requireConsent` | `boolean` | `false` | Track nothing until `optIn()` |
+| `sessionTimeoutMs` | `number` | `1800000` | A visit ends after this idle time |
+| `traitKeys` | `string[]` | `[]` | Trait keys `identify()` may send |
+| `storageKey` | `string` | `"signet-analytics"` | Prefix for the stored ids |
+
+### Client members
+| Member | What it does |
+| --- | --- |
+| `track(name, props?)` | Queue an event |
+| `pageview(path?)` | `track("pageview", ...)` with path and referrer |
+| `identify(id, traits?)` | Link events to a user; sends `$identify` |
+| `reset()` | On sign-out: flush, forget user, new anonymous id |
+| `flush()` | Send the queue now. Also runs when the page is hidden |
+| `headers()` | Headers so server events join this visit. Empty while suppressed |
+| `context` | `{ anonymousId, sessionId, userId? }` |
+| `optOut()` / `optIn()` | Record the choice; opt-out also clears the stored ids |
+| `isOptedOut`, `pending` | Read-only state |

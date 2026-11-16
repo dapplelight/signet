@@ -1,0 +1,100 @@
+---
+title: "Analytics"
+description: "Ingest browser events and record server events to any sink."
+---
+
+## Usage
+
+```ts
+import { Hono } from "hono"
+import { httpSink } from "@dapplelight/signet-server/analytics/sinks"
+import { cloudflareEnrichment, registerIngest } from "@dapplelight/signet-server/analytics/ingest"
+import { analyticsContext, serverTracker } from "@dapplelight/signet-server/analytics/session"
+
+const app = new Hono()
+const sink = httpSink({ url: "https://collector.example.com/events", headers: { Authorization: `Bearer ${process.env.COLLECTOR_TOKEN}` } })
+
+// Browser events: POST /api/events
+registerIngest(app as never, "/api/events", {
+  engine: sink,
+  userId: (c) => (c as { get(k: string): string | undefined }).get("userId"),
+  enrich: cloudflareEnrichment as never,
+})
+
+// A server-side event that joins the visitor's session
+app.post("/api/orders", async (c) => {
+  const t = serverTracker(sink, { ...analyticsContext(c.req.raw.headers), userId: c.get("userId") })
+  await t.track("order_placed", { plan: "pro" })
+  return c.json({ ok: true })
+})
+```
+
+On Workers, write to the Analytics Engine binding instead of `httpSink`:
+
+```ts
+import { createAnalyticsEngine } from "@dapplelight/signet-server/analytics/engine"
+
+const engine = createAnalyticsEngine({ dataset: env.EVENTS, onEvent: (name, data) => console.log(name, data) })
+```
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `registerIngest(app, path, options)` | `POST path`: validate, enrich and write browser events. |
+| `cloudflareEnrichment(c)` | Country and user agent from the Cloudflare request. |
+| `cleanId(value)` | A client id (1-64 id characters) or `undefined`. |
+| `createAnalyticsEngine(config)` | Workers Analytics Engine as a sink: `write(events)` and `isEnabled`. |
+| `toDataPoint(event, indexBy?)` | Map an event to an Analytics Engine data point. |
+| `truncateBytes(value, maxBytes)` | Cut to a byte budget without splitting a character. |
+| `LIMITS` | Engine limits: 20 blobs, 5120 bytes per blob, 20 doubles, 96-byte index. |
+| `analyticsContext(headers)` | Read `anonymousId` and `sessionId` from request headers. |
+| `serverTracker(sink, context)` | `track(name, props)`, `identify(userId, traits)` and `context` for one request. |
+| `ANALYTICS_HEADERS` | Header names `x-signet-anonymous-id` and `x-signet-session-id`. |
+| `httpSink(config)` | Batch and POST events to a collector, with `flush()`. |
+| `memorySink()` | Keeps events in `events`. For tests. |
+| `consoleSink(log?)` | Logs each event. For local dev. |
+| `TrackedEvent`, `AnalyticsSink`, `AnalyticsContext`, `AnalyticsEngine`, `AnalyticsEngineDataset`, `EngineConfig`, `IngestOptions`, `HttpSinkConfig` | Types. |
+
+### registerIngest(app, path, options)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `engine` | `AnalyticsSink` | required | `createAnalyticsEngine`, `httpSink` or `memorySink`. |
+| `maxEvents` | `number` | `50` | Per request. |
+| `maxProps` | `number` | `20` | Per event, enrichment included. |
+| `maxNameLength` | `number` | `64` | Event name length. |
+| `userId` | `(c) => string \| undefined` (may be async) | none | The signed-in user. Overrides any client-sent id. Without it a client `userId` is dropped. |
+| `trustClientUserId` | `boolean` | `false` | Keep a client `userId` when there is no resolver. |
+| `enrich` | `(c) => Record<string, string \| number \| undefined>` | none | Server-side props such as country. |
+
+### createAnalyticsEngine(config)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `dataset` | `AnalyticsEngineDataset` | none | The binding. Omit to disable locally. |
+| `indexBy` | `(event) => string` | event name | Groups rows for sampling. |
+| `onEvent` | `(event, data) => void` | none | Hears `analytics.skipped` and `analytics.write_failed`. |
+
+### httpSink(config)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `url` | `string` | required | Each batch is POSTed as `{ events }`. |
+| `headers` | `Record<string, string>` | none | Extra headers, e.g. a bearer token. |
+| `defer` | `Defer` | `processDefer()` | On Workers pass `waitUntilDefer(ctx)`. |
+| `maxBatch` | `number` | `100` | Events per POST. |
+| `onEvent` | `(event, data) => void` | none | Hears `analytics.flush_failed`. A failed batch is dropped. |
+
+## Examples
+
+### Assert events in a test
+
+```ts
+import { memorySink } from "@dapplelight/signet-server/analytics/sinks"
+import { serverTracker } from "@dapplelight/signet-server/analytics/session"
+
+const sink = memorySink()
+await serverTracker(sink, { userId: "u_1" }).track("invoice_paid", { amount: 4900 })
+console.log(sink.events[0].name) // "invoice_paid"
+```

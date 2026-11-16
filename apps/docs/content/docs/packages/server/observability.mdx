@@ -1,0 +1,107 @@
+---
+title: "Observability"
+description: "Structured JSON logging with redaction, and Sentry reporting that runs on Workers."
+---
+
+## Usage
+
+```ts
+import { Hono } from "hono"
+import { errorHandler } from "@dapplelight/signet-server/http"
+import { requestId } from "@dapplelight/signet-server/middleware/request-id"
+import { createLogger, type Logger } from "@dapplelight/signet-server/observability/logger"
+import { createSentry } from "@dapplelight/signet-server/observability/sentry"
+
+export const log = createLogger({ level: "info", base: { service: "api" } })
+const sentry = createSentry({ dsn: env.SENTRY_DSN, enabled: env.APP_ENV === "production", environment: env.APP_ENV })
+
+const app = new Hono<{ Variables: { reqId: string; logger: Logger } }>()
+app.use("*", requestId({ childLogger: (id) => log.child({ reqId: id }) }))
+app.onError(errorHandler({
+  isProduction: () => env.APP_ENV === "production",
+  onError: (err, meta) => sentry.captureException(err, meta), // the promise goes to waitUntil
+}))
+
+app.get("/orders/:id", (c) => {
+  c.get("logger").info({ orderId: c.req.param("id") }, "order fetched")
+  return c.json({ ok: true })
+})
+```
+
+```json
+{"level":"info","time":"2026-09-25T07:15:49.201Z","msg":"order fetched","service":"api","reqId":"9f3c...","orderId":"ord_1042"}
+```
+
+Both take config and never read env.
+
+## API
+
+### `observability/logger`
+
+| Export | What it does |
+| --- | --- |
+| `createLogger(options)` | A logger: `trace`, `debug`, `info`, `warn`, `error`, `fatal`, `child(bindings)`, `level`, `isLevelEnabled`. |
+| `redactFields(fields, options?)` | The same cleaning on its own, for context sent elsewhere (Sentry does not scrub context). |
+| `LEVELS` | `trace` 10 to `fatal` 60. |
+| `LevelName`, `LevelSetting`, `LogFields`, `LoggerOptions`, `LogFn`, `Logger` | Types. |
+
+| `createLogger` option | Type | Default | |
+| --- | --- | --- | --- |
+| `level` | `LevelSetting \| string` | `"info"` | A plain string is accepted; unknown throws. `silent` writes nothing. |
+| `base` | `Record<string, unknown>` | none | Fields on every line. |
+| `redact` | `string[]` | none | Extra key names (any depth) or dotted paths like `user.phone`, `items.*.card`. |
+| `write` | `(line, level) => void` | `console.error`, `warn`, `log` by level | Workers Logs reads severity from the console method. |
+| `production` | `boolean` | `false` | Drop `stack` from errors. |
+| `messageKey` | `string` | `"msg"` | |
+
+Call shapes: `log.info({ ...fields }, "msg")`, `log.info("msg")`, `log.info("msg", { ...fields })`, `log.error(err, "msg")`. No `%s` interpolation.
+
+Secrets are redacted by default at any depth: password, passwd, token, secret, authorization, cookie and apiKey, ignoring case, `_` and `-`, and as a suffix (`accessToken` yes, `maxTokens` no). Strings are not scanned, so a secret inside `msg` goes out as written. Levels are live: `log.level = env.LOG_LEVEL`. A child follows its parent until given its own level. It never throws on data: cycles become `"[Circular]"`, bigints strings.
+
+### `observability/sentry`
+
+| Export | What it does |
+| --- | --- |
+| `createSentry(config)` | `captureException(err, context?, scope?)` and `isEnabled`. Plain `fetch` to the envelope endpoint. |
+| `redactSecrets(text)` | Default scrub: bearer tokens, JWTs, `password=`-style secrets, emails, 9+ digit runs. |
+| `parseStack(stack, scrub?)` | Frames from a JS stack string, oldest call first. |
+| `SentryConfig`, `SentryScope`, `SentryEvent`, `SentryRequest`, `SentryUser`, `StackFrame`, `Sentry` | Types. |
+
+| `createSentry` option | Type | Default | |
+| --- | --- | --- | --- |
+| `dsn` | `string` | none | Disabled when absent. |
+| `enabled` | `boolean` | required | `false`: errors go to `console.error` instead. |
+| `release`, `environment` | `string` | none | |
+| `tags` | `Record<string, string>` | none | On every event. |
+| `clientName` | `string` | `"signet"` | |
+| `scrub` | `(text) => string` | `redactSecrets` | Applied to message and stack. `(t) => t` turns it off. |
+| `includeStack` | `boolean` | `true` | |
+| `beforeSend` | `(event) => event \| null` | none | Last look; `null` drops it. Allowlist context here. |
+
+`captureException` resolves to whether Sentry accepted the event and never rejects. On Workers pass it to `ctx.waitUntil`, or return it from `errorHandler`'s `onError`. `scope` carries `tags`, `request` (`url`, `method`, `query_string`, `headers`; headers matching `key|token|secret|auth|cookie|session|password` are dropped) and `user`. Context values, tags and user values are not scrubbed: send only what you mean to.
+
+## Examples
+
+### Add your own redaction
+
+```ts
+const log = createLogger({ redact: ["email", "user.phone", "items.*.card"] })
+log.info({ user: { phone: "+919876543210" }, token: "abc" }, "signed in") // phone and token become "[redacted]"
+```
+
+### Report with request context on Workers
+
+```ts
+import { redactFields } from "@dapplelight/signet-server/observability/logger"
+
+app.onError((err, c) => {
+  c.executionCtx.waitUntil(
+    sentry.captureException(err, redactFields({ job: "sync" }), {
+      tags: { route: "/pay" },
+      request: { url: c.req.url, method: c.req.method },
+      user: { id: c.get("session")?.sub },
+    }),
+  )
+  return c.json({ error: "Internal error" }, 500)
+})
+```

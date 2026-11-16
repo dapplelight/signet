@@ -1,0 +1,161 @@
+---
+title: "Realtime"
+description: "Presence, live updates and shared state per channel, on Bun, Node or Cloudflare."
+---
+
+## Usage
+
+```ts
+import { createRealtime, sessionAuth } from "@dapplelight/signet-server/realtime"
+import { bunRealtime } from "@dapplelight/signet-server/realtime/bun"
+import { verifySession } from "@dapplelight/signet-server/auth/session"
+import { grants } from "@dapplelight/signet-server/http/orgs"
+
+const hub = createRealtime({
+  // Deny by default: without authorize, every join is refused.
+  authorize: (who, channel) => channel.startsWith("record:") && grants(who.permissions ?? [], "records:read"),
+})
+
+const authenticate = sessionAuth({
+  verify: (token) => verifySession(token, sessionOpts),
+  cookieName: "app_session",
+  orgs, // signet-db's createOrgs: needs membership(orgId, userId)
+})
+
+const live = bunRealtime(hub, { authenticate })
+Bun.serve({
+  fetch: (req, srv) => (new URL(req.url).pathname === "/realtime" ? live.upgrade(req, srv) : app.fetch(req)),
+  websocket: live.websocket,
+})
+
+// After a write:
+await hub.publish(orgId, "record:invoices:1042", "updated", { id: "1042", by: userId })
+```
+
+The org comes from `authenticate`, never the client. Channels live under it: two orgs' `record:invoices:1042` are different channels. The React side is signet-ui's `use-channel` hook.
+
+## API
+
+### `realtime` (hub)
+
+| Export | What it does |
+| --- | --- |
+| `createRealtime(options)` | The hub: `connect`, `publish`, `presence`, `state`, `disconnect`, `sweep`, `size`. |
+| `sessionAuth(options)` | `authenticate` from a session cookie plus org membership. |
+| `admit(request, { authenticate, origins? })` | Check `Origin` and identity for an upgrade: the identity, or a 401 or 403 `Response`. |
+| `realtimeOutbox(publisher)` | `send(message)` that publishes outbox rows. The row id becomes the event id. |
+| `REALTIME_TOPIC` | `"realtime"`, the outbox topic. |
+| `CLOSE` | Close codes: `unsupported` 1003, `policy` 1008, `tooBig` 1009, `slow` 1013, `timeout` 4000, `expired` 4001, `kicked` 4003. |
+| `RealtimeIdentity`, `RealtimeSocket`, `RealtimeLimits`, `RealtimeOptions`, `PresenceMember`, `StateEntry`, `RealtimeEvent`, `RealtimePublisher`, `RealtimeConnection`, `RealtimeHub`, `AdmitOptions`, `RealtimeMembers` | Types. |
+
+| `createRealtime` option | Type | Default | |
+| --- | --- | --- | --- |
+| `authorize` | `(who, channel) => boolean` | refuse all | May `who` join `channel`? |
+| `limits.maxMessageBytes` | `number` | 16 KiB | Closes 1009. |
+| `limits.messagesPerSecond` | `number` | `20` | Burst is twice this. Closes 1008. |
+| `limits.maxChannels` | `number` | `20` | Per connection. |
+| `limits.maxStateKeys` | `number` | `100` | Per channel. |
+| `limits.maxBufferedBytes` | `number` | 1 MiB | A slow consumer is closed 1013 and resumes on reconnect. |
+| `limits.history` | `number` | `100` | Events kept per channel for resume. |
+| `heartbeatMs` | `number` | 15 s | How often clients ping. |
+| `timeoutMs` | `number` | 45 s | A silent connection is closed. |
+| `typingMs` | `number` | 6 s | A typing flag clears itself. |
+| `idleMs` | `number` | 5 min | An empty channel, with history and state, is dropped. |
+
+Identity: `{ userId, orgId, name?, avatar?, permissions?, expiresAt? }`. A session's `exp` closes its sockets.
+
+| `sessionAuth` option | Type | Default | |
+| --- | --- | --- | --- |
+| `verify` | `(token) => { sub?, exp? } \| null` | required | |
+| `cookieName` | `string` | required | |
+| `orgs` | `{ membership(orgId, userId) }` | required | A non-member is refused. |
+| `org` | `(request) => string` | `?org=`, then the `signet_org` cookie | |
+| `profile` | `(userId) => { name?, avatar? }` | none | For presence. |
+
+### Wire protocol
+
+JSON text frames.
+
+| Direction | Message |
+| --- | --- |
+| Client to server | `{ type: "join", channel, since?: { epoch, seq } }` |
+| | `{ type: "leave", channel }` |
+| | `{ type: "presence", channel, typing?, editing? }` |
+| | `{ type: "set", channel, key, value, base? }` |
+| | `{ type: "ping" }` |
+| Server to client | `welcome`, `joined`, `event`, `presence`, `state`, `conflict`, `pong`, `error` |
+
+A rejoin with `since` gets exactly what was missed, or `reset` when the gap is older than the history. Shared state is last writer wins; a writer whose `base` was older gets `conflict`. State lives in memory: persist what matters in your database.
+
+### `realtime/bun`
+
+| Export | What it does |
+| --- | --- |
+| `bunRealtime(hub, options)` | `upgrade(request, server)` and `websocket` for `Bun.serve`. |
+| `BunSocket`, `BunServer` | Structural types. |
+
+Options: `authenticate`, `origins?`, `maxMessageBytes?` (16 KiB), `maxBufferedBytes?` (1 MiB).
+
+### `realtime/node`
+
+| Export | What it does |
+| --- | --- |
+| `attachRealtime(server, hub, options)` | Serve the hub on an `http.Server`'s `upgrade` event. Returns a detach function. |
+| `NodeRealtimeOptions` | `authenticate`, `origins?`, `path?` (`"/realtime"`), `maxMessageBytes?`. |
+
+A small RFC 6455 server with no dependency: text frames, fragmentation, ping and pong, close. No compression.
+
+### `realtime/cloudflare`
+
+| Export | What it does |
+| --- | --- |
+| `realtimeRoom(options)` | Durable Object class holding one org's hub. Export it from the worker entry. |
+| `connectRoom(namespace, request, { authenticate, origins? })` | Authenticate in the worker, then hand the socket to the org's object. |
+| `roomPublisher(namespace)` | A `RealtimePublisher` for a worker, cron or `realtimeOutbox`. |
+| `RealtimeNamespace`, `WorkerSocket` | Structural types. |
+
+## Examples
+
+### Node
+
+```ts
+import { attachRealtime } from "@dapplelight/signet-server/realtime/node"
+
+attachRealtime(server, hub, { path: "/realtime", authenticate })
+```
+
+### Cloudflare, one Durable Object per org
+
+```ts
+import { connectRoom, realtimeRoom, roomPublisher } from "@dapplelight/signet-server/realtime/cloudflare"
+
+export const RealtimeRoom = realtimeRoom({ authorize: (who, channel) => channel.startsWith("record:") })
+
+app.get("/realtime", (c) => connectRoom(c.env.REALTIME, c.req.raw, { authenticate }))
+await roomPublisher(env.REALTIME).publish(orgId, "record:invoices:1042", "updated", { id: "1042" })
+```
+
+```jsonc
+// wrangler.jsonc
+"durable_objects": { "bindings": [{ "name": "REALTIME", "class_name": "RealtimeRoom" }] },
+"migrations": [{ "tag": "v1", "new_sqlite_classes": ["RealtimeRoom"] }]
+```
+
+### Publish in the same write as the data
+
+```ts
+import { REALTIME_TOPIC, realtimeOutbox } from "@dapplelight/signet-server/realtime"
+
+await db.batch([
+  (tx) => tx.update(invoices).set(patch).where(eq(invoices.id, id)),
+  enqueue(db, REALTIME_TOPIC, { orgId, channel: `record:invoices:${id}`, event: "updated", data: { id, by: userId } }),
+])
+const live = realtimeOutbox(hub) // or realtimeOutbox(roomPublisher(env.REALTIME))
+await drainOutbox(db, { send: (m) => (m.topic === REALTIME_TOPIC ? live.send(m) : queue.send(m)) })
+```
+
+### Remove a member's sockets
+
+```ts
+hub.disconnect(orgId, userId) // omit userId to close every connection in the org
+```

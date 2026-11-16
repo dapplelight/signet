@@ -1,0 +1,52 @@
+---
+title: "AI"
+description: "A fake language model on the AI SDK's own mock. No network, no spend."
+---
+
+## Usage
+
+```ts
+import { fakeModel } from "@dapplelight/signet-test/ai"
+import { generateText } from "ai"
+
+const model = fakeModel(["first answer", { budget: 8000 }])
+await generateText({ model, prompt: "Plan a snowboard trip" })
+
+console.log(model.prompts()[0]) // contains "snowboard"
+```
+
+Pass it anywhere a `LanguageModel` goes: `generateText`, `streamText`, signet-ai's `aiSdkProvider`, `streamChat`. Needs `ai` installed.
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `fakeModel(replies, options?)` | A `MockLanguageModelV4` with a `prompts()` method. |
+| `FakeModel` | Type: the mock plus `prompts(): string[]`. |
+| `FakeReply` | Type: `unknown`. |
+
+### fakeModel(replies, options?)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `replies` | reply, reply list, or `(prompt: string) => reply` | required | A string is sent as text; any other value as its JSON (structured output). A list answers in order and repeats the last one. A function gets the prompt as text. |
+| `options.modelId` | `string` | mock's default | The model id. |
+
+Streams arrive word by word. `prompts()` returns every prompt so far (generate and stream) as JSON text, oldest first.
+
+## Examples
+
+### Test an extractor
+
+```ts
+import { fakeModel } from "@dapplelight/signet-test/ai"
+
+const model = fakeModel({ vendor: "Acme Supplies", total: 1250 })
+// pass `model` to aiSdkProvider({ name: "fake", model, pricing }) in your signet-ai setup
+```
+
+### Reply based on the prompt
+
+```ts
+const model = fakeModel((prompt) => (prompt.includes("refund") ? "Refund approved" : "Thanks"))
+```

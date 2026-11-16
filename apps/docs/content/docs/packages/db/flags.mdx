@@ -1,0 +1,74 @@
+---
+title: "Flags"
+description: "Feature flags defined in code, with stored overrides per subject."
+---
+
+## Usage
+```ts
+import { flagOverrides } from "@dapplelight/signet-db/columns/sqlite"
+import { createFlags, defineFlags } from "@dapplelight/signet-db/flags"
+
+export const overrides = flagOverrides()
+
+const flags = defineFlags({
+  newEditor: {
+    default: false,
+    rules: [
+      { when: { plan: ["team"] }, value: true },
+      { when: { attributes: { country: ["IN", "LK"] } }, value: true },
+    ],
+    rollout: { percent: 10, value: true },
+  },
+})
+
+const ff = createFlags(db, flags, { table: overrides, entitlements: ent })
+
+await ff.get("newEditor", { id: userId, attributes: { country } }) // { value, reason: "rule", rule: 1 }
+await ff.set("newEditor", true, { subject: "*", actor }) // everyone; or one subject id
+```
+
+Order: the subject's override, the everyone (`"*"`) override, rules in order, the rollout, the default. Every result says why.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `defineFlags(flags)` | Declare flags; checks every value is the default's type |
+| `createFlags(db, flags, options)` | Flag store with stored overrides |
+| `evaluateFlag(key, def, subject, override?)` | Pure evaluation in the same order |
+| `matchesRule(rule, subject)` | Whether a subject meets a rule's `when` |
+| `bucket(salt, id)` | Subject's bucket, 0 to 9999 (FNV-1a) |
+| Types | `FlagValue`, `FlagRule`, `FlagDef`, `Flags`, `ValueOf`, `FlagSubject`, `FlagReason`, `FlagResult`, `FlagsOptions`, `StoredFlagOverride`, `FlagStore` |
+
+### Flag definition
+| Key | Type | |
+| --- | --- | --- |
+| `default` | `string \| number \| boolean` | Required; sets the flag's type |
+| `description` | `string` | Optional |
+| `rules` | `{ when: { plan?, attributes? }, value }[]` | First match wins |
+| `rollout` | `{ percent, value, salt? }` | `percent` 0 to 100; `salt` defaults to the flag key, change it to reshuffle |
+
+### createFlags(db, flags, options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `table` | `Table` | required | The `flagOverrides()` table |
+| `entitlements` | `{ get(id) => { plan } }` | none | Fills `subject.plan` when left out |
+| `now` | `() => Date` | `new Date` | Clock for tests |
+
+Store methods: `get(key, subject)`, `all(subject)`, `overrides(subjectId?)`, `set(key, value, { subject, actor, expiresAt? })`, `clear(key, { subject, actor })`. Overrides can expire and are audited.
+
+## Examples
+
+### Hand an agent the flags
+```ts
+import { entitlementTools } from "@dapplelight/signet-db/entitlements"
+
+const tools = entitlementTools({ entitlements: ent, flags: ff, subject: orgId })
+// list_flags is read-only; set_flag needs allowWrites and approval
+```
+
+### Test a rule without a database
+```ts
+import { evaluateFlag } from "@dapplelight/signet-db/flags"
+
+evaluateFlag("newEditor", flags.newEditor, { id: "u_1", plan: "team" }) // { value: true, reason: "rule", rule: 0 }
+```

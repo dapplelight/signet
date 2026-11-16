@@ -1,0 +1,61 @@
+---
+title: "PhonePe"
+description: "PhonePe Standard Checkout v2 with OAuth, refunds and Autopay subscriptions."
+---
+
+## Usage
+
+```ts
+import { phonepe } from "@dapplelight/signet-payments/phonepe"
+
+const pp = phonepe({
+  clientId: env.PHONEPE_CLIENT_ID,
+  clientSecret: env.PHONEPE_CLIENT_SECRET,
+  clientVersion: 1,
+  webhookUsername: env.PHONEPE_WEBHOOK_USER,
+  webhookPassword: env.PHONEPE_WEBHOOK_PASSWORD,
+  sandbox: true,
+})
+
+// Redirect the buyer to checkout.url. returnUrl is required.
+const checkout = await pp.createCheckout({
+  amount: 49_900,
+  currency: "INR",
+  idempotencyKey: "order-1042",
+  returnUrl: "https://shop.example/done",
+})
+
+app.post("/webhooks/phonepe", (c) => payments.handleWebhook("phonepe", c.req.raw))
+```
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `phonepe(config)` | A `PaymentGateway` named `phonepe` |
+| `PhonePeConfig` | Config type |
+
+### phonepe(config)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `clientId` | `string` | | Required |
+| `clientSecret` | `string` | | Required |
+| `clientVersion` | `string \| number` | | Required |
+| `webhookUsername` | `string` | | Webhook credentials from the PhonePe dashboard. Both needed for `verifyWebhook` |
+| `webhookPassword` | `string` | | |
+
+Plus the shared `sandbox`, `baseUrl`, `fetch`, `retries`, `retryDelayMs`. The OAuth token is fetched on demand and cached until it expires.
+
+## Capabilities
+
+Methods: `upi`, `card`, `netbanking`. Currency: `INR` only. Features: refunds, partial refunds, subscriptions, webhooks. No capture, customers, saved methods, payouts or settlements.
+
+## Quirks
+
+- **`gatewayId`** is your `merchantOrderId` (`reference ?? idempotencyKey`). PhonePe rejects a second create with the same id, so a retry cannot charge twice.
+- **Webhook auth is a static credential**: `Authorization` is the hex SHA-256 of `username:password`. It does not sign the body, so the adapter re-reads the order or refund status from the API and builds the event from that.
+- **No event id or time** is sent. The id is derived and `occurredAt` is the receive time.
+- **Subscriptions** (Autopay v2): get and cancel by `merchantSubscriptionId`, cancel is immediate only. Set one up through `raw("POST", "/subscriptions/v2/setup", ...)`.
+- **Settlements** are unsupported: PhonePe returns per-settlement totals, not per-payment lines.
+- The newer checksum-header webhook mode is not supported.

@@ -1,0 +1,68 @@
+---
+title: "Cashfree"
+description: "Cashfree PG orders, subscriptions, settlements recon and Payouts v2."
+---
+
+## Usage
+
+```ts
+import {
+  CASHFREE_API_VERSION,
+  CASHFREE_PAYOUT_API_VERSION,
+  cashfree,
+} from "@dapplelight/signet-payments/cashfree"
+
+const cf = cashfree({
+  clientId: env.CASHFREE_CLIENT_ID,
+  clientSecret: env.CASHFREE_CLIENT_SECRET,
+  sandbox: true,
+})
+
+// An Order. clientSecret is the payment_session_id for Cashfree's JS SDK.
+const order = await cf.createCheckout({
+  amount: 49_900,
+  currency: "INR",
+  idempotencyKey: crypto.randomUUID(), // Cashfree expects a UUID
+  reference: "order-1042",
+  customer: { id: "cust_7", phone: "9999999999" },
+  returnUrl: "https://shop.example/done",
+})
+
+await cf.createPayout({ amount: 10_000, currency: "INR", idempotencyKey: "payout_42", destination: beneficiaryId })
+
+// Webhook: x-webhook-signature + x-webhook-timestamp
+app.post("/webhooks/cashfree", (c) => payments.handleWebhook("cashfree", c.req.raw))
+```
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `cashfree(config)` | A `PaymentGateway` named `cashfree` |
+| `CASHFREE_API_VERSION` | `x-api-version` for PG calls (`2026-01-01`) |
+| `CASHFREE_PAYOUT_API_VERSION` | `x-api-version` for Payouts (`2024-01-01`) |
+| `CashfreeConfig` | Config type |
+
+### cashfree(config)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `clientId` | `string` | | Required. Sent as `x-client-id` |
+| `clientSecret` | `string` | | Required. Also the webhook signing key |
+| `apiVersion` | `string` | `CASHFREE_API_VERSION` | |
+| `payoutPublicKey` | `string` | | Payouts 2FA public key PEM. Adds `x-cf-signature` |
+
+Plus the shared `sandbox`, `baseUrl`, `fetch`, `retries`, `retryDelayMs`.
+
+## Capabilities
+
+Methods: `upi`, `card`, `netbanking`, `wallet`, `emi`, `applepay`. Features: capture, refunds, partial refunds, customers, saved methods, subscriptions, payouts, settlements, webhooks.
+
+## Quirks
+
+- **Order id** is `reference ?? idempotencyKey`, and it is the `gatewayId`. Checkout needs `customer.id` and `customer.phone`.
+- **Amounts** are rupee numbers on the wire. The adapter converts by string, never by float arithmetic.
+- **`method: "applepay"`** sets `order_meta.payment_methods: "applepay"`.
+- **Payouts** use v2 with the same client id and secret. Either whitelist the server IP in the dashboard or pass `payoutPublicKey`. `destination` is a beneficiary id. The transfer id (`reference ?? idempotencyKey`) is 1 to 40 letters, digits or underscores.
+- **Subscriptions** cancel immediately only: `atPeriodEnd` is `BAD_INPUT`. They report no created time or period end.
+- **Webhook**: Base64 HMAC-SHA256 of `x-webhook-timestamp + rawBody` with the client secret. The same scheme covers PG, subscription and payout webhooks.

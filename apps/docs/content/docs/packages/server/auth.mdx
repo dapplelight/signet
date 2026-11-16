@@ -1,0 +1,298 @@
+---
+title: "Auth"
+description: "Sessions, devices, API keys, phone codes, bearer tokens and client sign-in."
+---
+
+## Usage
+
+Stored sessions with a "your devices" list, behind a guard:
+
+```ts
+import { Hono } from "hono"
+import { cloudflareKv } from "@dapplelight/signet-server/adapters/cloudflare"
+import { kvSessionStore, startSession } from "@dapplelight/signet-server/auth/sessions"
+import { readSessionCookie, sessionCookie } from "@dapplelight/signet-server/auth/session"
+import { requireStoredSession, sessionRoutes } from "@dapplelight/signet-server/auth/hono"
+import { clientIp } from "@dapplelight/signet-server/middleware/rate-limit"
+
+type Bindings = { SESSIONS: KVNamespace; SESSION_SECRET: string }
+
+// Config is built from bindings, never read at module scope.
+const sessionOptions = (env: Bindings) => ({
+  cookieName: "app_session",
+  secret: env.SESSION_SECRET,
+  store: kvSessionStore(cloudflareKv(env.SESSIONS)),
+})
+
+export function createApp(env: Bindings) {
+  const opts = sessionOptions(env)
+  const app = new Hono()
+
+  app.post("/api/sign-in", async (c) => {
+    const { token } = await startSession(opts, {
+      sub: "user_123",
+      userAgent: c.req.header("user-agent"),
+      ip: clientIp(c, "cloudflare"),
+      previousToken: readSessionCookie(c.req.header("cookie"), opts), // revoked: no session fixation
+    })
+    c.header("Set-Cookie", sessionCookie(token, opts))
+    return c.json({ ok: true })
+  })
+
+  app.use("/api/me/*", requireStoredSession(opts))
+  app.route("/api/sessions", sessionRoutes(opts)) // GET / · DELETE /:id · POST /revoke-others
+  return app
+}
+```
+
+`sessionRoutes` has its own guard. Add `csrfMiddleware` when the cookie is `SameSite=None`.
+
+## API
+
+### `auth/session` (stateless cookie)
+
+| Export | What it does |
+| --- | --- |
+| `issueSession(options, sub?, extra?)` | Signed token. `extra`: `{ sid, ttlSeconds }`. |
+| `verifySession(token, options)` | Payload, or `null`. Refuses stored-session tokens (they carry `sid`). |
+| `checkSession(token, options)` | `{ payload, resigned? }`. `resigned` when an old key matched. |
+| `sessionCookie(token, options, maxAgeSeconds?)` | `Set-Cookie` value (HttpOnly, Secure). |
+| `clearCookie(options)` | `Set-Cookie` value that clears it. |
+| `readSessionCookie(cookieHeader, options)` | The token from a `Cookie` header, or `null`. |
+| `hmacSha256(secret, data)` | HMAC-SHA256, base64url. Secret must be 32+ characters. |
+| `timingSafeEqual(a, b)` | Constant-time string compare. |
+| `SessionOptions`, `SessionPayload` | Types. |
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `cookieName` | `string` | required | Namespace per app. |
+| `secret` | `string` | required | 32+ characters, per environment. |
+| `previousSecrets` | `string[]` | none | Keys being rotated out. Old cookies verify and are re-signed. |
+| `ttlSeconds` | `number` | 14 days | |
+| `sameSite` | `"strict" \| "lax" \| "none"` | `"lax"` | `none` for a frontend on another origin. |
+| `domain` | `string` | none | e.g. `".example.com"`. |
+
+### `auth/sessions` (stored sessions)
+
+| Export | What it does |
+| --- | --- |
+| `kvSessionStore(kv, { prefix? })` | `SessionStore` on any `KeyValue`. |
+| `cachedSessionStore(store, { seconds })` | In-memory read cache. A revoke elsewhere lags by up to `seconds`. |
+| `startSession(options, input)` | Sign in: a new id, returns `{ token, record }`. |
+| `validateSession(token, options, { ip?, defer? })` | Signature, expiry and still in the store. |
+| `rotateSession(token, options, { userAgent?, ip? })` | New id, old one revoked. Use on a password change. |
+| `deviceLabel(userAgent)` | `"Chrome on macOS"`. |
+| `SessionRecord`, `SessionStore`, `StoredSessionOptions`, `StartSessionInput`, `ValidSession` | Types. |
+
+`StoredSessionOptions` is `SessionOptions` plus `store` and `touchEverySeconds` (default `300`).
+
+### `auth/hono` (middleware and routes)
+
+| Export | What it does |
+| --- | --- |
+| `requireStoredSession(options)` | Guard for stored sessions. Sets `session`. 401 if invalid or revoked. |
+| `sessionRoutes(options)` | `GET /`, `DELETE /:id`, `POST /revoke-others`. |
+| `requireSession(options)` | Guard for the stateless cookie. Sets `session`. |
+| `requireApiKey({ store, prefix, scopes? })` | Guard for API keys. Sets `apiKey`. 401, or 403 on a missing scope. |
+| `requireSharedToken(getExpected)` | Guard for one shared bearer token in a secret. |
+| `requireAuth(options)` | API token first, then session cookie. Sets `user`. |
+| `clientLoginRoutes(options)` | Routes for extension, desktop and CLI sign-in. |
+| `SessionRoutes`, `ClientLoginRoutes` | Route types for `hc` (`import type`). |
+| `StoredSessionMiddlewareOptions`, `DualAuthOptions`, `ClientLoginRoutesOptions` | Types. |
+
+| `requireStoredSession` option | Type | Default | |
+| --- | --- | --- | --- |
+| `trust` | `ClientIpTrust` | `"none"` | Which proxy to believe for the recorded IP. |
+| `defer` | `(c) => Defer` | none | Keep the `lastSeenAt` write off the response. |
+| `bearer` | `boolean` | `false` | Also accept `Authorization: Bearer <access token>` from client login. |
+
+### `auth/api-keys`
+
+| Export | What it does |
+| --- | --- |
+| `createApiKey(store, input)` | Mint a key: `{ token, key }`. Show `token` once. |
+| `listApiKeys(store, sub)` | Keys without their hash. |
+| `revokeApiKey(store, sub, id)` | `true` if it existed and was yours. |
+| `verifyApiKey(store, headers, options)` | `{ ok: true, key }` or `{ ok: false, reason }`. |
+| `kvApiKeyStore(kv, { prefix? })` | `ApiKeyStore` on any `KeyValue`. |
+| `ApiKeyRecord`, `ApiKeyInfo`, `ApiKeyStore`, `VerifyApiKeyResult` | Types. |
+
+| `createApiKey` input | Type | Default | |
+| --- | --- | --- | --- |
+| `sub` | `string` | required | Owner. |
+| `name` | `string` | required | Cut to 100 characters. |
+| `prefix` | `string` | required | 2-16 letters or digits, starting with a letter. |
+| `scopes` | `string[]` | none | |
+| `expiresInSeconds` | `number` | never expires | |
+
+### `auth/bearer`
+
+| Export | What it does |
+| --- | --- |
+| `readBearer(headers)` | The bearer token, or `null`. |
+| `verifySharedToken(headers, expected)` | Constant-time compare against a secret. |
+| `createApiToken(prefix)` | `{ token, hash }`: `prefix_<64 hex>` and its SHA-256. Store only the hash. |
+| `hashIncomingToken(headers, prefix)` | Hash for lookup, or `null` on a wrong prefix. |
+| `sha256Hex(input)` | SHA-256 hex. |
+
+### `auth/passcode`
+
+| Export | What it does |
+| --- | --- |
+| `hashPasscode(passcode)` | `iterations:salt:hash` (PBKDF2). Run offline, store in a secret. |
+| `verifyPasscode(passcode, stored)` | Constant-time check. `false` on anything malformed. |
+
+### `auth/otp` (phone codes)
+
+| Export | What it does |
+| --- | --- |
+| `requestPhoneOtp(options, { phone, ip? })` | Send a code. `{ ok, phone, expiresInSeconds }` or `INVALID_PHONE` / `RATE_LIMITED`. |
+| `verifyPhoneOtp(options, { phone, code, ip? })` | `{ ok, phone }` or `INVALID_PHONE`, `CODE_EXPIRED`, `INVALID_CODE`, `TOO_MANY_ATTEMPTS`. |
+| `normalizePhone(input)` | E.164, or `null`. Indian national forms accepted. |
+| `maskPhone(phone)` | `+91******3210`-style mask. |
+| `devSmsSender({ appEnv?, log? })` | Prints the SMS locally. Throws in production or staging. |
+| `SmsSender`, `PhoneOtpOptions`, `OtpRequestResult`, `OtpVerifyResult` | Types. `SmsSender` is `{ send(to, message) }`. |
+
+| `PhoneOtpOptions` | Type | Default | |
+| --- | --- | --- | --- |
+| `kv` | `KeyValue` | required | |
+| `secret` | `string` | required | 32+ characters. |
+| `sender` | `SmsSender` | required | |
+| `rateLimit` | `RateLimitStore` | required | Use an exact store. |
+| `codeLength` | `number` | `6` | |
+| `ttlSeconds` | `number` | `300` | |
+| `maxAttempts` | `number` | `5` | Wrong guesses per code. |
+| `perPhone` | `{ max, windowSeconds }` | 3 per 15 min | |
+| `perIp` | `{ max, windowSeconds }` | 10 per hour | |
+| `verifyFailuresPerIp` | `{ max, windowSeconds }` | 30 per hour | Skipped when no `ip` is passed. |
+| `message` | `(code, ttlSeconds) => string` | built-in text | |
+| `prefix` | `string` | `"signet-otp"` | |
+
+### `auth/client-login` (extension, desktop, CLI)
+
+Authorization code with PKCE (S256 only) and device code (RFC 8628). Both end in a short-lived access token and a rotating refresh token.
+
+| Export | What it does |
+| --- | --- |
+| `authorizeClient(options, input)` | `/authorize` step for a signed-in user: where to redirect with the code. |
+| `exchangeToken(options, params, ctx?)` | Token endpoint: `authorization_code`, `refresh_token` or the device grant. |
+| `startDeviceLogin(options, { client_id, ip? })` | CLI step 1: device code and user code. |
+| `approveDeviceLogin(options, { user_code, sub })` | Web step 2: the signed-in user approves. |
+| `revokeClientToken(options, token)` | Revoke a refresh or access token. |
+| `pkceChallenge(verifier)` | S256 challenge. |
+| `redirectUriAllowed(registered, given)` | Exact match; a loopback entry without a port matches any port. |
+| `normalizeUserCode(input)` | `"bcdf-ghjk"` to `"BCDFGHJK"`, or `null`. |
+| `DEVICE_CODE_GRANT` | The device-code grant type URN. |
+| `ClientLoginClient`, `ClientLoginOptions`, `TokenResponse`, `OAuthErrorCode`, `OAuthFailure`, `DeviceCodeResponse` | Types. |
+
+| `ClientLoginOptions` | Type | Default | |
+| --- | --- | --- | --- |
+| `sessions` | `StoredSessionOptions` | required | Access tokens are signed with its secret. |
+| `kv` | `KeyValue` | required | Codes and refresh tokens. Use a store with `incr`. |
+| `rateLimit` | `RateLimitStore` | required | Use an exact store. |
+| `clients` | `Record<clientId, { redirectUris? }>` | required | Unknown ids are refused. |
+| `verificationUri` | `string` | required | Page where the user types the device code. |
+| `accessTtlSeconds` | `number` | `900` | |
+| `refreshTtlSeconds` | `number` | 30 days | Absolute; refresh never extends it. |
+| `codeTtlSeconds` | `number` | `60` | |
+| `deviceTtlSeconds` | `number` | `600` | |
+| `pollIntervalSeconds` | `number` | `5` | |
+| `deviceStartsPerIp` | `{ max, windowSeconds }` | 10 per 10 min | |
+| `approvalsPerUser` | `{ max, windowSeconds }` | 10 per 10 min | |
+| `prefix` | `string` | `"signet-cl"` | |
+
+`clientLoginRoutes` adds `trust` (required) and `loginUrl(returnTo)`, and mounts `GET /authorize`, `POST /token`, `POST /device/code`, `POST /device/approve` and `POST /revoke`.
+
+### `auth/better-auth`
+
+| Export | What it does |
+| --- | --- |
+| `betterAuthDefaults(env, options)` | A plain options object for Better Auth. No dependency on it. |
+| `socialProviders(creds, onSkip?)` | Keeps providers with both id and secret; reports half-configured ones. |
+| `BetterAuthEnv`, `BetterAuthDefaultsOptions` | Types. |
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `crossOrigin` | `boolean` | `false` | `true` forces `SameSite=None; Secure`. |
+| `baseURL` | `string` | `BETTER_AUTH_URL`, else `WEB_URL`, else `WORKER_URL` | |
+| `trustedOrigins` | `string[]` | built from `WEB_URL`, `LANDING_URL`, `ADMIN_URL` | Replaces the list. |
+| `extraTrustedOrigins` | `string[]` | none | Added to the list. |
+| `sessionSeconds` | `number` | `SESSION_DURATION_SECONDS`, else 7 days | |
+| `cookieCacheSeconds` | `number` | off | A revoked session stays valid this long. |
+| `skipStateCookieCheck` | `boolean` | `false` | That check is OAuth callback CSRF protection. |
+| `rateLimit` | `{ window, max }` | Better Auth's own | |
+
+### `auth/guards`
+
+| Export | What it does |
+| --- | --- |
+| `isDevAuthEnabled(env)` | `true` only if `DEV_AUTH_ENABLED=true` outside production. Throws in production or staging. |
+| `requireEnv(env, keys)` | Values, or throws naming every missing key. |
+| `checkEnv(env, keys)` | `{ ok: true, values }` or `{ ok: false, missing }`. |
+
+### `auth/mcp`
+
+| Export | What it does |
+| --- | --- |
+| `authTools(options)` | MCP tools: `list_my_sessions`, `revoke_session`, `list_api_keys`, `revoke_api_key`. |
+| `AuthToolsOptions` | `sessions?`, `apiKeys?`, `userOf?`. A tool pair is added per store you pass. |
+
+Revokes go through `requireApproval`. No tool returns a secret, hash or code.
+
+## Examples
+
+### Passcode gate for an invite page
+
+```ts
+import { verifyPasscode } from "@dapplelight/signet-server/auth/passcode"
+import { issueSession, sessionCookie } from "@dapplelight/signet-server/auth/session"
+
+const opts = { cookieName: "rsvp_session", secret: env.SESSION_SECRET, sameSite: "none" as const }
+
+app.post("/api/unlock", async (c) => {
+  const { passcode } = await c.req.json()
+  if (!(await verifyPasscode(passcode, env.PASSCODE_HASH))) return c.json({ error: "Wrong passcode" }, 401)
+  c.header("Set-Cookie", sessionCookie(await issueSession(opts), opts))
+  return c.json({ ok: true })
+})
+```
+
+### API key for a CI job
+
+```ts
+import { createApiKey, kvApiKeyStore } from "@dapplelight/signet-server/auth/api-keys"
+import { requireApiKey } from "@dapplelight/signet-server/auth/hono"
+
+const keys = kvApiKeyStore(kv)
+const { token, key } = await createApiKey(keys, {
+  sub: user.id, name: "CI", prefix: "app", scopes: ["read"], expiresInSeconds: 90 * 86400,
+})
+// Show `token` once. `key` is safe to list.
+
+app.use("/api/export/*", requireApiKey({ store: keys, prefix: "app", scopes: ["read"] }))
+```
+
+### Phone sign-in
+
+```ts
+import { devSmsSender, requestPhoneOtp, verifyPhoneOtp } from "@dapplelight/signet-server/auth/otp"
+import { upstashRateLimitStore } from "@dapplelight/signet-server/adapters/upstash"
+
+const otp = {
+  kv,
+  secret: env.OTP_SECRET,
+  sender: devSmsSender({ appEnv: env.APP_ENV }), // a real SMS provider in production
+  rateLimit: upstashRateLimitStore({ url: env.UPSTASH_URL, token: env.UPSTASH_TOKEN }),
+}
+await requestPhoneOtp(otp, { phone: body.phone, ip })
+const checked = await verifyPhoneOtp(otp, { phone: body.phone, code: body.code, ip })
+if (checked.ok) {
+  // sign in checked.phone with startSession
+}
+```
+
+### Rotate the signing key without signing anyone out
+
+```ts
+const opts = { cookieName: "app_session", secret: env.SESSION_SECRET, previousSecrets: [env.SESSION_SECRET_OLD] }
+```

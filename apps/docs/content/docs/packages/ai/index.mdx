@@ -1,0 +1,48 @@
+---
+title: "AI"
+description: "Structured LLM calls with budget caps, caching, failover, tool loops and grounded answers."
+---
+
+```bash
+npm i @dapplelight/signet-ai
+```
+
+## Quick start
+```ts
+import { z } from "zod"
+import { createExtractor, memoryCache, createBudgetLedger } from "@dapplelight/signet-ai"
+import { aiSdkProvider } from "@dapplelight/signet-ai/providers/ai-sdk"
+
+const ai = createExtractor({
+  providers: [
+    aiSdkProvider({ name: "primary", model, pricing: { inputPerMTokens: 0.15, outputPerMTokens: 0.6 } }),
+  ],
+  cache: memoryCache(),
+  ledger: createBudgetLedger(5, 86_400), // $5 per day, fails closed
+})
+
+const { value, meta } = await ai.extract({
+  schema: z.object({ category: z.string(), maxPrice: z.number().nullable() }),
+  input: "snowboards under 8000",
+  instructions: "Pull the category and the price cap from this request.",
+})
+```
+
+<Callout type="warn">
+Output is validated against your schema. That guarantees shape, not truth: check values that could do harm against the input.
+</Callout>
+
+## Modules
+<Cards>
+  <Card title="Budget" href="/docs/packages/ai/budget" description="Spend ledger, per-key caps, pluggable stores." />
+  <Card title="Budget (Durable Object)" href="/docs/packages/ai/budget-do" description="Exact global budget on Cloudflare Workers." />
+  <Card title="Cache" href="/docs/packages/ai/cache" description="Memory and KV caches keyed by schema and model." />
+  <Card title="Chat" href="/docs/packages/ai/chat" description="Tool loops and streaming chat." />
+  <Card title="Errors" href="/docs/packages/ai/errors" description="AiError and its codes." />
+  <Card title="Extract" href="/docs/packages/ai/extract" description="Typed extraction with retry and failover." />
+  <Card title="Fake" href="/docs/packages/ai/fake" description="Deterministic provider for tests." />
+  <Card title="Ground" href="/docs/packages/ai/ground" description="Embeddings, search, cited answers." />
+  <Card title="Jev" href="/docs/packages/ai/jev" description="Classifier decisions that always have a fallback." />
+  <Card title="Providers" href="/docs/packages/ai/providers" description="Vercel AI SDK and Workers AI adapters." />
+  <Card title="React" href="/docs/packages/ai/react" description="useSignetChat for streamed chat." />
+</Cards>

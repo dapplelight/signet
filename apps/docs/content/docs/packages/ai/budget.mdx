@@ -1,0 +1,60 @@
+---
+title: "Budget"
+description: "A rolling-window spend ledger that fails closed, with per-key caps."
+---
+
+## Usage
+```ts
+import { createBudgetLedger, kvBudgetStore, createExtractor } from "@dapplelight/signet-ai"
+
+// Build where env exists (a request handler), not at module scope.
+const ledger = createBudgetLedger(5, 86_400, {
+  store: kvBudgetStore(env.AI_KV), // omit for per-isolate memory
+  perKeyUsd: 0.5,                  // each user: $0.50 of the $5
+})
+
+const ai = createExtractor({ providers, ledger })
+await ai.extract({ schema, input, instructions, budget: { key: user.id } })
+```
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createBudgetLedger(windowUsd, windowSeconds?, options?)` | Ledger with `spentUsd`, `remainingUsd`, `canSpend`, `record` |
+| `memoryBudgetStore()` | Default store. Per isolate, empty after a cold start |
+| `kvBudgetStore(kv, prefix?)` | Shared store on Workers KV or a `KeyValueLike`. Approximate |
+| `costOf(usage, pricing)` | USD for one call from token usage and `Pricing` |
+| `BudgetStore` | Type: any object with `spent` and `record` (Redis, a database) |
+| `BudgetKv` | Type: the KV namespace subset `kvBudgetStore` needs |
+| `BudgetLedger`, `BudgetLedgerOptions` | Types |
+
+### createBudgetLedger(windowUsd, windowSeconds, options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `windowUsd` | `number` | required | Cap per window |
+| `windowSeconds` | `number` | `3600` | Rolling window length |
+| `options.store` | `BudgetStore` | `memoryBudgetStore()` | Where spend is kept |
+| `options.perKeyUsd` | `number` | none | Cap per `budget.key` in the same window |
+
+The ledger fails closed: an exhausted window or an unreachable store refuses the call. Calls in flight are not reserved, so concurrent calls can overshoot by their own cost.
+
+### Ledger methods
+| Method | Returns |
+| --- | --- |
+| `spentUsd(now?, key?)` | USD spent in the window, globally or for a key |
+| `remainingUsd(now?)` | USD left globally |
+| `canSpend(estimateUsd, now?, key?)` | `false` when the global or the key window has no room |
+| `record(usd, now?, key?)` | Adds spend; ignores values of 0 or less |
+
+<Callout type="warn">
+`kvBudgetStore` uses a fixed window and concurrent writes can lose a record. Use the Durable Object store when the cap must hold.
+</Callout>
+
+## Examples
+### Pricing a flat-rate provider
+```ts
+import { costOf } from "@dapplelight/signet-ai"
+
+costOf({ inputTokens: 1200, outputTokens: 300 }, { inputPerMTokens: 0.15, outputPerMTokens: 0.6 })
+costOf(undefined, { perCallUsd: 0.0005 }) // 0.0005
+```

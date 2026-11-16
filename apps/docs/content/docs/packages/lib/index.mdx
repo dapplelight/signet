@@ -1,0 +1,35 @@
+---
+title: "Lib"
+description: "Client primitives: API client, forms, formatting, analytics, sessions, storage, search."
+---
+
+```bash
+npm i @dapplelight/signet-lib
+```
+
+## Quick start
+```ts
+import { createApiClient } from "@dapplelight/signet-lib/api"
+import { createCurrencyFormatter } from "@dapplelight/signet-lib/format"
+
+const api = createApiClient({ baseUrl: "/api" })
+const inr = createCurrencyFormatter("INR", "en-IN")
+
+const invoice = await api.get<{ id: string; total: number }>("/invoices/INV-1042")
+console.log(inr(invoice.total)) // ₹8,000
+```
+
+## Modules
+<Cards>
+  <Card title="Analytics" href="/docs/packages/lib/analytics" description="Batched event tracking with opt-out and consent." />
+  <Card title="API" href="/docs/packages/lib/api" description="Fetch client, typed RPC client, errors, streams, TanStack defaults." />
+  <Card title="Crypto" href="/docs/packages/lib/crypto" description="Fail-closed field decryption." />
+  <Card title="Form" href="/docs/packages/lib/form" description="TanStack Form helpers and server error mapping." />
+  <Card title="Format" href="/docs/packages/lib/format" description="Currency, number, date formatting and date maths." />
+  <Card title="Offline" href="/docs/packages/lib/offline" description="Outbox for work done offline." />
+  <Card title="Search" href="/docs/packages/lib/search" description="Ranked search with chips, typos and usage boosts." />
+  <Card title="Session" href="/docs/packages/lib/session" description="Bearer tokens for clients without cookies." />
+  <Card title="Storage" href="/docs/packages/lib/storage" description="Async key-value adapters per platform." />
+  <Card title="Sync" href="/docs/packages/lib/sync" description="Conflict rules for local-first sync." />
+  <Card title="Webhooks" href="/docs/packages/lib/webhooks" description="Standard Webhooks signing and verifying." />
+</Cards>

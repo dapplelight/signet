@@ -1,0 +1,91 @@
+---
+title: "Collab"
+description: "Comments, @mentions, activity timeline and version history for org records."
+---
+
+## Usage
+```ts
+import { collabTables } from "@dapplelight/signet-db/columns/sqlite" // or /columns/pg
+import { createCollab } from "@dapplelight/signet-db/collab"
+import { createDb } from "@dapplelight/signet-db/d1"
+
+export const { comments, recordVersions } = collabTables()
+
+// Version history is opt-in per table.
+const db = createDb(env.DB, { audit, versions: { table: recordVersions, track: [tasks] } })
+
+const collab = createCollab(db, {
+  tables: { comments },
+  records: { tasks }, // what can be commented on, by name; each needs orgId
+  orgs, // createOrgs(...)
+  people: (ids) => namesById(ids),
+  notify: (to, mention) => notifier.notify(to, "mention", { excerpt: mention.excerpt }),
+})
+
+const who = { orgId, userId }
+const ref = { table: "tasks", id: taskId }
+await collab.addComment(who, ref, { body: "Ready? @[Asha](user:u_1)" })
+await collab.timeline(who, ref, { limit: 20 })
+await collab.undo(who, ref, { expected: 5 }) // 409 if the record moved on
+```
+
+A record of another org, or any record for a non-member, is a 404. Writing mentions as `@[Name](user:<id>)` means a rename never breaks one.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createCollab(db, options)` | The collaboration engine |
+| `mentionToken(id, name)` | The token a mention picker inserts |
+| `parseMentions(text)` | User ids mentioned in text |
+| `MENTION_PATTERN` | Regex for a mention token |
+| `describeItem(item)` | Default one-line timeline text |
+| `diffRows(table, before, after)` | Field changes between two rows |
+| `fieldLabel(key)` | `"dueDate"` to `"due date"` |
+| Types | `RecordRef`, `Who`, `Person`, `Actor`, `Comment`, `Thread`, `Mention`, `FieldChange`, `TimelineItem`, `TimelineDraft`, `RecordVersion`, `AccessCheck`, `CollabOptions`, `Collab` |
+
+### createCollab(db, options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `tables` | `{ comments }` | required | From `collabTables()` |
+| `records` | `Record<string, Table>` | required | Commentable tables; each needs `orgId` |
+| `orgs` | `{ membership, members }` | required | `createOrgs(...)` fits |
+| `people` | `(ids) => Promise<Record<id, { name?, email?, image? }>>` | id is the name | Names for people |
+| `notify` | `(to, mention) => unknown` | none | Called once per newly mentioned person; a throw is ignored |
+| `access` | `(check) => boolean \| Promise<boolean>` | read: any member, write: `<table>:write` | Replace the access rule |
+| `describe` | `(item) => string` | `describeItem` | Timeline one-liner |
+| `now` | `() => Date` | `new Date` | Clock for tests |
+
+Methods:
+
+| Method | What it does |
+| --- | --- |
+| `addComment(who, ref, { body, parentId? })` | Comment or reply |
+| `editComment(who, id, { body })` | Author only |
+| `deleteComment(who, id)` | Soft delete; text cleared |
+| `comments(who, ref)` | Threads with replies |
+| `mentionable(who, query?, limit?)` | Org members for the mention picker |
+| `timeline(who, ref, { limit?, before? })` | Audit changes and comments, newest first |
+| `versions(who, ref, { limit?, before? })` | Versions with field changes |
+| `diff(who, ref, from, to)` | Changes between two versions |
+| `restore(who, ref, n)` | Put version `n` back as a new version |
+| `undo(who, ref, { expected? })` | Undo the last change |
+
+Restore and undo need `<record>:write` (for example `tasks:write`). Editing is the author's; deleting is the author's or needs `comments:moderate`.
+
+## Examples
+
+### Show a record's history
+```ts
+const { items, nextCursor } = await collab.timeline(who, ref, { limit: 20 })
+// items[0].summary → "Asha changed status to Done"
+const versions = await collab.versions(who, ref)
+const { changes } = await collab.diff(who, ref, 2, 5) // [{ field, from, to }]
+```
+
+### Mention someone from a picker
+```ts
+import { mentionToken } from "@dapplelight/signet-db/collab"
+
+const [asha] = await collab.mentionable(who, "as")
+await collab.addComment(who, ref, { body: `${mentionToken(asha.id, asha.name)} can you review?` })
+```

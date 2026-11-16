@@ -1,0 +1,60 @@
+---
+title: "Chat"
+description: "Tool loops with a step cap, and streaming chat for a route handler."
+---
+
+## Usage
+```ts
+import { tool } from "ai"
+import { z } from "zod"
+import { runTools, streamChat } from "@dapplelight/signet-ai/chat"
+
+const tools = {
+  lookupOrder: tool({
+    description: "Find an order by id",
+    inputSchema: z.object({ orderId: z.string() }),
+    execute: async ({ orderId }) => db.orders.find(orderId),
+  }),
+}
+
+// One-shot tool loop
+const r = await runTools({ model, tools, prompt: "Where is order A1042?", maxSteps: 5 })
+if (r.capped) {
+  // stopped at maxSteps while the model still wanted tools; r.text is often empty
+}
+
+// Streaming route (Hono shown; any handler that returns a Response works)
+app.post("/api/chat", async (c) => {
+  const { messages } = await c.req.json()
+  return streamChat({ model, messages, tools, key: c.get("userId"), abortSignal: c.req.raw.signal })
+})
+```
+
+Needs `ai` 7 or later. The client half is `useSignetChat` in React.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `runTools(options)` | Multi-step tool calling with a step cap. Resolves to `RunToolsResult` |
+| `streamChat(options)` | Streams a reply and returns the `Response` for `useSignetChat` |
+| `RunToolsOptions`, `StreamChatOptions` | Types |
+| `RunToolsResult` | `{ text, steps, capped, toolCalls, usage, costUsd }` |
+| `ChatMessage`, `ChatMetadata` | Types: UI message with `metadata.usage` |
+
+### runTools / streamChat options
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `model` | `LanguageModel` | required | From any AI SDK provider |
+| `prompt` or `messages` | `string` or `ModelMessage[]` | required | `runTools` only, one of the two. `streamChat` takes UI `messages` |
+| `system` | `string` | none | |
+| `tools` | `ToolSet` | none | |
+| `maxSteps` | `number` | `5` | Each model call is a step |
+| `provider` | `string` | `"ai-sdk"` | Label in `onUsage` |
+| `pricing` | `Pricing` | none | `perCallUsd` is charged once per step |
+| `onUsage` | `OnUsage` | none | `operation` is `tools` or `stream`; stream reports when it ends |
+| `key` | `string` | none | Budget key, e.g. a user id |
+| `abortSignal` | `AbortSignal` | none | |
+
+<Callout type="warn">
+`streamChat` treats `messages` as untrusted. It drops `system` messages and every tool part, so a browser cannot plant a system prompt or a fake tool result. Authenticate the route and cap the history length yourself.
+</Callout>

@@ -1,0 +1,196 @@
+---
+title: "Notify"
+description: "One notify call to email, SMS, WhatsApp, push, Telegram and an in-app inbox."
+---
+
+## Usage
+
+```ts
+import { z } from "zod"
+import { createNotifier, defineTemplates, kvNotifyStore } from "@dapplelight/signet-server/notify/notifier"
+import { resendSender } from "@dapplelight/signet-server/notify/channels"
+import { kvRateLimitStore, waitUntilDefer } from "@dapplelight/signet-server/adapters"
+
+const templates = defineTemplates({
+  "order.shipped": {
+    category: "orders",
+    data: z.object({ orderId: z.string(), url: z.string().url() }),
+    en: {
+      email: {
+        subject: (d) => `Order ${d.orderId} shipped`,
+        html: () => "<p>On its way.</p>",
+        action: { label: () => "Track", url: (d) => d.url },
+      },
+      inApp: { title: () => "Shipped", body: (d) => `Order ${d.orderId}`, link: (d) => d.url },
+    },
+  },
+})
+
+// Built per request: the sender keys come from env, never module scope.
+const notifierFor = (env: Env, ctx: ExecutionContext) =>
+  createNotifier({
+    templates,
+    store: kvNotifyStore(kv),
+    channels: { email: resendSender({ apiKey: env.RESEND_KEY, from: "Acme <noreply@mail.acme.com>" }) },
+    recipients: async (userId) => db.contactFor(userId), // { email, phone, locale, timezone }
+    defer: waitUntilDefer(ctx),
+    secret: env.NOTIFY_SECRET, // 32+ characters
+    unsubscribeUrl: "https://api.acme.com/unsubscribe",
+    rateLimitStore: kvRateLimitStore(kv),
+  })
+
+const results = await notifierFor(env, ctx).notify("user_42", "order.shipped", { orderId: "ord_1042", url })
+// [{ channel: "email", status: "queued" }, { channel: "inApp", status: "queued" }]
+```
+
+`notify` validates data against the template, then per channel checks preferences, suppression, WhatsApp opt-in, quiet hours and the rate limit. The request never waits on a provider. A channel is `queued` or `skipped` with a reason: `PREFS`, `SUPPRESSED`, `NO_OPT_IN`, `QUIET_HOURS`, `RATE_LIMITED`, `NO_ADDRESS`, `NO_SENDER`, `DUPLICATE`.
+
+## API
+
+### `notify/notifier`
+
+| Export | What it does |
+| --- | --- |
+| `createNotifier(options)` | The notifier: `notify`, inbox, prefs, opt-ins, delivery tracking, export and erase. |
+| `defineTemplates(templates)` | Typed templates: each variant is checked against its `data` schema. |
+| `kvNotifyStore(kv, options)` | `NotifyStore` on any `KeyValue`. Per-user lists are capped. |
+| `notifyJob(notifier, z, options?)` | Register with `createJobs` so every send is a job (retries, dead letters). |
+| `emailLayout`, `DEFAULT_EMAIL_THEME` | The themed email wrapper and its colours. |
+| `escapeHtml(s)`, `htmlToText(html)` | Helpers for template HTML. |
+| `quietMinutesLeft(quietHours, at, tz?)` | Minutes until quiet hours end, or `0`. |
+| `maskAddress(address)` | `a***@example.com`-style masking. |
+| `CHANNELS`, `NotifyError` | The channel list; the error class. |
+| `Channel`, `Priority`, `DeliveryStatus`, `Sender`, `Senders`, `Recipient`, `Templates`, `TemplateDef`, `Variants`, `EmailVariant`, `SmsVariant`, `WhatsAppVariant`, `PushVariant`, `TelegramVariant`, `InAppVariant`, `Rendered*`, `SendResult`, `EmailTheme`, `QuietHours`, `Prefs`, `InboxItem`, `Delivery`, `OptIn`, `NotifyStore`, `DeliveryEvent`, `NotifierOptions`, `NotifyOptions`, `NotifyResult`, `Notifier` | Types. |
+
+| `createNotifier` option | Type | Default | |
+| --- | --- | --- | --- |
+| `templates` | `Templates` | required | |
+| `store` | `NotifyStore` | required | |
+| `channels` | `{ email?, sms?, whatsapp?, push?, telegram? }` | required | Senders. In-app needs none. |
+| `recipients` | `(userId) => Recipient \| null` | required | `email`, `phone`, `whatsapp`, `telegramChatId`, `locale`, `timezone`. |
+| `defer` | `Defer` | `processDefer()` | On Workers pass `waitUntilDefer(ctx)`. |
+| `secret` | `string` | none | 32+ characters. Signs unsubscribe tokens. |
+| `unsubscribeUrl` | `string` | none | One-click unsubscribe endpoint. |
+| `required` | `string[]` | `security`, `otp`, `billing` | Categories nobody can turn off; no rate limit, no unsubscribe link. |
+| `quietHours` | `{ start, end, timezone? }` | none | Default for users with none. |
+| `timezone` | `string` | `"Asia/Kolkata"` | |
+| `rateLimit` | `{ max, windowSeconds }` | 30 per hour per channel | Off without `rateLimitStore`. |
+| `rateLimitStore` | `RateLimitStore` | none | |
+| `retry` | `Partial<RetryPolicy>` | 3 attempts, 2 s doubling | In-process, when there is no job. |
+| `emailTheme`, `emailFooter` | | editorial theme | |
+| `payloadTtlSeconds` | `number` | 2 days | How long a queued body is kept. |
+| `onEvent` | `(event, data) => void` | none | Ids, channels, statuses, reason codes. Never bodies or codes. |
+
+`notify(userId, event, data, options)` takes `channels`, `priority` (`"urgent"` bypasses quiet hours) and `idempotencyKey` (same key, nothing sent twice).
+
+| Notifier member | What it does |
+| --- | --- |
+| `inbox.list(userId, { cursor, limit, archived })`, `unreadCount`, `markRead(userId, ids)`, `markAllRead`, `archive(userId, id)` | In-app inbox. Polling only. |
+| `getPrefs(userId)`, `updatePrefs(...)` | Per user, category and channel. Absent means allowed. |
+| `setOptIn(userId, channel, { source })` | Record opt-in. WhatsApp needs it. Pass `null` to remove. |
+| `recordEvents(events)` | Feed provider delivery events. A status never moves backwards. |
+| `unsubscribe(token)` | Turn a category's email off. |
+| `exportUser(userId)`, `deleteUser(userId)` | Prefs, opt-ins, inbox, delivery history. Call next to your database's export and erase. |
+
+### `notify/channels` (senders)
+
+| Export | Channel | Notes |
+| --- | --- | --- |
+| `resendSender({ apiKey, from, replyTo? })` | Email | Sends the delivery id as `Idempotency-Key`. |
+| `postmarkSender({ serverToken, from, replyTo?, messageStream? })` | Email | No idempotency; a timeout retry can send twice. |
+| `twilioSms({ accountSid, username, password, from?, messagingServiceSid?, statusCallback? })` | SMS | Template `senderId` becomes `From`. |
+| `msg91Sms({ authKey })` | SMS | `providerTemplateId` is the flow id. No MSG91 delivery webhook. |
+| `whatsappSender({ accessToken, phoneNumberId, apiVersion, isWindowOpen? })` | WhatsApp | Free text only in the 24 h window, else the template. |
+| `pushSender({ send, subscriptions, removeSubscription })` | Push | To every subscription of the user; prunes dead ones. |
+| `telegramSender({ botToken })` | Telegram | |
+| `devSender(channel, { appEnv?, log? })` | Any | Prints locally. Throws in production or staging. |
+| `smsSenderFor(sender, template)` | | Make an auth `SmsSender` from an SMS sender, for phone codes. |
+| `assertDlt(to, sms)` | | Refuses `+91` SMS without `dltTemplateId` and `senderId`. |
+
+All senders take an optional `fetch`. Provider 4xx errors are permanent except 408 and 429, and response bodies are dropped.
+
+### `notify/webhooks` (delivery tracking)
+
+| Export | What it does |
+| --- | --- |
+| `resendWebhook(notifier, { secret, toleranceSeconds? })` | Fetch handler: Svix HMAC-SHA256, 5 min tolerance. |
+| `twilioWebhook(notifier, { authToken, url? })` | Fetch handler: `X-Twilio-Signature`. |
+| `metaWebhook(notifier, { appSecret, verifyToken })` | WhatsApp: GET handshake and signed POSTs; inbound messages open the 24 h window. |
+| `unsubscribeRoute(notifier)` | POST unsubscribes (RFC 8058). GET only shows a confirm button. |
+| `verifyResendSignature`, `parseResendEvent`, `verifyTwilioSignature`, `parseTwilioEvent`, `verifyMetaSignature`, `parseMetaEvent` | The pieces, for your own handler. |
+
+A hard bounce or complaint (Resend) or STOP (Twilio, WhatsApp) suppresses that address on that channel.
+
+### `notify/email`, `notify/push`, `notify/telegram` (direct)
+
+Plain `fetch` helpers for sending without templates. They return `false` or a count rather than throwing, so a failed notification never fails the request.
+
+| Export | What it does |
+| --- | --- |
+| `createEmailer({ apiKey?, from, onEvent? })` | `send({ to, subject, html?, text?, from?, replyTo? })` via Resend. No key: logs and skips. |
+| `createPusher({ send, removeSubscription, onEvent? })` | `sendTo(subscriptions, { title, message, url? })`: count delivered. Prunes 404 and 410. |
+| `webCryptoPushSender({ vapid, ttl?, urgency?, fetch? })` | VAPID plus RFC 8291 encryption on Web Crypto. Works on Workers. Payload limit 3993 bytes. |
+| `createTelegram({ botToken?, chatId?, onEvent? })` | `send(title, message)`. Operator-level only: no user data. |
+| `escapeMarkdown(text)` | Escape Telegram MarkdownV2. |
+| `vapidJwt`, `encryptAes128gcm`, `b64urlEncode`, `b64urlDecode`, `isGone` | Web push building blocks. |
+| `EmailConfig`, `EmailMessage`, `PushSubscription`, `PushPayload`, `PushSender`, `PushConfig`, `VapidConfig`, `WebCryptoPushConfig`, `EncryptOptions`, `TelegramConfig` | Types. |
+
+### `notify/tools`
+
+| Export | What it does |
+| --- | --- |
+| `notifyTools({ notifier, userOf?, isStaff? })` | MCP tools `list_my_notifications`, `notification_prefs`, `update_prefs` for the signed-in user. |
+| `NotifyToolsOptions` | `isStaff` adds `send_notification`, which goes through `requireApproval`. |
+
+## Examples
+
+### Verify delivery webhooks
+
+```ts
+import { resendWebhook, twilioWebhook, unsubscribeRoute } from "@dapplelight/signet-server/notify/webhooks"
+
+app.post("/webhooks/resend", (c) => resendWebhook(notifier, { secret: c.env.RESEND_WEBHOOK_SECRET })(c.req.raw))
+app.post("/webhooks/twilio", (c) => twilioWebhook(notifier, { authToken: c.env.TWILIO_AUTH_TOKEN })(c.req.raw))
+app.all("/unsubscribe", (c) => unsubscribeRoute(notifier)(c.req.raw))
+```
+
+### Web push on Workers
+
+```ts
+import { createPusher, webCryptoPushSender } from "@dapplelight/signet-server/notify/push"
+
+const pusher = createPusher({
+  send: webCryptoPushSender({ vapid: { subject: "mailto:ops@example.com", publicKey, privateKey } }),
+  removeSubscription: (id) => db.deleteSubscription(id),
+})
+await pusher.sendTo(subscriptions, { title: "Invoice paid", message: "Invoice 1042 was paid." })
+```
+
+### SMS in India
+
+```ts
+sms: { text: (d) => `Order ${d.orderId} shipped`, dltTemplateId: "1107...", senderId: "ACMEIN",
+       providerTemplateId: "flow-id", params: (d) => ({ order: d.orderId }) },
+```
+
+### Phone codes through a real provider
+
+```ts
+import { msg91Sms, smsSenderFor } from "@dapplelight/signet-server/notify/channels"
+
+const sender = smsSenderFor(msg91Sms({ authKey: env.MSG91_KEY }), {
+  dltTemplateId: "1107...",
+  senderId: "ACMEIN",
+  providerTemplateId: "otp-flow",
+  params: (message) => ({ code: message.match(/\d{6}/)?.[0] ?? "" }),
+})
+// use as `sender` in requestPhoneOtp's options
+```
+
+### Send every notification as a job
+
+```ts
+const sendJob = notifyJob(notifier, z)
+const jobs = createJobs({ jobs: [sendJob], queue, store })
+// Now quiet hours delay a send instead of skipping it.
+```

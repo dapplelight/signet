@@ -1,0 +1,91 @@
+---
+title: "Webhooks"
+description: "Outbound signed webhooks with retries, a delivery log and SSRF protection."
+---
+
+## Usage
+```ts
+import { webhookTables } from "@dapplelight/signet-db/columns/sqlite"
+import { drainOutbox } from "@dapplelight/signet-db"
+import { createWebhooks, WEBHOOK_TOPIC } from "@dapplelight/signet-db/webhooks"
+
+// schema.ts
+export const { webhookEndpoints, webhookDeliveries } = webhookTables()
+
+// app
+const webhooks = createWebhooks(db, {
+  endpoints: webhookEndpoints,
+  deliveries: webhookDeliveries,
+})
+
+// 1. A customer registers an endpoint. The secret is returned only here.
+const { endpoint, secret } = await webhooks.register({
+  owner: orgId,
+  url: "https://hooks.acme.test/orders",
+  events: ["order.created"],
+})
+
+// 2. Queue the event in the same atomic write as the change.
+await db.batch([
+  (tx) => tx.insert(orders).values(order),
+  ...(await webhooks.statements({ owner: orgId, type: "order.created", data: order })),
+])
+
+// 3. From a cron: webhook messages go to `send`, the rest to your queue.
+await drainOutbox(db, {
+  send: (m) => (m.topic === WEBHOOK_TOPIC ? webhooks.send(m) : queue.send(m)),
+})
+```
+
+The db needs an `outbox` table: `createDb(..., { outbox })`. Receivers dedupe on `webhook-id` (the event id), which is the same on every retry. They verify with `verifyWebhook` from `@dapplelight/signet-lib/webhooks`.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createWebhooks(db, options)` | The webhook store. Methods below. |
+| `WEBHOOK_TOPIC` | The outbox topic of deliveries: `"signet.webhook"`. |
+| `assertWebhookUrl(url, allowPrivate?)` | Throws `BAD_VALUE` unless the URL is https on a public host. |
+| `isPrivateAddress(ip)` | Whether an IP must never receive a webhook. Unparseable counts as private. |
+| `defaultResolveHost()` | The `node:dns/promises` resolver, or null where there is no DNS. |
+| `WebhookEndpoint`, `WebhookDelivery`, `WebhookDeliveryStatus`, `WebhooksOptions`, `Webhooks` | Types. |
+
+### createWebhooks(db, options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `endpoints` | table | required | From `webhookTables()`. |
+| `deliveries` | table | required | From `webhookTables()`. |
+| `fetch` | `(url, init) => Promise<Response>` | global `fetch` | Custom transport. |
+| `maxAttempts` | `number` | `10` | Match `drainOutbox`'s so the log shows the last attempt as `failed`. |
+| `disableAfter` | `number` | `20` | Consecutive failures before an endpoint is switched off. |
+| `timeoutMs` | `number` | `10000` | Per attempt. |
+| `allowPrivateUrls` | `boolean` | `false` | Allow `http:` and private hosts (development, tests). |
+| `resolveHost` | `(host) => Promise<string[]>` | DNS lookup | Delivery is refused if any address is private. Skipped where there is no DNS. |
+
+### Methods
+| Method | What it does |
+| --- | --- |
+| `register({ owner, url, events, description?, secret? })` | New endpoint; `events` is a list or `["*"]`. Returns `{ endpoint, secret }`. |
+| `list(owner)` / `get(owner, id)` | Endpoints, without secrets. |
+| `update(owner, id, { url?, events?, description?, enabled? })` | `enabled: true` clears failures and turns it back on. |
+| `rotateSecret(owner, id)` | New secret; the old one stops signing at once. |
+| `remove(owner, id)` | Delete. Pending deliveries are skipped. |
+| `statements({ owner, type, data, id? })` | Statements to put in your `db.batch`. A stable `id` makes the emit idempotent for receivers. |
+| `emit({ owner, type, data, id? })` | `statements` run on their own. Returns deliveries queued. |
+| `send(message)` | Deliver one outbox message. Throws on failure so `drainOutbox` retries. Redirects are never followed. |
+| `deliveries(owner, { endpointId?, status?, limit?, before? })` | The delivery log, newest first. |
+| `redeliver(owner, deliveryId)` | A new delivery with the same event id and body. |
+
+Delivery statuses: `pending`, `retrying`, `delivered`, `failed`, `skipped`.
+
+## Examples
+### Show a customer their delivery log
+```ts
+const failed = await webhooks.deliveries(orgId, { status: "failed", limit: 20 })
+for (const d of failed) console.log(d.type, d.responseStatus, d.error)
+```
+
+### Turn a failing endpoint back on and resend
+```ts
+await webhooks.update(orgId, endpoint.id, { enabled: true })
+await webhooks.redeliver(orgId, failed[0].id)
+```

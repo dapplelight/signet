@@ -1,0 +1,178 @@
+---
+title: "Middleware"
+description: "Request id, security headers, CORS, CSRF, rate limiting and maintenance mode."
+---
+
+## Usage
+
+```ts
+import { Hono } from "hono"
+import { requestId } from "@dapplelight/signet-server/middleware/request-id"
+import { secureHeaders } from "@dapplelight/signet-server/middleware/secure-headers"
+import { corsMiddleware } from "@dapplelight/signet-server/middleware/cors"
+import { csrfMiddleware } from "@dapplelight/signet-server/middleware/csrf"
+import { rateLimit } from "@dapplelight/signet-server/middleware/rate-limit"
+import { durableObjectStore } from "@dapplelight/signet-server/middleware/rate-limit-do"
+
+const app = new Hono<{ Bindings: { RATE_LIMIT: DurableObjectNamespace } }>()
+
+app.use("*", requestId())
+app.use("*", secureHeaders({ relaxedPaths: ["/docs", "/openapi.json"] }))
+app.use("*", corsMiddleware({ originEnvKeys: ["WEB_URL", "ADMIN_URL"] }))
+app.use("/api/*", csrfMiddleware({ originEnvKeys: ["WEB_URL", "ADMIN_URL"] }))
+app.use("/api/*", rateLimit({ max: 100, windowSeconds: 60, trust: "cloudflare" }))
+
+// A login limit is a security control: exact count, and refuse if the store is down.
+app.use("/api/auth/login", rateLimit({
+  scope: "login",
+  max: 5,
+  windowSeconds: 60,
+  trust: "cloudflare",
+  store: (c) => durableObjectStore(c.env.RATE_LIMIT), // built per request: bindings live on c.env
+  failOpen: false,
+}))
+```
+
+## API
+
+### `middleware/cors`
+
+| Export | What it does |
+| --- | --- |
+| `corsMiddleware(options)` | CORS that only allows origins you list; never reflects an unknown origin. |
+| `allowedOrigins(options)` | The origins `options` allows right now (read per request). |
+| `CorsOptions` | Options type. |
+
+### `middleware/csrf`
+
+| Export | What it does |
+| --- | --- |
+| `csrfMiddleware(options)` | Blocks form-style unsafe requests from untrusted origins (403 `FORBIDDEN` envelope). |
+| `CsrfOptions` | `originEnvKeys`, `extraOrigins`, `devOrigins` from `CorsOptions`. |
+
+### `middleware/maintenance`
+
+| Export | What it does |
+| --- | --- |
+| `maintenanceMode(options)` | 503 `MAINTENANCE` with `Retry-After` for everyone off the allowlist. |
+| `MaintenanceState`, `MaintenanceOptions` | Types. |
+
+### `middleware/rate-limit`
+
+| Export | What it does |
+| --- | --- |
+| `rateLimit(options)` | Rate limiting with a pluggable store; 429 `RATE_LIMITED`. |
+| `memoryStore()` | Default store. Per-isolate fixed window. |
+| `clientIp(c, trust)` | The client IP under your trust setting. IPv6 is keyed by its /64. |
+| `RateLimitStore`, `RateLimitResult`, `RateLimitOptions`, `ClientIpTrust` | Types. |
+
+### `middleware/rate-limit-do`
+
+| Export | What it does |
+| --- | --- |
+| `RateLimitCounter` | Durable Object class, one object per `scope:key`. Export it from the worker entry. |
+| `durableObjectStore(namespace)` | Exact `RateLimitStore` on that Durable Object. |
+| `RateLimitCounterState`, `RateLimitNamespace` | Structural types. |
+
+### `middleware/request-id`
+
+| Export | What it does |
+| --- | --- |
+| `requestId(options)` | Sets `c.get("reqId")` and echoes the header. |
+| `RequestIdOptions` | Options type. |
+
+### `middleware/secure-headers`
+
+| Export | What it does |
+| --- | --- |
+| `secureHeaders(options)` | nosniff, frame deny, referrer, permissions, COOP, CORP, HSTS and a CSP. |
+| `STRICT_CSP` | Default CSP: `default-src 'none'; frame-ancestors 'none'; base-uri 'none'`. |
+| `DOCS_CSP` | Default relaxed CSP for `relaxedPaths`. |
+| `SecureHeadersOptions` | Options type. |
+
+### rateLimit(options)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `trust` | `ClientIpTrust` | required unless `keyFor` | Throws at construction otherwise. |
+| `keyFor` | `(c) => string` | client IP | Use a user id for per-account limits. |
+| `store` | `RateLimitStore \| (c) => RateLimitStore` | `memoryStore()` | A function builds one per request. |
+| `scope` | `string` | `"api"` | Keeps "login" and "api" counters apart. |
+| `max` | `number` | `100` | Requests per window. |
+| `windowSeconds` | `number` | `60` | |
+| `failOpen` | `boolean` | `true` | `false`: a store error is 503 `RATE_LIMIT_UNAVAILABLE`. |
+| `onStoreError` | `(err, c) => void` | none | Hears every store failure. |
+| `getRequestId` | `(c) => string \| undefined` | `c.get("reqId")` | For the error envelope. |
+
+`ClientIpTrust` is `"cloudflare"` (read `cf-connecting-ip`), `{ forwardedHops: n }` (the n-th `x-forwarded-for` entry from the right) or `"none"` (one shared bucket).
+
+### corsMiddleware(options)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `originEnvKeys` | `string[]` | none | Env var names holding allowed origins. |
+| `extraOrigins` | `string[]` | none | Literal origins. |
+| `devOrigins` | `string[]` | `localhost:5173`, `localhost:5174` | Allowed only when `APP_ENV` (or `NODE_ENV`) is local, development or test. `[]` disables. |
+| `credentials` | `boolean` | `true` | Send cookies. |
+
+### maintenanceMode(options)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `state` | `(c) => { on, message?, until? }` | required | May be async. Read at most once per `cacheMs`. |
+| `paths` | `string[]` | `["/health", "/healthz"]` | Prefixes that always pass. |
+| `allow` | `(c) => boolean` | none | Let a request through, e.g. an admin session. |
+| `cacheMs` | `number` | `5000` | `0` reads every request. |
+| `retryAfterSeconds` | `number` | `300` | Used when the state has no `until`. |
+| `message` | `string` | none | Envelope message when the state has none. |
+
+### secureHeaders(options)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `csp` | `string` | `STRICT_CSP` | |
+| `relaxedPaths` | `string[]` | `[]` | Paths (and sub-paths) served `relaxedCsp`. |
+| `relaxedCsp` | `string` | `DOCS_CSP` | |
+| `hstsMaxAge` | `number` | one year | `0` omits HSTS. |
+
+### requestId(options)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `childLogger` | `(reqId) => unknown` | none | Per-request logger bound to the id. |
+| `header` | `string` | `"x-request-id"` | Header honoured from upstream and echoed. |
+| `accept` | `(id) => boolean` | 1-128 of `[A-Za-z0-9_-]` | Anything else is replaced with a UUID. |
+
+## Examples
+
+### Maintenance switch with an admin bypass
+
+```ts
+import { maintenanceMode } from "@dapplelight/signet-server/middleware/maintenance"
+
+app.use("*", maintenanceMode({
+  state: () => status.maintenance(),
+  paths: ["/health", "/api/status", "/api/admin"],
+  allow: (c) => c.get("session")?.role === "admin",
+}))
+```
+
+### Cookies across origins
+
+```ts
+// A SameSite=None session cookie loses Lax's protection: add CSRF before routes that read it.
+app.use("/api/*", csrfMiddleware({ originEnvKeys: ["WEB_URL"] }))
+```
+
+### Worker entry for the exact limiter
+
+```ts
+// Export from the worker entry so the binding finds it.
+export { RateLimitCounter } from "@dapplelight/signet-server/middleware/rate-limit-do"
+```
+
+```jsonc
+// wrangler.jsonc
+"durable_objects": { "bindings": [{ "name": "RATE_LIMIT", "class_name": "RateLimitCounter" }] },
+"migrations": [{ "tag": "v1", "new_sqlite_classes": ["RateLimitCounter"] }]
+```

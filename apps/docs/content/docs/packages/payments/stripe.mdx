@@ -1,0 +1,57 @@
+---
+title: "Stripe"
+description: "Stripe PaymentIntents for Elements, subscriptions, payouts and balance-transaction settlements."
+---
+
+## Usage
+
+```ts
+import { STRIPE_API_VERSION, stripe } from "@dapplelight/signet-payments/stripe"
+
+const s = stripe({
+  secretKey: env.STRIPE_SECRET_KEY,
+  webhookSecret: env.STRIPE_WEBHOOK_SECRET,
+})
+
+// A PaymentIntent. Pass clientSecret to Stripe Elements.
+const pi = await s.createCheckout({
+  amount: 1999,
+  currency: "USD",
+  idempotencyKey: "order-1042",
+  capture: "manual",
+})
+
+// Webhook: Stripe-Signature t=..,v1=..
+app.post("/webhooks/stripe", (c) => payments.handleWebhook("stripe", c.req.raw))
+```
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `stripe(config)` | A `PaymentGateway` named `stripe` over `api.stripe.com/v1` (form-encoded, bearer key) |
+| `STRIPE_API_VERSION` | The `Stripe-Version` this adapter was checked against (`2026-10-28.endive`) |
+| `StripeConfig` | Config type |
+
+### stripe(config)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `secretKey` | `string` | | Required. Test or live: the key decides |
+| `webhookSecret` | `string` | | Endpoint secret, needed for `verifyWebhook` |
+| `apiVersion` | `string` | `STRIPE_API_VERSION` | Pinned `Stripe-Version` header |
+
+Plus the shared `baseUrl`, `fetch`, `retries`, `retryDelayMs`.
+
+## Capabilities
+
+Methods: `card`, `wallet`, `applepay`, `googlepay`. Features: capture, refunds, partial refunds, customers, saved methods, subscriptions, payouts, settlements, webhooks.
+
+## Quirks
+
+- **Checkout returns `clientSecret`**, not a URL. Automatic payment methods are on. Your reference goes in `metadata.reference`.
+- **Wallets** show in the Payment Element once the domain is registered: `stripe.raw("POST", "/payment_method_domains", { domain_name })`. No file to host.
+- **Webhook**: only `v1` signatures are trusted, and the timestamp must be within the tolerance (default 300 s).
+- **Cancel** with `atPeriodEnd: true` sets `cancel_at_period_end`. Otherwise the subscription is deleted now.
+- **Settlements** read balance transactions created on that UTC day, with the source expanded so charges and refunds map back to the PaymentIntent.
+- **Payouts**: `destination` is a Stripe destination id.

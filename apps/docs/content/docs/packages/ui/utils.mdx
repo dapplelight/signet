@@ -1,0 +1,36 @@
+---
+title: "Utils"
+description: "cn() for merging class names, aware of Signet's type ramp."
+---
+
+## Usage
+
+```tsx
+import { cn } from "@dapplelight/signet-ui/utils"
+
+export function StatusDot({ late }: { late: boolean }) {
+  return <span className={cn("size-2 rounded-full bg-accent-green", late && "bg-accent-red")} />
+}
+```
+
+Later classes win over earlier conflicting ones.
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `cn(...inputs)` | `clsx` then `tailwind-merge`: conditional classes, conflicts resolved. |
+| `TYPE_RAMP` | The semantic type sizes: `caption`, `label`, `body`, `callout`, `subhead`, `headline`, `title`, `display`, `hero`, `stat`. |
+
+## Examples
+
+### Override a type size
+
+`cn` knows `text-subhead` is a size, not a colour, so both survive.
+
+```ts
+import { cn } from "@dapplelight/signet-ui/utils"
+
+cn("text-subhead", "text-text-primary") // both kept
+cn("text-body", "text-title")           // "text-title"
+```

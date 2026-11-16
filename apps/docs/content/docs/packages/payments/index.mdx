@@ -1,0 +1,240 @@
+---
+title: "Payments"
+description: "One payment model over 12 gateways, with a webhook inbox, ledger and reconciliation."
+---
+
+```bash
+npm i @dapplelight/signet-payments
+```
+
+## Quick start
+
+```ts
+import { createPayments, sqlStore } from "@dapplelight/signet-payments"
+import { razorpay } from "@dapplelight/signet-payments/razorpay"
+import { stripe } from "@dapplelight/signet-payments/stripe"
+
+// Configs never read env at module scope: build them per request on Workers.
+export const makePayments = (env: Env) =>
+  createPayments({
+    gateways: [
+      razorpay({ keyId: env.RAZORPAY_KEY_ID, keySecret: env.RAZORPAY_KEY_SECRET, webhookSecret: env.RAZORPAY_WEBHOOK_SECRET }),
+      stripe({ secretKey: env.STRIPE_SECRET_KEY, webhookSecret: env.STRIPE_WEBHOOK_SECRET }),
+    ],
+    route: (i) => (i.currency === "INR" ? "razorpay" : "stripe"),
+    fallback: true, // on an outage only, never on a decline
+    db: sqlStore({ query: async (s, p) => (await env.DB.prepare(s).bind(...p).all()).results }, { dialect: "sqlite" }),
+  })
+
+const payments = makePayments(env)
+const checkout = await payments.checkout({ amount: 49_900, currency: "INR", idempotencyKey: orderId, reference: orderId, userId })
+app.post("/webhooks/:gateway", (c) => payments.handleWebhook(c.req.param("gateway"), c.req.raw))
+```
+
+## The common interface
+
+Every gateway page below is this interface with that gateway's config and quirks. Amounts are integer minor units plus an ISO currency, never floats. Every object keeps the gateway payload in `raw`. No SDKs, plain `fetch` and Web Crypto.
+
+```ts
+type PaymentGateway = {
+  name: string
+  capabilities: { methods: Method[]; features: Feature[]; currencies?: string[] }
+  supports(feature: Feature): boolean
+  createCheckout(input: CheckoutInput): Promise<Checkout>
+  getPayment(id: string): Promise<Payment>
+  capture(id: string, input: { amount?: number; idempotencyKey: string }): Promise<Payment>
+  refund(paymentId: string, input: { amount?: number; reason?: string; idempotencyKey: string }): Promise<Refund>
+  createCustomer(input: { email?: string; name?: string; phone?: string }): Promise<Customer>
+  listPaymentMethods(customerId: string): Promise<PaymentMethod[]>
+  getSubscription(id: string): Promise<Subscription>
+  cancelSubscription(id: string, options?: { atPeriodEnd?: boolean }): Promise<Subscription>
+  createPayout(input: PayoutInput): Promise<Payout>
+  listSettlements(options: { date: string }): Promise<Settlement[]>
+  verifyWebhook(request: Request, options?: { toleranceSeconds?: number }): Promise<Event>
+  raw(method: string, path: string, body?: unknown, options?: RawOptions): Promise<unknown>
+}
+```
+
+A call outside `capabilities` rejects with `UNSUPPORTED` before any network call. `raw` calls any endpoint with that adapter's auth, signing and retries.
+
+### Checkout input
+
+| Field | Type | |
+| --- | --- | --- |
+| `amount`, `currency` | `number`, `string` | Minor units and ISO 4217 |
+| `idempotencyKey` | `string` | Required. Retries with the same key never charge twice |
+| `method` | `Method` | `upi`, `card`, `netbanking`, `wallet`, `emi`, `applepay`, `googlepay` |
+| `reference` | `string` | Your order id. Default: the idempotency key |
+| `description`, `country`, `metadata` | | Passed on where the gateway takes them |
+| `customer` | `{ id, email, name, phone }` | |
+| `returnUrl` | `string` | Where the buyer returns to |
+| `capture` | `"auto" \| "manual"` | `manual` authorises now, `capture` later |
+| `extra` | `Record<string, unknown>` | Gateway fields merged into the create request |
+
+`Checkout` carries one of `url` (redirect), `clientSecret` (client SDK) or `form` (POST from the browser), plus `gatewayId` to pass to `getPayment`.
+
+### Config every adapter shares
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `sandbox` | `boolean` | `false` | Use the gateway's test host |
+| `baseUrl` | `string` | | Override the API base URL |
+| `fetch` | `typeof fetch` | global | |
+| `retries` | `number` | `2` | On network errors, 429 and 5xx, for GETs and keyed writes |
+| `retryDelayMs` | `number` | `250` | First retry delay; doubles each time |
+
+### Capability matrix
+
+| | upi | card | netbanking | wallet | emi | applepay | googlepay | capture | refunds | partial | customers | saved | subs | payouts | settle |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| razorpay | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓* | ✓ |
+| stripe | | ✓ | | ✓ | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| cashfree | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| phonepe | ✓ | ✓ | ✓ | | | | | | ✓ | ✓ | | | ✓ | | |
+| payu | ✓ | ✓ | ✓ | ✓ | | ✓ | | ✓ | ✓ | ✓ | | | | | ✓ |
+| paddle | | ✓ | | ✓ | | ✓ | ✓ | | ✓ | ✓ | ✓ | ✓ | ✓ | | |
+| lemonsqueezy | | ✓ | | ✓ | | ✓ | ✓ | | ✓ | ✓ | ✓ | | ✓ | | |
+| paypal | | ✓ | | ✓ | | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | ✓ | ✓ | |
+| hyperswitch | ✓ | ✓ | ✓ | ✓ | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓* | ✓ | |
+| dodo | | ✓ | | ✓ | | ✓ | ✓ | | ✓ | ✓ | ✓ | ✓ | ✓ | | |
+| appstore | | | | | | | | | | | | | ✓ | | |
+| googleplay | | | | | | | | | ✓ | | | | ✓ | | |
+
+`*` Razorpay payouts need `accountNumber`. Hyperswitch subscriptions need `profileId`. All adapters support webhooks.
+
+## Core
+
+### createPayments(config)
+
+Routes each charge, fails over only on an outage, runs charges and refunds under idempotency keys, and keeps the webhook inbox.
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `gateways` | `PaymentGateway[]` | | Required |
+| `route` | `(intent) => string \| undefined` | first gateway that fits method and currency | Pick a gateway by name |
+| `fallback` | `boolean \| string[]` | off | Try others on outage (network, 429, 5xx). Never on a decline |
+| `db` | `PaymentsStore` | | Inbox, payment records, ledger. Without it webhooks verify and call `onEvent` only |
+| `idempotency` | `(key, scope, fn) => Promise` | | e.g. signet-db's `withIdempotency` |
+| `onEvent` | `(event) => void` | | Once per newly applied event |
+| `inline` | `boolean` | `true` | `false`: store only, run `processInbox` from a job |
+
+| Method | What it does |
+| --- | --- |
+| `checkout(input & { userId? })` | Pick a gateway, create the checkout, save the payment |
+| `capture({ gateway, paymentId, amount?, idempotencyKey })` | Capture an authorised payment |
+| `refund({ gateway, paymentId, amount?, reason?, idempotencyKey, actor? })` | Refund and record who asked |
+| `verifyPurchase({ gateway, id, userId })` | Claim an App Store or Google Play purchase for a user |
+| `restorePurchases({ userId, purchases })` | Re-verify what a device holds. Returns `{ restored, refused }` |
+| `handleWebhook(name, request)` | Verify, store, apply. 200 once stored, 400 bad signature, 404 unknown gateway, 500 otherwise |
+| `receive(name, request)` | Same without the `Response` |
+| `processInbox({ limit? })` | Apply pending events, oldest first |
+| `replay(gateway, eventId)` | Apply one stored event again |
+| `timeline(gateway, paymentId)` | Stored events for a payment |
+| `gateway(name)`, `gateways`, `db`, `route(intent)` | Look up |
+
+### Webhook inbox
+
+`handleWebhook` verifies the signature on the raw body, stores the event deduped on (gateway, event id), then applies it.
+
+- Events apply in `occurredAt` order. An older or lower event never undoes a newer state.
+- Captures, fees, refunds and payouts post to the ledger under keys derived from the object, so replays never double-post.
+- Mount it on the raw request. Do not parse the body first.
+
+```ts
+app.post("/webhooks/:gateway", (c) => payments.handleWebhook(c.req.param("gateway"), c.req.raw))
+```
+
+### Storage
+
+| Export | What it does |
+| --- | --- |
+| `memoryStore()` | In-memory store for tests |
+| `sqlStore(client, { dialect })` | SQLite, D1 or Postgres. `client` is `{ query(sql, params) }` |
+| `paymentsSchema("sqlite" \| "pg")` | The `CREATE TABLE` statements |
+| `store.reassignUser(from, to)` | Move every payment to another user (optional on custom stores) |
+
+```ts
+import { paymentsSchema, sqlStore } from "@dapplelight/signet-payments"
+
+for (const statement of paymentsSchema("pg")) await sql.unsafe(statement)
+const db = sqlStore({ query: (s, p) => sql.unsafe(s, p) }, { dialect: "pg" }) // postgres-js
+```
+
+### Ledger
+
+Double entry, integer minor units, balanced per currency or rejected with `UNBALANCED`. Accounts: `receivable:<gateway>`, `revenue`, `refunds`, `fees`, `bank`.
+
+| Export | What it does |
+| --- | --- |
+| `post(store, tx)` | Post a balanced transaction. `false` if `txId` already posted |
+| `transfer(debit, credit, amount, currency)` | Two legs |
+| `balance(store, account, currency)` | Integer balance |
+| `receivable(gateway)`, `toEntries(tx)`, `postings` | Helpers behind the inbox |
+
+```ts
+import { balance, post, transfer } from "@dapplelight/signet-payments"
+
+await post(store, { txId: "adj-7", kind: "adjustment", legs: transfer("fees", "receivable:razorpay", 250, "INR") })
+await balance(store, "receivable:razorpay", "INR")
+```
+
+### Reconciliation
+
+```ts
+import { reconcile, reconcileJob } from "@dapplelight/signet-payments"
+
+const r = await reconcile(store, payments.gateway("razorpay"), { date: "2026-11-13" })
+// r.mismatches: missing (settled, not in ledger), amount_differs, extra (in ledger, not settled)
+
+const job = reconcileJob(store, payments.gateway("razorpay"), { onMismatch: alert })
+await job() // yesterday, UTC: call from a cron
+```
+
+Works for gateways with `settlements`. `missing` is usually a webhook that never arrived: `replay` it.
+
+### Helpers
+
+| Export | What it does |
+| --- | --- |
+| `toMinor("499.00", "INR")`, `toMajor(49900, "INR")` | Convert at the input boundary |
+| `minorDigits(currency)` | Decimal places of a currency |
+| `applePayDomainAssociation(file)` | Handler for the Apple Pay domain file. `null` for other requests |
+| `APPLE_PAY_DOMAIN_ASSOCIATION_PATH` | `/.well-known/apple-developer-merchantid-domain-association` |
+| `defineGateway`, `request`, `hmac`, `safeEqual`, `sha512Hex`, `formEncode`, `unsupported` | Build your own adapter |
+
+```ts
+const serveApplePay = applePayDomainAssociation(env.APPLE_PAY_DOMAIN_FILE)
+export default { fetch: (req: Request) => serveApplePay(req) ?? app.fetch(req) }
+```
+
+Razorpay, PayPal and Dodo give you the file to host. Stripe: `stripe.raw("POST", "/payment_method_domains", { domain_name })`. Paddle verifies in its dashboard.
+
+### Errors
+
+`PaymentsError` with `code`. Narrow with `isPaymentsError(e, "DECLINED")`.
+
+| Code | |
+| --- | --- |
+| `UNSUPPORTED`, `BAD_INPUT`, `DECLINED`, `GATEWAY_ERROR`, `NOT_FOUND` | |
+| `GATEWAY_UNAVAILABLE` | The only retryable one, and the only one that triggers `fallback` |
+| `BAD_SIGNATURE`, `IDEMPOTENCY_KEY_REQUIRED`, `UNBALANCED`, `NO_GATEWAY` | |
+
+## Modules
+
+<Cards>
+  <Card title="AI Agent" href="/docs/packages/payments/agent" description="paymentTools: MCP tools with gated refunds." />
+  <Card title="App Store" href="/docs/packages/payments/appstore" description="Verify and track StoreKit purchases." />
+  <Card title="Cashfree" href="/docs/packages/payments/cashfree" description="Cashfree Payments PG." />
+  <Card title="Dodo" href="/docs/packages/payments/dodo" description="Dodo Payments." />
+  <Card title="Google Play" href="/docs/packages/payments/googleplay" description="Verify and track Play Billing purchases." />
+  <Card title="GST" href="/docs/packages/payments/gst" description="GST tax invoices for India." />
+  <Card title="Hyperswitch" href="/docs/packages/payments/hyperswitch" description="Hyperswitch orchestrator." />
+  <Card title="Lemon Squeezy" href="/docs/packages/payments/lemonsqueezy" description="Lemon Squeezy." />
+  <Card title="Paddle" href="/docs/packages/payments/paddle" description="Paddle Billing." />
+  <Card title="PayPal" href="/docs/packages/payments/paypal" description="PayPal REST." />
+  <Card title="PayU" href="/docs/packages/payments/payu" description="PayU India." />
+  <Card title="PhonePe" href="/docs/packages/payments/phonepe" description="PhonePe PG." />
+  <Card title="Razorpay" href="/docs/packages/payments/razorpay" description="Razorpay." />
+  <Card title="Stripe" href="/docs/packages/payments/stripe" description="Stripe." />
+  <Card title="UPI" href="/docs/packages/payments/upi" description="upi://pay intents and QR payloads." />
+</Cards>

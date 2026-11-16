@@ -1,0 +1,43 @@
+---
+title: "React"
+description: "useSignetChat: a chat hook for a streamChat route, with usage."
+---
+
+## Usage
+```tsx
+import { useSignetChat } from "@dapplelight/signet-ai/react"
+
+export function SupportChat() {
+  const { messages, sendMessage, status, stop, usage } = useSignetChat({
+    api: "/api/chat",
+    headers: () => ({ "x-csrf-token": getCsrfToken() }),
+  })
+
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); sendMessage({ text: "Where is order A1042?" }) }}>
+      {messages.map((m) => <p key={m.id}>{m.parts.map((p) => (p.type === "text" ? p.text : null))}</p>)}
+      <small>{usage.inputTokens + usage.outputTokens} tokens</small>
+      {status === "streaming" && <button type="button" onClick={stop}>Stop</button>}
+    </form>
+  )
+}
+```
+
+Needs `ai` and `@ai-sdk/react`. The server half is `streamChat` in Chat.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `useSignetChat(options?)` | `useChat` pointed at a `streamChat` route, plus `usage` |
+| `sumUsage(messages)` | Sums `metadata.usage` over assistant messages |
+| `UseSignetChatOptions` | Type |
+| `ChatMessage` | Type, re-exported from Chat |
+
+### useSignetChat(options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `api` | `string` | `"/api/chat"` | Route that returns `streamChat(...)` |
+| `headers` | object or function | none | Pass a function for a value that changes |
+| other | `useChat` options | | Passed through, except `transport` |
+
+`api` and `headers` are read once per chat `id`. Everything `useChat` returns is passed through.

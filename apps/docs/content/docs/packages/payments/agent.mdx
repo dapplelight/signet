@@ -1,0 +1,71 @@
+---
+title: "AI Agent"
+description: "Payment tools for AI agents as MCP tools, with refunds always gated on approval."
+---
+
+## Usage
+
+```ts
+import { paymentTools } from "@dapplelight/signet-payments/agent"
+import { approvalGate, createMcpServer } from "@dapplelight/signet-server/mcp"
+
+const tools = paymentTools(payments, {
+  userId: session.userId, // the agent only sees this user's payments
+  approve: approvalGate, // refunds ask a person first
+  maxRows: 25,
+})
+
+const server = createMcpServer({ name: "billing", version: "1.0.0", tools })
+```
+
+`paymentTools` needs `createPayments({ db })`, and a `userId` unless `allUsers: true`. It throws `BAD_INPUT` otherwise. The tools are plain MCP tool objects (`name`, `description`, `inputSchema` as JSON Schema, `annotations`, `run(input, ctx)`), so there is no dependency on signet-server.
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `paymentTools(payments, options)` | Returns the tool list |
+| `PaymentToolsOptions` | Options type |
+| `PaymentTool` | One tool: `name`, `description`, `annotations`, `inputSchema`, `run` |
+| `ApprovalRequest` | `{ summary, details, args }` passed to `approve` |
+
+### paymentTools(payments, options)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `userId` | `string` | | Required unless `allUsers`. Another user's payment reads as `NOT_FOUND` |
+| `allUsers` | `boolean` | `false` | An operator agent that sees every user's payments |
+| `maxRows` | `number` | `50` | Most rows `list_payments` returns |
+| `actor` | `Actor` | `{ type: "agent", id: "agent" }` | Recorded on refunds |
+| `approve` | `(ctx, request) => unknown` | | `undefined` means approved. Anything else is returned as the tool result. Pass signet-server's `approvalGate` |
+| `entitlements` | `{ applySubscription(sub, { subject }) }` | | signet-db entitlements. Adds `refresh_entitlement` |
+
+## Tools
+
+| Tool | Input | Read-only | What it does |
+| --- | --- | :-: | --- |
+| `find_payment` | `gateway`, `id` | yes | One payment: status, amount, refunded so far |
+| `list_payments` | `status?`, `gateway?`, `limit?`, `offset?` | yes | Newest first, at most `maxRows` per call |
+| `payment_timeline` | `gateway`, `id` | yes | Stored events, including who asked for refunds |
+| `find_subscription` | `gateway`, `id` | yes | Reads live from the gateway. Only subscriptions linked to one of the user's payments |
+| `refund_payment` | `gateway`, `id`, `reason`, `idempotencyKey`, `amount?` | no | Always gated on approval |
+| `refresh_entitlement` | `gateway`, `id` | no | Only with `entitlements`. Re-reads the subscription and re-applies it to the owner's plan |
+
+## Refunds
+
+- `amount` is minor units. Omit it for a full refund of what is left.
+- Without `approve`, the tool refunds nothing and returns `APPROVAL_REQUIRED` with the summary for a person to act on.
+- The idempotency key is part of what is approved: a new key is a new refund and needs a new yes. Retry a lost call with the same key and it refunds once.
+- A gateway that cannot refund from the server (the App Store) returns `UNSUPPORTED` without asking anyone.
+
+## Examples
+
+### Let an operator agent look across all users
+
+```ts
+const tools = paymentTools(payments, {
+  allUsers: true,
+  actor: { type: "agent", id: "support-bot" },
+  approve: approvalGate,
+})
+```
