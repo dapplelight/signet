@@ -1,0 +1,44 @@
+# Builds the docs site (apps/docs, Fumadocs + Next static export) on every PR
+# that touches it, so broken docs fail CI. On main it also deploys to the
+# Cloudflare Pages project signet-docs (signet.dapplelight.in).
+#
+# Needs two repo secrets: CLOUDFLARE_API_TOKEN (an API token with
+# "Cloudflare Pages: Edit") and CLOUDFLARE_ACCOUNT_ID. PR builds use neither.
+name: docs
+
+on:
+  pull_request:
+    paths: ["apps/docs/**"]
+  push:
+    branches: [main]
+    paths: ["apps/docs/**", "packages/**", "API.md", ".github/workflows/docs.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.event_name == 'pull_request' && github.ref || 'deploy' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      # The docs import these through dist/ (see release.yml).
+      - run: |
+          bun run --cwd packages/tokens build
+          bun run --cwd packages/lib build
+          bun run --cwd packages/ui build
+      # apps/docs `build` runs `sync`, which builds the mcp index first.
+      - run: bun run build
+        working-directory: apps/docs
+      - if: github.event_name != 'pull_request'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy apps/docs/out --project-name signet-docs --branch main
