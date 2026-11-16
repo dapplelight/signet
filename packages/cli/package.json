@@ -34,8 +34,11 @@
   "scripts": {
     "build": "bun run src/build.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "bun run build && bun run test/cli.ts && bun run test/modules.ts",
+    "test": "bun run build && bun run test/cli.ts && bun run test/modules.ts && bun run test/conformance.ts",
     "prepublishOnly": "bun run build"
+  },
+  "dependencies": {
+    "@dapplelight/signet-spec": "^0.1.0"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",

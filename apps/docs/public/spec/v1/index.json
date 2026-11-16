@@ -1,0 +1,50 @@
+{
+  "specVersion": "v1",
+  "files": [
+    {
+      "name": "error-envelope.schema.json",
+      "url": "https://signet.dapplelight.in/spec/v1/error-envelope.schema.json",
+      "description": "JSON Schema 2020-12 for the body of every failed response."
+    },
+    {
+      "name": "error-codes.json",
+      "url": "https://signet.dapplelight.in/spec/v1/error-codes.json",
+      "description": "Every error code and its default HTTP status."
+    },
+    {
+      "name": "analytics-ingest-request.schema.json",
+      "url": "https://signet.dapplelight.in/spec/v1/analytics-ingest-request.schema.json",
+      "description": "Body of POST to the analytics ingest route."
+    },
+    {
+      "name": "analytics-ingest-response.schema.json",
+      "url": "https://signet.dapplelight.in/spec/v1/analytics-ingest-response.schema.json",
+      "description": "Body of its 202 reply."
+    },
+    {
+      "name": "tracked-event.schema.json",
+      "url": "https://signet.dapplelight.in/spec/v1/tracked-event.schema.json",
+      "description": "One stored analytics event."
+    },
+    {
+      "name": "webhook-delivery.schema.json",
+      "url": "https://signet.dapplelight.in/spec/v1/webhook-delivery.schema.json",
+      "description": "Webhook body, signed headers and outbox message."
+    },
+    {
+      "name": "auth.openapi.json",
+      "url": "https://signet.dapplelight.in/spec/v1/auth.openapi.json",
+      "description": "OpenAPI 3.1 for the session and client-login routes."
+    },
+    {
+      "name": "contract.json",
+      "url": "https://signet.dapplelight.in/spec/v1/contract.json",
+      "description": "The theme contract: the 78 required and 16 optional CSS variable names."
+    },
+    {
+      "name": "conformance-cases.json",
+      "url": "https://signet.dapplelight.in/spec/v1/conformance-cases.json",
+      "description": "Request and expected-response cases any backend can run."
+    }
+  ]
+}

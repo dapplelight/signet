@@ -29,6 +29,14 @@ after each merge, and packages/mcp's `src/generated/` is gitignored and built
 by its own scripts. To read API.md with your change locally,
 `bun run gen:api`, then discard it before committing.
 
+## Regenerate the spec
+
+After changing the Zod schemas, the conformance cases or the theme contract,
+run `bun run gen` in `packages/spec`. It rewrites the files in the package
+(`schemas/`, `openapi/`, `conformance/`) and the copies under
+`apps/docs/public/spec/v1/`, including `index.json`. The package's tests fail
+when any of them drifts from the source.
+
 ## Add a theme
 
 1. Copy `packages/tokens/src/themes/editorial.css` to

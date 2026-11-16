@@ -26,4 +26,6 @@ Conformance cases in `conformance/`:
 
 How to run them from any language: signet.dapplelight.in/docs/packages/spec/conformance
 
+Building a Python or Go backend against Signet: signet.dapplelight.in/docs/packages/spec/conformance#python-or-go-backend
+
 Docs: signet.dapplelight.in/docs/packages/spec
