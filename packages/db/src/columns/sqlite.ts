@@ -1,7 +1,7 @@
 /**
  * Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`,
  * `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`,
- * `idempotencyKeys`, `aiCache`, `aiSpendCaps`, `webhookTables`, `entitlementTables`, `flagOverrides`, `growthTables`,
+ * `idempotencyKeys`, `aiCache`, `aiSpendCaps`, `aiSpendLedger`,`webhookTables`, `entitlementTables`, `flagOverrides`, `growthTables`,
  * `orgTables`, `privacyTables`, `analyticsEvents`, `sequences`, `workflowTables`, `monetisationTables`,
  * `collabTables`, `funnelTables`, `experimentTables` and `statusTables` tables.
  */
@@ -190,6 +190,30 @@ export const aiSpendCaps = (name = "ai_spend_caps") =>
     updatedBy: text("updated_by"),
     updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
   })
+
+/**
+ * The dated spend ledger for `createAiSpend`'s `aiSpendLedger` option: one row
+ * per UTC day, model, scope and subject. Subjects are hashed, never raw ids.
+ */
+export const aiSpendLedger = (name = "ai_spend_ledger") =>
+  sqliteTable(
+    name,
+    {
+      /** UTC day, `2026-11-15`. */
+      day: text("day").notNull(),
+      model: text("model").notNull(),
+      /** user | org | global */
+      scope: text("scope").notNull(),
+      /** The hash of a user or org id; "*" for global. */
+      subject: text("subject").notNull(),
+      /** Cost units spent. */
+      units: integer("units").notNull().default(0),
+      calls: integer("calls").notNull().default(0),
+      /** Cost units that cache hits saved. */
+      cacheSavedUnits: integer("cache_saved_units").notNull().default(0),
+    },
+    (t) => [primaryKey({ columns: [t.day, t.model, t.scope, t.subject] })],
+  )
 
 /** The idempotency key table for `createDb(..., { idempotency })`. */
 export const idempotencyKeys = (name = "idempotency_keys") =>

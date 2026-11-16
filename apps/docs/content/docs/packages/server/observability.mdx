@@ -123,6 +123,33 @@ Fields are `method`, `route` (the pattern, never the raw path), `status`, `durat
 
 `captureException` resolves to whether Sentry accepted the event and never rejects. On Workers pass it to `ctx.waitUntil`, or return it from `errorHandler`'s `onError`. `scope` carries `tags`, `traceId` (sent as the `trace_id` tag), `request` (`url`, `method`, `query_string`, `headers`; headers matching `key|token|secret|auth|cookie|session|password` are dropped) and `user`. Context values, tags and user values are not scrubbed: send only what you mean to.
 
+### http/observability
+
+Read-only admin routes for AI cost over time, on signet-db's `createAiSpend` with an `aiSpendLedger` table (typed structurally, so this package does not import signet-db). Every route is denied unless authorize returns true.
+
+| Export | What it does |
+| --- | --- |
+| `observabilityAdminRoutes({ spend, authorize, actor? })` | A Hono app of four GET routes. `actor` is accepted so one options object also serves `aiSpendAdminRoutes`; these routes only read. |
+| `AiSpendLedgerStore`, `ObservabilityAdminOptions` | Types. |
+
+| Route | Returns |
+| --- | --- |
+| `GET /cost/series?days&scope&subject` | `{ series }`: spend per UTC day. `scope` is `user`, `org` or `global` (default `global`). `subject` is a raw id, hashed on the server, and needs scope `user` or `org`. |
+| `GET /cost/by-model?days` | `{ models }`: spend per model, biggest first. Model names are never truncated. |
+| `GET /cost/top?days&scope` | `{ top }`: biggest spenders by subject hash. `scope` is `user` (default) or `org`. |
+| `GET /cost/cache-savings?days` | `{ savings }`: `cacheSavedUnits`, `spentUnits` and `series` per day. |
+
+`days` is a whole number from 1 to 400 (default 30). An empty ledger is a 200 with an empty array or zero totals. Errors use the same envelope as `aiSpendAdminRoutes`: 403 `FORBIDDEN`, 400 `VALIDATION_FAILED` with `details.fieldErrors`, and any other store error goes to your `errorHandler`. Subjects appear only as their hash; no raw id and no prompt is ever in a response.
+
+```ts
+import { observabilityAdminRoutes } from "@dapplelight/signet-server/http/observability"
+
+app.route("/api/admin/observability", observabilityAdminRoutes({
+  spend, // createAiSpend(db, { tables: { usageCounters, aiSpendCaps, aiSpendLedger } })
+  authorize: (c) => c.get("session")?.role === "admin",
+}))
+```
+
 ## Examples
 
 ### Add your own redaction
