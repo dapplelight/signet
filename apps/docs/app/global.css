@@ -78,3 +78,20 @@ html > body[data-scroll-locked] {
 figure pre code {
   font-size: 0.875rem;
 }
+
+/* Signet's base.css gives every element the bright ring as its outline
+   colour; a clicked (focusable) code block then shows a white frame. Keep
+   a ring for keyboard focus only, in the docs' own border colour. */
+figure :focus,
+figure:focus {
+  outline: none;
+}
+figure :focus-visible {
+  outline: 2px solid var(--color-fd-ring);
+  outline-offset: -2px;
+}
+
+/* The shared header is 3.5rem; sticky sidebar and TOC sit below it. */
+:root {
+  --fd-nav-height: 3.5rem;
+}
