@@ -3,7 +3,7 @@ import { GlobalRegistrator } from "@happy-dom/global-registrator"
 
 GlobalRegistrator.register()
 
-const { cleanup, render, screen, waitFor } = await import("@testing-library/react")
+const { cleanup, fireEvent, render, screen, waitFor } = await import("@testing-library/react")
 const { default: userEvent } = await import("@testing-library/user-event")
 const { z } = await import("zod")
 const { fieldConfig } = await import("@autoform/zod")
@@ -60,8 +60,9 @@ await t("submit", async () => {
   })
   ok("invalid submit does not call onSubmit", got.length === 0, got)
   ok("title marked invalid", screen.getByLabelText(/Title/).getAttribute("aria-invalid") === "true")
-  await userEvent.type(screen.getByLabelText(/Title/), "Lunch")
-  await userEvent.type(screen.getByLabelText(/Amount/), "12.5")
+  // One change per field: per-key typing into a controlled input drops keys under CI load.
+  fireEvent.change(screen.getByLabelText(/Title/), { target: { value: "Lunch" } })
+  fireEvent.change(screen.getByLabelText(/Amount/), { target: { value: "12.5" } })
   await userEvent.click(screen.getByRole("switch", { name: /Paid/ }))
   await userEvent.click(screen.getByRole("button", { name: "Submit" }))
   await waitFor(() => {
