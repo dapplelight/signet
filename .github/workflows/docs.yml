@@ -36,7 +36,9 @@ jobs:
       # apps/docs `build` runs `sync`, which builds the mcp index first.
       - run: bun run build
         working-directory: apps/docs
-      - if: github.event_name != 'pull_request'
+      # Only main deploys: a workflow_dispatch from a feature branch builds but
+      # must not publish to production.
+      - if: github.ref == 'refs/heads/main'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
