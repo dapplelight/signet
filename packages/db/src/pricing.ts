@@ -312,8 +312,16 @@ export function createPricing(db: SignetDb<unknown>, options: PricingOptions) {
         .where(and(inArray(ec.subject, ids), inArray(ec.kind, KINDS))))
         events.push({ ...r, amount: r.amount == null ? null : Number(r.amount) })
     }
-    // An exposure under an anonymous id reads the account it merged into.
-    const resolved = exposures.map((x) => ({ ...x, subject: merged.get(x.subject) ?? x.subject }))
+    // An exposure under an anonymous id reads the account it merged into. Several
+    // exposures can land on one account (merged ids, two devices): keep the
+    // earliest and its variant so each account counts once.
+    const first = new Map<string, PricingExposure>()
+    for (const x of exposures) {
+      const subject = merged.get(x.subject) ?? x.subject
+      const seen = first.get(subject)
+      if (!seen || x.exposedAt < seen.exposedAt) first.set(subject, { ...x, subject })
+    }
+    const resolved = [...first.values()]
     return {
       experiment: key,
       status: e.status,

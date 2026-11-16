@@ -366,6 +366,43 @@ describe.each(backends)("$name", (backend) => {
     expect(await code(pricing.readout("missing"))).toBe("NOT_FOUND")
   })
 
+  test("readout counts a merged account once, in its earliest exposure's variant", async () => {
+    const { i, xt, mon, experiments, offerings, pricing, event, at } = await make()
+    await offerings.setPlacement(
+      "onboarding",
+      { offering: "default", experiment: "price-test" },
+      { actor },
+    )
+    await experiments.start("price-test", { actor })
+    const t0 = at()
+    const orm = i.db.orm as any
+    // Anonymous id seen first (annual), then its account seen later (control).
+    await orm.insert(xt.experimentExposures).values([
+      {
+        id: "price-test|anon-x",
+        experiment: "price-test",
+        subject: "anon-x",
+        variant: "annual",
+        exposedAt: t0,
+      },
+      {
+        id: "price-test|acct-x",
+        experiment: "price-test",
+        subject: "acct-x",
+        variant: "control",
+        exposedAt: t0 + 5,
+      },
+    ])
+    await orm
+      .insert(mon.customerIdentities)
+      .values({ id: "anon-x", subject: "acct-x", createdAt: new Date(t0) })
+    await event("acct-x", "purchase", t0 + 10, 1000)
+
+    const [c, a] = (await pricing.readout("price-test")).variants
+    expect(c).toMatchObject({ exposed: 0, converted: 0, revenue: {} })
+    expect(a).toMatchObject({ exposed: 1, converted: 1, revenue: { INR: 1000 } })
+  })
+
   test("rolling out the control keeps the placement's own offering", async () => {
     const { experiments, offerings, pricing } = await make()
     await offerings.setPlacement(
