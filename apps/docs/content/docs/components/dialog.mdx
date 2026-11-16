@@ -1,0 +1,194 @@
+---
+title: "Dialog"
+description: "A modal window that interrupts the page to ask for input or confirmation."
+---
+
+import { DialogDemo, DialogControlledDemo, DialogNoCloseDemo } from "@/components/demos/dialog"
+
+<Preview>
+  <DialogDemo />
+
+```tsx
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@dapplelight/signet-ui/components/dialog"
+import { Input } from "@dapplelight/signet-ui/components/input"
+import { Label } from "@dapplelight/signet-ui/components/label"
+
+export function Demo() {
+  return (
+    <Dialog>
+      <DialogTrigger render={<Button variant="outline" />}>Edit profile</DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit profile</DialogTitle>
+          <DialogDescription>Update how your name appears on invoices.</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-2">
+          <Label htmlFor="dialog-name">Name</Label>
+          <Input id="dialog-name" defaultValue="Priya Raman" />
+        </div>
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+          <Button>Save changes</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add dialog
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@dapplelight/signet-ui/components/dialog"
+```
+
+```tsx
+<Dialog>
+  <DialogTrigger render={<Button variant="outline" />}>Open</DialogTrigger>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>Title</DialogTitle>
+      <DialogDescription>Description</DialogDescription>
+    </DialogHeader>
+    <DialogFooter showCloseButton />
+  </DialogContent>
+</Dialog>
+```
+
+## Examples
+
+### Controlled
+
+<Preview>
+  <DialogControlledDemo />
+
+```tsx
+import { useState } from "react"
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@dapplelight/signet-ui/components/dialog"
+import { Input } from "@dapplelight/signet-ui/components/input"
+
+export function Demo() {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>Invite teammate</Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Invite a teammate</DialogTitle>
+            <DialogDescription>They get an email with a link to join Acme Finance.</DialogDescription>
+          </DialogHeader>
+          <Input type="email" placeholder="name@company.com" aria-label="Email" />
+          <DialogFooter>
+            <Button onClick={() => setOpen(false)}>Send invite</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+```
+
+</Preview>
+
+### Footer close button
+
+<Preview>
+  <DialogNoCloseDemo />
+
+```tsx
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@dapplelight/signet-ui/components/dialog"
+
+export function Demo() {
+  return (
+    <Dialog>
+      <DialogTrigger render={<Button variant="outline" />}>Discard draft</DialogTrigger>
+      <DialogContent showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle>Discard this invoice draft?</DialogTitle>
+          <DialogDescription>INV-1048 has unsaved changes that will be lost.</DialogDescription>
+        </DialogHeader>
+        <DialogFooter showCloseButton>
+          <Button variant="destructive">Discard</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+Built on Base UI's Dialog. `Dialog`, `DialogTrigger`, `DialogClose`, `DialogPortal`, `DialogOverlay`, `DialogTitle` and `DialogDescription` take that primitive's props. Use `render` to change the element a part renders.
+
+### Dialog
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `open` | `boolean` | none | Controlled open state. |
+| `defaultOpen` | `boolean` | `false` | Starting state when uncontrolled. |
+| `onOpenChange` | `(open: boolean) => void` | none | Called when the dialog opens or closes. |
+| `modal` | `boolean` | `true` | Trap focus and block the page behind. |
+
+### DialogContent
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `showCloseButton` | `boolean` | `true` | The X button in the corner. |
+| `className` | `string` | none | Merged onto the popup. |
+
+### DialogFooter
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `showCloseButton` | `boolean` | `false` | Adds a Close button that dismisses the dialog. |
+| `className` | `string` | none | Merged onto the footer. |

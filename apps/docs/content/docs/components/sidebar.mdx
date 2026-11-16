@@ -1,0 +1,208 @@
+---
+title: "Sidebar"
+description: "A collapsible app sidebar that becomes a drawer on phones."
+---
+
+import { SidebarDemo, SidebarOffcanvasDemo, SidebarRightDemo } from "@/components/demos/sidebar"
+
+<Preview>
+  <SidebarDemo />
+
+```tsx
+import { HomeIcon, ReceiptIcon, UsersIcon } from "lucide-react"
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@dapplelight/signet-ui/components/sidebar"
+
+export function Demo() {
+  return (
+    <SidebarProvider>
+      <Sidebar>
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton isActive>
+                  <ReceiptIcon />
+                  <span>Invoices</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton>
+                  <UsersIcon />
+                  <span>Customers</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroup>
+        </SidebarContent>
+      </Sidebar>
+      <SidebarInset>
+        <SidebarTrigger />
+        {/* page content */}
+      </SidebarInset>
+    </SidebarProvider>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add sidebar
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+  useSidebar,
+} from "@dapplelight/signet-ui/components/sidebar"
+```
+
+```tsx
+<SidebarProvider>
+  <Sidebar>
+    <SidebarContent />
+  </Sidebar>
+  <SidebarInset>
+    <SidebarTrigger />
+  </SidebarInset>
+</SidebarProvider>
+```
+
+Press `Ctrl+B` or `Cmd+B` to toggle. The demos turn the shortcut off so it does not clash with the page.
+
+## Examples
+
+### Off-canvas
+
+<Preview>
+  <SidebarOffcanvasDemo />
+
+```tsx
+<Sidebar collapsible="offcanvas">
+  {/* hidden entirely when collapsed */}
+</Sidebar>
+```
+
+</Preview>
+
+### Right side
+
+<Preview>
+  <SidebarRightDemo />
+
+```tsx
+<SidebarProvider>
+  <SidebarInset>{/* page content */}</SidebarInset>
+  <Sidebar side="right" aria-label="Details">
+    <SidebarContent />
+  </Sidebar>
+</SidebarProvider>
+```
+
+</Preview>
+
+## API Reference
+
+### SidebarProvider
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| defaultOpen | `boolean` | true | Initial desktop state. |
+| open | `boolean` | - | Controlled desktop state. |
+| onOpenChange | `(open: boolean) => void` | - | Called when it expands or collapses. |
+| shortcut | `string \| null` | `"mod+b"` | Key that toggles the sidebar. `null` turns it off. |
+| desktopQuery | `string` | md breakpoint | Media query where the panel takes over from the drawer. |
+| className | `string` | - | Class on the wrapper. |
+
+### Sidebar
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| collapsible | `"icon" \| "offcanvas"` | `"icon"` | Collapse to an icon strip, or hide fully. |
+| side | `"left" \| "right"` | `"left"` | Which edge it sits on. |
+| aria-label | `string` | `"Sidebar"` | Accessible name. |
+| mobileDescription | `string` | `"Navigation"` | Screen-reader description of the phone drawer. |
+| mobileClassName | `string` | - | Class on the phone drawer surface. |
+
+### SidebarTrigger
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| label | `string` | `"Toggle sidebar"` | Screen-reader label. |
+| children | `ReactNode` | panel icon | Replace the icon. |
+
+### SidebarMenuButton
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| isActive | `boolean` | false | Marks the current page: `aria-current` and active style. |
+| render | `ReactElement` | - | Render a link or router link instead of a button. |
+
+### Layout parts
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| SidebarInset | `main` | - | The content beside the sidebar. |
+| SidebarHeader / SidebarContent / SidebarFooter | `div` | - | Sections of the panel. |
+| SidebarGroup / SidebarGroupLabel | `div` | - | A labelled group of items. |
+| SidebarMenu / SidebarMenuItem | `ul / li` | - | The list of items. |
+
+### useSidebar
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| returns | `{ isMobile, open, setOpen, openMobile, setOpenMobile, toggle, panelId }` | - | State and controls. Throws outside a `SidebarProvider`. |

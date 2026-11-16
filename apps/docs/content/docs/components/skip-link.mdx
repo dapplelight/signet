@@ -1,0 +1,113 @@
+---
+title: "Skip Link"
+description: "A Skip to content link that stays hidden until it gets keyboard focus."
+---
+
+import { SkipLinkDemo, SkipLinkLabelDemo } from "@/components/demos/skip-link"
+
+<Preview>
+  <SkipLinkDemo />
+
+```tsx
+import { SkipLink } from "@dapplelight/signet-ui/components/skip-link"
+import { Button } from "@dapplelight/signet-ui/components/button"
+
+export function Demo() {
+  return (
+    <div className="flex flex-col items-start gap-3">
+      <SkipLink id="skip-demo" target="orders-main" />
+      <Button variant="outline" onClick={() => document.getElementById("skip-demo")?.focus()}>
+        Focus the skip link
+      </Button>
+      <main id="orders-main" tabIndex={-1} className="text-sm text-text-muted">
+        Orders overview (focus lands here)
+      </main>
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add skip-link
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { SkipLink } from "@dapplelight/signet-ui/components/skip-link"
+```
+
+```tsx
+<SkipLink />
+
+<header>...</header>
+<main id="main" tabIndex={-1}>...</main>
+```
+
+## Examples
+
+### Custom label
+
+<Preview>
+  <SkipLinkLabelDemo />
+
+```tsx
+import { SkipLink } from "@dapplelight/signet-ui/components/skip-link"
+import { Button } from "@dapplelight/signet-ui/components/button"
+
+export function Demo() {
+  return (
+    <div className="flex flex-col items-start gap-3">
+      <SkipLink id="skip-demo-label" target="invoices-main">Skip to invoices</SkipLink>
+      <Button variant="outline" onClick={() => document.getElementById("skip-demo-label")?.focus()}>
+        Focus the skip link
+      </Button>
+      <main id="invoices-main" tabIndex={-1} className="text-sm text-text-muted">
+        Invoices (focus lands here)
+      </main>
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `target` | `string` | `"main"` | id of the main content, without `#`. Give that element `tabIndex={-1}` so focus lands on it. |
+| `children` | `ReactNode` | `"Skip to content"` | Link text. The default comes from the labels provider (`skipToContent`). |
+
+Plus every native `<a>` prop. Render it first in the layout.

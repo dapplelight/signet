@@ -1,0 +1,159 @@
+---
+title: "Metric Headline"
+description: "One metric answered in a plain sentence, with its number and trend."
+---
+
+import { MetricHeadlineDemo, MetricHeadlineDownDemo, MetricHeadlineStatesDemo, MetricHeadlineCopyDemo, MetricHeadlineMaskedDemo } from "@/components/demos/metric-headline"
+
+<Preview>
+  <MetricHeadlineDemo />
+
+```tsx
+import { MetricHeadline } from "@dapplelight/signet-ui/components/metric-headline"
+
+export function Demo() {
+  return <MetricHeadline label="Signups" result={{ current: 1240, previous: 1050 }} />
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add metric-headline
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  MetricHeadline,
+  metricSentence,
+  metricTrend,
+} from "@dapplelight/signet-ui/components/metric-headline"
+```
+
+```tsx
+<MetricHeadline label="Signups" result={{ current: 1240, previous: 1050 }} />
+```
+
+## Examples
+
+### Which way is good
+
+<Preview>
+  <MetricHeadlineDownDemo />
+
+```tsx
+<MetricHeadline label="Revenue" period="this month" result={{ current: 38200, previous: 41500 }} />
+
+<MetricHeadline
+  label="Failed payments"
+  period="this month"
+  goodWhen="down"
+  result={{ current: 12, previous: 30 }}
+/>
+```
+
+</Preview>
+
+### Steady and new
+
+<Preview>
+  <MetricHeadlineStatesDemo />
+
+```tsx
+<MetricHeadline label="Active users" result={{ current: 820, previous: 818 }} />
+<MetricHeadline label="New trials" result={{ current: 64, previous: null }} />
+```
+
+</Preview>
+
+### Custom copy and children
+
+<Preview>
+  <MetricHeadlineCopyDemo />
+
+```tsx
+<MetricHeadline
+  label="Orders"
+  period="today"
+  format={(n) => `${n} orders`}
+  copy={{ up: (c) => `${c.value}, ${c.percent} more than yesterday` }}
+  result={{ current: 212, previous: 180 }}
+>
+  <Button variant="link" size="sm" className="self-start px-0">View orders</Button>
+</MetricHeadline>
+```
+
+</Preview>
+
+### Privacy mask
+
+<Preview>
+  <MetricHeadlineMaskedDemo />
+
+```tsx
+<PrivacyMaskProvider>
+  <MaskToggle />
+  <MetricHeadline label="Revenue" period="this month" result={{ current: 38200, previous: 31000 }} />
+</PrivacyMaskProvider>
+```
+
+</Preview>
+
+## API Reference
+
+### MetricHeadline
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| result | `{ current: number; previous: number \| null }` | - | This period and the one before it. |
+| label | `string` | - | The metric's name as the sentence starts it. |
+| period | `string` | `"this week"` | Appended to the sentence. |
+| flatWithin | `number` | 1 | Changes under this percent read as flat. |
+| goodWhen | `"up" \| "down"` | `"up"` | Which direction is good news. |
+| copy | `Partial<MetricHeadlineCopy>` | - | Override the `up`, `down`, `flat`, `new` and `trend` strings. |
+| format | `(n: number) => string` | locale number format | Formats the value. |
+| classNames | `{ value?; sentence?; trend? }` | - | Class per part. |
+| children | `ReactNode` | - | Extra content under the sentence. |
+
+### metricTrend(result, options)
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| returns | `{ direction; tone; percent }` | - | The rule behind the headline, for an app that renders its own. |
+
+### metricSentence(result, options)
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| returns | `string` | - | The plain sentence, for aria-labels, notifications and agents. |

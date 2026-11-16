@@ -1,0 +1,177 @@
+---
+title: "Privacy Mask"
+description: "A one-tap hide-values mask for showing a screen to someone else."
+---
+
+import { PrivacyMaskDemo, PrivacyMaskRatiosDemo, PrivacyMaskControlledDemo, MaskToggleLabelsDemo } from "@/components/demos/privacy-mask"
+
+<Preview>
+  <PrivacyMaskDemo />
+
+```tsx
+import {
+  MASKED_VALUE,
+  MaskToggle,
+  PrivacyMaskProvider,
+  usePrivacyMask,
+} from "@dapplelight/signet-ui/components/privacy-mask"
+
+function Balance({ amount }: { amount: number }) {
+  const { masked } = usePrivacyMask()
+  return <span>{masked ? MASKED_VALUE : `$${amount.toLocaleString()}`}</span>
+}
+
+export function Demo() {
+  return (
+    <PrivacyMaskProvider>
+      <MaskToggle />
+      <p className="text-2xl font-semibold">
+        <Balance amount={48250} />
+      </p>
+    </PrivacyMaskProvider>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add privacy-mask
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  MaskToggle,
+  PrivacyMaskProvider,
+  RatioFill,
+  RatioProgress,
+  RatioText,
+  usePrivacyMask,
+} from "@dapplelight/signet-ui/components/privacy-mask"
+```
+
+```tsx
+<PrivacyMaskProvider>
+  <MaskToggle />
+  <YourScreen />
+</PrivacyMaskProvider>
+```
+
+This is a display preference, not a security boundary: the data is still in memory.
+
+## Examples
+
+### Ratios
+
+<Preview>
+  <PrivacyMaskRatiosDemo />
+
+```tsx
+<PrivacyMaskProvider defaultMasked>
+  <MaskToggle />
+  <RatioText>92% of the travel budget used</RatioText>
+  <RatioProgress value={92} aria-label="Travel budget used" />
+  <div className="h-1 w-full rounded-full bg-bg-elevated">
+    <RatioFill pct={92} className="h-full rounded-full bg-primary" />
+  </div>
+</PrivacyMaskProvider>
+```
+
+</Preview>
+
+### Controlled
+
+<Preview>
+  <PrivacyMaskControlledDemo />
+
+```tsx
+const [masked, setMasked] = useState(false)
+
+<PrivacyMaskProvider masked={masked} onMaskedChange={setMasked}>
+  <Button variant="outline" onClick={() => setMasked(!masked)}>
+    {masked ? "Show balances" : "Hide balances"}
+  </Button>
+  <Balance amount={12400} />
+</PrivacyMaskProvider>
+```
+
+</Preview>
+
+### Toggle labels
+
+<Preview>
+  <MaskToggleLabelsDemo />
+
+```tsx
+<MaskToggle hideLabel="Hide revenue" showLabel="Show revenue" shortcut="H" />
+```
+
+</Preview>
+
+## API Reference
+
+### PrivacyMaskProvider
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| masked | `boolean` | - | Controlled state. Makes `storageKey` and `defaultMasked` inert. |
+| onMaskedChange | `(masked: boolean) => void` | - | Called when the mask changes. |
+| defaultMasked | `boolean` | false | Starting value when nothing is stored. |
+| storageKey | `string \| false` | `"signet-privacy-mask"` | localStorage key for the choice. `false` keeps it for this tab only. |
+
+### MaskToggle
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| disabled | `boolean` | - | Disable the button. |
+| hideLabel | `string` | `"Hide values"` | Accessible name while values show. |
+| showLabel | `string` | `"Show values"` | Accessible name while masked. |
+| shortcut | `string` | - | Key shown in the tooltip. The app binds it. |
+| className | `string` | - | Class on the button. |
+
+### RatioText / RatioProgress / RatioFill
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| RatioText children | `string` | - | Text whose percentages become `••%` while masked. |
+| RatioProgress value | `number` | - | A `Progress` that sits at 0 while masked. |
+| RatioFill pct | `number` | - | A bar fill that is 0% wide while masked. |
+| RatioFill as | `"div" \| "span"` | `"div"` | Element to render. |
+
+### usePrivacyMask / useMaskedRatio
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| usePrivacyMask() | `{ masked, setMasked, toggle }` | - | Outside a provider: never masked. |
+| useMaskedRatio() | `{ masked, text, node, value, width }` | - | Helpers that mask ratios of hidden values. |

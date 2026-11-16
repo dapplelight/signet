@@ -1,0 +1,117 @@
+---
+title: "Badge"
+description: "Displays a badge or a component that looks like a badge."
+---
+
+import { BadgeDemo, BadgeVariantsDemo, BadgeIconDemo, BadgeLinkDemo } from "@/components/demos/badge"
+
+<Preview>
+  <BadgeDemo />
+
+```tsx
+import { Badge } from "@dapplelight/signet-ui/components/badge"
+
+export function Demo() {
+  return <Badge>Paid</Badge>
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add badge
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { Badge } from "@dapplelight/signet-ui/components/badge"
+```
+
+```tsx
+<Badge variant="secondary">Draft</Badge>
+```
+
+## Examples
+
+### Variants
+
+<Preview>
+  <BadgeVariantsDemo />
+
+```tsx
+<Badge>Default</Badge>
+<Badge variant="secondary">Secondary</Badge>
+<Badge variant="destructive">Overdue</Badge>
+<Badge variant="outline">Draft</Badge>
+<Badge variant="ghost">Ghost</Badge>
+<Badge variant="link">Link</Badge>
+```
+
+</Preview>
+
+### With icon
+
+<Preview>
+  <BadgeIconDemo />
+
+```tsx
+<Badge variant="secondary">
+  <CheckIcon data-icon="inline-start" />
+  Verified
+</Badge>
+```
+
+</Preview>
+
+### As a link
+
+<Preview>
+  <BadgeLinkDemo />
+
+```tsx
+<Badge render={<a href="/invoices" />}>12 open invoices</Badge>
+```
+
+</Preview>
+
+## API Reference
+
+### Badge
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `variant` | `default` \| `secondary` \| `destructive` \| `outline` \| `ghost` \| `link` | `default` | Visual style. |
+| `render` | `ReactElement \| function` | - | Render as another element, such as a link. |
+| `className` | `string` | - | Merged last. |
+
+Renders a `span` and accepts every `span` prop. Set `data-icon="inline-start"` or `"inline-end"` on an icon to tighten the padding on that side. `badgeVariants` is exported for styling your own element.

@@ -1,0 +1,126 @@
+---
+title: "Label"
+description: "A text label for a form control."
+---
+
+import { LabelDemo, LabelCheckboxDemo, LabelDisabledDemo } from "@/components/demos/label"
+
+<Preview>
+  <LabelDemo />
+
+```tsx
+import { Input } from "@dapplelight/signet-ui/components/input"
+import { Label } from "@dapplelight/signet-ui/components/label"
+
+export function Demo() {
+  return (
+    <div className="grid w-full max-w-sm gap-2">
+      <Label htmlFor="customer">Customer</Label>
+      <Input id="customer" defaultValue="Northwind Traders" />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add label
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { Label } from "@dapplelight/signet-ui/components/label"
+```
+
+```tsx
+<Label htmlFor="email">Email</Label>
+<Input id="email" />
+```
+
+## Examples
+
+### With checkbox
+
+<Preview>
+  <LabelCheckboxDemo />
+
+```tsx
+import { Checkbox } from "@dapplelight/signet-ui/components/checkbox"
+import { Label } from "@dapplelight/signet-ui/components/label"
+
+export function Demo() {
+  return (
+    <div className="flex items-center gap-2">
+      <Checkbox id="reminders" defaultChecked />
+      <Label htmlFor="reminders">Send payment reminders</Label>
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Disabled
+
+<Preview>
+  <LabelDisabledDemo />
+
+```tsx
+import { Input } from "@dapplelight/signet-ui/components/input"
+import { Label } from "@dapplelight/signet-ui/components/label"
+
+export function Demo() {
+  return (
+    <div className="grid w-full max-w-sm gap-2">
+      <Label htmlFor="invoice-no" className="opacity-50">
+        Invoice number
+      </Label>
+      <Input id="invoice-no" disabled defaultValue="INV-1042" />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+### Label
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `htmlFor` | `string` | none | The id of the control it names. |
+| `className` | `string` | none | Merged last. |
+
+Plus every `<label>` prop. It dims when a sibling marked `peer` is disabled. For a label tied to errors and descriptions, use `Field`.

@@ -1,0 +1,147 @@
+---
+title: "Input"
+description: "A text field."
+---
+
+import { InputDemo, InputWithLabelDemo, InputFileDemo, InputDisabledDemo, InputInvalidDemo } from "@/components/demos/input"
+
+<Preview>
+  <InputDemo />
+
+```tsx
+import { Input } from "@dapplelight/signet-ui/components/input"
+
+export function Demo() {
+  return <Input className="max-w-sm" type="email" placeholder="name@company.com" aria-label="Email" />
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add input
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { Input } from "@dapplelight/signet-ui/components/input"
+```
+
+```tsx
+<Input type="email" placeholder="name@company.com" />
+```
+
+## Examples
+
+### With label
+
+<Preview>
+  <InputWithLabelDemo />
+
+```tsx
+import { Input } from "@dapplelight/signet-ui/components/input"
+import { Label } from "@dapplelight/signet-ui/components/label"
+
+export function Demo() {
+  return (
+    <div className="grid w-full max-w-sm gap-2">
+      <Label htmlFor="invoice-ref">Reference</Label>
+      <Input id="invoice-ref" placeholder="PO-20931" />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### File
+
+<Preview>
+  <InputFileDemo />
+
+```tsx
+import { Input } from "@dapplelight/signet-ui/components/input"
+import { Label } from "@dapplelight/signet-ui/components/label"
+
+export function Demo() {
+  return (
+    <div className="grid w-full max-w-sm gap-2">
+      <Label htmlFor="receipt">Receipt</Label>
+      <Input id="receipt" type="file" />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Disabled
+
+<Preview>
+  <InputDisabledDemo />
+
+```tsx
+import { Input } from "@dapplelight/signet-ui/components/input"
+
+export function Demo() {
+  return <Input className="max-w-sm" disabled defaultValue="INV-1042" aria-label="Invoice number" />
+}
+```
+
+</Preview>
+
+### Invalid
+
+<Preview>
+  <InputInvalidDemo />
+
+```tsx
+import { Input } from "@dapplelight/signet-ui/components/input"
+
+export function Demo() {
+  return <Input className="max-w-sm" aria-invalid defaultValue="12/31/26" aria-label="Due date" />
+}
+```
+
+</Preview>
+
+## API Reference
+
+### Input
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `type` | `string` | `"text"` | Any HTML input type. |
+| `className` | `string` | none | Merged last. |
+
+Plus every `<input>` prop. Set `aria-invalid` for the error style.

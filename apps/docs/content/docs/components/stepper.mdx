@@ -1,0 +1,173 @@
+---
+title: "Stepper"
+description: "Progress through numbered steps, with arrow-key navigation."
+---
+
+import { StepperDemo, StepperVerticalDemo, StepperControlledDemo, StepperIndicatorDemo } from "@/components/demos/stepper"
+
+<Preview>
+  <StepperDemo />
+
+```tsx
+import { Stepper } from "@dapplelight/signet-ui/components/stepper"
+const steps = [
+  { title: "Cart", description: "3 items" },
+  { title: "Shipping", description: "Address" },
+  { title: "Payment", description: "Card details" },
+  { title: "Review" },
+]
+
+export function Demo() {
+  return (
+    <Stepper aria-label="Checkout" steps={steps} current={1} />
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add stepper
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { Stepper } from "@dapplelight/signet-ui/components/stepper"
+```
+
+```tsx
+<Stepper aria-label="Checkout" steps={[{ title: "Cart" }, { title: "Payment" }]} current={0} />
+```
+
+## Examples
+
+### Vertical
+
+<Preview>
+  <StepperVerticalDemo />
+
+```tsx
+import { Stepper } from "@dapplelight/signet-ui/components/stepper"
+const steps = [
+  { title: "Cart", description: "3 items" },
+  { title: "Shipping", description: "Address" },
+  { title: "Payment", description: "Card details" },
+  { title: "Review" },
+]
+
+export function Demo() {
+  return (
+    <Stepper aria-label="Checkout" steps={steps} current={2} orientation="vertical" className="max-w-xs" />
+  )
+}
+```
+
+</Preview>
+
+### Controlled
+
+<Preview>
+  <StepperControlledDemo />
+
+```tsx
+import { useState } from "react"
+import { Stepper } from "@dapplelight/signet-ui/components/stepper"
+import { Button } from "@dapplelight/signet-ui/components/button"
+const steps = [
+  { title: "Cart", description: "3 items" },
+  { title: "Shipping", description: "Address" },
+  { title: "Payment", description: "Card details" },
+  { title: "Review" },
+]
+
+export function Demo() {
+  const [current, setCurrent] = useState(0)
+  return (
+    <div className="w-full space-y-6">
+      <Stepper aria-label="Checkout" steps={steps} current={current} />
+      <div className="flex gap-2">
+        <Button variant="outline" disabled={current === 0} onClick={() => setCurrent(current - 1)}>
+          Back
+        </Button>
+        <Button disabled={current === steps.length} onClick={() => setCurrent(current + 1)}>
+          {current === steps.length - 1 ? "Place order" : "Next"}
+        </Button>
+      </div>
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Custom indicator
+
+<Preview>
+  <StepperIndicatorDemo />
+
+```tsx
+import { Stepper } from "@dapplelight/signet-ui/components/stepper"
+const steps = [
+  { title: "Cart", description: "3 items" },
+  { title: "Shipping", description: "Address" },
+  { title: "Payment", description: "Card details" },
+  { title: "Review" },
+]
+
+export function Demo() {
+  return (
+    <Stepper
+      aria-label="Checkout"
+      steps={steps}
+      current={1}
+      renderIndicator={(i, status) => (status === "complete" ? "✓" : String.fromCharCode(65 + i))}
+    />
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `steps` | `StepperStep[]` | `-` | Each step has a `title` and an optional `description`, both `ReactNode`. |
+| `current` | `number` | `-` | Index of the current step, from 0. Earlier steps are complete; past the end, all are. |
+| `aria-label` | `string` | `-` | Required. Names the steps for screen readers. |
+| `orientation` | `"horizontal" \| "vertical"` | `"horizontal"` | Layout direction. |
+| `renderIndicator` | `(index: number, status: StepStatus) => ReactNode` | `-` | Replaces the number or check. `status` is `complete`, `current` or `upcoming`. |
+| `classNames` | `Partial<Record<"item" \| "indicator" \| "connector" \| "title" \| "description", string>>` | `{}` | Classes for each part of every step. |
+| `className` | `string` | `-` | Merged onto the root. |
+
+Plus every native `<div>` prop except `children`.

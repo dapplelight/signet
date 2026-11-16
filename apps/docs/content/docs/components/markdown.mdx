@@ -1,0 +1,163 @@
+---
+title: "Markdown"
+description: "Safe, GitHub-flavoured Markdown for text your app did not write."
+---
+
+import { MarkdownDemo, MarkdownTocDemo, MarkdownImagesDemo, MarkdownNoAnchorsDemo } from "@/components/demos/markdown"
+
+<Preview>
+  <MarkdownDemo />
+
+```tsx
+import { Markdown } from "@dapplelight/signet-ui/components/markdown"
+
+const changelog = `# Release 2.4
+
+Invoices now **export to CSV** and sync with [the billing API](https://example.com/docs).
+
+## Fixes
+
+- [x] Overdue badge shows the right day count
+- [ ] Refund emails use the customer locale
+
+| Plan | Seats | Price |
+| ---- | ----- | ----- |
+| Team | 10    | $49   |
+| Scale | 50   | $199  |
+`
+
+export function Demo() {
+  return <Markdown>{changelog}</Markdown>
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add markdown
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  Markdown,
+  MarkdownToc,
+  markdownToc,
+} from "@dapplelight/signet-ui/components/markdown"
+```
+
+```tsx
+<Markdown>{job.description}</Markdown>
+```
+
+Needs the optional peers `react-markdown`, `remark-gfm`, `remark-parse`, `unified` and `github-slugger`.
+
+## Examples
+
+### Table of contents
+
+<Preview>
+  <MarkdownTocDemo />
+
+```tsx
+import { Markdown, MarkdownToc } from "@dapplelight/signet-ui/components/markdown"
+
+export function Release({ changelog }: { changelog: string }) {
+  return (
+    <div className="flex gap-8">
+      <MarkdownToc markdown={changelog} idPrefix="user-content-" />
+      <Markdown>{changelog}</Markdown>
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Images
+
+<Preview>
+  <MarkdownImagesDemo />
+
+```tsx
+const source = "![Quarterly revenue chart](https://example.com/revenue.png)"
+
+// Off by default: shows the alt text, fetches nothing.
+<Markdown>{source}</Markdown>
+
+// Allow only your own host.
+<Markdown images={(src) => src.startsWith("https://example.com/")}>{source}</Markdown>
+```
+
+</Preview>
+
+### Without heading anchors
+
+<Preview>
+  <MarkdownNoAnchorsDemo />
+
+```tsx
+<Markdown headingAnchors={false}>{"## Shipping policy\n\nOrders ship within 2 business days."}</Markdown>
+```
+
+</Preview>
+
+## API Reference
+
+### Markdown
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| children | `string` | - | The Markdown source. Raw HTML in it is dropped. |
+| className | `string` | - | Class on the wrapper. |
+| idPrefix | `string` | `"user-content-"` | Prefix for heading ids. Pass the same value to `MarkdownToc`. |
+| images | `boolean \| ((src: string) => boolean)` | false | `false` shows alt text only. `true` allows any safe URL. A function decides per URL. |
+| headingAnchors | `boolean` | true | Show a `#` link beside each heading. |
+
+### MarkdownToc
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| markdown | `string` | - | The same Markdown given to `Markdown`. |
+| maxDepth | `number` | 3 | Deepest heading level listed. |
+| idPrefix | `string` | `""` | Must match the `idPrefix` of `Markdown`. |
+| title | `string` | `"On this page"` | Heading and accessible name of the nav. |
+| activeId | `string` | - | Heading id to mark current with `aria-current`. |
+| className | `string` | - | Class on the nav. |
+
+### markdownToc(markdown, options)
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| maxDepth | `number` | 3 | Deepest heading level returned. |
+| idPrefix | `string` | `"user-content-"` | Prefix added to every id. Returns `{ id, text, depth }[]`. |

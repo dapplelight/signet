@@ -1,0 +1,144 @@
+---
+title: "Avatar"
+description: "An image element with a fallback for representing the user."
+---
+
+import { AvatarDemo, AvatarSizesDemo, AvatarInitialsDemo, AvatarGroupDemo } from "@/components/demos/avatar"
+
+<Preview>
+  <AvatarDemo />
+
+```tsx
+import { Avatar, AvatarFallback, AvatarImage } from "@dapplelight/signet-ui/components/avatar"
+
+export function Demo() {
+  return (
+    <Avatar>
+      <AvatarImage src="/avatars/priya-nair.png" alt="Priya Nair" />
+      <AvatarFallback>PN</AvatarFallback>
+    </Avatar>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add avatar
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { Avatar, AvatarFallback, AvatarImage } from "@dapplelight/signet-ui/components/avatar"
+```
+
+```tsx
+<Avatar>
+  <AvatarImage src="/avatar.png" alt="Priya Nair" />
+  <AvatarFallback>PN</AvatarFallback>
+</Avatar>
+```
+
+## Examples
+
+### Size
+
+<Preview>
+  <AvatarSizesDemo />
+
+```tsx
+<Avatar size="sm"><AvatarFallback>PN</AvatarFallback></Avatar>
+<Avatar><AvatarFallback>PN</AvatarFallback></Avatar>
+<Avatar size="lg"><AvatarFallback>PN</AvatarFallback></Avatar>
+```
+
+</Preview>
+
+### Initials
+
+<Preview>
+  <AvatarInitialsDemo />
+
+```tsx
+import { initials } from "@dapplelight/signet-ui/components/avatar"
+
+{["Priya Nair", "Marcus Chen", "Sofia Alvarez"].map((name) => (
+  <Avatar key={name}>
+    <AvatarFallback>{initials(name)}</AvatarFallback>
+  </Avatar>
+))}
+```
+
+</Preview>
+
+### Group
+
+<Preview>
+  <AvatarGroupDemo />
+
+```tsx
+<div className="flex -space-x-2">
+  {team.map((name) => (
+    <Avatar key={name} className="ring-2 ring-bg-surface">
+      <AvatarFallback>{initials(name)}</AvatarFallback>
+    </Avatar>
+  ))}
+</div>
+```
+
+</Preview>
+
+## API Reference
+
+### Avatar
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `size` | `sm` \| `default` \| `lg` | `default` | 24px, 32px or 40px. |
+| `className` | `string` | - | Merged last. |
+
+### AvatarImage
+
+A real `img` the browser can fetch before hydration. Takes every `img` prop. The fallback shows until it loads, or if it fails.
+
+### AvatarFallback
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `className` | `string` | - | Merged last. |
+
+### initials
+
+`initials(name: string): string` turns `"Ada Lovelace"` into `"AL"` and `"grace"` into `"G"`. At most two letters.
+
+`avatarVariants` is exported too, for styling your own element like an avatar.

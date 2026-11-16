@@ -1,0 +1,134 @@
+---
+title: "Theme Provider"
+description: "Light, dark and system themes without a flash on load."
+---
+
+import { ThemeProviderDemo, ThemeToggleHookDemo } from "@/components/demos/theme-provider"
+
+<Preview>
+  <ThemeProviderDemo />
+
+```tsx
+import { ThemeProvider, useTheme } from "@dapplelight/signet-ui/components/theme-provider"
+import { Button } from "@dapplelight/signet-ui/components/button"
+function ThemeReadout() {
+  const { theme, resolvedTheme, setTheme } = useTheme()
+  return (
+    <div className="space-y-3">
+      <p className="text-sm">
+        Setting: <b>{theme}</b>, applied: <b>{resolvedTheme}</b>
+      </p>
+      <div className="flex gap-2">
+        {(["light", "dark", "system"] as const).map((t) => (
+          <Button key={t} size="sm" variant={theme === t ? "default" : "outline"} onClick={() => setTheme(t)}>
+            {t}
+          </Button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export function Demo() {
+  return (
+    <ThemeProvider defaultTheme="system">
+      <ThemeReadout />
+    </ThemeProvider>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add theme-provider
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { ThemeProvider, useTheme, themeInitScript } from "@dapplelight/signet-ui/components/theme-provider"
+```
+
+```tsx
+<ThemeProvider defaultTheme="system" storageKey="signet-theme">
+  <App />
+</ThemeProvider>
+
+// In <head>, before any stylesheet, to avoid a flash of the wrong theme:
+<script dangerouslySetInnerHTML={{ __html: themeInitScript() }} />
+```
+
+## Examples
+
+### Flip with toggleTheme
+
+<Preview>
+  <ThemeToggleHookDemo />
+
+```tsx
+import { ThemeProvider, useTheme } from "@dapplelight/signet-ui/components/theme-provider"
+import { Button } from "@dapplelight/signet-ui/components/button"
+function FlipButton() {
+  const { resolvedTheme, toggleTheme } = useTheme()
+  return (
+    <Button variant="outline" onClick={toggleTheme}>
+      Switch to {resolvedTheme === "dark" ? "light" : "dark"}
+    </Button>
+  )
+}
+
+export function Demo() {
+  return (
+    <ThemeProvider>
+      <FlipButton />
+    </ThemeProvider>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+`ThemeProvider`
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `defaultTheme` | `"light" \| "dark" \| "system"` | `"system"` | Used when nothing is stored yet. |
+| `storageKey` | `string` | `"signet-theme"` | localStorage key. Storage that throws is tolerated. |
+| `syncThemeColor` | `boolean` | `true` | Keep `<meta name="theme-color">` in step with the theme. `false` leaves it alone. |
+| `themeColor` | `string \| ((resolved: "light" \| "dark") => string)` | `--background` | Value for the meta tag instead of `--background`. |
+
+`useTheme()` returns `theme`, `resolvedTheme` (`"system"` resolved against the OS), `setTheme(theme)` and `toggleTheme()`. Outside a provider it returns the OS theme with no-op setters. `themeInitScript(storageKey?)` returns the inline script string; `syncThemeColorMeta(doc?, color?)` is exported for apps that switch themes outside the provider.
+
+These demos change the theme of this page.

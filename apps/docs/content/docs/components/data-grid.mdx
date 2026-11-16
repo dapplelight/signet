@@ -1,0 +1,283 @@
+---
+title: "Data Grid"
+description: "A spreadsheet-like grid with inline editing, keyboard navigation, copy and paste, selection and sorting."
+---
+
+import { DataGridDemo, DataGridSelectableDemo, DataGridValidationDemo, DataGridReadOnlyDemo } from "@/components/demos/data-grid"
+
+<Preview>
+  <DataGridDemo />
+
+```tsx
+import { useState } from "react"
+import { DataGrid, type DataGridColumn } from "@dapplelight/signet-ui/components/data-grid"
+
+type Invoice = {
+  id: string
+  customer: string
+  amount: number
+  status: string
+  due: string
+  paid: boolean
+}
+
+const invoices: Invoice[] = [
+  { id: "INV-1042", customer: "Northwind Traders", amount: 12400, status: "paid", due: "2026-10-04", paid: true },
+  { id: "INV-1043", customer: "Globex Corporation", amount: 8250, status: "open", due: "2026-11-18", paid: false },
+  { id: "INV-1044", customer: "Initech", amount: 3120, status: "overdue", due: "2026-10-29", paid: false },
+  { id: "INV-1045", customer: "Umbrella Health", amount: 21900, status: "paid", due: "2026-10-12", paid: true },
+  { id: "INV-1046", customer: "Hooli", amount: 5600, status: "open", due: "2026-11-25", paid: false },
+  { id: "INV-1047", customer: "Stark Logistics", amount: 18750, status: "paid", due: "2026-10-20", paid: true },
+  { id: "INV-1048", customer: "Wayne Freight", amount: 940, status: "draft", due: "2026-12-02", paid: false },
+  { id: "INV-1049", customer: "Acme Supplies", amount: 7300, status: "overdue", due: "2026-10-15", paid: false },
+  { id: "INV-1050", customer: "Soylent Foods", amount: 15200, status: "open", due: "2026-11-30", paid: false },
+  { id: "INV-1051", customer: "Cyberdyne Systems", amount: 2680, status: "paid", due: "2026-10-08", paid: true },
+]
+
+const columns: DataGridColumn<Invoice>[] = [
+  { id: "id", header: "Invoice", editable: false, width: 110 },
+  { id: "customer", header: "Customer", width: 200 },
+  {
+    id: "amount",
+    header: "Amount",
+    type: "number",
+    width: 120,
+    format: (v) => `$${Number(v).toLocaleString()}`,
+  },
+  {
+    id: "status",
+    header: "Status",
+    type: "select",
+    width: 120,
+    options: [
+      { value: "draft", label: "Draft" },
+      { value: "open", label: "Open" },
+      { value: "paid", label: "Paid" },
+      { value: "overdue", label: "Overdue" },
+    ],
+  },
+  { id: "due", header: "Due", type: "date", width: 130 },
+  { id: "paid", header: "Paid", type: "checkbox", width: 80 },
+]
+
+export function Demo() {
+  const [rows, setRows] = useState(invoices)
+  return (
+    <div className="w-full">
+      <DataGrid
+        aria-label="Invoices"
+        columns={columns}
+        rows={rows}
+        height={340}
+        getRowId={(r) => r.id}
+        onChange={(changes) => {
+          setRows((prev) =>
+            prev.map((r) => {
+              const mine = changes.filter((c) => c.rowId === r.id)
+              return mine.length ? { ...r, ...Object.fromEntries(mine.map((c) => [c.columnId, c.value])) } : r
+            }),
+          )
+        }}
+      />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add data-grid
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { DataGrid } from "@dapplelight/signet-ui/components/data-grid"
+```
+
+```tsx
+<DataGrid
+  aria-label="Invoices"
+  columns={[{ id: "customer", header: "Customer" }]}
+  rows={invoices}
+  getRowId={(row) => row.id}
+  onChange={save}
+/>
+```
+
+## Examples
+
+### Row selection
+
+<Preview>
+  <DataGridSelectableDemo />
+
+```tsx
+import { useState } from "react"
+import { DataGrid } from "@dapplelight/signet-ui/components/data-grid"
+
+// uses the invoices and columns from the first example
+export function Demo() {
+  const [selected, setSelected] = useState<string[]>(["INV-1043"])
+  return (
+    <div className="w-full space-y-2">
+      <DataGrid
+        aria-label="Invoices"
+        columns={columns.slice(0, 4)}
+        rows={invoices}
+        height={300}
+        selectable
+        selectedRowIds={selected}
+        onSelectedRowIdsChange={setSelected}
+        getRowId={(r) => r.id}
+      />
+      <p className="text-sm text-muted-foreground">{selected.length} selected</p>
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Validation
+
+<Preview>
+  <DataGridValidationDemo />
+
+```tsx
+import { useState } from "react"
+import { DataGrid, type DataGridColumn } from "@dapplelight/signet-ui/components/data-grid"
+
+// uses the invoices and columns from the first example
+export function Demo() {
+  const [rows, setRows] = useState(invoices)
+  const cols: DataGridColumn<Invoice>[] = [
+    { id: "id", header: "Invoice", editable: false, width: 110 },
+    { id: "customer", header: "Customer", width: 200 },
+    {
+      id: "amount",
+      header: "Amount",
+      type: "number",
+      width: 140,
+      validate: (v) => (typeof v === "number" && v < 0 ? "Amount can't be negative." : undefined),
+    },
+  ]
+  return (
+    <div className="w-full">
+      <DataGrid
+        aria-label="Invoice amounts"
+        columns={cols}
+        rows={rows}
+        height={260}
+        getRowId={(r) => r.id}
+        onChange={(changes) => {
+          setRows((prev) =>
+            prev.map((r) => {
+              const mine = changes.filter((c) => c.rowId === r.id)
+              return mine.length ? { ...r, ...Object.fromEntries(mine.map((c) => [c.columnId, c.value])) } : r
+            }),
+          )
+        }}
+      />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Read only
+
+<Preview>
+  <DataGridReadOnlyDemo />
+
+```tsx
+import { DataGrid } from "@dapplelight/signet-ui/components/data-grid"
+
+// uses the invoices and columns from the first example
+export function Demo() {
+  return (
+    <div className="w-full">
+      <DataGrid
+        aria-label="Invoices"
+        columns={columns.map((c) => ({ ...c, editable: false }))}
+        rows={invoices}
+        height={300}
+        getRowId={(r) => r.id}
+      />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+### DataGrid
+
+Click a header to sort, drag its edge to resize. Rows are virtualised and one line tall, and the grid has no pagination. Arrow keys move, Enter edits, and ranges copy and paste as TSV.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `columns` | `DataGridColumn<T>[]` | required | Column definitions, see below. |
+| `rows` | `T[]` | required | The data. Apply saved changes back to it. |
+| `getRowId` | `(row: T, index: number) => string` | required | Stable id for each row. |
+| `onChange` | `(changes: DataGridChange<T>[]) => Promise<DataGridFailure[] \| undefined> \| DataGridFailure[] \| undefined` | none | Edits, pastes and clears, as a batch. The grid shows new values at once; a throw reverts them with an error on each cell, and returned failures do so for just those cells. |
+| `selectable` | `boolean` | `false` | Adds a checkbox column and Shift+Space row selection. |
+| `selectedRowIds` | `readonly string[]` | none | Controlled selection. |
+| `onSelectedRowIdsChange` | `(ids: string[]) => void` | none | Called when selection changes. |
+| `rowHeight` | `number` | `36` | Row height in px. |
+| `height` | `number \| string` | `480` | Height of the scrolling body. |
+| `overscan` | `number` | `8` | Extra rows rendered outside the viewport. |
+| `aria-label` | `string` | none | Accessible name. |
+| `aria-labelledby` | `string` | none | Id of the element that names the grid. |
+| `labels` | `Partial<DataGridLabels>` | `DEFAULT_DATA_GRID_LABELS` | Override the grid's strings. |
+| `className` | `string` | none | Class for the root. |
+| `classNames` | `Partial<Record<"root" \| "table" \| "header" \| "headerCell" \| "row" \| "cell" \| "editor" \| "error", string>>` | `{}` | Class per part. |
+
+### DataGridColumn
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `id` | `keyof T` | required | The row key this column reads and writes. |
+| `header` | `string` | required | Header text. |
+| `type` | `"text" \| "number" \| "select" \| "date" \| "checkbox"` | `"text"` | Editor and paste parsing. Dates are `YYYY-MM-DD` strings. |
+| `options` | `{ value: string; label: string }[]` | none | Choices for `type: "select"`. |
+| `editable` | `boolean` | `true` | Allow editing. |
+| `sortable` | `boolean` | `true` | Allow sorting. |
+| `width` | `number` | `160` | Starting width in px. |
+| `minWidth` | `number` | `40` | Smallest width when resizing. |
+| `format` | `(value: unknown, row: T) => ReactNode` | none | How the value shows when not editing. |
+| `parse` | `(text: string, row: T) => { value: unknown } \| { error: string }` | by `type` | Text (typed or pasted) to a value. |
+| `validate` | `(value: unknown, row: T) => string \| undefined` | none | Return a message to refuse a value before it is saved. |

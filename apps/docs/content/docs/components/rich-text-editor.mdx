@@ -1,0 +1,176 @@
+---
+title: "Rich Text Editor"
+description: "A Tiptap editor with a toolbar and @mentions whose value is markdown."
+---
+
+import { RichTextEditorDemo, RichTextEditorMentionsDemo, RichTextEditorFormatsDemo, RichTextEditorPreviewDemo, RichTextEditorDisabledDemo } from "@/components/demos/rich-text-editor"
+
+<Preview>
+  <RichTextEditorDemo />
+
+```tsx
+import { useState } from "react"
+import { RichTextEditor } from "@dapplelight/signet-ui/components/rich-text-editor"
+
+export function Demo() {
+  const [note, setNote] = useState("Follow up with **Acme Corp** about the renewal.")
+  return (
+    <RichTextEditor
+      value={note}
+      onValueChange={setNote}
+      aria-label="Account note"
+      placeholder="Write a note"
+    />
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add rich-text-editor
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  RichTextContent,
+  RichTextEditor,
+} from "@dapplelight/signet-ui/components/rich-text-editor"
+```
+
+```tsx
+<RichTextEditor value={note} onValueChange={setNote} aria-label="Account note" />
+```
+
+Needs the optional peers `@tiptap/react`, `@tiptap/pm`, `@tiptap/starter-kit`, `@tiptap/extension-mention` and `@tiptap/extension-link`. Mentions are stored as `@[Name](user:id)`.
+
+## Examples
+
+### Mentions
+
+<Preview>
+  <RichTextEditorMentionsDemo />
+
+```tsx
+const team: RichTextPerson[] = [
+  { id: "u_1", name: "Priya Shah" },
+  { id: "u_2", name: "Marcus Lee" },
+  { id: "u_3", name: "Dana Ortiz" },
+]
+
+<RichTextEditor
+  aria-label="Comment"
+  placeholder="Type @ to mention a teammate"
+  onMentionSearch={(q) =>
+    team.filter((p) => p.name.toLowerCase().includes(q.toLowerCase()))
+  }
+/>
+```
+
+</Preview>
+
+### Fewer toolbar buttons
+
+<Preview>
+  <RichTextEditorFormatsDemo />
+
+```tsx
+<RichTextEditor
+  aria-label="Short reply"
+  formats={["bold", "italic", "link"]}
+  defaultValue="Thanks, the *refund* is on its way."
+/>
+```
+
+</Preview>
+
+### Rendering stored text
+
+<Preview>
+  <RichTextEditorPreviewDemo />
+
+```tsx
+<RichTextEditor value={value} onValueChange={setValue} aria-label="Release notes" />
+
+<RichTextContent value={value} />
+```
+
+</Preview>
+
+### Disabled
+
+<Preview>
+  <RichTextEditorDisabledDemo />
+
+```tsx
+<RichTextEditor disabled aria-label="Archived note" defaultValue="This ticket is closed." />
+```
+
+</Preview>
+
+## API Reference
+
+### RichTextEditor
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| value | `string` | - | Markdown. Controlled with `onValueChange`. |
+| defaultValue | `string` | `""` | Initial markdown when uncontrolled. |
+| onValueChange | `(markdown: string) => void` | - | Called with the new markdown on every edit. |
+| onMentionSearch | `(query: string) => Promise<RichTextPerson[]> \| RichTextPerson[]` | - | People matching the query. Leave out to turn mentions off. |
+| onRequestLink | `(current: string) => Promise<string \| null> \| string \| null` | window.prompt | Ask for a link address. Unsafe addresses are ignored. |
+| formats | `readonly RichTextFormat[]` | all | Toolbar buttons, in order: `bold`, `italic`, `code`, `link`, `h2`, `h3`, `ul`, `ol`. |
+| placeholder | `string` | - | Hint shown while empty. |
+| disabled | `boolean` | false | Make the editor read-only. |
+| labels | `Partial<RichTextLabels>` | - | Override toolbar and mention strings. |
+| icons | `Partial<Record<RichTextFormat, ReactNode>>` | - | Replace a button's content. The label stays its accessible name. |
+| className | `string` | - | Class on the root. |
+| classNames | `Partial<Record<Part, string>>` | - | Class per part: `root`, `toolbar`, `button`, `content`, `mentions`, `option`. |
+| id | `string` | - | Id of the editable area. |
+| aria-label | `string` | - | Accessible name of the editor. |
+
+### RichTextContent
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| value | `string` | - | Stored markdown, rendered as safe HTML. |
+| className | `string` | - | Merged with `RICH_TEXT_CLASSES`. |
+
+### RichTextPerson
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| id | `string` | - | Stored in the mention token. |
+| name | `string` | - | Shown in the picker and the mention. |
+| email | `string \| null` | - | Optional. |

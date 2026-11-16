@@ -1,0 +1,131 @@
+---
+title: "Schema Form"
+description: "A form drawn from a zod schema, with Signet's own controls."
+---
+
+import { SchemaFormDemo, SchemaFormDefaultsDemo, SchemaFormServerErrorDemo } from "@/components/demos/schema-form"
+
+<Preview>
+  <SchemaFormDemo />
+
+```tsx
+import { z } from "zod"
+import { SchemaForm } from "@dapplelight/signet-ui/components/schema-form"
+
+const Expense = z.object({
+  merchant: z.string().min(1),
+  amount: z.number().positive(),
+  kind: z.enum(["food", "travel", "software"]),
+  date: z.date().optional(),
+  reimbursable: z.boolean().default(false),
+  note: z.string().max(500).optional(),
+})
+
+export function Demo() {
+  return <SchemaForm schema={Expense} submit="Save expense" onSubmit={save} />
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add schema-form
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { SchemaForm } from "@dapplelight/signet-ui/components/schema-form"
+```
+
+```tsx
+<SchemaForm schema={Expense} onSubmit={(values) => save(values)} />
+```
+
+Needs the optional peers `@autoform/react`, `@autoform/zod`, `@tanstack/react-form` and `zod`. Customise a field in the schema with AutoForm's `fieldConfig`.
+
+## Examples
+
+### Default values
+
+<Preview>
+  <SchemaFormDefaultsDemo />
+
+```tsx
+const Invite = z.object({
+  email: z.string().email(),
+  role: z.enum(["admin", "member"]),
+})
+
+<SchemaForm
+  schema={Invite}
+  submit="Send invite"
+  defaultValues={{ email: "dana@acme.test", role: "member" }}
+  onSubmit={sendInvite}
+/>
+```
+
+</Preview>
+
+### Server errors
+
+<Preview>
+  <SchemaFormServerErrorDemo />
+
+```tsx
+<SchemaForm
+  schema={Invite}
+  submit="Send invite"
+  onSubmit={async (values) => {
+    await api.post("/invites", values) // rejects with a 422 envelope
+  }}
+  onSubmitError={(error, form) => applyServerErrors(form, error)}
+/>
+```
+
+</Preview>
+
+## API Reference
+
+### SchemaForm
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| schema | `ZodSchema \| SchemaProvider` | - | A zod object schema, or any AutoForm `SchemaProvider`. |
+| onSubmit | `(values, form, event) => void \| Promise<void>` | - | Runs after the schema validates. |
+| onSubmitError | `(error: unknown, form: unknown) => void` | - | Receives a rejected `onSubmit`, e.g. for `applyServerErrors`. Without it the error is rethrown. |
+| submit | `ReactNode \| false` | `"Submit"` | Submit button text. `false` hides it so you can render your own in `children`. |
+| defaultValues | `Partial<T>` | from schema | Initial values merged over schema defaults. |
+| values | `Partial<T>` | - | Controlled values kept in sync with external state. |
+| uiComponents | `Partial<AutoFormUIComponents>` | - | Replace layout pieces: wrappers, error message, submit button. |
+| formComponents | `Partial<AutoFormFieldComponents>` | - | Replace a control for a field type: `string`, `textarea`, `number`, `date`, `boolean`, `select`. |
+| children | `ReactNode` | - | Extra content after the fields. |

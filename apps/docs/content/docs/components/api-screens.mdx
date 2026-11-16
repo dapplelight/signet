@@ -1,0 +1,214 @@
+---
+title: "API Screens"
+description: "An OpenAPI endpoint reference and a webhook delivery log with redelivery."
+---
+
+import { ApiReferenceDemo, WebhookDeliveryLogDemo } from "@/components/demos/api-screens"
+
+<Preview>
+  <ApiReferenceDemo />
+
+```tsx
+import { ApiReference, type ApiSpec } from "@dapplelight/signet-ui/screens/api-screens"
+
+const spec: ApiSpec = {
+  info: { title: "Orders API", version: "1.0.0" },
+  components: { securitySchemes: { bearer: { type: "http", scheme: "bearer" } } },
+  paths: {
+    "/orders": {
+      get: {
+        operationId: "listOrders",
+        summary: "List orders",
+        tags: ["Orders"],
+        security: [{ bearer: [] }],
+        parameters: [
+          { name: "status", in: "query", description: "Filter by status", schema: { type: "string", enum: ["open", "paid", "refunded"] } },
+          { name: "limit", in: "query", schema: { type: "integer" } },
+        ],
+        responses: { "200": { description: "A page of orders" } },
+      },
+      post: {
+        operationId: "createOrder",
+        summary: "Create an order",
+        tags: ["Orders"],
+        security: [{ bearer: [] }],
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: { type: "object", properties: { customerId: { type: "string" }, amount: { type: "integer" } }, required: ["customerId", "amount"] },
+            },
+          },
+        },
+        responses: { "201": { description: "The new order" }, "422": { description: "Validation failed" } },
+      },
+    },
+    "/health": {
+      get: { operationId: "health", summary: "Health check", tags: ["Status"], security: [], responses: { "200": { description: "OK" } } },
+    },
+  },
+}
+
+export function ApiReferenceDemo() {
+  return (
+    <div className="w-full">
+      <ApiReference spec={spec} defaultOpen={["createOrder"]} />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add api-screens
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { ApiReference, WebhookDeliveryLog } from "@dapplelight/signet-ui/screens/api-screens"
+```
+
+```tsx
+<ApiReference spec={spec} />
+```
+
+## Examples
+
+### ApiReference
+
+<Preview>
+  <ApiReferenceDemo />
+
+```tsx
+import { ApiReference, type ApiSpec } from "@dapplelight/signet-ui/screens/api-screens"
+
+const spec: ApiSpec = {
+  info: { title: "Orders API", version: "1.0.0" },
+  components: { securitySchemes: { bearer: { type: "http", scheme: "bearer" } } },
+  paths: {
+    "/orders": {
+      get: {
+        operationId: "listOrders",
+        summary: "List orders",
+        tags: ["Orders"],
+        security: [{ bearer: [] }],
+        parameters: [
+          { name: "status", in: "query", description: "Filter by status", schema: { type: "string", enum: ["open", "paid", "refunded"] } },
+          { name: "limit", in: "query", schema: { type: "integer" } },
+        ],
+        responses: { "200": { description: "A page of orders" } },
+      },
+      post: {
+        operationId: "createOrder",
+        summary: "Create an order",
+        tags: ["Orders"],
+        security: [{ bearer: [] }],
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: { type: "object", properties: { customerId: { type: "string" }, amount: { type: "integer" } }, required: ["customerId", "amount"] },
+            },
+          },
+        },
+        responses: { "201": { description: "The new order" }, "422": { description: "Validation failed" } },
+      },
+    },
+    "/health": {
+      get: { operationId: "health", summary: "Health check", tags: ["Status"], security: [], responses: { "200": { description: "OK" } } },
+    },
+  },
+}
+
+export function ApiReferenceDemo() {
+  return (
+    <div className="w-full">
+      <ApiReference spec={spec} defaultOpen={["createOrder"]} />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### WebhookDeliveryLog
+
+<Preview>
+  <WebhookDeliveryLogDemo />
+
+```tsx
+import { WebhookDeliveryLog, type WebhookStatusFilter } from "@dapplelight/signet-ui/screens/api-screens"
+import { useState } from "react"
+
+export function WebhookDeliveryLogDemo() {
+  const [status, setStatus] = useState<WebhookStatusFilter>("all")
+  const shown = status === "all" ? deliveries : deliveries.filter((d) => d.status === status)
+  return (
+    <div className="w-full">
+      <WebhookDeliveryLog
+        deliveries={shown}
+        status={status}
+        onStatusChange={setStatus}
+        endpoints={{ ep_1: "https://acme.example/hooks/orders", ep_2: "https://acme.example/hooks/crm" }}
+        onRedeliver={() => new Promise((r) => setTimeout(r, 500))}
+      />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+### ApiReference
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `spec` | `ApiSpec` | — | The parts of an OpenAPI 3.1 document the reference reads. |
+| `defaultOpen` | `string[]` | `[]` | Operations whose `operationId` is here start open. |
+| `labels` | `Partial<ApiLabels>` | — | Every string, in English by default. Spread `DEFAULT_API_LABELS` to translate. |
+
+### WebhookDeliveryLog
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `deliveries` | `WebhookDeliveryEntry[]` | — | Rows of signet-db's webhook delivery log. |
+| `endpoints` | `Record<string, string>` | `{}` | Endpoint id to URL, to show where each went. |
+| `status` | `WebhookStatusFilter` | — | Controlled filter: `all`, `failed`, `retrying` or `delivered`. |
+| `defaultStatus` | `WebhookStatusFilter` | `"all"` | Initial filter when uncontrolled. |
+| `onStatusChange` | `(status: WebhookStatusFilter) => void` | — | Called on a filter change, e.g. to refetch. |
+| `onRedeliver` | `(delivery: WebhookDeliveryEntry) => unknown \| Promise<unknown>` | — | Shown on failed, retrying and skipped deliveries. |
+| `onLoadMore` | `() => void` | — | Called by the Load more button. |
+| `hasMore` | `boolean` | — | Shows the Load more button. |
+| `formatTime` | `(d: Date) => string` | `toLocaleString` | Format a timestamp. |
+| `labels` | `Partial<ApiLabels>` | — | Every string, in English by default. Spread `DEFAULT_API_LABELS` to translate. |

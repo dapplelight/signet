@@ -1,0 +1,242 @@
+---
+title: "Upload"
+description: "Drag and drop or pick files, upload each with progress, and retry a failed one."
+---
+
+import { UploadDemo, UploadMultipleDemo, UploadConfirmDemo } from "@/components/demos/upload"
+
+<Preview>
+  <UploadDemo />
+
+```tsx
+import { Upload, type UploadTransport } from "@dapplelight/signet-ui/domain/upload"
+
+const getTarget = async (file: File) => ({ url: `https://uploads.example.com/${encodeURIComponent(file.name)}` })
+
+// A stand-in for the real upload: counts to 100 over about a second.
+const fakeTransport: UploadTransport = (file, _target, onProgress) =>
+  new Promise((resolve, reject) => {
+    let done = 0
+    const timer = setInterval(() => {
+      done += 0.1
+      onProgress(Math.min(done, 1))
+      if (file.name.includes("fail")) {
+        clearInterval(timer)
+        reject(new Error("Upload failed (403)"))
+      } else if (done >= 1) {
+        clearInterval(timer)
+        resolve()
+      }
+    }, 100)
+  })
+
+export function UploadDemo() {
+  return (
+    <div className="w-full max-w-md">
+      <Upload
+        getTarget={getTarget}
+        transport={fakeTransport}
+        accept={["image/*", "application/pdf"]}
+        maxBytes={5 * 1024 * 1024}
+      />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add upload
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { Upload } from "@dapplelight/signet-ui/domain/upload"
+```
+
+```tsx
+<Upload getTarget={getTarget} accept={["image/*"]} maxBytes={5 * 1024 * 1024} />
+```
+
+The demos use a fake transport so nothing leaves the page. A file whose name contains `fail` shows the retry state.
+
+## Examples
+
+### Single file
+
+<Preview>
+  <UploadDemo />
+
+```tsx
+import { Upload, type UploadTransport } from "@dapplelight/signet-ui/domain/upload"
+
+const getTarget = async (file: File) => ({ url: `https://uploads.example.com/${encodeURIComponent(file.name)}` })
+
+// A stand-in for the real upload: counts to 100 over about a second.
+const fakeTransport: UploadTransport = (file, _target, onProgress) =>
+  new Promise((resolve, reject) => {
+    let done = 0
+    const timer = setInterval(() => {
+      done += 0.1
+      onProgress(Math.min(done, 1))
+      if (file.name.includes("fail")) {
+        clearInterval(timer)
+        reject(new Error("Upload failed (403)"))
+      } else if (done >= 1) {
+        clearInterval(timer)
+        resolve()
+      }
+    }, 100)
+  })
+
+export function UploadDemo() {
+  return (
+    <div className="w-full max-w-md">
+      <Upload
+        getTarget={getTarget}
+        transport={fakeTransport}
+        accept={["image/*", "application/pdf"]}
+        maxBytes={5 * 1024 * 1024}
+      />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Multiple files
+
+<Preview>
+  <UploadMultipleDemo />
+
+```tsx
+import { Upload, type UploadTransport } from "@dapplelight/signet-ui/domain/upload"
+
+const getTarget = async (file: File) => ({ url: `https://uploads.example.com/${encodeURIComponent(file.name)}` })
+
+// A stand-in for the real upload: counts to 100 over about a second.
+const fakeTransport: UploadTransport = (file, _target, onProgress) =>
+  new Promise((resolve, reject) => {
+    let done = 0
+    const timer = setInterval(() => {
+      done += 0.1
+      onProgress(Math.min(done, 1))
+      if (file.name.includes("fail")) {
+        clearInterval(timer)
+        reject(new Error("Upload failed (403)"))
+      } else if (done >= 1) {
+        clearInterval(timer)
+        resolve()
+      }
+    }, 100)
+  })
+
+export function UploadMultipleDemo() {
+  return (
+    <div className="w-full max-w-md">
+      <Upload
+        multiple
+        label="Drop receipts here or choose files"
+        getTarget={getTarget}
+        transport={fakeTransport}
+        accept={["image/png", "image/jpeg"]}
+        maxBytes={2 * 1024 * 1024}
+      />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Confirm after upload
+
+<Preview>
+  <UploadConfirmDemo />
+
+```tsx
+import { Upload, type UploadTransport } from "@dapplelight/signet-ui/domain/upload"
+
+const getTarget = async (file: File) => ({ url: `https://uploads.example.com/${encodeURIComponent(file.name)}` })
+
+// A stand-in for the real upload: counts to 100 over about a second.
+const fakeTransport: UploadTransport = (file, _target, onProgress) =>
+  new Promise((resolve, reject) => {
+    let done = 0
+    const timer = setInterval(() => {
+      done += 0.1
+      onProgress(Math.min(done, 1))
+      if (file.name.includes("fail")) {
+        clearInterval(timer)
+        reject(new Error("Upload failed (403)"))
+      } else if (done >= 1) {
+        clearInterval(timer)
+        resolve()
+      }
+    }, 100)
+  })
+
+export function UploadConfirmDemo() {
+  return (
+    <div className="w-full max-w-md">
+      <Upload
+        getTarget={getTarget}
+        transport={fakeTransport}
+        onUploaded={async (file) => {
+          await new Promise((r) => setTimeout(r, 300))
+          console.log(`Confirmed ${file.name}`)
+        }}
+      />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+### Upload
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `getTarget` | `(file: File) => Promise<UploadTarget>` | — | Asks your server for a URL per file (`url`, `method`, `headers`). |
+| `onUploaded` | `(file: File, target: UploadTarget) => void \| Promise<void>` | — | Runs after the bytes are sent, to confirm with your server. |
+| `accept` | `string[]` | — | Allowed types, exact (`image/png`) or a family (`image/*`). Others are rejected. |
+| `maxBytes` | `number` | — | Largest file in bytes. Larger files are rejected. |
+| `multiple` | `boolean` | `false` | Allow several files. |
+| `label` | `string` | `"Drop a file here or choose one"` | Text of the drop zone. |
+| `transport` | `UploadTransport` | `xhrUpload` | Sends the file and reports progress from 0 to 1. |
+| `className` | `string` | — | Class for the root. |

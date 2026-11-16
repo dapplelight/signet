@@ -1,0 +1,273 @@
+---
+title: "Status Screens"
+description: "A public status page and the admin screens to run it: maintenance mode, component statuses and incidents."
+---
+
+import { StatusPageDemo, StatusPageMaintenanceDemo, StatusAdminDemo, MaintenanceFormDemo, ComponentStatusListDemo, IncidentFormDemo, IncidentUpdateFormDemo } from "@/components/demos/status-screens"
+
+<Preview>
+  <StatusPageDemo />
+
+```tsx
+import { StatusPage } from "@dapplelight/signet-ui/screens/status-screens"
+
+function StatusPageDemo() {
+  return <StatusPage className="w-full max-w-2xl" summary={summary} />
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add status-screens
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  StatusPage,
+  StatusAdmin,
+} from "@dapplelight/signet-ui/screens/status-screens"
+```
+
+Data is shaped like `status.summary()` from signet-db's `createStatus` (or its JSON); admin actions come out as callbacks.
+
+```tsx
+<StatusPage summary={summary} />
+```
+
+## Examples
+
+### StatusPage
+
+<Preview>
+  <StatusPageDemo />
+
+```tsx
+import { StatusPage } from "@dapplelight/signet-ui/screens/status-screens"
+
+function StatusPageDemo() {
+  return <StatusPage className="w-full max-w-2xl" summary={summary} />
+}
+```
+
+</Preview>
+
+With maintenance on, the overall status and a notice replace the incident list.
+
+<Preview>
+  <StatusPageMaintenanceDemo />
+
+```tsx
+import { StatusPage } from "@dapplelight/signet-ui/screens/status-screens"
+
+function StatusPageMaintenanceDemo() {
+  return (
+    <StatusPage
+      className="w-full max-w-2xl"
+      summary={{
+        ...summary,
+        status: "maintenance",
+        incidents: [],
+        maintenance: { on: true, message: "Database upgrade in progress.", until: "2026-11-20T06:00:00Z" },
+      }}
+    />
+  )
+}
+```
+
+</Preview>
+
+### StatusAdmin
+
+The whole admin screen. Each part below is exported for your own layout.
+
+<Preview>
+  <StatusAdminDemo />
+
+```tsx
+import { StatusAdmin } from "@dapplelight/signet-ui/screens/status-screens"
+
+function StatusAdminDemo() {
+  return (
+    <StatusAdmin
+      className="w-full max-w-3xl"
+      summary={summary}
+      onMaintenance={() => undefined}
+      onComponentStatus={() => undefined}
+      onOpenIncident={() => undefined}
+      onUpdateIncident={() => undefined}
+    />
+  )
+}
+```
+
+</Preview>
+
+### MaintenanceForm
+
+<Preview>
+  <MaintenanceFormDemo />
+
+```tsx
+import { MaintenanceForm } from "@dapplelight/signet-ui/screens/status-screens"
+
+function MaintenanceFormDemo() {
+  return (
+    <MaintenanceForm
+      className="w-full max-w-md"
+      maintenance={{ on: false, message: "Database upgrade", until: null }}
+      onSave={() => undefined}
+    />
+  )
+}
+```
+
+</Preview>
+
+### ComponentStatusList
+
+<Preview>
+  <ComponentStatusListDemo />
+
+```tsx
+import { ComponentStatusList } from "@dapplelight/signet-ui/screens/status-screens"
+
+function ComponentStatusListDemo() {
+  return (
+    <ComponentStatusList
+      className="w-full max-w-md"
+      components={summary.components}
+      onStatus={() => undefined}
+    />
+  )
+}
+```
+
+</Preview>
+
+### IncidentForm
+
+<Preview>
+  <IncidentFormDemo />
+
+```tsx
+import { IncidentForm } from "@dapplelight/signet-ui/screens/status-screens"
+
+function IncidentFormDemo() {
+  return (
+    <IncidentForm
+      className="w-full max-w-md"
+      components={summary.components}
+      onOpen={() => undefined}
+    />
+  )
+}
+```
+
+</Preview>
+
+### IncidentUpdateForm
+
+<Preview>
+  <IncidentUpdateFormDemo />
+
+```tsx
+import { IncidentUpdateForm } from "@dapplelight/signet-ui/screens/status-screens"
+
+function IncidentUpdateFormDemo() {
+  return (
+    <IncidentUpdateForm
+      className="w-full max-w-md"
+      incident={summary.incidents[0]}
+      onUpdate={() => undefined}
+    />
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+All screens accept the props of their root element. `StatusPage` takes `labels` as `Partial<StatusLabels>`; the admin screens take `Partial<StatusAdminLabels>`.
+
+### StatusPage
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `summary` | `StatusSummaryView` | required | Overall status, components, incidents and maintenance. |
+| `labels` | `Partial<StatusLabels>` | `DEFAULT_STATUS_LABELS` | Override any string. |
+
+### StatusAdmin
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `summary` | `Omit<StatusSummaryView, "status">` | required | Components, incidents and maintenance. |
+| `onMaintenance` | `(input: MaintenanceInput) => unknown` | required | Save the maintenance switch, message and end time. |
+| `onComponentStatus` | `(key: string, status: ComponentStatus) => unknown` | required | A component's status changed. |
+| `onOpenIncident` | `(input: IncidentInput) => unknown` | required | Open an incident. |
+| `onUpdateIncident` | `(id: string, input: { status: string; message: string }) => unknown` | required | Append an update; `"resolved"` closes it. |
+| `labels` | `Partial<StatusAdminLabels>` | `DEFAULT_STATUS_ADMIN_LABELS` | Override any string. |
+
+### MaintenanceForm
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `maintenance` | `StatusSummaryView["maintenance"]` | required | Current maintenance state. |
+| `onSave` | `(input: MaintenanceInput) => unknown` | required | Called on submit. |
+| `labels` | `Partial<StatusAdminLabels>` | - | Override any string. |
+
+### ComponentStatusList
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `components` | `StatusSummaryView["components"]` | required | Components to list. |
+| `onStatus` | `(key: string, status: ComponentStatus) => unknown` | required | Called at once when a status changes. |
+| `labels` | `Partial<StatusAdminLabels>` | - | Override any string. |
+
+### IncidentForm
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `components` | `StatusSummaryView["components"]` | required | Components the incident can affect. |
+| `onOpen` | `(input: IncidentInput) => unknown` | required | Open the incident with its first update. |
+| `labels` | `Partial<StatusAdminLabels>` | - | Override any string. |
+
+### IncidentUpdateForm
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `incident` | `StatusIncidentView` | required | The incident and its updates. A resolved one shows no form. |
+| `onUpdate` | `(id: string, input: { status: string; message: string }) => unknown` | required | Append an update; `"resolved"` closes it. |
+| `labels` | `Partial<StatusAdminLabels>` | - | Override any string. |

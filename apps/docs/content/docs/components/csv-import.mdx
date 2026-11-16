@@ -1,0 +1,247 @@
+---
+title: "CSV Import"
+description: "Import rows from a CSV file or pasted text: map columns, check every row, review errors, import the valid rows."
+---
+
+import { CsvImportDemo, CsvImportServerErrorsDemo, CsvImportLabelsDemo } from "@/components/demos/csv-import"
+
+<Preview>
+  <CsvImportDemo />
+
+```tsx
+import { CsvImport, type CsvField } from "@dapplelight/signet-ui/domain/csv-import"
+import { useState } from "react"
+
+const schema = {
+  safeParse(value: unknown) {
+    const v = value as Record<string, string>
+    if (v.email && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.email)) {
+      return { success: true as const, data: v }
+    }
+    return {
+      success: false as const,
+      error: { issues: [{ path: ["email"], message: "Not a valid email" }] },
+    }
+  },
+}
+
+const fields: CsvField[] = [
+  { key: "name", label: "Customer", aliases: ["Full name"], required: true },
+  { key: "email", label: "Email", aliases: ["E-mail", "Email address"], required: true },
+  { key: "plan", label: "Plan" },
+]
+
+export function CsvImportDemo() {
+  const [, setImported] = useState(0)
+  return (
+    <div className="w-full max-w-2xl">
+      <CsvImport
+        fields={fields}
+        schema={schema}
+        onImport={async (rows) => {
+          setImported(rows.length)
+          await new Promise((r) => setTimeout(r, 600))
+          return { inserted: rows.length }
+        }}
+      />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add csv-import
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { CsvImport, type CsvField } from "@dapplelight/signet-ui/domain/csv-import"
+```
+
+```tsx
+<CsvImport fields={fields} onImport={(rows) => save(rows)} />
+```
+
+The helpers `parseCsv`, `toCsv`, `detectDelimiter`, `csvField`, `autoMatch` and `validateRows` are exported too.
+
+## Examples
+
+### With a schema
+
+<Preview>
+  <CsvImportDemo />
+
+```tsx
+import { CsvImport, type CsvField } from "@dapplelight/signet-ui/domain/csv-import"
+import { useState } from "react"
+
+const schema = {
+  safeParse(value: unknown) {
+    const v = value as Record<string, string>
+    if (v.email && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.email)) {
+      return { success: true as const, data: v }
+    }
+    return {
+      success: false as const,
+      error: { issues: [{ path: ["email"], message: "Not a valid email" }] },
+    }
+  },
+}
+
+const fields: CsvField[] = [
+  { key: "name", label: "Customer", aliases: ["Full name"], required: true },
+  { key: "email", label: "Email", aliases: ["E-mail", "Email address"], required: true },
+  { key: "plan", label: "Plan" },
+]
+
+export function CsvImportDemo() {
+  const [, setImported] = useState(0)
+  return (
+    <div className="w-full max-w-2xl">
+      <CsvImport
+        fields={fields}
+        schema={schema}
+        onImport={async (rows) => {
+          setImported(rows.length)
+          await new Promise((r) => setTimeout(r, 600))
+          return { inserted: rows.length }
+        }}
+      />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Server errors
+
+<Preview>
+  <CsvImportServerErrorsDemo />
+
+```tsx
+import { CsvImport, type CsvField } from "@dapplelight/signet-ui/domain/csv-import"
+
+const sample = `Full name,E-mail,Plan
+Asha Verma,asha@acme.example,Pro
+Rohan Iyer,rohan@acme.example,Starter
+Meera Nair,not-an-email,Pro
+Dev Patel,dev@acme.example,Team`
+
+const fields: CsvField[] = [
+  { key: "name", label: "Customer", aliases: ["Full name"], required: true },
+  { key: "email", label: "Email", aliases: ["E-mail", "Email address"], required: true },
+  { key: "plan", label: "Plan" },
+]
+
+export function CsvImportServerErrorsDemo() {
+  return (
+    <div className="w-full max-w-2xl">
+      <CsvImport
+        fields={fields}
+        onImport={async (rows) => {
+          await new Promise((r) => setTimeout(r, 600))
+          return {
+            inserted: rows.length - 1,
+            errors: [{ row: 0, field: "email", message: "Already registered" }],
+          }
+        }}
+      />
+      <p className="mt-3 text-xs text-neutral-500">Paste this to try it:</p>
+      <pre className="mt-1 rounded-md bg-neutral-100 p-2 text-xs dark:bg-neutral-900">{sample}</pre>
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Labels
+
+<Preview>
+  <CsvImportLabelsDemo />
+
+```tsx
+import { CsvImport, type CsvField } from "@dapplelight/signet-ui/domain/csv-import"
+
+const fields: CsvField[] = [
+  { key: "name", label: "Customer", aliases: ["Full name"], required: true },
+  { key: "email", label: "Email", aliases: ["E-mail", "Email address"], required: true },
+  { key: "plan", label: "Plan" },
+]
+
+export function CsvImportLabelsDemo() {
+  return (
+    <div className="w-full max-w-2xl">
+      <CsvImport
+        fields={fields}
+        onImport={() => undefined}
+        labels={{
+          title: "Import customers",
+          paste: "Or paste rows from your spreadsheet",
+          next: "Next",
+          import: (n) => `Add ${n} customers`,
+        }}
+      />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+### CsvImport
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `fields` | `readonly CsvField[]` | — | The fields rows are imported into: `key`, `label`, `aliases`, `required`. |
+| `schema` | `CsvSchema<T>` | — | Anything with `safeParse` (zod works). Without it rows are the mapped strings. |
+| `onImport` | `(rows: T[]) => Promise<CsvImportReport \| undefined> \| CsvImportReport \| undefined` | — | Gets the valid rows. Return a report to show server errors per row. |
+| `delimiter` | `string` | `detected` | Separator; detected from the first line when left out. |
+| `previewRows` | `number` | `100` | Rows shown in the review table. |
+| `maxBytes` | `number` | `10485760` | Largest file read, in bytes. |
+| `labels` | `Partial<CsvImportLabels>` | — | Every string, in English by default. Spread `DEFAULT_CSV_IMPORT_LABELS` to translate. |
+| `classNames` | `Partial<Record<Part, string>>` | — | Parts: `root`, `title`, `source`, `mapping`, `review`, `table`, `cell`, `error`, `actions`, `status`. |
+
+### CsvField
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `key` | `string` | — | The key in each imported row. |
+| `label` | `string` | `key` | Shown in the mapping step and the preview. |
+| `aliases` | `string[]` | — | Other header names that match this field. |
+| `required` | `boolean` | — | Mapping cannot continue until this field has a column. |

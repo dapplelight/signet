@@ -1,0 +1,166 @@
+---
+title: "Popover"
+description: "Floating content anchored to a trigger, opened on click."
+---
+
+import { PopoverDemo, PopoverAlignDemo, PopoverControlledDemo } from "@/components/demos/popover"
+
+<Preview>
+  <PopoverDemo />
+
+```tsx
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { Input } from "@dapplelight/signet-ui/components/input"
+import { Label } from "@dapplelight/signet-ui/components/label"
+import { Popover, PopoverContent, PopoverTrigger } from "@dapplelight/signet-ui/components/popover"
+
+export function Demo() {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline">Invoice limits</Button>
+      </PopoverTrigger>
+      <PopoverContent className="grid gap-3">
+        <div className="grid gap-1">
+          <h4 className="text-sm font-medium">Invoice limits</h4>
+          <p className="text-sm text-text-muted">Set the amount that needs approval.</p>
+        </div>
+        <div className="grid grid-cols-3 items-center gap-2">
+          <Label htmlFor="popover-limit">Limit</Label>
+          <Input id="popover-limit" defaultValue="5000" className="col-span-2 h-8" />
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add popover
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverTrigger,
+} from "@dapplelight/signet-ui/components/popover"
+```
+
+```tsx
+<Popover>
+  <PopoverTrigger asChild>
+    <Button variant="outline">Open</Button>
+  </PopoverTrigger>
+  <PopoverContent>Place content for the popover here.</PopoverContent>
+</Popover>
+```
+
+## Examples
+
+### Alignment
+
+<Preview>
+  <PopoverAlignDemo />
+
+```tsx
+{(["start", "center", "end"] as const).map((align) => (
+  <Popover key={align}>
+    <PopoverTrigger asChild>
+      <Button variant="outline" size="sm">{align}</Button>
+    </PopoverTrigger>
+    <PopoverContent align={align} className="w-48 text-sm">
+      Aligned to the {align} of the trigger.
+    </PopoverContent>
+  </Popover>
+))}
+```
+
+</Preview>
+
+### Controlled
+
+<Preview>
+  <PopoverControlledDemo />
+
+```tsx
+const [open, setOpen] = useState(false)
+
+<Popover open={open} onOpenChange={setOpen}>
+  <PopoverTrigger asChild>
+    <Button variant="outline">Rename project</Button>
+  </PopoverTrigger>
+  <PopoverContent className="grid gap-3">
+    <Input defaultValue="Q4 campaign" aria-label="Project name" />
+    <Button size="sm" onClick={() => setOpen(false)}>Save</Button>
+  </PopoverContent>
+</Popover>
+```
+
+</Preview>
+
+## API Reference
+
+### Popover
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| open | `boolean` | - | Controlled open state. |
+| defaultOpen | `boolean` | false | Initial state when uncontrolled. |
+| onOpenChange | `(open: boolean) => void` | - | Called when the popover opens or closes. |
+| modal | `boolean` | false | Trap focus and block outside interaction. |
+
+### PopoverTrigger
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| asChild | `boolean` | false | Render the child element as the trigger. |
+
+### PopoverContent
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| align | `"start" \| "center" \| "end"` | `"center"` | Alignment against the trigger. |
+| side | `"top" \| "right" \| "bottom" \| "left"` | `"bottom"` | Preferred side; flips when there is no room. |
+| sideOffset | `number` | 4 | Gap from the trigger in pixels. |
+| className | `string` | - | Merged with the default `w-72` surface. |
+
+### PopoverAnchor
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| asChild | `boolean` | false | Anchor the content to this element instead of the trigger. |

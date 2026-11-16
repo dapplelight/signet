@@ -1,0 +1,142 @@
+---
+title: "Stat Strip"
+description: "A row of headline numbers: cards on desktop, stacked rows on a phone."
+---
+
+import { StatStripDemo, StatStripRowsDemo, StatStripFourDemo } from "@/components/demos/stat-strip"
+
+<Preview>
+  <StatStripDemo />
+
+```tsx
+import { StatStrip } from "@dapplelight/signet-ui/components/stat-strip"
+
+export function Demo() {
+  return (
+    <StatStrip
+      isDesktop
+      items={[
+        { label: "Revenue", value: "$48,200", meta: "+12% vs last month", tone: "good" },
+        { label: "Orders", value: "1,284", meta: "38 awaiting shipment", tone: "warn" },
+        { label: "Refunds", value: "$640", meta: "1.3% of revenue" },
+      ]}
+    />
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add stat-strip
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { StatStrip } from "@dapplelight/signet-ui/components/stat-strip"
+```
+
+```tsx
+<StatStrip items={[{ label: "Orders", value: "1,284" }]} />
+```
+
+## Examples
+
+### Phone layout
+
+<Preview>
+  <StatStripRowsDemo />
+
+```tsx
+import { StatStrip } from "@dapplelight/signet-ui/components/stat-strip"
+
+export function Demo() {
+  return (
+    <StatStrip
+      isDesktop={false}
+      className="max-w-sm"
+      items={[
+        { label: "Revenue", value: "$48,200", meta: "+12% vs last month", tone: "good" },
+        { label: "Orders", value: "1,284", meta: "38 awaiting shipment", tone: "warn" },
+        { label: "Refunds", value: "$640" },
+      ]}
+    />
+  )
+}
+```
+
+</Preview>
+
+### Four stats
+
+<Preview>
+  <StatStripFourDemo />
+
+```tsx
+import { StatStrip } from "@dapplelight/signet-ui/components/stat-strip"
+
+export function Demo() {
+  return (
+    <StatStrip
+      isDesktop
+      items={[
+        { label: "Active users", value: "9,310" },
+        { label: "Trials", value: "212", meta: "+18 this week", tone: "good" },
+        { label: "Churn", value: "2.1%", meta: "above target", tone: "warn" },
+        { label: "MRR", value: "$31,900" },
+      ]}
+    />
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `items` | `StatItem[]` | `-` | The stats. Labels must be unique (they are the keys). |
+| `isDesktop` | `boolean` | follows the `md` breakpoint | Force the grid (`true`) or the stacked rows (`false`). |
+| `className` | `string` | `-` | Merged onto the wrapper. |
+
+`StatItem`
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `label` | `string` | `-` | Caption. |
+| `value` | `ReactNode` | `-` | The headline number. |
+| `meta` | `ReactNode` | `-` | A line under it. |
+| `tone` | `"good" \| "warn" \| "muted"` | `"muted"` | Colours the meta line. Never red, which means destructive. |
+
+Under the privacy mask, percentages in string values and meta lines show as masked dots.

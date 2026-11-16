@@ -1,0 +1,168 @@
+---
+title: "Answer Headline"
+description: "The one-line answer a screen leads with: a question, a sentence with the deciding numbers bold, and an optional fact line."
+---
+
+import { AnswerHeadlineDemo, AnswerHeadlineWarnDemo, AnswerHeadlineNeutralDemo, AnswerHeadlineRenderValueDemo, AnswerHeadlineChildrenDemo } from "@/components/demos/answer-headline"
+
+<Preview>
+  <AnswerHeadlineDemo />
+
+```tsx
+import { AnswerHeadline, type AnswerHeadlineData } from "@dapplelight/signet-ui/components/answer-headline"
+
+const onTrack: AnswerHeadlineData = {
+  question: "Are we on track this month?",
+  sentence: ["Yes. Revenue is ", { value: 48200 }, ", ", { value: 12 }, "% ahead of plan."],
+  detail: ["Last month closed at ", { value: 43000 }, "."],
+  tone: "good",
+}
+
+export function Demo() {
+  return <AnswerHeadline headline={onTrack} renderValue={(n) => n.toLocaleString()} />
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add answer-headline
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { AnswerHeadline } from "@dapplelight/signet-ui/components/answer-headline"
+```
+
+```tsx
+<AnswerHeadline
+  headline={{
+    question: "Are we on track?",
+    sentence: ["Revenue is ", { value: 48200 }, "."],
+    tone: "good",
+  }}
+/>
+```
+
+## Examples
+
+### Warn tone
+
+<Preview>
+  <AnswerHeadlineWarnDemo />
+
+```tsx
+const atRisk: AnswerHeadlineData = {
+  question: "Can we cover payroll?",
+  sentence: ["Cash covers payroll for ", { value: 5 }, " more weeks."],
+  detail: ["Runway shortens if the Acme renewal slips past 30 Nov."],
+  tone: "warn",
+}
+
+<AnswerHeadline headline={atRisk} />
+```
+
+</Preview>
+
+### Neutral tone
+
+<Preview>
+  <AnswerHeadlineNeutralDemo />
+
+```tsx
+<AnswerHeadline
+  headline={{
+    question: "How many people signed up this week?",
+    sentence: [{ value: 342 }, " new accounts."],
+    tone: "neutral",
+  }}
+/>
+```
+
+</Preview>
+
+### Custom value rendering
+
+<Preview>
+  <AnswerHeadlineRenderValueDemo />
+
+```tsx
+<AnswerHeadline
+  headline={onTrack}
+  renderValue={(n) => `$${n.toLocaleString()}`}
+/>
+```
+
+</Preview>
+
+### With controls
+
+<Preview>
+  <AnswerHeadlineChildrenDemo />
+
+```tsx
+<AnswerHeadline headline={plain}>
+  <div className="flex gap-2">
+    <Button size="sm" variant="outline">Week</Button>
+    <Button size="sm" variant="ghost">Month</Button>
+  </div>
+</AnswerHeadline>
+```
+
+</Preview>
+
+## API Reference
+
+### AnswerHeadline
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `headline` | `AnswerHeadlineData` | required | The question, sentence, optional detail and tone. |
+| `renderValue` | `(value: number) => ReactNode` | locale number, `••••••` when masked | Renders each `{ value }` segment. A custom one must mask itself. |
+| `className` | `string` | - | Merged last. |
+| `children` | `ReactNode` | - | Extra controls under the sentence, such as period pills or a link. |
+
+### AnswerHeadlineData
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `question` | `string` | required | Small muted line above the sentence. Also the section's `aria-label`. |
+| `sentence` | `AnswerSegment[]` | required | Text, or `{ value: number }` rendered bold by `renderValue`. |
+| `detail` | `AnswerSegment[]` | - | Optional supporting line. |
+| `tone` | `neutral` \| `good` \| `warn` | required | `warn` renders amber. Never red, which means destructive. |
+
+Under the privacy mask, percentages in the text become `••%`.
+
+### answerText
+
+`answerText(segments, format?)` returns the plain text of a sentence for aria-labels, notifications and tests. `format` defaults to the locale number format.

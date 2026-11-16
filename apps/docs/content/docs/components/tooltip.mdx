@@ -1,0 +1,182 @@
+---
+title: "Tooltip"
+description: "A small popup with extra information when an element is hovered or focused."
+---
+
+import { TooltipDemo, TooltipSideDemo, TooltipIconDemo, TooltipDelayDemo } from "@/components/demos/tooltip"
+
+<Preview>
+  <TooltipDemo />
+
+```tsx
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@dapplelight/signet-ui/components/tooltip"
+import { Button } from "@dapplelight/signet-ui/components/button"
+
+export function Demo() {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="outline">Hover me</Button>
+        </TooltipTrigger>
+        <TooltipContent>Add to your cart</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add tooltip
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@dapplelight/signet-ui/components/tooltip"
+```
+
+```tsx
+<TooltipProvider>
+  <Tooltip>
+    <TooltipTrigger>Hover</TooltipTrigger>
+    <TooltipContent>Add to your cart</TooltipContent>
+  </Tooltip>
+</TooltipProvider>
+```
+
+## Examples
+
+### Side
+
+<Preview>
+  <TooltipSideDemo />
+
+```tsx
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@dapplelight/signet-ui/components/tooltip"
+import { Button } from "@dapplelight/signet-ui/components/button"
+
+export function Demo() {
+  return (
+    <TooltipProvider>
+      <div className="flex gap-2">
+        {(["top", "right", "bottom", "left"] as const).map((side) => (
+          <Tooltip key={side}>
+            <TooltipTrigger asChild>
+              <Button variant="outline" className="capitalize">{side}</Button>
+            </TooltipTrigger>
+            <TooltipContent side={side}>Shown on the {side}</TooltipContent>
+          </Tooltip>
+        ))}
+      </div>
+    </TooltipProvider>
+  )
+}
+```
+
+</Preview>
+
+### Icon button
+
+<Preview>
+  <TooltipIconDemo />
+
+```tsx
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@dapplelight/signet-ui/components/tooltip"
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { TrashIcon } from "lucide-react"
+
+export function Demo() {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="icon" aria-label="Delete invoice">
+            <TrashIcon />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Delete invoice</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+```
+
+</Preview>
+
+### No delay
+
+<Preview>
+  <TooltipDelayDemo />
+
+```tsx
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@dapplelight/signet-ui/components/tooltip"
+import { Button } from "@dapplelight/signet-ui/components/button"
+
+export function Demo() {
+  return (
+    <TooltipProvider delayDuration={0}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="outline">Instant</Button>
+        </TooltipTrigger>
+        <TooltipContent>No delay</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+`TooltipProvider`
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `delayDuration` | `number` | `300` | Milliseconds before a tooltip opens. |
+| `skipDelayDuration` | `number` | `300` | Radix default: window in which moving to another tooltip skips the delay. |
+
+`Tooltip` is the Radix root (`open`, `defaultOpen`, `onOpenChange`). `TooltipTrigger` is the Radix trigger (use `asChild` to wrap your own element).
+
+`TooltipContent`
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `side` | `"top" \| "right" \| "bottom" \| "left"` | `"top"` | Preferred side. |
+| `sideOffset` | `number` | `4` | Gap from the trigger in px. |
+| `className` | `string` | `-` | Merged over the defaults. |
+
+The rest are Radix tooltip content props.

@@ -1,0 +1,157 @@
+---
+title: "Subscription Charts"
+description: "An admin screen of subscription metrics: MRR, subscribers, revenue, churn, trial conversion and paywall conversion, with filters and CSV export."
+---
+
+import { SubscriptionChartsDemo, SubscriptionChartsEmptyDemo } from "@/components/demos/subscription-charts"
+
+<Preview>
+  <SubscriptionChartsDemo />
+
+```tsx
+import { useState } from "react"
+import { SubscriptionCharts, type ChartFilterView } from "@dapplelight/signet-ui/screens/subscription-charts"
+
+function SubscriptionChartsDemo() {
+  const [filter, setFilter] = useState<ChartFilterView>({ from: data.from, to: data.to })
+  return (
+    <SubscriptionCharts
+      className="w-full"
+      data={data}
+      filter={filter}
+      onFilterChange={setFilter}
+      options={{
+        stores: ["web", "appstore", "googleplay"],
+        plans: ["starter", "pro"],
+        countries: ["US", "IN", "DE"],
+      }}
+      csvHref="/api/charts/csv"
+    />
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add subscription-charts
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+`recharts` is an optional peer, so this screen has its own export path and is never in the barrel. Install `recharts` first.
+
+```tsx
+import { SubscriptionCharts } from "@dapplelight/signet-ui/screens/subscription-charts"
+```
+
+`data` is signet-db's `charts.metrics(...)` result (or the JSON of `GET /charts`); filter changes go out through `onFilterChange`.
+
+```tsx
+<SubscriptionCharts data={data} filter={filter} onFilterChange={setFilter} />
+```
+
+## Examples
+
+### SubscriptionCharts
+
+Change the dates or a filter to see `onFilterChange` fire. In an app you refetch with the new filter.
+
+<Preview>
+  <SubscriptionChartsDemo />
+
+```tsx
+import { useState } from "react"
+import { SubscriptionCharts, type ChartFilterView } from "@dapplelight/signet-ui/screens/subscription-charts"
+
+function SubscriptionChartsDemo() {
+  const [filter, setFilter] = useState<ChartFilterView>({ from: data.from, to: data.to })
+  return (
+    <SubscriptionCharts
+      className="w-full"
+      data={data}
+      filter={filter}
+      onFilterChange={setFilter}
+      options={{
+        stores: ["web", "appstore", "googleplay"],
+        plans: ["starter", "pro"],
+        countries: ["US", "IN", "DE"],
+      }}
+      csvHref="/api/charts/csv"
+    />
+  )
+}
+```
+
+</Preview>
+
+### Empty
+
+While `data` is `null` the screen shows its empty state.
+
+<Preview>
+  <SubscriptionChartsEmptyDemo />
+
+```tsx
+import { SubscriptionCharts } from "@dapplelight/signet-ui/screens/subscription-charts"
+
+function SubscriptionChartsEmptyDemo() {
+  return (
+    <SubscriptionCharts
+      className="w-full"
+      data={null}
+      filter={{ from: "2026-10-18", to: "2026-11-16" }}
+      onFilterChange={() => undefined}
+    />
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+### SubscriptionCharts
+
+Also accepts `section` props except `children`.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `data` | `ChartResultView \| null` | required | Daily series and summary; null shows the empty state. |
+| `filter` | `ChartFilterView` | required | Dates, `store`, `plan`, `country`, `offering` and `audience`. |
+| `onFilterChange` | `(filter: ChartFilterView) => void` | required | Called when a filter changes. |
+| `options` | `{ stores?, plans?, countries?, offerings?: readonly string[] }` | `{}` | Values offered in each filter's select. |
+| `audiences` | `readonly ChartAudienceView[]` | - | Saved audiences to pick. |
+| `onSaveAudience` | `(name: string, filter) => unknown` | - | Save the current filters as an audience. |
+| `csvHref` | `string` | - | Link to `GET /charts/csv` with the current query; shows Export CSV. |
+| `currency` | `string` | first in data | The currency the revenue chart shows. |
+| `labels` | `Partial<ChartLabels>` | `DEFAULT_CHART_LABELS` | Override any string. |

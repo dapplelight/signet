@@ -1,0 +1,123 @@
+---
+title: "Empty State"
+description: "A centred message for a list or page with nothing to show."
+---
+
+import { EmptyStateDemo, EmptyStateMinimalDemo, EmptyStateDescriptionDemo } from "@/components/demos/empty-state"
+
+<Preview>
+  <EmptyStateDemo />
+
+```tsx
+import { InboxIcon } from "lucide-react"
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { EmptyState } from "@dapplelight/signet-ui/components/empty-state"
+
+export function Demo() {
+  return (
+    <EmptyState
+      icon={<InboxIcon className="size-8" />}
+      title="No invoices yet"
+      description="Create your first invoice and it will show up here."
+      action={<Button>New invoice</Button>}
+    />
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add empty-state
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { EmptyState } from "@dapplelight/signet-ui/components/empty-state"
+```
+
+```tsx
+<EmptyState title="No invoices yet" description="Create your first invoice." />
+```
+
+## Examples
+
+### Title only
+
+<Preview>
+  <EmptyStateMinimalDemo />
+
+```tsx
+import { EmptyState } from "@dapplelight/signet-ui/components/empty-state"
+
+export function Demo() {
+  return <EmptyState title="No results" />
+}
+```
+
+</Preview>
+
+### With description
+
+<Preview>
+  <EmptyStateDescriptionDemo />
+
+```tsx
+import { ReceiptIcon } from "lucide-react"
+import { EmptyState } from "@dapplelight/signet-ui/components/empty-state"
+
+export function Demo() {
+  return (
+    <EmptyState
+      icon={<ReceiptIcon className="size-8" />}
+      title="Nothing matches your filters"
+      description="Try a different status or widen the date range."
+    />
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+### EmptyState
+
+Fills at least 60% of the viewport height, centred.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `title` | `string` | required | The headline. |
+| `description` | `string` | none | Supporting text. |
+| `icon` | `ReactNode` | none | Shown above the title. |
+| `action` | `ReactNode` | none | Shown below, usually a Button. |

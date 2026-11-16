@@ -1,0 +1,205 @@
+---
+title: "Command"
+description: "Fast, composable command menu with search, groups and shortcuts."
+---
+
+import { CommandDemo, CommandShortcutsDemo, CommandDialogDemo } from "@/components/demos/command"
+
+<Preview>
+  <CommandDemo />
+
+```tsx
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@dapplelight/signet-ui/components/command"
+import { CreditCardIcon, FileTextIcon, PlusIcon, SettingsIcon, UserIcon } from "lucide-react"
+
+export function Demo() {
+  return (
+    <Command className="max-w-sm rounded-lg border">
+      <CommandInput placeholder="Type a command or search..." />
+      <CommandList>
+        <CommandEmpty>No results found.</CommandEmpty>
+        <CommandGroup heading="Actions">
+          <CommandItem value="new-invoice"><PlusIcon />New invoice</CommandItem>
+          <CommandItem value="invoices"><FileTextIcon />View invoices</CommandItem>
+        </CommandGroup>
+        <CommandSeparator />
+        <CommandGroup heading="Settings">
+          <CommandItem value="profile"><UserIcon />Profile</CommandItem>
+          <CommandItem value="billing"><CreditCardIcon />Billing</CommandItem>
+          <CommandItem value="settings"><SettingsIcon />Settings</CommandItem>
+        </CommandGroup>
+      </CommandList>
+    </Command>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add command
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  Command,
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+  CommandShortcut,
+} from "@dapplelight/signet-ui/components/command"
+```
+
+```tsx
+<Command onAction={(value) => run(value)}>
+  <CommandInput placeholder="Search..." />
+  <CommandList>
+    <CommandEmpty>No results.</CommandEmpty>
+    <CommandGroup heading="Actions">
+      <CommandItem value="new-invoice">New invoice</CommandItem>
+    </CommandGroup>
+  </CommandList>
+</Command>
+```
+
+## Examples
+
+### Shortcuts
+
+<Preview>
+  <CommandShortcutsDemo />
+
+```tsx
+<CommandItem value="profile" shortcut="mod+p">
+  <UserIcon />Profile<CommandShortcut />
+</CommandItem>
+```
+
+</Preview>
+
+### Dialog
+
+<Preview>
+  <CommandDialogDemo />
+
+```tsx
+const [open, setOpen] = React.useState(false)
+
+<CommandDialog open={open} onOpenChange={setOpen} onAction={(value) => run(value)}>
+  <CommandInput placeholder="Type a command or search..." />
+  <CommandList>
+    <CommandEmpty>No results found.</CommandEmpty>
+    <CommandGroup heading="Actions">
+      <CommandItem value="new-invoice"><PlusIcon />New invoice</CommandItem>
+      <CommandItem value="invoices"><FileTextIcon />View invoices</CommandItem>
+    </CommandGroup>
+  </CommandList>
+</CommandDialog>
+```
+
+</Preview>
+
+## API Reference
+
+### Command
+
+Typing filters and ranks, arrow keys move the highlight while focus stays in the input, Enter runs.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `onAction` | `(value, details) => unknown` | - | Runs when a command runs. Return a Promise to mark it pending. |
+| `filter` | `fuzzy` \| `contains` \| `startsWith` \| function \| `false` | `fuzzy` | How typing narrows the list. |
+| `query` / `onQueryChange` | `string` / `(query, details) => void` | - | Control the search text. |
+| `value` / `onValueChange` | `string \| null` / `(value, details) => void` | - | Control the highlighted command. |
+| `loop` | `boolean` | `true` | Wrap arrow keys at the ends. |
+| `items` | `CommandData` | - | Commands as data instead of children. |
+| `className` | `string` | - | Merged last. |
+
+### CommandDialog
+
+A `Command` inside a `Dialog`, toggled with Cmd+K or Ctrl+K. Takes every `Command` prop plus:
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `open` | `boolean` | - | Controlled open state. |
+| `defaultOpen` | `boolean` | `false` | Initial state when uncontrolled. |
+| `onOpenChange` | `(open: boolean) => void` | - | Runs when it opens or closes. |
+| `shortcut` | `string \| null` | `"mod+k"` | Toggles it from anywhere on the page. `null` turns it off. |
+| `title` | `ReactNode` | `"Command palette"` | Name for screen readers. |
+| `description` | `ReactNode` | `"Search for a command to run."` | Description for screen readers. |
+| `closeOnAction` | `boolean` | `true` | Close once a command runs. |
+| `contentClassName` | `string` | - | Classes for the dialog surface. |
+
+On a phone it becomes a bottom sheet.
+
+### CommandInput
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `icon` | `ReactNode` | search icon | Replaces the icon. `null` hides it. |
+| `wrapperClassName` | `string` | - | Classes for the row around the input. |
+| `className` | `string` | - | Merged onto the input. |
+
+### CommandItem
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `value` | `string` | generated | Passed to `onAction`. Identifies the command. |
+| `label` | `string` | - | Text the search matches when the content is not plain text. |
+| `keywords` | `string[]` | - | Extra words the search matches. |
+| `shortcut` | `string` | - | Keys such as `"mod+p"` that run it while it is mounted. |
+| `disabled` | `boolean` | `false` | Keeps it from running. |
+| `onSelect` | `(event) => unknown` | - | Runs before `onAction`. `preventDefault()` skips it. |
+
+### CommandGroup
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `heading` | `ReactNode` | - | Label shown above the group. |
+
+### CommandList, CommandEmpty, CommandSeparator, CommandShortcut
+
+`CommandList` holds the items and scrolls. `CommandEmpty` shows only when nothing matches. `CommandShortcut` shows its item's `shortcut` as `Cmd+P` on Apple platforms and `Ctrl+P` elsewhere. All take `className`.

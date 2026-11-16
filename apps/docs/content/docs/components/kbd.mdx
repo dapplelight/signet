@@ -1,0 +1,119 @@
+---
+title: "Kbd"
+description: "A keyboard key, or a sequence of keys."
+---
+
+import { KbdDemo, KbdSequenceDemo, KbdInlineDemo } from "@/components/demos/kbd"
+
+<Preview>
+  <KbdDemo />
+
+```tsx
+import { Kbd } from "@dapplelight/signet-ui/components/kbd"
+
+export function Demo() {
+  return <Kbd>⌘K</Kbd>
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add kbd
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { Kbd, KeySequence } from "@dapplelight/signet-ui/components/kbd"
+```
+
+```tsx
+<Kbd>⌘K</Kbd>
+```
+
+## Examples
+
+### Sequence
+
+<Preview>
+  <KbdSequenceDemo />
+
+```tsx
+import { KeySequence } from "@dapplelight/signet-ui/components/kbd"
+
+export function Demo() {
+  return (
+    <div className="flex flex-col gap-3">
+      <KeySequence keys={["⌘", "⇧", "P"]} />
+      <KeySequence keys={["G", "I"]} />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Inline
+
+<Preview>
+  <KbdInlineDemo />
+
+```tsx
+import { Kbd, KeySequence } from "@dapplelight/signet-ui/components/kbd"
+
+export function Demo() {
+  return (
+    <p className="text-sm">
+      Press <Kbd>/</Kbd> to search invoices, or <KeySequence keys={["Ctrl", "Enter"]} /> to send.
+    </p>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+### Kbd
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `children` | `ReactNode` | none | The key label. |
+| `className` | `string` | none | Merged last. |
+
+### KeySequence
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `keys` | `string \| string[]` | required | One key per entry, each in its own `Kbd`. |
+| `className` | `string` | none | Merged onto the wrapper. |

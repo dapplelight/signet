@@ -1,0 +1,295 @@
+---
+title: "Kanban"
+description: "A board of columns with cards that move by drag and drop or by keyboard."
+---
+
+import { KanbanDemo, KanbanControlledDemo, KanbanMessagesDemo } from "@/components/demos/kanban"
+
+<Preview>
+  <KanbanDemo />
+
+```tsx
+import { Kanban, KanbanColumn, KanbanColumnHeader, KanbanColumnTitle, KanbanItem, KanbanList } from "@dapplelight/signet-ui/domain/kanban"
+
+const tasks: Record<string, string> = {
+  t1: "Draft Q3 pricing page",
+  t2: "Fix invoice rounding bug",
+  t3: "Onboard Northwind account",
+  t4: "Migrate webhooks to v2",
+  t5: "Ship dark mode",
+}
+const columns = { todo: "To do", doing: "In progress", done: "Done" }
+
+export function KanbanDemo() {
+  return (
+    <Kanban
+      aria-label="Sprint board"
+      defaultValue={{ todo: ["t1", "t2", "t3"], doing: ["t4"], done: ["t5"] }}
+    >
+      {(board) =>
+        Object.entries(columns).map(([value, title]) => (
+          <KanbanColumn key={value} value={value}>
+            <KanbanColumnHeader>
+              <KanbanColumnTitle>{title}</KanbanColumnTitle>
+              <span className="text-xs text-neutral-500">{board[value]?.length ?? 0}</span>
+            </KanbanColumnHeader>
+            <KanbanList>
+              {(board[value] ?? []).map((id) => (
+                <KanbanItem key={id} value={id}>
+                  {tasks[id]}
+                </KanbanItem>
+              ))}
+            </KanbanList>
+          </KanbanColumn>
+        ))
+      }
+    </Kanban>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add kanban
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { Kanban, KanbanColumn, KanbanColumnHeader, KanbanColumnTitle, KanbanList, KanbanItem } from "@dapplelight/signet-ui/domain/kanban"
+```
+
+```tsx
+<Kanban aria-label="Sprint board" defaultValue={{ todo: ["t1"], done: [] }}>
+  <KanbanColumn value="todo">
+    <KanbanColumnHeader>
+      <KanbanColumnTitle>To do</KanbanColumnTitle>
+    </KanbanColumnHeader>
+    <KanbanList>
+      <KanbanItem value="t1">Draft pricing page</KanbanItem>
+    </KanbanList>
+  </KanbanColumn>
+</Kanban>
+```
+
+Pick up a card with Space or Enter, move it with the arrow keys, drop with Space, cancel with Escape. `data-over`, `data-lifted` and `data-dragging` mark the states.
+
+## Examples
+
+### Uncontrolled
+
+<Preview>
+  <KanbanDemo />
+
+```tsx
+import { Kanban, KanbanColumn, KanbanColumnHeader, KanbanColumnTitle, KanbanItem, KanbanList } from "@dapplelight/signet-ui/domain/kanban"
+
+const tasks: Record<string, string> = {
+  t1: "Draft Q3 pricing page",
+  t2: "Fix invoice rounding bug",
+  t3: "Onboard Northwind account",
+  t4: "Migrate webhooks to v2",
+  t5: "Ship dark mode",
+}
+const columns = { todo: "To do", doing: "In progress", done: "Done" }
+
+export function KanbanDemo() {
+  return (
+    <Kanban
+      aria-label="Sprint board"
+      defaultValue={{ todo: ["t1", "t2", "t3"], doing: ["t4"], done: ["t5"] }}
+    >
+      {(board) =>
+        Object.entries(columns).map(([value, title]) => (
+          <KanbanColumn key={value} value={value}>
+            <KanbanColumnHeader>
+              <KanbanColumnTitle>{title}</KanbanColumnTitle>
+              <span className="text-xs text-neutral-500">{board[value]?.length ?? 0}</span>
+            </KanbanColumnHeader>
+            <KanbanList>
+              {(board[value] ?? []).map((id) => (
+                <KanbanItem key={id} value={id}>
+                  {tasks[id]}
+                </KanbanItem>
+              ))}
+            </KanbanList>
+          </KanbanColumn>
+        ))
+      }
+    </Kanban>
+  )
+}
+```
+
+</Preview>
+
+### Controlled
+
+<Preview>
+  <KanbanControlledDemo />
+
+```tsx
+import { Kanban, type KanbanBoard, KanbanColumn, KanbanColumnHeader, KanbanColumnTitle, KanbanItem, KanbanList, type KanbanMove } from "@dapplelight/signet-ui/domain/kanban"
+import { useState } from "react"
+
+const tasks: Record<string, string> = {
+  t1: "Draft Q3 pricing page",
+  t2: "Fix invoice rounding bug",
+  t3: "Onboard Northwind account",
+  t4: "Migrate webhooks to v2",
+  t5: "Ship dark mode",
+}
+const columns = { todo: "To do", doing: "In progress", done: "Done" }
+
+export function KanbanControlledDemo() {
+  const [board, setBoard] = useState<KanbanBoard>({ todo: ["t1", "t2", "t3"], doing: ["t4"], done: ["t5"] })
+  const [last, setLast] = useState<KanbanMove | null>(null)
+  return (
+    <div className="flex w-full flex-col gap-3">
+      <Kanban aria-label="Sprint board" value={board} onValueChange={setBoard} onItemMove={setLast}>
+        {Object.entries(columns).map(([value, title]) => (
+          <KanbanColumn key={value} value={value}>
+            <KanbanColumnHeader>
+              <KanbanColumnTitle>{title}</KanbanColumnTitle>
+            </KanbanColumnHeader>
+            <KanbanList>
+              {(board[value] ?? []).map((id) => (
+                <KanbanItem key={id} value={id}>
+                  {tasks[id]}
+                </KanbanItem>
+              ))}
+            </KanbanList>
+          </KanbanColumn>
+        ))}
+      </Kanban>
+      <p className="text-xs text-neutral-500">
+        {last ? `Moved ${tasks[last.item]} from ${last.from} to ${last.to} at ${last.index}` : "Drag a card, or focus one and press Space."}
+      </p>
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Screen reader messages
+
+<Preview>
+  <KanbanMessagesDemo />
+
+```tsx
+import { Kanban, KanbanColumn, KanbanItem, KanbanList } from "@dapplelight/signet-ui/domain/kanban"
+
+const tasks: Record<string, string> = {
+  t1: "Draft Q3 pricing page",
+  t2: "Fix invoice rounding bug",
+  t3: "Onboard Northwind account",
+  t4: "Migrate webhooks to v2",
+  t5: "Ship dark mode",
+}
+const columns = { todo: "To do", doing: "In progress", done: "Done" }
+
+export function KanbanMessagesDemo() {
+  return (
+    <Kanban
+      aria-label="Sprint board"
+      defaultValue={{ todo: ["t1", "t2"], done: ["t5"] }}
+      messages={{
+        instructions: "Space picks up a card. Arrows move it. Space drops it.",
+        dropped: (item, column, p, n) => `${item} now in ${column}, ${p} of ${n}.`,
+      }}
+    >
+      {(board) => (
+        <>
+          <KanbanColumn value="todo" label="To do">
+            <KanbanList>
+              {(board.todo ?? []).map((id) => (
+                <KanbanItem key={id} value={id}>
+                  {tasks[id]}
+                </KanbanItem>
+              ))}
+            </KanbanList>
+          </KanbanColumn>
+          <KanbanColumn value="done" label="Done">
+            <KanbanList>
+              {(board.done ?? []).map((id) => (
+                <KanbanItem key={id} value={id}>
+                  {tasks[id]}
+                </KanbanItem>
+              ))}
+            </KanbanList>
+          </KanbanColumn>
+        </>
+      )}
+    </Kanban>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+### Kanban
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `value` | `KanbanBoard` | — | Controlled board: column id to item ids, in order. |
+| `defaultValue` | `KanbanBoard` | `{}` | Initial board when uncontrolled. |
+| `onValueChange` | `(board: KanbanBoard) => void` | — | The whole board after a card is dropped somewhere new. |
+| `onItemMove` | `(move: KanbanMove) => void` | — | The single move (`item`, `from`, `to`, `index`), for saving to a server. |
+| `messages` | `Partial<KanbanMessages>` | — | Screen reader text: `instructions`, `itemRoleDescription`, `lifted`, `moved`, `dropped`, `cancelled`. |
+| `children` | `ReactNode \| (board: KanbanBoard) => ReactNode` | — | Columns and cards. A function gets the board as it is now. |
+| `liveRegionClassName` | `string` | — | Class for the hidden live region. |
+
+### KanbanColumn
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `value` | `string` | — | The column's key in the board. |
+| `label` | `string` | — | Accessible name. Defaults to the KanbanColumnTitle text. |
+| `render` | `ReactElement` | — | Replaces the element. |
+
+### KanbanItem
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `value` | `string` | — | The item's id in the board. |
+| `label` | `string` | — | Name used in announcements. Defaults to the card's text. |
+| `render` | `ReactElement` | — | Replaces the element. |
+
+### KanbanColumnHeader, KanbanColumnTitle, KanbanList
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `className` | `string` | — | Merged over the defaults. KanbanColumnTitle and KanbanList also take `render`. |

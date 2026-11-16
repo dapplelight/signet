@@ -1,0 +1,204 @@
+---
+title: "Input OTP"
+description: "A one-time-code input with a slot per character."
+---
+
+import { InputOTPDemo, InputOTPSeparatorDemo, InputOTPControlledDemo, InputOTPDisabledDemo } from "@/components/demos/input-otp"
+
+<Preview>
+  <InputOTPDemo />
+
+```tsx
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@dapplelight/signet-ui/components/input-otp"
+
+export function Demo() {
+  return (
+    <InputOTP maxLength={6} aria-label="Verification code">
+      <InputOTPGroup>
+        <InputOTPSlot index={0} />
+        <InputOTPSlot index={1} />
+        <InputOTPSlot index={2} />
+        <InputOTPSlot index={3} />
+        <InputOTPSlot index={4} />
+        <InputOTPSlot index={5} />
+      </InputOTPGroup>
+    </InputOTP>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add input-otp
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSeparator,
+  InputOTPSlot,
+} from "@dapplelight/signet-ui/components/input-otp"
+```
+
+```tsx
+<InputOTP maxLength={6}>
+  <InputOTPGroup>
+    <InputOTPSlot index={0} />
+    <InputOTPSlot index={1} />
+  </InputOTPGroup>
+</InputOTP>
+```
+
+## Examples
+
+### Separator
+
+<Preview>
+  <InputOTPSeparatorDemo />
+
+```tsx
+import { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from "@dapplelight/signet-ui/components/input-otp"
+
+export function Demo() {
+  return (
+    <InputOTP maxLength={6} aria-label="Verification code">
+      <InputOTPGroup>
+        <InputOTPSlot index={0} />
+        <InputOTPSlot index={1} />
+        <InputOTPSlot index={2} />
+      </InputOTPGroup>
+      <InputOTPSeparator />
+      <InputOTPGroup>
+        <InputOTPSlot index={3} />
+        <InputOTPSlot index={4} />
+        <InputOTPSlot index={5} />
+      </InputOTPGroup>
+    </InputOTP>
+  )
+}
+```
+
+</Preview>
+
+### Controlled
+
+<Preview>
+  <InputOTPControlledDemo />
+
+```tsx
+import { useState } from "react"
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@dapplelight/signet-ui/components/input-otp"
+
+export function Demo() {
+  const [code, setCode] = useState("")
+  return (
+    <div className="space-y-2">
+      <InputOTP
+        maxLength={4}
+        pattern="^[0-9]+$"
+        inputMode="numeric"
+        value={code}
+        onChange={setCode}
+        aria-label="PIN"
+      >
+        <InputOTPGroup>
+          <InputOTPSlot index={0} />
+          <InputOTPSlot index={1} />
+          <InputOTPSlot index={2} />
+          <InputOTPSlot index={3} />
+        </InputOTPGroup>
+      </InputOTP>
+      <p className="text-sm text-muted-foreground">
+        {code.length === 4 ? `Code ${code} entered` : "Enter the 4-digit PIN"}
+      </p>
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Disabled
+
+<Preview>
+  <InputOTPDisabledDemo />
+
+```tsx
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@dapplelight/signet-ui/components/input-otp"
+
+export function Demo() {
+  return (
+    <InputOTP maxLength={4} disabled defaultValue="4821" aria-label="PIN">
+      <InputOTPGroup>
+        <InputOTPSlot index={0} />
+        <InputOTPSlot index={1} />
+        <InputOTPSlot index={2} />
+        <InputOTPSlot index={3} />
+      </InputOTPGroup>
+    </InputOTP>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+Built on the `input-otp` package. `InputOTP` takes its props; screen readers see one text input.
+
+### InputOTP
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `maxLength` | `number` | required | Number of characters. |
+| `value` | `string` | none | Controlled value. |
+| `onChange` | `(value: string) => void` | none | Called on every change. |
+| `onComplete` | `(value: string) => void` | none | Called when all slots are filled. |
+| `pattern` | `string` | any character | Regular expression each character must match. |
+| `inputMode` | `string` | `"numeric"` | Soft keyboard type. |
+| `disabled` | `boolean` | `false` | Disable the input. |
+| `containerClassName` | `string` | none | Class for the wrapper. |
+| `className` | `string` | none | Class for the hidden input. |
+
+### InputOTPSlot
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `index` | `number` | required | Which character this slot shows. |
+
+### InputOTPGroup, InputOTPSeparator
+
+`InputOTPGroup` joins slots into one bordered row. `InputOTPSeparator` is a decorative dash, hidden from screen readers.

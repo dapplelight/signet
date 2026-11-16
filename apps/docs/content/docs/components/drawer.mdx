@@ -1,0 +1,178 @@
+---
+title: "Drawer"
+description: "A swipeable sheet that slides in from an edge, with snap points and nesting."
+---
+
+import { DrawerDemo, DrawerSideDemo, DrawerSnapDemo } from "@/components/demos/drawer"
+
+<Preview>
+  <DrawerDemo />
+
+```tsx
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from "@dapplelight/signet-ui/components/drawer"
+
+export function Demo() {
+  return (
+    <Drawer showSwipeHandle>
+      <DrawerTrigger render={<Button variant="outline" />}>Open order</DrawerTrigger>
+      <DrawerContent>
+        <DrawerHeader>
+          <DrawerTitle>Order #8841</DrawerTitle>
+          <DrawerDescription>3 items, $214.00, shipping to Pune.</DrawerDescription>
+        </DrawerHeader>
+        <DrawerFooter>
+          <Button>Mark as shipped</Button>
+          <DrawerClose render={<Button variant="outline" />}>Close</DrawerClose>
+        </DrawerFooter>
+      </DrawerContent>
+    </Drawer>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add drawer
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@dapplelight/signet-ui/components/drawer"
+```
+
+```tsx
+<Drawer>
+  <DrawerTrigger render={<Button variant="outline" />}>Open</DrawerTrigger>
+  <DrawerContent>
+    <DrawerHeader>
+      <DrawerTitle>Title</DrawerTitle>
+      <DrawerDescription>Description</DrawerDescription>
+    </DrawerHeader>
+    <DrawerFooter>
+      <DrawerClose render={<Button variant="outline" />}>Close</DrawerClose>
+    </DrawerFooter>
+  </DrawerContent>
+</Drawer>
+```
+
+## Examples
+
+### Side
+
+<Preview>
+  <DrawerSideDemo />
+
+```tsx
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from "@dapplelight/signet-ui/components/drawer"
+
+export function Demo() {
+  return (
+    <Drawer swipeDirection="right">
+      <DrawerTrigger render={<Button variant="outline" />}>Filters</DrawerTrigger>
+      <DrawerContent>
+        <DrawerHeader>
+          <DrawerTitle>Filter orders</DrawerTitle>
+          <DrawerDescription>Narrow the list by status and date.</DrawerDescription>
+        </DrawerHeader>
+        <DrawerFooter>
+          <Button>Apply filters</Button>
+          <DrawerClose render={<Button variant="outline" />}>Cancel</DrawerClose>
+        </DrawerFooter>
+      </DrawerContent>
+    </Drawer>
+  )
+}
+```
+
+</Preview>
+
+### Snap points
+
+<Preview>
+  <DrawerSnapDemo />
+
+```tsx
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from "@dapplelight/signet-ui/components/drawer"
+
+export function Demo() {
+  return (
+    <Drawer snapPoints={[0.4, 1]} showSwipeHandle>
+      <DrawerTrigger render={<Button variant="outline" />}>Customer details</DrawerTrigger>
+      <DrawerContent>
+        <DrawerHeader>
+          <DrawerTitle>Northwind Traders</DrawerTitle>
+          <DrawerDescription>Drag up for the full history.</DrawerDescription>
+        </DrawerHeader>
+        <DrawerFooter>
+          <DrawerClose render={<Button variant="outline" />}>Done</DrawerClose>
+        </DrawerFooter>
+      </DrawerContent>
+    </Drawer>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+Built on Base UI's Drawer. `DrawerTrigger`, `DrawerClose`, `DrawerPortal`, `DrawerOverlay`, `DrawerTitle` and `DrawerDescription` take that primitive's props.
+
+### Drawer
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `swipeDirection` | `"down" \| "up" \| "left" \| "right"` | `"down"` | The edge it opens from, and the direction that dismisses it. |
+| `modal` | `boolean` | `true` | Show the overlay and block the page behind. |
+| `showSwipeHandle` | `boolean` | `false` | Show a grab handle. |
+| `snapPoints` | `number[]` | none | Heights the drawer can rest at. |
+| `open` | `boolean` | none | Controlled open state. |
+| `defaultOpen` | `boolean` | `false` | Starting state when uncontrolled. |
+| `onOpenChange` | `(open: boolean) => void` | none | Called when the drawer opens or closes. |
+
+### DrawerContent
+
+Renders the portal, overlay and popup. Takes the popup's props and `className`.

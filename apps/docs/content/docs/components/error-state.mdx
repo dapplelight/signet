@@ -1,0 +1,112 @@
+---
+title: "Error State"
+description: "A centred message for a failed load, with an optional retry."
+---
+
+import { ErrorStateDemo, ErrorStateRetryDemo, ErrorStateMinimalDemo } from "@/components/demos/error-state"
+
+<Preview>
+  <ErrorStateDemo />
+
+```tsx
+import { ErrorState } from "@dapplelight/signet-ui/components/error-state"
+
+export function Demo() {
+  return <ErrorState message="We couldn't load your invoices." onRetry={() => {}} />
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add error-state
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { ErrorState } from "@dapplelight/signet-ui/components/error-state"
+```
+
+```tsx
+<ErrorState message="Could not load invoices." onRetry={refetch} />
+```
+
+## Examples
+
+### Retry
+
+<Preview>
+  <ErrorStateRetryDemo />
+
+```tsx
+import { useState } from "react"
+import { ErrorState } from "@dapplelight/signet-ui/components/error-state"
+
+export function Demo() {
+  const [tries, setTries] = useState(0)
+  return (
+    <ErrorState
+      message={`Request timed out. Retried ${tries} time${tries === 1 ? "" : "s"}.`}
+      onRetry={() => setTries((n) => n + 1)}
+    />
+  )
+}
+```
+
+</Preview>
+
+### Without message
+
+<Preview>
+  <ErrorStateMinimalDemo />
+
+```tsx
+import { ErrorState } from "@dapplelight/signet-ui/components/error-state"
+
+export function Demo() {
+  return <ErrorState />
+}
+```
+
+</Preview>
+
+## API Reference
+
+### ErrorState
+
+Renders with `role="alert"`. The heading and button text come from the labels provider (`somethingWentWrong`, `tryAgain`).
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `message` | `string` | none | Detail under the heading. |
+| `onRetry` | `() => void` | none | Shows a retry button when set. |

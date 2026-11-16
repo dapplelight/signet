@@ -1,0 +1,325 @@
+---
+title: "Admin Screens"
+description: "A data admin panel for signet-server's adminRoutes: tables, search, filters, sorting, a record form, history and actions."
+---
+
+import { AdminScreenDemo, AdminPanelDemo, AdminToolbarDemo, AdminFilterButtonDemo, AdminRowActionsDemo, AdminRecordFormDemo, AdminAuditTrailDemo, AdminRecordSheetDemo } from "@/components/demos/admin-screens"
+
+<Preview>
+  <AdminScreenDemo />
+
+```tsx
+import { createAdminApi, AdminScreen } from "@dapplelight/signet-ui/screens/admin-screens"
+
+const api = createAdminApi({ baseUrl: "/admin" })
+
+export function AdminScreenDemo() {
+  return <AdminScreen api={api} defaultTable="orders" />
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add admin-screens
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { AdminScreen, AdminPanel, AdminNav, AdminMain, AdminHeader, AdminToolbar, AdminTable, AdminPager } from "@dapplelight/signet-ui/screens/admin-screens"
+```
+
+```tsx
+<AdminScreen api={createAdminApi({ baseUrl: "/admin" })} />
+```
+
+The demos run on an in-memory `AdminApi`; in an app, use `createAdminApi({ baseUrl })` against signet-server's `adminRoutes`. Parts other than `AdminPanel` must sit inside it.
+
+## Examples
+
+### AdminScreen
+
+<Preview>
+  <AdminScreenDemo />
+
+```tsx
+import { createAdminApi, AdminScreen } from "@dapplelight/signet-ui/screens/admin-screens"
+
+const api = createAdminApi({ baseUrl: "/admin" })
+
+export function AdminScreenDemo() {
+  return <AdminScreen api={api} defaultTable="orders" />
+}
+```
+
+</Preview>
+
+### AdminPanel
+
+<Preview>
+  <AdminPanelDemo />
+
+```tsx
+import { createAdminApi, AdminHeader, AdminMain, AdminNav, AdminPager, AdminPanel, AdminTable, AdminToolbar } from "@dapplelight/signet-ui/screens/admin-screens"
+
+const api = createAdminApi({ baseUrl: "/admin" })
+
+export function AdminPanelDemo() {
+  return (
+    <AdminPanel api={api} defaultTable="orders">
+      <AdminNav />
+      <AdminMain>
+        <AdminHeader />
+        <AdminToolbar />
+        <AdminTable />
+        <AdminPager />
+      </AdminMain>
+    </AdminPanel>
+  )
+}
+```
+
+</Preview>
+
+### AdminToolbar
+
+<Preview>
+  <AdminToolbarDemo />
+
+```tsx
+import { createAdminApi, AdminPanel, AdminToolbar } from "@dapplelight/signet-ui/screens/admin-screens"
+
+const api = createAdminApi({ baseUrl: "/admin" })
+
+export function AdminToolbarDemo() {
+  return (
+    <AdminPanel api={api} defaultTable="orders">
+      <AdminToolbar />
+    </AdminPanel>
+  )
+}
+```
+
+</Preview>
+
+### AdminFilterButton
+
+<Preview>
+  <AdminFilterButtonDemo />
+
+```tsx
+import { createAdminApi, AdminFilterButton, AdminPanel } from "@dapplelight/signet-ui/screens/admin-screens"
+
+const api = createAdminApi({ baseUrl: "/admin" })
+
+export function AdminFilterButtonDemo() {
+  return (
+    <AdminPanel api={api} defaultTable="orders">
+      <AdminFilterButton />
+    </AdminPanel>
+  )
+}
+```
+
+</Preview>
+
+### AdminRowActions
+
+<Preview>
+  <AdminRowActionsDemo />
+
+```tsx
+import { createAdminApi, AdminPanel, AdminRowActions, useAdmin } from "@dapplelight/signet-ui/screens/admin-screens"
+
+const api = createAdminApi({ baseUrl: "/admin" })
+
+function FirstRowActions() {
+  const { page } = useAdmin()
+  const row = page.rows[0]
+  return row ? <AdminRowActions row={row} /> : null
+}
+
+export function AdminRowActionsDemo() {
+  return (
+    <AdminPanel api={api} defaultTable="orders">
+      <FirstRowActions />
+    </AdminPanel>
+  )
+}
+```
+
+</Preview>
+
+### AdminRecordForm
+
+<Preview>
+  <AdminRecordFormDemo />
+
+```tsx
+import { createAdminApi, AdminPanel, AdminRecordForm } from "@dapplelight/signet-ui/screens/admin-screens"
+
+const api = createAdminApi({ baseUrl: "/admin" })
+
+export function AdminRecordFormDemo() {
+  return (
+    <AdminPanel api={api} defaultTable="orders">
+      <AdminRecordForm />
+    </AdminPanel>
+  )
+}
+```
+
+</Preview>
+
+### AdminAuditTrail
+
+<Preview>
+  <AdminAuditTrailDemo />
+
+```tsx
+import { createAdminApi, AdminAuditTrail, AdminPanel } from "@dapplelight/signet-ui/screens/admin-screens"
+
+const api = createAdminApi({ baseUrl: "/admin" })
+
+export function AdminAuditTrailDemo() {
+  return (
+    <AdminPanel api={api} defaultTable="orders">
+      <AdminAuditTrail table="orders" id="ord_1001" />
+    </AdminPanel>
+  )
+}
+```
+
+</Preview>
+
+### AdminRecordSheet
+
+<Preview>
+  <AdminRecordSheetDemo />
+
+```tsx
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { AdminPanel, AdminRecordSheet, type AdminRecordTarget, createAdminApi } from "@dapplelight/signet-ui/screens/admin-screens"
+import { useState } from "react"
+
+const api = createAdminApi({ baseUrl: "/admin" })
+
+export function AdminRecordSheetDemo() {
+  const [record, setRecord] = useState<AdminRecordTarget>(null)
+  return (
+    <AdminPanel api={api} defaultTable="orders" record={record} onRecordChange={setRecord}>
+      <Button onClick={() => setRecord({ id: "ord_1001" })}>Open order ord_1001</Button>
+      <AdminRecordSheet />
+    </AdminPanel>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+### AdminScreen
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `api` | `AdminApi` | — | What the panel calls. `createAdminApi` implements it over HTTP. |
+| `meta` | `AdminMeta` | — | Metadata you already have; otherwise `api.meta()` is fetched. |
+| `table` | `string` | — | The open table (controlled). |
+| `defaultTable` | `string` | `first listable table` | Initial table. |
+| `onTableChange` | `(table: string) => void` | — | Called when the table changes. |
+| `record` | `AdminRecordTarget` | — | The open record (controlled): `{ id }`, `{ id: null }` for a new row, or `null`. |
+| `defaultRecord` | `AdminRecordTarget` | `null` | Initial record. |
+| `onRecordChange` | `(record: AdminRecordTarget) => void` | — | Called when a record opens or closes. |
+| `pageSize` | `number` | `25` | Rows per page. |
+| `labels` | `Partial<AdminLabels>` | — | Every string, in English by default. Spread `DEFAULT_ADMIN_LABELS` to translate. |
+| `renderCell` | `(args: { value; column; row }) => ReactNode` | — | Replaces a cell's rendering. Return undefined to keep the default. |
+| `renderField` | `(args: { column; value; onChange; id }) => ReactNode` | — | Replaces one field's control in the form. |
+| `classNames` | `Partial<Record<"nav" \| "main" \| "header" \| "toolbar" \| "table" \| "pager" \| "sheet", string>>` | — | Classes per part. |
+| `render` | `ReactElement` | — | Replaces the root element. |
+
+### AdminPanel
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `api` | `AdminApi` | — | What the panel calls. |
+| `meta` | `AdminMeta` | — | Metadata you already have. |
+| `table, defaultTable, onTableChange` | `string` | — | The open table, controlled or not. |
+| `record, defaultRecord, onRecordChange` | `AdminRecordTarget` | — | The open record, controlled or not. |
+| `pageSize` | `number` | `25` | Rows per page. |
+| `labels` | `Partial<AdminLabels>` | — | Every string. |
+| `children` | `ReactNode` | — | The parts, rendered inside a grid. Use `useAdmin()` in a custom part for the state. |
+
+### AdminRecordForm
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `row` | `AdminRow` | — | The row being edited. Absent means create. |
+| `onSaved` | `(row: AdminRow) => void` | — | Called with the saved row. |
+| `renderField` | `(args: { column; value; onChange; id }) => ReactNode` | — | Replaces one field's control. |
+| `className` | `string` | — | Class for the form. |
+
+### AdminAuditTrail
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `table` | `string` | — | Table name of the row. |
+| `id` | `string` | — | Row id. |
+| `className` | `string` | — | Class for the list. |
+
+### AdminRowActions
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `row` | `AdminRow` | — | The row the menu acts on. |
+| `className` | `string` | — | Class for the trigger. |
+
+### AdminRecordSheet
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `renderField` | `(args: { column; value; onChange; id }) => ReactNode` | — | Replaces one field's control in the form. |
+| `className` | `string` | — | Class for the sheet. |
+
+### AdminTable
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `renderCell` | `(args: { value; column; row }) => ReactNode` | — | Replaces a cell's rendering. |
+| `render` | `ReactElement` | — | Replaces the root element. |
+
+### AdminNav, AdminMain, AdminHeader, AdminToolbar, AdminPager, AdminFilterButton
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `className` | `string` | — | Merged over the defaults. Except AdminFilterButton, each also takes `render`. |

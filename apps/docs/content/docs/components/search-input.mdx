@@ -1,0 +1,122 @@
+---
+title: "Search Input"
+description: "A text input with a leading search icon."
+---
+
+import { SearchInputDemo, SearchInputFilterDemo, SearchInputWideDemo, SearchInputDisabledDemo } from "@/components/demos/search-input"
+
+<Preview>
+  <SearchInputDemo />
+
+```tsx
+import { SearchInput } from "@dapplelight/signet-ui/components/search-input"
+
+export function Demo() {
+  return <SearchInput placeholder="Search customers" aria-label="Search customers" />
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add search-input
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { SearchInput } from "@dapplelight/signet-ui/components/search-input"
+```
+
+```tsx
+<SearchInput placeholder="Search customers" aria-label="Search customers" />
+```
+
+## Examples
+
+### Filtering a list
+
+<Preview>
+  <SearchInputFilterDemo />
+
+```tsx
+const customers = ["Acme Corp", "Globex", "Initech", "Umbrella Labs", "Hooli", "Stark Industries"]
+
+export function CustomerFilter() {
+  const [q, setQ] = useState("")
+  const hits = customers.filter((c) => c.toLowerCase().includes(q.toLowerCase()))
+  return (
+    <>
+      <SearchInput value={q} onChange={(e) => setQ(e.target.value)} aria-label="Filter customers" />
+      <ul>{hits.map((c) => <li key={c}>{c}</li>)}</ul>
+    </>
+  )
+}
+```
+
+</Preview>
+
+### Wider container
+
+<Preview>
+  <SearchInputWideDemo />
+
+```tsx
+<SearchInput
+  containerClassName="w-full max-w-md"
+  placeholder="Search invoices, orders and customers"
+  aria-label="Search everything"
+/>
+```
+
+</Preview>
+
+### Disabled
+
+<Preview>
+  <SearchInputDisabledDemo />
+
+```tsx
+<SearchInput disabled placeholder="Search is unavailable" aria-label="Search" />
+```
+
+</Preview>
+
+## API Reference
+
+### SearchInput
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| containerClassName | `string` | - | Class on the outer box that holds the icon and input. |
+| className | `string` | - | Class on the `input`. |
+| ...props | `InputHTMLAttributes` | - | Everything an `input` takes except `type`: `value`, `onChange`, `placeholder`, `disabled`. Forwards its ref to the input. |

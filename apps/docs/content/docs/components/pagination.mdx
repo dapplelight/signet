@@ -1,0 +1,116 @@
+---
+title: "Pagination"
+description: "Previous and next buttons around the current page number."
+---
+
+import { PaginationDemo, PaginationListDemo, PaginationSinglePageDemo } from "@/components/demos/pagination"
+
+<Preview>
+  <PaginationDemo />
+
+```tsx
+import { useState } from "react"
+import { Pagination } from "@dapplelight/signet-ui/components/pagination"
+
+export function Demo() {
+  const [page, setPage] = useState(2)
+  return <Pagination page={page} totalPages={8} onPageChange={setPage} />
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add pagination
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { Pagination } from "@dapplelight/signet-ui/components/pagination"
+```
+
+```tsx
+<Pagination page={page} totalPages={8} onPageChange={setPage} />
+```
+
+## Examples
+
+### With a list
+
+<Preview>
+  <PaginationListDemo />
+
+```tsx
+const invoices = Array.from({ length: 12 }, (_, i) => `INV-${1040 + i}`)
+
+export function InvoiceList() {
+  const [page, setPage] = useState(1)
+  const size = 4
+  const totalPages = Math.ceil(invoices.length / size)
+  return (
+    <>
+      <ul>
+        {invoices.slice((page - 1) * size, page * size).map((id) => (
+          <li key={id}>{id}</li>
+        ))}
+      </ul>
+      <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+    </>
+  )
+}
+```
+
+</Preview>
+
+### Single page
+
+<Preview>
+  <PaginationSinglePageDemo />
+
+```tsx
+// Renders nothing when totalPages is 1 or less.
+<Pagination page={1} totalPages={1} onPageChange={() => {}} />
+```
+
+</Preview>
+
+## API Reference
+
+### Pagination
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| page | `number` | - | Current page, starting at 1. |
+| totalPages | `number` | - | Total pages. Nothing renders at 1 or less. |
+| onPageChange | `(page: number) => void` | - | Called with the new page, clamped to the range. |
+| className | `string` | - | Class on the wrapper. |
