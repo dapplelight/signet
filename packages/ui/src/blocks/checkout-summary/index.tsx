@@ -59,6 +59,7 @@ export type CheckoutSummaryProps = {
   discount?: number
   /** Minor units added. */
   tax?: number
+  /** `total` is for display only: send the cart or order id and work out the amount on the server. */
   onPay?: (total: number) => void | Promise<void>
   state?: BlockState
   onRetry?: () => void

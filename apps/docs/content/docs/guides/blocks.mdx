@@ -165,9 +165,11 @@ import { CheckoutSummary } from "@/components/signet/blocks/checkout-summary"
 <CheckoutSummary
   items={[{ id: "pro", name: "Pro plan", amount: 1200 }]}
   tax={96}
-  onPay={(total) => api.pay(total)}
+  onPay={() => api.pay(cartId)}
 />
 ```
+
+The `total` passed to `onPay` is for display only: send the cart or order id and work out the amount on the server, never charge a client-sent total.
 
 An empty `items` shows "Your cart is empty".
 
