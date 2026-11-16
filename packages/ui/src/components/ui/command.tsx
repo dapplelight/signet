@@ -67,6 +67,7 @@ function CommandInput({
 function CommandList({ className, ...props }: React.ComponentProps<typeof CommandListPrimitive>) {
   return (
     <CommandListPrimitive
+      data-slot="command-list"
       className={cn("max-h-72 scroll-py-1 overflow-x-hidden overflow-y-auto p-1", className)}
       {...props}
     />
@@ -181,7 +182,11 @@ function CommandDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent
-        className={cn("overflow-hidden p-0", contentClassName)}
+        className={cn(
+          // On a phone it is a bottom sheet with room for the list and the keyboard.
+          "overflow-hidden p-0 max-sm:top-auto max-sm:bottom-0 max-sm:left-0 max-sm:flex max-sm:h-[85dvh] max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:flex-col max-sm:rounded-b-none max-sm:[&_[data-slot=command-list]]:max-h-none max-sm:[&_[data-slot=command-list]]:flex-1",
+          contentClassName,
+        )}
         showCloseButton={false}
       >
         <DialogHeader className="sr-only">
