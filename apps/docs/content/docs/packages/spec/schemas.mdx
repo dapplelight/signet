@@ -23,3 +23,16 @@ The files are generated from the Zod modules by `bun run gen` in `packages/spec`
 | `@dapplelight/signet-spec/schemas/analytics-ingest-response.schema.json` | JSON Schema 2020-12 for the 202 reply |
 | `@dapplelight/signet-spec/schemas/tracked-event.schema.json` | JSON Schema 2020-12 for one analytics event |
 | `@dapplelight/signet-spec/schemas/webhook-delivery.schema.json` | JSON Schema 2020-12 for a webhook's headers, body and outbox message |
+| `@dapplelight/signet-spec/schemas/contract.json` | `{ version, required, optional }`: each theme CSS variable name and its group |
+
+## Theme contract
+
+`contract.json` is parsed from `packages/tokens/CONTRACT.md` by `bun run gen`, so the markdown stays the single source. `required` has 78 entries and `optional` 16, the same counts `@dapplelight/signet-tokens` tests. Each entry is `{ name, group }`, where `name` includes the leading `--` and `group` is the nearest heading above the variable in CONTRACT.md.
+
+```ts
+import contract from "@dapplelight/signet-spec/schemas/contract.json" with { type: "json" }
+
+const missing = contract.required.filter(({ name }) => !css.includes(`${name}:`))
+```
+
+It lists names only, not values or types. There is deliberately no DTCG (Design Tokens Community Group) export: a contract says which variables a theme must define, and a DTCG file would need a value for each, which belongs to a theme.

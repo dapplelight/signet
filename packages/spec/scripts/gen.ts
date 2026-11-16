@@ -6,7 +6,7 @@
  *
  * The tests import `generate()` and fail when either copy has drifted.
  */
-import { mkdirSync, writeFileSync } from "node:fs"
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { z } from "zod"
 import {
@@ -17,8 +17,10 @@ import {
 import { ERROR_CODE_STATUS, errorEnvelopeSchema, SPEC_VERSION } from "../src/error"
 import { webhookDeliverySchema } from "../src/webhooks"
 import { authOpenApi } from "./auth-openapi"
+import { parseContract } from "./contract"
 
 const ROOT = join(import.meta.dirname, "..")
+export const CONTRACT_MD = join(ROOT, "../tokens/CONTRACT.md")
 export const SCHEMAS_DIR = join(ROOT, "schemas")
 export const OPENAPI_DIR = join(ROOT, "openapi")
 export const PUBLIC_DIR = join(ROOT, "../../apps/docs/public/spec", SPEC_VERSION)
@@ -51,6 +53,7 @@ export function generate(): Record<string, string> {
     schemaFile("webhook-delivery", "Signet webhook delivery", webhookDeliverySchema),
   ]) as Record<string, object>
   files["error-codes.json"] = { specVersion: SPEC_VERSION, codes: ERROR_CODE_STATUS }
+  files["contract.json"] = parseContract(readFileSync(CONTRACT_MD, "utf8"), SPEC_VERSION)
   return Object.fromEntries(
     Object.entries(files).map(([name, json]) => [name, `${JSON.stringify(json, null, 2)}\n`]),
   )
