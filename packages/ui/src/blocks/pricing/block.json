@@ -1,0 +1,17 @@
+{
+  "name": "pricing",
+  "description": "Pricing table: plan cards from props with a highlighted plan, a Monthly / Yearly toggle, features with checks and a call to action.",
+  "files": ["index.tsx", "sample.ts"],
+  "deps": [
+    "badge",
+    "billing-screens",
+    "button",
+    "card",
+    "empty-state",
+    "error-state",
+    "skeleton",
+    "spinner",
+    "tabs",
+    "utils"
+  ]
+}

@@ -393,6 +393,30 @@
     "./blocks/settings": {
       "types": "./dist/blocks/settings/index.d.ts",
       "import": "./dist/blocks/settings/index.js"
+    },
+    "./blocks/auth-page": {
+      "types": "./dist/blocks/auth-page/index.d.ts",
+      "import": "./dist/blocks/auth-page/index.js"
+    },
+    "./blocks/onboarding": {
+      "types": "./dist/blocks/onboarding/index.d.ts",
+      "import": "./dist/blocks/onboarding/index.js"
+    },
+    "./blocks/pricing": {
+      "types": "./dist/blocks/pricing/index.d.ts",
+      "import": "./dist/blocks/pricing/index.js"
+    },
+    "./blocks/checkout-summary": {
+      "types": "./dist/blocks/checkout-summary/index.d.ts",
+      "import": "./dist/blocks/checkout-summary/index.js"
+    },
+    "./blocks/empty-page": {
+      "types": "./dist/blocks/empty-page/index.d.ts",
+      "import": "./dist/blocks/empty-page/index.js"
+    },
+    "./blocks/error-page": {
+      "types": "./dist/blocks/error-page/index.d.ts",
+      "import": "./dist/blocks/error-page/index.js"
     }
   },
   "scripts": {

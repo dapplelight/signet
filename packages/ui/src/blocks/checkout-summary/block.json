@@ -1,0 +1,15 @@
+{
+  "name": "checkout-summary",
+  "description": "Checkout summary card: line items, subtotal, discount, tax and total in minor units, and a Pay button. No payment provider logic.",
+  "files": ["index.tsx", "sample.ts"],
+  "deps": [
+    "billing-screens",
+    "button",
+    "card",
+    "empty-state",
+    "error-state",
+    "skeleton",
+    "spinner",
+    "utils"
+  ]
+}

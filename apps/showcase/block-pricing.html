@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Signet block: pricing</title>
+    <script>
+      (() => { const q = new URLSearchParams(location.search).get("dark"); let t = null; try { t = localStorage.getItem("signet-theme") } catch {} const d = q !== null ? q === "1" : t === "dark" || ((!t || t === "system") && matchMedia("(prefers-color-scheme: dark)").matches); document.documentElement.classList.toggle("dark", d); document.documentElement.style.colorScheme = d ? "dark" : "light" })()
+    </script>
+  </head>
+  <body data-block="pricing">
+    <div id="root"></div>
+    <script type="module" src="/src/blocks.tsx"></script>
+  </body>
+</html>

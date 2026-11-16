@@ -1,0 +1,6 @@
+{
+  "name": "empty-page",
+  "description": "Empty page: an icon, title, description and action in EmptyState.",
+  "files": ["index.tsx"],
+  "deps": ["button", "card", "empty-state", "error-state", "skeleton", "utils"]
+}

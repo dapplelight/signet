@@ -271,10 +271,19 @@ try {
   // ---- blocks: validated against block.json at build, copied by `add block`
   const blocks = Object.keys(reg.items).filter((n) => reg.items[n]?.block)
   ok(
-    "registry: the three blocks are items with a description from block.json",
+    "registry: the nine blocks are items with a description from block.json",
     JSON.stringify(blocks.sort()) ===
-      JSON.stringify(["analytics-dashboard", "list-detail", "settings"]) &&
-      blocks.every((n) => reg.items[n]?.block?.description),
+      JSON.stringify([
+        "analytics-dashboard",
+        "auth-page",
+        "checkout-summary",
+        "empty-page",
+        "error-page",
+        "list-detail",
+        "onboarding",
+        "pricing",
+        "settings",
+      ]) && blocks.every((n) => reg.items[n]?.block?.description),
     blocks,
   )
   const b = app("block")
@@ -297,7 +306,36 @@ try {
   )
   ok(
     "add block: no name lists the blocks",
-    cli(b, "add", "block").out.includes("analytics-dashboard, list-detail, settings"),
+    cli(b, "add", "block").out.includes(
+      "analytics-dashboard, list-detail, settings, auth-page, onboarding, pricing, checkout-summary, empty-page, error-page",
+    ),
+  )
+  // The Blocks 2 blocks pull in the screens they wrap, and copy their sample data.
+  const b2 = app("block2")
+  const rb2 = cli(
+    b2,
+    "add",
+    "block",
+    "auth-page",
+    "onboarding",
+    "pricing",
+    "checkout-summary",
+    "empty-page",
+    "error-page",
+  )
+  ok(
+    "add block: the six Blocks 2 blocks copy with the screens and sample data they use",
+    rb2.code === 0 &&
+      existsSync(join(b2, "src/components/signet/blocks/auth-page/index.tsx")) &&
+      existsSync(join(b2, "src/components/signet/blocks/onboarding/sample.tsx")) &&
+      existsSync(join(b2, "src/components/signet/blocks/pricing/sample.ts")) &&
+      existsSync(join(b2, "src/components/signet/blocks/checkout-summary/sample.ts")) &&
+      existsSync(join(b2, "src/components/signet/blocks/empty-page/index.tsx")) &&
+      existsSync(join(b2, "src/components/signet/blocks/error-page/index.tsx")) &&
+      existsSync(join(b2, "src/components/signet/components/screens/auth-screens.tsx")) &&
+      existsSync(join(b2, "src/components/signet/components/screens/billing-screens.tsx")) &&
+      existsSync(join(b2, "src/components/signet/components/ui/stepper.tsx")),
+    rb2.out,
   )
 
   // ---- every item, copied with rewritten imports, typechecks in an app
