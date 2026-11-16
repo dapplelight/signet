@@ -87,8 +87,13 @@ figure:focus,
 #nd-sidebar a:focus {
   outline: none;
 }
-figure :focus-visible,
+/* Sidebar links show keyboard focus as a fill, not a frame round the active item. */
 #nd-sidebar a:focus-visible {
+  outline: none;
+  background: var(--color-fd-accent);
+  color: var(--color-fd-accent-foreground);
+}
+figure :focus-visible {
   outline: 2px solid var(--color-fd-ring);
   outline-offset: -2px;
 }
