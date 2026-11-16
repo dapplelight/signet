@@ -1054,9 +1054,73 @@ await ex.rollout("onboarding-copy", "short", { actor }) // everyone gets "short"
   the audience is the control (`not_eligible`); rolled out gives the winner.
   A wrong move is `CONFLICT`, as one conditional UPDATE.
 - A variant's `value` is JSON the app reads. Pricing experiments put an
-  offering key there (`{ offering: "annual-first" }`) for a placement to serve.
+  offering key there (`{ offering: "annual-first" }`) for a placement to
+  serve; see [Pricing experiments](#pricing-experiments).
 - signet-server's `experimentRoutes` / `experimentAdminRoutes` serve it;
-  signet-ui's `ExperimentResults` is the admin readout.
+  signet-ui's `ExperimentResults` is the admin readout and `ExperimentForm`
+  creates and edits one.
+
+### Pricing experiments
+
+A placement runs an experiment whose variants serve different offerings (or
+pinned versions). Pass `experiments` to `createOfferings`, link the
+experiment on the placement, and read it out with `createPricing` from
+`@dapplelight/signet-db/pricing`. Placements gain an `experiment` column:
+on an existing database, `ALTER TABLE placements ADD COLUMN experiment text`.
+
+```ts
+import { createPricing } from "@dapplelight/signet-db/pricing"
+
+const ex = createExperiments(db, { tables: { experiments, experimentExposures } })
+const offerings = createOfferings(db, { tables: { offerings: offeringsTable, placements }, plans, experiments: ex })
+const pricing = createPricing(db, {
+  tables: { experimentExposures, customerEvents, customerIdentities },
+  offerings,
+  experiments: ex,
+})
+
+await ex.create("annual-first", {
+  variants: [
+    { key: "control", weight: 50 },                                  // no value: the placement's own offering
+    { key: "annual", weight: 50, value: { offering: "annual-first", version: 2 } },
+  ],
+  goal: "subscribed",
+}, { actor })
+await offerings.setPlacement("onboarding", { offering: "default", experiment: "annual-first" }, { actor })
+await ex.start("annual-first", { actor })
+
+await offerings.current("onboarding", audience, subjectId)
+// { key: "annual-first", version: 2, ..., experiment: { key: "annual-first", variant: "annual", reason: "assigned" } }
+await pricing.readout("annual-first")
+// { placements: ["onboarding"], variants: [{ key, offering, exposed, converted, rate, lift, pValue,
+//   significant, trials, trialConverted, trialConversion, revenue, revenuePerExposed, ltv }] }
+await pricing.rollout("annual-first", "annual", { actor })
+// the placement now serves annual-first v2 directly; the experiment is rolled_out
+```
+
+- `current(placement, audience, subjectId)` assigns through the experiment
+  (sticky, no storage) and records the exposure once, for everyone no
+  audience override matched. With no subject id it serves the placement's
+  own offering and records nothing. A variant whose offering is gone falls
+  back to the placement's own.
+- `setPlacement` checks the experiment exists, is not rolled out, and that
+  every variant's value is `{ offering, version? }` naming a published
+  offering (or no value). It replaces the whole placement: leaving out
+  `experiment` unlinks it.
+- Attribution needs no extra writes: a subject's purchases are their
+  customer timeline events (`customers.record`) at or after the exposure,
+  followed through identity merges when `customerIdentities` is passed.
+  Conversion is a trial or purchase; trial conversion is a paid charge after
+  the trial; revenue is charges minus refunds, per currency in minor units,
+  divided by everyone exposed. Conversion gets the same z-test as `results`.
+- `ltv` is an estimate, labelled so: the average charge times the expected
+  number of payments, `1 / churn` where churn is subscriptions ended
+  (expired or refunded) per paid charge, capped at `maxPayments` (24).
+- `rollout` rolls the experiment out first, then points every placement
+  running it at the winner's offering (the placement's own for a variant
+  with none) and unlinks it; a retry after a partial failure is safe.
+- signet-server's `monetisationAdminRoutes({ pricing })` serves the readout
+  and rollout; signet-ui's `PricingExperimentResults` shows them.
 
 ## Status page and maintenance
 
@@ -1089,6 +1153,8 @@ await status.summary() // { status, components, incidents, maintenance }
   those resolved in the last 7 days (`days` changes it).
 - Every write is audited. `maintenance()` is what signet-server's
   `maintenanceMode` middleware reads.
+- signet-ui's `StatusPage` is the public page and `StatusAdmin` the admin
+  screen (maintenance switch, component statuses, incidents and updates).
 
 ## Organisations and tenant scope
 

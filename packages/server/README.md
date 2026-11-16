@@ -474,6 +474,7 @@ app.route("/api/billing", monetisationRoutes({
 app.route("/api/admin/billing", monetisationAdminRoutes({
   offerings, customers,
   charts,                                               // signet-db createCharts: charts, audiences, CSV
+  pricing,                                              // signet-db createPricing: pricing experiments
   authorize: (c) => c.get("session")?.role === "admin", // deny by default: anything but true is 403
   actor: (c) => ({ type: "user", id: me(c) }),
 }))
@@ -481,7 +482,7 @@ app.route("/api/admin/billing", monetisationAdminRoutes({
 
 | Route | What |
 |---|---|
-| `GET /offerings/:placement` | The offering and paywall for this audience (404 none). Country from `cf-ipcountry`, else `?country`; platform from `?platform`. Attributes come only from your `audience(c)`, never the query. Each product's `offers` are cut to the ones this customer may see (`customers.withOffers`; no subject is a new visitor). |
+| `GET /offerings/:placement` | The offering and paywall for this audience (404 none). Country from `cf-ipcountry`, else `?country`; platform from `?platform`. Attributes come only from your `audience(c)`, never the query. Each product's `offers` are cut to the ones this customer may see (`customers.withOffers`; no subject is a new visitor). A placement running a pricing experiment assigns the subject sticky, records the exposure and says so in `offering.experiment`. |
 | `POST /offerings/:placement/impression` | Log that the customer saw this placement's paywall, for paywall conversion (204; once per customer, offering and day). |
 | `POST /offerings/:placement/redeem` | `{ offerId }`: claim an offer once, before applying it at checkout; refused is 409 `OFFER_REFUSED` with the reason (`not_eligible`, `already_used`, `no_such_offer`). |
 | `POST /anonymous` | `{ anonymousId }` for a device before sign-in. |
@@ -494,6 +495,9 @@ app.route("/api/admin/billing", monetisationAdminRoutes({
 | Admin: `POST /customers/:subject/promotional`, `DELETE /customers/:subject/promotional/:id` | `{ plan, days \| expiresAt, note? }`: grant a promotional plan that lapses on its own; end one early. |
 | Admin: `GET /charts`, `GET /charts/csv` | `?from=&to=` (YYYY-MM-DD, default the last 30 days) `&store=&plan=&country=&offering=&audience=`: subscription charts, or one CSV row per day as an attachment. |
 | Admin: `GET /audiences`, `POST /audiences`, `DELETE /audiences/:id` | Saved chart filters: `{ name, filter: { store?, plan?, country?, offering? } }`. |
+| Admin: `PUT /placements/:placement` with `{ ..., experiment }` | Run a pricing experiment on the placement (it replaces the placement, so omit `experiment` to unlink). |
+| Admin: `GET /pricing/:experiment[?alpha=]` | `{ readout }`: per variant the offering, exposures, conversion with lift and p-value, trial conversion, revenue per exposed user and an LTV estimate. |
+| Admin: `POST /pricing/:experiment/rollout` | `{ variant }`: the placement serves that variant's offering and the experiment stops. Not running on a placement is 400. |
 
 signet-db errors become the envelope (`BAD_VALUE` is 400 `VALIDATION_FAILED`,
 `NOT_FOUND` 404). These are cookie-authenticated writes: put

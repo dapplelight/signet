@@ -158,6 +158,11 @@
       "types": "./dist/funnels.d.ts",
       "import": "./dist/funnels.js",
       "default": "./dist/funnels.js"
+    },
+    "./pricing": {
+      "types": "./dist/pricing.d.ts",
+      "import": "./dist/pricing.js",
+      "default": "./dist/pricing.js"
     }
   },
   "bin": {

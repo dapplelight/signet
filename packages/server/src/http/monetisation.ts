@@ -32,7 +32,8 @@ type Audience = {
 
 /** What the routes need from signet-db's `createOfferings(...)`, as it is. */
 export type OfferingStore = {
-  current(placement: string, audience?: Audience): Promise<unknown>
+  /** With `subject`, a placement running a pricing experiment assigns it and records the exposure. */
+  current(placement: string, audience?: Audience, subject?: string | null): Promise<unknown>
   publish(
     key: string,
     input: { products: never[]; paywall?: never; note?: string },
@@ -43,10 +44,21 @@ export type OfferingStore = {
   list(): Promise<unknown[]>
   setPlacement(
     placement: string,
-    input: { offering: string; version?: number | null; overrides?: never[] },
+    input: {
+      offering: string
+      version?: number | null
+      overrides?: never[]
+      experiment?: string | null
+    },
     opts: { actor: Actor },
   ): Promise<unknown>
   placements(): Promise<unknown[]>
+}
+
+/** What the admin routes need from signet-db's `createPricing(...)`, as it is. */
+export type PricingStore = {
+  readout(key: string, opts?: { alpha?: number; maxPayments?: number }): Promise<unknown>
+  rollout(key: string, variant: string, opts: { actor: Actor }): Promise<unknown>
 }
 
 /** What the routes need from signet-db's `createCustomers(...)`, as it is. */
@@ -189,7 +201,9 @@ const defaultAudience = (c: Context): Audience => {
  * The app's routes. Mount with `app.route("/api/billing", monetisationRoutes(opts))`.
  *
  *   GET  /offerings/:placement     the offering and paywall for this audience (404 none),
- *                                  with only the offers this customer may see
+ *                                  with only the offers this customer may see; a
+ *                                  placement running a pricing experiment assigns
+ *                                  the subject sticky and records the exposure
  *   POST /offerings/:placement/impression   log a paywall view for charts (204)
  *   POST /offerings/:placement/redeem       { offerId }: claim an offer once (409 OFFER_REFUSED)
  *   POST /anonymous                a new anonymous app-user id: { anonymousId }
@@ -210,25 +224,29 @@ export function monetisationRoutes(opts: MonetisationRoutesOptions) {
   const app = new Hono()
   app.onError(onError)
   const me = (c: Context) => need(opts.subject, c)
-  const current = async (c: Context) => {
+  const current = async (c: Context, subject?: string | null) => {
     if (!opts.offerings) throw new ApiException(404, "No offerings here.", "NOT_FOUND")
     const audience = await (opts.audience ?? defaultAudience)(c)
-    const offering = await opts.offerings.current(c.req.param("placement") as string, audience)
+    const offering = await opts.offerings.current(
+      c.req.param("placement") as string,
+      audience,
+      subject ?? null,
+    )
     if (!offering) throw new ApiException(404, "No offering for this placement.", "NOT_FOUND")
     return { offering, audience }
   }
   return app
     .get("/offerings/:placement", async (c) => {
-      const { offering } = await current(c)
+      const who = (await opts.subject(c)) ?? null
+      const { offering } = await current(c, who)
       // Offers this customer may see; no subject is a new visitor.
       if (!customers.withOffers) return c.json({ offering })
-      const who = (await opts.subject(c)) ?? null
       return c.json({ offering: await customers.withOffers(who, offering as never) })
     })
     .post("/offerings/:placement/impression", async (c) => {
       if (!customers.logImpression) throw new ApiException(404, "Not enabled.", "NOT_FOUND")
       const subject = await me(c)
-      const { offering, audience } = await current(c)
+      const { offering, audience } = await current(c, subject)
       const o = offering as { key: string; version?: number }
       await customers.logImpression(subject, {
         offering: o.key,
@@ -242,7 +260,7 @@ export function monetisationRoutes(opts: MonetisationRoutesOptions) {
       if (!customers.redeemOffer) throw new ApiException(404, "Not enabled.", "NOT_FOUND")
       const subject = await me(c)
       const offerId = field(await body(c), "offerId", 200)
-      const { offering } = await current(c)
+      const { offering } = await current(c, subject)
       const r = await customers.redeemOffer(subject, offering as never, offerId)
       if (!r.redeemed)
         throw new ApiException(409, "This offer is not available.", "OFFER_REFUSED", {
@@ -312,6 +330,8 @@ export type MonetisationAdminOptions = {
   customers?: CustomerStore
   /** signet-db's `createCharts(...)`: subscription charts, audiences and CSV. */
   charts?: ChartStore
+  /** signet-db's `createPricing(...)`: pricing experiment readouts and one-click rollout. */
+  pricing?: PricingStore
   /** Deny by default: every route calls it, and anything but true is 403. */
   authorize: (c: Context) => unknown
   /** Who made the change, for the audit log. */
@@ -345,7 +365,7 @@ function chartQuery(c: Context): ChartQuery {
  *   GET   /offerings/:key               { offering, versions }
  *   POST  /offerings/:key               publish a new version: { products, paywall?, note? }
  *   GET   /placements                   every placement
- *   PUT   /placements/:placement        { offering, version?, overrides? }
+ *   PUT   /placements/:placement        { offering, version?, overrides?, experiment? } (replaces it)
  *   GET   /customers/:subject           Customer Center overview, as the customer sees it
  *   GET   /customers/:subject/timeline  purchases, renewals, refunds... and ledger totals
  *   GET   /requests?kind=&status=&subject=
@@ -357,6 +377,9 @@ function chartQuery(c: Context): ChartQuery {
  *   GET   /audiences                           saved chart filters
  *   POST  /audiences                           { name, filter: { store?, plan?, country?, offering? } }
  *   DELETE /audiences/:id
+ *   GET   /pricing/:experiment?alpha=           per-variant conversion, revenue per exposed
+ *                                               user, trial conversion, z-test, LTV estimate
+ *   POST  /pricing/:experiment/rollout          { variant }: the placement serves it, the experiment stops
  */
 export function monetisationAdminRoutes(opts: MonetisationAdminOptions) {
   const app = new Hono()
@@ -377,6 +400,11 @@ export function monetisationAdminRoutes(opts: MonetisationAdminOptions) {
   const charts = () => {
     if (!opts.charts) throw new ApiException(404, "Charts are not enabled.", "NOT_FOUND")
     return opts.charts
+  }
+  const pricing = () => {
+    if (!opts.pricing)
+      throw new ApiException(404, "Pricing experiments are not enabled.", "NOT_FOUND")
+    return opts.pricing
   }
   return app
     .get("/offerings", async (c) => c.json({ offerings: await offerings().list() }))
@@ -405,12 +433,16 @@ export function monetisationAdminRoutes(opts: MonetisationAdminOptions) {
       const version = b.version
       if (version !== undefined && version !== null && !Number.isSafeInteger(version))
         throw new ApiException(400, "version is an integer.", "VALIDATION_FAILED")
+      const experiment = b.experiment
+      if (experiment !== undefined && experiment !== null && typeof experiment !== "string")
+        throw new ApiException(400, "experiment is an experiment key or null.", "VALIDATION_FAILED")
       const placement = await offerings().setPlacement(
         c.req.param("placement"),
         {
           offering: field(b, "offering", 64),
           version: (version as number | null | undefined) ?? null,
           ...(b.overrides !== undefined ? { overrides: b.overrides as never[] } : {}),
+          ...(typeof experiment === "string" ? { experiment } : {}),
         },
         { actor: await opts.actor(c) },
       )
@@ -505,5 +537,20 @@ export function monetisationAdminRoutes(opts: MonetisationAdminOptions) {
       if (!(await charts().removeAudience(c.req.param("id"), { actor: await opts.actor(c) })))
         throw new ApiException(404, "No such audience.", "NOT_FOUND")
       return c.json({ removed: true })
+    })
+    .get("/pricing/:key", async (c) => {
+      const raw = c.req.query("alpha")
+      const alpha = raw === undefined ? undefined : Number(raw)
+      if (alpha !== undefined && !(alpha > 0 && alpha < 1))
+        throw new ApiException(400, "alpha is between 0 and 1.", "VALIDATION_FAILED")
+      return c.json({
+        readout: await pricing().readout(c.req.param("key"), alpha === undefined ? {} : { alpha }),
+      })
+    })
+    .post("/pricing/:key/rollout", async (c) => {
+      const variant = field(await body(c), "variant", 64)
+      return c.json(
+        await pricing().rollout(c.req.param("key"), variant, { actor: await opts.actor(c) }),
+      )
     })
 }
