@@ -13,7 +13,6 @@ body {
   background: var(--color-fd-background);
   color: var(--color-fd-foreground);
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  letter-spacing: -0.01em;
 }
 
 code,
@@ -52,4 +51,19 @@ html {
 html > body[data-scroll-locked] {
   margin-right: 0px !important;
   --removed-body-scroll-bar-size: 0px !important;
+}
+
+/* Match shadcn/ui's sizes: 16px body, 14px sidebar and code. Fumadocs'
+   defaults are a step smaller. */
+.prose {
+  font-size: 1rem;
+  line-height: 1.75;
+}
+#nd-sidebar {
+  font-size: 0.875rem;
+}
+.prose pre,
+.prose pre code,
+figure pre code {
+  font-size: 0.875rem;
 }
