@@ -83,7 +83,7 @@
     },
     "packages/create-signet-app": {
       "name": "create-signet-app",
-      "version": "0.4.3",
+      "version": "0.4.4",
       "bin": {
         "create-signet-app": "./src/index.ts",
       },
