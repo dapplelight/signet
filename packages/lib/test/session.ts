@@ -132,6 +132,74 @@ ok("unsubscribe stops notifications", seen.at(-1) === null)
 await session.clear()
 ok("clear", (await session.token()) === null)
 
+// --- a failed storage read is not cached, and writes do not need a read ---
+{
+  const inner = memoryStorage()
+  let failGets = 1
+  const flaky = {
+    ...inner,
+    get: async (k: string) => {
+      if (failGets-- > 0) throw new Error("boom")
+      return inner.get(k)
+    },
+  }
+  const s = createSession({ storage: flaky })
+  let rejected = false
+  await s.get().catch(() => {
+    rejected = true
+  })
+  ok("failed read rejects", rejected)
+  await s.set({ accessToken: "a" })
+  ok("set works after a failed read", (await s.get())?.accessToken === "a")
+
+  failGets = 1
+  const s2 = createSession({ storage: flaky })
+  await s2.token().catch(() => {})
+  ok("next call retries the read", (await s2.get())?.accessToken === "a")
+}
+
+// --- clear() or set() during an in-flight refresh wins ---
+{
+  const run = async (during: "clear" | "set") => {
+    const st = memoryStorage()
+    let release: (t: { accessToken: string; refreshToken: string } | null) => void = () => {}
+    const s = createSession({
+      storage: st,
+      refresh: () => new Promise((res) => (release = res)),
+    })
+    await s.set({ accessToken: "old", refreshToken: "r1" })
+    const p = s.refresh()
+    await new Promise((r) => setTimeout(r, 5))
+    if (during === "clear") await s.clear()
+    else await s.set({ accessToken: "fresh", refreshToken: "r9" })
+    release(during === "clear" ? { accessToken: "new", refreshToken: "r2" } : null)
+    return { result: await p, stored: await s.get() }
+  }
+  const c = await run("clear")
+  ok("clear during refresh is not undone", c.stored === null && c.result === null, c)
+  const n = await run("set")
+  ok(
+    "set during refresh is not wiped",
+    n.stored?.accessToken === "fresh" && n.result === "fresh",
+    n,
+  )
+}
+
+// --- another context rotated the refresh token: use the stored tokens, do not refresh ---
+{
+  const st = memoryStorage()
+  let calls2 = 0
+  const refresh = async () => (calls2++, null)
+  const worker = createSession({ storage: st, refresh })
+  const popup = createSession({ storage: st })
+  await worker.set({ accessToken: "a1", refreshToken: "r1" })
+  await popup.get()
+  await st.set("signet-session", JSON.stringify({ accessToken: "a2", refreshToken: "r2" }))
+  ok("refresh picks up tokens another context stored", (await worker.refresh()) === "a2")
+  ok("no refresh call when storage already moved on", calls2 === 0)
+  ok("shared session survives", (await worker.get())?.refreshToken === "r2")
+}
+
 // --- tokenEndpointRefresh ---
 let posted = ""
 const fakeEndpoint = (status: number) =>
