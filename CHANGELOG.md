@@ -5,6 +5,11 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-cli: conformance command
+
+- New `signet conformance <baseUrl>` runs the Signet wire-contract cases against a live backend, prints one `pass` or `fail` line per case and exits 1 when any fails. Flags: `--auth-prefix`, `--ingest`, `--sessions`, `--json-path`, `--json`.
+- signet-spec: `/spec/v1/index.json` lists every file under `/spec/v1/` with its URL and description. `bun run gen` writes it.
+
 ### signet-ui: CostDashboard screen
 
 - New `./screens/cost-dashboard` with `CostDashboard`, `DEFAULT_COST_LABELS` and types, for the data of signet-server's `observabilityAdminRoutes` cost endpoints: a spend-over-time chart with cache savings, spend by model, top spenders (hashes as given), global cap usage bars (primary under 80%, amber from 80%, red at 100%) and tiles for spend, cache saved and top model. Give it `data` or a `fetcher(days)` (which also drives Retry); text comes from `labels`, and rows carry `data-slot` plus `data-model`, `data-subject` or `data-period`. Needs the optional peer `recharts`, so it is not in the barrel. Nothing existing changes.
