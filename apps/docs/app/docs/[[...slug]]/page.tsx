@@ -5,7 +5,7 @@ import {
   DocsTitle,
   MarkdownCopyButton,
   ViewOptionsPopover,
-} from "fumadocs-ui/layouts/notebook/page"
+} from "fumadocs-ui/layouts/docs/page"
 import { createRelativeLink } from "fumadocs-ui/mdx"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
@@ -24,7 +24,7 @@ export default async function Page(props: PageProps<"/docs/[[...slug]]">) {
   return (
     <DocsPage toc={page.data.toc} full={page.data.full}>
       <DocsTitle className="text-[2rem] font-semibold tracking-tight">{page.data.title}</DocsTitle>
-      <DocsDescription className="mb-0 text-base">{page.data.description}</DocsDescription>
+      <DocsDescription className="mb-0 text-[1rem]">{page.data.description}</DocsDescription>
       <div className="flex flex-row items-center gap-2 pb-2">
         <MarkdownCopyButton markdownUrl={markdownUrl} />
         <ViewOptionsPopover
