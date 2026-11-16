@@ -27,6 +27,37 @@ export type ApiClientOptions = {
    * login form can be told apart from an expired session.
    */
   onAuthError?: (error: AuthError) => void
+  /**
+   * Bearer token for clients without cookies (extension, desktop, CLI): sent as
+   * `Authorization: Bearer <token>` on every request; null sends none. Pair
+   * with `credentials: "omit"`. `createSession().token` fits.
+   */
+  token?: () => Promise<string | null>
+  /**
+   * Called once on a 401 when set: return a new access token and the request
+   * is retried once with it, or null and the 401 stands. `createSession().refresh` fits.
+   */
+  refresh?: () => Promise<string | null>
+}
+
+const bearer = (token: string | null | undefined): Record<string, string> =>
+  token ? { Authorization: `Bearer ${token}` } : {}
+
+/**
+ * Run `attempt` with the token provider's Authorization header; on a 401, when
+ * `refresh` is set, once more with the refreshed token. Without `token` and
+ * `refresh` this is exactly one `attempt({})`, so cookie auth is unchanged.
+ */
+async function withToken(
+  opts: Pick<ApiClientOptions, "token" | "refresh">,
+  attempt: (auth: Record<string, string>) => Promise<Response>,
+): Promise<Response> {
+  const res = await attempt(bearer(await opts.token?.()))
+  if (res.status !== 401 || !opts.refresh) return res
+  const next = await opts.refresh()
+  if (!next) return res
+  await res.body?.cancel()
+  return attempt(bearer(next))
 }
 
 /** Merge header sources (plain objects, Headers, or [name, value] pairs); later wins. */
@@ -78,11 +109,13 @@ export function createApiClient(opts: ApiClientOptions = {}) {
    */
   async function send(path: string, init: RequestInit = {}): Promise<Response> {
     const extra = (await opts.headers?.()) ?? {}
-    const res = await fetch(`${baseUrl}${path}`, {
-      credentials: opts.credentials ?? "include",
-      ...init,
-      headers: mergeHeaders(extra, init.headers),
-    })
+    const res = await withToken(opts, (auth) =>
+      fetch(`${baseUrl}${path}`, {
+        credentials: opts.credentials ?? "include",
+        ...init,
+        headers: mergeHeaders(auth, extra, init.headers),
+      }),
+    )
     if (res.status === 401) {
       const err = await toAuthError(res)
       opts.onAuthError?.(err)
@@ -93,19 +126,22 @@ export function createApiClient(opts: ApiClientOptions = {}) {
 
   async function request<T>(path: string, init: RequestInit = {}, isForm = false): Promise<T> {
     const extra = (await opts.headers?.()) ?? {}
-    const res = await fetch(`${baseUrl}${path}`, {
-      credentials: opts.credentials ?? "include",
-      ...init,
-      // Merged last so caller headers extend the defaults instead of replacing
-      // them. FormData deliberately sends no Content-Type — the browser must
-      // set it with the multipart boundary. No body, no Content-Type: it would
-      // make a cross-origin GET or body-less DELETE trigger a preflight.
-      headers: mergeHeaders(
-        isForm || init.body == null ? {} : { "Content-Type": "application/json" },
-        extra,
-        init.headers,
-      ),
-    })
+    const res = await withToken(opts, (auth) =>
+      fetch(`${baseUrl}${path}`, {
+        credentials: opts.credentials ?? "include",
+        ...init,
+        // Merged last so caller headers extend the defaults instead of replacing
+        // them. FormData deliberately sends no Content-Type — the browser must
+        // set it with the multipart boundary. No body, no Content-Type: it would
+        // make a cross-origin GET or body-less DELETE trigger a preflight.
+        headers: mergeHeaders(
+          isForm || init.body == null ? {} : { "Content-Type": "application/json" },
+          auth,
+          extra,
+          init.headers,
+        ),
+      }),
+    )
 
     if (res.status === 401) {
       const err = await toAuthError(res)
@@ -239,7 +275,14 @@ export function createRpcClient<C>(
       })
       try {
         res = await Promise.race([
-          base(input, { credentials: opts.credentials ?? "include", ...init, headers, signal }),
+          withToken(opts, (auth) =>
+            base(input, {
+              credentials: opts.credentials ?? "include",
+              ...init,
+              headers: mergeHeaders(auth, headers),
+              signal,
+            }),
+          ),
           expired,
         ])
       } catch (cause) {

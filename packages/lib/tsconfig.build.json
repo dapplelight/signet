@@ -7,7 +7,7 @@
     "outDir": "dist",
     "rootDir": "src",
     "sourceMap": true,
-    "types": [],
+    "types": ["node"],
     "removeComments": true
   },
   "include": ["src"],
