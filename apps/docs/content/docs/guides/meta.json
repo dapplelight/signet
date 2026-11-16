@@ -38,6 +38,7 @@
     "add-jobs",
     "add-workflows",
     "add-logging",
+    "observability",
     "add-portability-adapters",
     "publish-an-api",
     "add-backend-module",

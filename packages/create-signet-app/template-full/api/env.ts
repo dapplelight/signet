@@ -29,6 +29,11 @@ export const envSchema = z.object({
    * x-org header or the switch cookie, which is all local development needs.
    */
   ORG_ROOT_DOMAIN: z.string().optional(),
+  /**
+   * "on": JSON request logs, a span per request and /health/live and
+   * /health/ready (server.ts). Off by default. See observability in app.ts.
+   */
+  OBSERVABILITY: z.enum(["on", "off"]).default("off"),
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),
   RAZORPAY_WEBHOOK_SECRET: z.string().optional(),

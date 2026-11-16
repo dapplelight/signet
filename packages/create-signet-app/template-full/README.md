@@ -148,6 +148,17 @@ Before production:
   Fulfil them with `privacy.fulfil(id, { actor })` (export returns the data to
   send; erasure deletes the user's rows listed in `userTables`).
 
+## Observability
+
+Off by default. Set `OBSERVABILITY=on` and the API writes a JSON log line pair
+per request (`request.started`, then `request.completed` or `request.failed`)
+with the request id and trace id, opens an OpenTelemetry span per request, and
+answers `/health/live` and `/health/ready` (the database). Probes are left out
+of spans and logs. Spans are no-ops until you register an OpenTelemetry SDK or
+turn on Cloudflare tracing; Signet adds no exporter. To put the trace id on
+every log line, pass `mixin` in `api/server.ts`. Prompts, bodies, cookies and
+headers are never recorded.
+
 ## Themes
 
 `src/app.css` imports the __THEME__ theme from `@dapplelight/signet-tokens`.

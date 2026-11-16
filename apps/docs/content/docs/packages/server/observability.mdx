@@ -19,8 +19,8 @@ const sentry = createSentry({ dsn: env.SENTRY_DSN, enabled: env.APP_ENV === "pro
 
 const app = new Hono<{ Variables: { reqId: string; logger: Logger } }>()
 app.use("*", requestId({ childLogger: (id) => log.child({ reqId: id }) }))
-app.use("*", traceMiddleware({ serviceName: "api", skipPaths: ["/health"] }))
-app.use("*", requestLog({ logger: log, skipPaths: ["/health"], slowMs: 1000 }))
+app.use("*", traceMiddleware({ serviceName: "api", skipPaths: ["/health/live", "/health/ready"] }))
+app.use("*", requestLog({ logger: log, skipPaths: ["/health/live", "/health/ready"], slowMs: 1000 }))
 app.onError(errorHandler({
   isProduction: () => env.APP_ENV === "production",
   onError: (err, meta) => sentry.captureException(err, meta), // the promise goes to waitUntil
@@ -80,7 +80,7 @@ Secrets are redacted by default at any depth: password, passwd, token, secret, a
 | --- | --- | --- | --- |
 | `serviceName` | `string` | required | Set on each span as `service.name`. |
 | `tracerName` | `string` | `serviceName` | |
-| `skipPaths` | `string[]` | none | Exact paths that get no span, such as `/health`. |
+| `skipPaths` | `string[]` | none | Exact paths that get no span, such as `/health/live`. |
 | `attributes` | `(c) => Record<string, string \| number \| boolean>` | none | Extra attributes per request. Nothing here is scrubbed. |
 
 The span is named `GET /orders/:id`. Status 5xx marks it as an error. Errors are recorded on the span and rethrown. An incoming W3C `traceparent` header continues the caller's trace. Spans and log lines carry method, route pattern and status. They never carry bodies, query strings or headers. `@opentelemetry/api` is an optional peer dependency, loaded on first use. Without an OpenTelemetry SDK registered, every call is a no-op. Signet adds no exporter. Needs `hono` 4.8 or later.
@@ -94,7 +94,7 @@ The span is named `GET /orders/:id`. Status 5xx marks it as an error. Errors are
 
 | `requestLog` option | Type | Default | |
 | --- | --- | --- | --- |
-| `logger` | `Logger` | required | Any object with `info`, `warn` and `error` taking `(msg, fields)`. |
+| `logger` | `Logger` | required | A `Logger` fits. Any object with a method per level name taking `(msg, fields)` works. |
 | `skipPaths` | `string[]` | none | Exact paths that are not logged. |
 | `slowMs` | `number` | off | A completed request at or over this gets `slow: true`. The message stays `request.completed`. |
 | `level` | `(status) => LevelName` | below 400 `info`, 4xx `warn`, 5xx `error` | Level of `request.completed`. `request.started` is `info`; `request.failed` is `error`. |
@@ -241,3 +241,7 @@ Turn tracing on in `wrangler.jsonc`. Cloudflare records the Worker's own spans a
 ```
 
 Signet's spans join those traces only when the runtime exposes an OpenTelemetry tracer provider to `@opentelemetry/api`. Otherwise `traceMiddleware` stays a no-op. `requestLog` still writes the `traceId` from the incoming `traceparent` header, so log lines match the trace.
+
+<Cards>
+  <Card title="Trace a Request Across Logs, Sentry and Spans" href="/docs/guides/observability" description="One traceId links JSON logs, Sentry reports and OpenTelemetry spans, plus AI cost, health checks and what is never recorded." />
+</Cards>

@@ -11,6 +11,10 @@ import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
 import { csrfMiddleware } from "@dapplelight/signet-server/middleware/csrf"
 import { memoryStore, rateLimit } from "@dapplelight/signet-server/middleware/rate-limit"
 import { requestId } from "@dapplelight/signet-server/middleware/request-id"
+import { healthRoutes } from "@dapplelight/signet-server/observability/health"
+import { createLogger } from "@dapplelight/signet-server/observability/logger"
+import { requestLog } from "@dapplelight/signet-server/observability/request-log"
+import { traceMiddleware } from "@dapplelight/signet-server/observability/trace"
 import { inArray } from "drizzle-orm"
 import { Hono } from "hono"
 import { type User, users } from "./db/schema.ts"
@@ -33,6 +37,9 @@ const SIGNED_IN = [
   "/api/admin",
 ]
 
+/** Probes stay out of spans and logs. */
+const HEALTH_PATHS = ["/health/live", "/health/ready"]
+
 /** An invite link can be looked at before signing in; everything else under /api/orgs needs a user. */
 const INVITE_PREVIEW = /^\/api\/orgs\/invites\/[^/]+$/
 
@@ -42,12 +49,25 @@ const INVITE_PREVIEW = /^\/api\/orgs\/invites\/[^/]+$/
  */
 export function createApp(deps: Deps) {
   const s = createServices(deps)
-  const base = new Hono<AppEnv>()
-    .use("*", requestId())
-    // Blocks cross-site form posts riding the session cookie. The web app is
-    // served from this same origin, so nothing else needs trusting.
-    .use("/api/*", csrfMiddleware())
-    .use("/api/*", rateLimit<AppEnv>({ store: memoryStore(), trust: TRUST, max: 300 }))
+  const base = new Hono<AppEnv>().use("*", requestId())
+  // Off unless server.ts passes `observability` (OBSERVABILITY=on): then a span
+  // and a JSON log line pair per request, both carrying the trace id, and
+  // /health/live and /health/ready below. Without an OpenTelemetry SDK the
+  // spans are no-ops; Signet adds no exporter (see the observability guide).
+  const obs = deps.observability
+  if (obs) {
+    const log = createLogger({
+      level: obs.level ?? "info",
+      base: { service: obs.serviceName },
+      mixin: obs.mixin,
+    })
+    base.use("*", traceMiddleware({ serviceName: obs.serviceName, skipPaths: HEALTH_PATHS }))
+    base.use("*", requestLog({ logger: log, skipPaths: HEALTH_PATHS, slowMs: 1000 }))
+  }
+  // Blocks cross-site form posts riding the session cookie. The web app is
+  // served from this same origin, so nothing else needs trusting.
+  base.use("/api/*", csrfMiddleware())
+  base.use("/api/*", rateLimit<AppEnv>({ store: memoryStore(), trust: TRUST, max: 300 }))
   for (const path of SIGNED_IN) base.use(`${path}/*`, requireUser(s))
   const gate = requireUser(s)
   base.use("/api/orgs/*", (c, next) =>
@@ -103,6 +123,21 @@ export function createApp(deps: Deps) {
       }),
     )
     .onError(errorHandler({ isProduction }))
+
+  if (obs) {
+    // Ready means the database answers. Add a check per dependency you add.
+    app.route(
+      "/health",
+      healthRoutes({
+        checks: {
+          db: async () => {
+            deps.query("select 1", [])
+            return true
+          },
+        },
+      }),
+    )
+  }
 
   // mcp:begin
   // MCP: every route validated with zValidator is a tool at /mcp that runs

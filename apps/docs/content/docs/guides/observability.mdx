@@ -1,0 +1,200 @@
+---
+title: "Trace a Request Across Logs, Sentry and Spans"
+description: "One traceId links JSON logs, Sentry reports and OpenTelemetry spans, plus AI cost, health checks and what is never recorded."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-server @opentelemetry/api
+```
+`@opentelemetry/api` is an optional peer of Signet. Without an OpenTelemetry SDK registered, every span call is a no-op and logs and Sentry work as before. Signet adds no exporter. The steps below that read the active span in your own code, such as the logger mixin, import it yourself.
+</Step>
+<Step>
+### Logger with trace mixin
+```ts title="server/log.ts"
+import { trace } from "@opentelemetry/api"
+import { createLogger } from "@dapplelight/signet-server/observability/logger"
+
+export const log = createLogger({
+  level: "info",
+  base: { service: "api" },
+  mixin: () => ({ traceId: trace.getActiveSpan()?.spanContext().traceId }),
+})
+```
+`mixin` runs on every line, after `base` and before the call's own fields, and its fields are redacted like any other. With no active span, `traceId` is left out of the line.
+</Step>
+<Step>
+### traceMiddleware and requestLog
+```ts title="server/app.ts"
+import { Hono } from "hono"
+import type { Logger } from "@dapplelight/signet-server/observability/logger"
+import { requestId } from "@dapplelight/signet-server/middleware/request-id"
+import { requestLog } from "@dapplelight/signet-server/observability/request-log"
+import { traceMiddleware } from "@dapplelight/signet-server/observability/trace"
+import { log } from "./log"
+
+export const app = new Hono<{ Variables: { reqId: string; logger: Logger } }>()
+app.use("*", requestId({ childLogger: (id) => log.child({ reqId: id }) }))
+app.use("*", traceMiddleware({ serviceName: "api", skipPaths: ["/health/live", "/health/ready"] }))
+app.use("*", requestLog({ logger: log, skipPaths: ["/health/live", "/health/ready"], slowMs: 1000 }))
+```
+Mount them in this order: `requestLog` reads the request id and the trace id, so it goes after both. Each request opens one server span and writes two lines that share its `traceId`:
+```json
+{"level":"info","time":"2026-09-25T07:15:49.201Z","msg":"request.started","service":"api","method":"GET","route":"/orders/:id","reqId":"9f3c...","traceId":"4bf92f3577b34da6a3ce929d0e0e4736"}
+{"level":"info","time":"2026-09-25T07:15:49.230Z","msg":"request.completed","service":"api","method":"GET","route":"/orders/:id","reqId":"9f3c...","traceId":"4bf92f3577b34da6a3ce929d0e0e4736","status":200,"durationMs":29}
+```
+An incoming W3C `traceparent` header continues the caller's trace, so the same `traceId` runs across services. When tracing is off, the id still comes from a valid `traceparent` if one arrived.
+</Step>
+<Step>
+### Sentry with traceId
+```ts title="server/app.ts"
+import { createSentry } from "@dapplelight/signet-server/observability/sentry"
+import { traceContext } from "@dapplelight/signet-server/observability/trace"
+
+const sentryFor = (env: Env) =>
+  createSentry({ dsn: env.SENTRY_DSN, enabled: env.APP_ENV === "production", environment: env.APP_ENV })
+
+app.onError((err, c) => {
+  c.executionCtx.waitUntil(
+    sentryFor(c.env).captureException(err, { job: "sync" }, { traceId: traceContext(c).traceId }),
+  )
+  return c.json({ error: "Internal error" }, 500)
+})
+```
+The report carries the id as the `trace_id` tag. Search Sentry for that tag, grep the logs for the same value, and open the trace in your tracing backend by the same id. Pass the report to `waitUntil`: a Worker is frozen once the response is sent.
+</Step>
+<Step>
+### Tracing on Workers
+Signet adds no exporter. The runtime or the app brings one, and the two options below differ only in who does.
+
+#### With @microlabs/otel-cf-workers
+
+The app installs [@microlabs/otel-cf-workers on npm](https://www.npmjs.com/package/@microlabs/otel-cf-workers) and `@opentelemetry/api`. The package registers the tracer provider and exports spans over OTLP; `traceMiddleware` and `withSpan` use it through `@opentelemetry/api`. Enable the `nodejs_compat` flag in `wrangler.jsonc`.
+
+```ts title="worker.ts"
+import { instrument, type ResolveConfigFn } from "@microlabs/otel-cf-workers"
+import { Hono } from "hono"
+import { traceMiddleware, withSpan } from "@dapplelight/signet-server/observability/trace"
+
+const app = new Hono<{ Bindings: { OTLP_URL: string; OTLP_AUTH: string } }>()
+app.use("*", traceMiddleware({ serviceName: "api" }))
+app.get("/orders/:id", (c) =>
+  withSpan("orders.load", { "orders.source": "kv" }, async () => c.json({ id: c.req.param("id") })),
+)
+
+const config: ResolveConfigFn = (env: { OTLP_URL: string; OTLP_AUTH: string }) => ({
+  exporter: { url: env.OTLP_URL, headers: { authorization: env.OTLP_AUTH } },
+  service: { name: "api" },
+})
+
+export default instrument(app, config)
+```
+
+#### With Cloudflare native tracing
+
+Turn tracing on in `wrangler.jsonc`. Cloudflare records the Worker's own spans and sends them to the destination set in the dashboard. No package is needed.
+
+```json title="wrangler.jsonc"
+{
+  "observability": { "enabled": true, "traces": { "enabled": true } }
+}
+```
+
+Signet's spans join those traces only when the runtime exposes an OpenTelemetry tracer provider to `@opentelemetry/api`. Otherwise `traceMiddleware` stays a no-op. `requestLog` still writes the `traceId` from the incoming `traceparent` header, so log lines match the trace.
+</Step>
+<Step>
+### AI cost
+Wire usage to the active span and to the spend ledger with one `onUsage`. Build the tracker where env exists, in a request handler, not at module scope.
+
+```ts title="server/ai.ts"
+import { createExtractor } from "@dapplelight/signet-ai"
+import { onUsageAll, otelUsage, spendUsage } from "@dapplelight/signet-ai/otel"
+import { aiSpendCaps, aiSpendLedger, entitlementTables } from "@dapplelight/signet-db/columns/sqlite"
+import { createAiSpend, parseSpendKey } from "@dapplelight/signet-db/ai-spend"
+
+export const { usageCounters } = entitlementTables()
+export const spendCaps = aiSpendCaps()
+export const spendLedger = aiSpendLedger()
+
+export const aiFor = (db: Db, providers: Providers) => {
+  const spend = createAiSpend(db, {
+    tables: { usageCounters, aiSpendCaps: spendCaps, aiSpendLedger: spendLedger },
+  })
+  const ai = createExtractor({
+    providers,
+    onUsage: onUsageAll(otelUsage(), spendUsage({ spend, subject: (r) => parseSpendKey(r.key) })),
+  })
+  return { spend, ai }
+}
+```
+`otelUsage` puts token counts, cost and cache hit on the active span, so the cost sits on the same trace as the request. `spendUsage` records the cost per user and org. Each hook is isolated, so one that throws never stops the other. Do not also give the extractor a `ledger`: spend would count twice.
+
+The ledger keeps one row per UTC day, model, scope and subject. Subjects are stored as a hash, never as a raw id. `spendUsage` passes no model, so its rows show as `unknown` in the by-model view; pass `spend.onUsage` in its place when you need models and cache savings, and give each call a `key` made with `spendKey`.
+
+Then expose the ledger to the admin and draw it:
+
+```ts title="server/app.ts"
+import { observabilityAdminRoutes } from "@dapplelight/signet-server/http/observability"
+
+app.route("/api/admin/observability", observabilityAdminRoutes({
+  spend, // createAiSpend(db, { tables: { usageCounters, aiSpendCaps, aiSpendLedger } })
+  authorize: (c) => c.get("session")?.role === "admin",
+}))
+```
+```tsx title="src/admin/cost.tsx"
+import { CostDashboard } from "@dapplelight/signet-ui/screens/cost-dashboard"
+
+const get = (path: string, days: number) =>
+  fetch(`/api/admin/observability/cost/${path}?days=${days}`).then((r) => r.json())
+
+export const Cost = () => (
+  <CostDashboard
+    fetcher={async (days) => {
+      const [s, m, t, caps] = await Promise.all([
+        get("series", days), get("by-model", days), get("top", days), fetch("/api/admin/ai-caps").then((r) => r.json()),
+      ])
+      return { series: s.series, models: m.models, top: t.top, caps }
+    }}
+  />
+)
+```
+The dashboard needs the optional peer `recharts`. It shows one state at a time:
+
+- "Loading costs" while the fetch runs.
+- "No spend in this range" when the ledger has nothing for the range.
+- "Couldn't load costs." with a Retry button when the fetch fails.
+</Step>
+<Step>
+### Health
+```ts title="server/app.ts"
+import { healthRoutes } from "@dapplelight/signet-server/observability/health"
+
+app.route("/health", healthRoutes({ checks: { db: () => pingDb(), kv: () => pingKv() } }))
+```
+`GET /health/live` always answers 200. `GET /health/ready` runs every check at once and answers 503 if any fails, with only true or false per check in the body.
+
+Pass `/health/live` and `/health/ready` to `skipPaths` in `traceMiddleware` and `requestLog` so probes stay out of spans and logs.
+</Step>
+</Steps>
+
+## What is never recorded
+
+- Prompts.
+- Completions.
+- Raw user and org ids. The ledger and the admin routes carry a hash only.
+- Request bodies.
+- Cookies and auth headers.
+- Error text in `/ready`.
+
+Spans and request lines carry the method, the route pattern and the status, never the raw path, query string or headers. Context you add yourself through `attributes`, `mixin` or the Sentry `context` is yours to keep clean: nothing in `attributes` is scrubbed.
+
+## Next
+<Cards>
+  <Card title="Observability" href="/docs/packages/server/observability" description="Every option for the logger, spans, request log, Sentry and health routes." />
+  <Card title="Usage to spans and spend" href="/docs/packages/ai/otel" description="The attributes otelUsage sets and how spendUsage records cost." />
+  <Card title="AI Spend" href="/docs/packages/db/ai-spend" description="Caps and the dated spend ledger behind the cost routes." />
+  <Card title="Screens" href="/docs/packages/ui/screens" description="CostDashboard and the other ready-made admin screens." />
+  <Card title="Add Structured Logging and Sentry" href="/docs/guides/add-logging" description="The logger and Sentry on their own, without tracing." />
+</Cards>
