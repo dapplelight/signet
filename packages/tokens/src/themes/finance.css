@@ -1,9 +1,9 @@
 /*
  * @dapplelight/signet-tokens — "Finance" overlay
  *
- * Editorial plus a spend-category taxonomy. These categories are product
- * vocabulary rather than a design system, so they live in an overlay instead of
- * a base theme every other product would inherit them from.
+ * Editorial plus the optional money slots (CONTRACT.md) for credit, debit and
+ * transfer amounts. Product category colours (budget buckets and the like) are
+ * business vocabulary: an app defines them in its own CSS, never here.
  *
  * Usage:
  *   @import "tailwindcss";
@@ -15,12 +15,6 @@
 
 @layer base {
   :root {
-    --cat-needs: #2563eb;
-    --cat-wants: #d97706;
-    --cat-investments: #16a34a;
-    --cat-income: #16a34a;
-    --cat-transfer: #7a736a;
-
     /* Optional money slots (CONTRACT.md). Debit stays ink, not red: spending
        is the normal case, and painting every row red is alarm fatigue. */
     --money-credit: var(--accent-green);
@@ -30,12 +24,6 @@
 
   .dark,
   [data-theme="ui"] {
-    --cat-needs: #60a5fa;
-    --cat-wants: #f59e0b;
-    --cat-investments: #34d399;
-    --cat-income: #34d399;
-    --cat-transfer: #6b6560;
-
     /* Money slots, repeated so they re-resolve under .dark. */
     --money-credit: var(--accent-green);
     --money-debit: var(--text-primary);
@@ -44,12 +32,6 @@
 }
 
 @theme inline {
-  --color-cat-needs: var(--cat-needs);
-  --color-cat-wants: var(--cat-wants);
-  --color-cat-investments: var(--cat-investments);
-  --color-cat-income: var(--cat-income);
-  --color-cat-transfer: var(--cat-transfer);
-
   --color-money-credit: var(--money-credit);
   --color-money-debit: var(--money-debit);
   --color-money-transfer: var(--money-transfer);

@@ -162,7 +162,7 @@ const DEPS = {
   // app installs from npm and works anywhere. Inside this monorepo bun still
   // links the local copies, because the range matches the workspace version.
   "@dapplelight/signet-lib": "^0.4.0",
-  "@dapplelight/signet-tokens": "^0.3.0",
+  "@dapplelight/signet-tokens": "^0.4.0",
   "@dapplelight/signet-ui": "^0.3.0",
   "@tanstack/react-query": "^5.103.2",
   "@tanstack/react-router": "^1.170.39",
@@ -227,7 +227,7 @@ const CLI_PKG = {
   },
   dependencies: {
     "@dapplelight/signet-lib": "^0.4.0",
-    "@dapplelight/signet-tokens": "^0.3.0",
+    "@dapplelight/signet-tokens": "^0.4.0",
   },
   devDependencies: API_DEV_DEPS,
 }
