@@ -30,11 +30,12 @@
     "src",
     "template",
     "template-api",
-    "template-full"
+    "template-full",
+    "template-cli"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "bun run test/scaffold.ts && bun run test/scaffold-api.ts && bun run test/scaffold-full.ts"
+    "test": "bun run test/scaffold.ts && bun run test/scaffold-api.ts && bun run test/scaffold-full.ts && bun run test/scaffold-cli.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",

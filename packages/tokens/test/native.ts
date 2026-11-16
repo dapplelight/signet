@@ -83,6 +83,14 @@ ok("nearest256 white", nearest256("#ffffff") === 231)
 ok("nearest256 mid grey uses the ramp", nearest256("#808080") === 244)
 ok("ansiCode truecolor bg", ansiCode("#0a0b0c", "bg") === "\x1b[48;2;10;11;12m")
 ok("RESET", RESET === "\x1b[0m")
+ok(
+  "RN useColorScheme values: dark is dark, null/unspecified/undefined are light",
+  nativeTheme("editorial", "dark").colors.background === NATIVE_THEMES.editorial.dark.background &&
+    ([null, "unspecified", undefined] as const).every(
+      (v) =>
+        nativeTheme("editorial", v).colors.background === NATIVE_THEMES.editorial.light.background,
+    ),
+)
 let threw = false
 try {
   nativeTheme("nope" as ThemeName)
