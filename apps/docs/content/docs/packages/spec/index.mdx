@@ -1,6 +1,6 @@
 ---
 title: "Spec"
-description: "The wire contract as Zod: the error envelope and every error code with its HTTP status, plus versioned JSON Schema files."
+description: "The wire contract as Zod: the error envelope, error codes, analytics ingest and webhook delivery, plus versioned JSON Schema files."
 ---
 
 ```bash
@@ -29,10 +29,14 @@ The Zod schemas in `src/error.ts` are the source of truth. The JSON files are ge
 | --- | --- |
 | [error-envelope.schema.json](/spec/v1/error-envelope.schema.json) | JSON Schema 2020-12 for the body of every failed response. |
 | [error-codes.json](/spec/v1/error-codes.json) | Every error code and its default HTTP status. |
+| [analytics-ingest-request.schema.json](/spec/v1/analytics-ingest-request.schema.json) | Body of POST to the analytics ingest route. |
+| [analytics-ingest-response.schema.json](/spec/v1/analytics-ingest-response.schema.json) | Body of its 202 reply. |
+| [tracked-event.schema.json](/spec/v1/tracked-event.schema.json) | One stored analytics event. |
+| [webhook-delivery.schema.json](/spec/v1/webhook-delivery.schema.json) | Webhook body, signed headers and outbox message. |
 
 Files under /spec/v1/ never change shape. A breaking change ships as v2 alongside.
 
-Both files carry `"specVersion": "v1"`. The same files ship in the package under `@dapplelight/signet-spec/schemas/`.
+Every file carries `"specVersion": "v1"`. The same files ship in the package under `@dapplelight/signet-spec/schemas/`.
 
 ## Error codes
 
@@ -99,5 +103,7 @@ Every code in `ERROR_CODES` from `@dapplelight/signet-lib/api`, in the same orde
 
 <Cards>
   <Card title="Error" href="/docs/packages/spec/error" description="Envelope schema, error-code table and their types." />
+  <Card title="Analytics" href="/docs/packages/spec/analytics" description="Ingest request and reply, and the stored event." />
+  <Card title="Webhooks" href="/docs/packages/spec/webhooks" description="Delivery body, signed headers and outbox message." />
   <Card title="Schemas" href="/docs/packages/spec/schemas" description="The generated JSON files, as package exports." />
 </Cards>

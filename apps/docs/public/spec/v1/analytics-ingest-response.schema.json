@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://signet.dapplelight.in/spec/v1/analytics-ingest-response.schema.json",
+  "specVersion": "v1",
+  "title": "Signet analytics ingest response (202)",
+  "type": "object",
+  "properties": {
+    "success": {
+      "type": "boolean",
+      "const": true
+    },
+    "written": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991,
+      "description": "How many events the sink accepted."
+    }
+  },
+  "required": [
+    "success",
+    "written"
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://signet.dapplelight.in/spec/v1/analytics-ingest-request.schema.json",
+  "specVersion": "v1",
+  "title": "Signet analytics ingest request",
+  "type": "object",
+  "properties": {
+    "events": {
+      "maxItems": 50,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "ts": {
+            "description": "Unix milliseconds. The server stamps now when absent.",
+            "type": "number"
+          },
+          "anonymousId": {
+            "description": "Random per-browser id.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.:-]{1,64}$"
+          },
+          "sessionId": {
+            "description": "Random per-visit id.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.:-]{1,64}$"
+          },
+          "userId": {
+            "description": "The signed-in user. The server drops a client-sent value unless told to trust it.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.:-]{1,64}$"
+          },
+          "props": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": [
+                "string",
+                "number",
+                "boolean",
+                "null"
+              ]
+            },
+            "maxProperties": 20
+          }
+        },
+        "required": [
+          "name"
+        ]
+      }
+    }
+  },
+  "required": [
+    "events"
+  ]
+}

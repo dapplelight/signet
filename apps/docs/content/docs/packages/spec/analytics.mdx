@@ -1,0 +1,32 @@
+---
+title: "Analytics"
+description: "Ingest request and reply, and the stored event."
+---
+
+## Usage
+
+```ts
+import { analyticsIngestRequestSchema } from "@dapplelight/signet-spec/analytics"
+
+const body = { events: [{ name: "page_view", anonymousId: "a-1", props: { plan: "pro" } }] }
+const parsed = analyticsIngestRequestSchema.safeParse(body)
+if (!parsed.success) console.log(parsed.error.issues)
+```
+
+Up to 50 events, names up to 64 characters, up to 20 props, ids match `^[A-Za-z0-9_.:-]{1,64}$`. A bad body gets 400 with code INVALID_PAYLOAD.
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `analyticsIngestRequestSchema` | Zod schema for the body of the ingest POST |
+| `analyticsIngestResponseSchema` | The 202 reply, `{ success: true, written }` |
+| `analyticsIngestErrorSchema` | The 400 reply: the error envelope with code INVALID_PAYLOAD |
+| `trackedEventSchema` | One event: name, optional ts, ids and props |
+| `AnalyticsIngestRequest` | `z.infer` of the request schema |
+| `AnalyticsIngestResponse` | `z.infer` of the 202 schema |
+| `AnalyticsIngestError` | `z.infer` of the 400 schema |
+| `TrackedEvent` | `z.infer` of the event schema |
+| `MAX_EVENTS` | 50, events per request |
+| `MAX_PROPS` | 20, props per event |
+| `MAX_NAME_LENGTH` | 64, characters in an event name |

@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://signet.dapplelight.in/spec/v1/webhook-delivery.schema.json",
+  "specVersion": "v1",
+  "title": "Signet webhook delivery",
+  "type": "object",
+  "properties": {
+    "headers": {
+      "type": "object",
+      "properties": {
+        "webhook-id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The event id; the same on every retry, so receivers dedupe on it."
+        },
+        "webhook-timestamp": {
+          "type": "string",
+          "pattern": "^\\d+$",
+          "description": "Unix seconds when this attempt was signed."
+        },
+        "webhook-signature": {
+          "type": "string",
+          "pattern": "^v1,[A-Za-z0-9+/]+={0,2}( v1,[A-Za-z0-9+/]+={0,2})*$",
+          "description": "One or more space-separated v1,<base64 HMAC-SHA256> values; several while a secret rotates."
+        }
+      },
+      "required": [
+        "webhook-id",
+        "webhook-timestamp",
+        "webhook-signature"
+      ]
+    },
+    "body": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The event type, e.g. order.created."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the event was emitted, ISO 8601."
+        },
+        "data": {
+          "description": "The event's payload."
+        }
+      },
+      "required": [
+        "type",
+        "timestamp"
+      ]
+    },
+    "outbox": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "topic": {
+          "type": "string",
+          "const": "signet.webhook"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "deliveryId": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "deliveryId"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "topic",
+        "payload"
+      ]
+    }
+  },
+  "required": [
+    "headers",
+    "body",
+    "outbox"
+  ]
+}
