@@ -137,6 +137,143 @@ export function chromeStorage(area?: ChromeStorageAreaLike): StorageAdapter {
   }
 }
 
+type IdbRequestLike<T> = {
+  result: T
+  error: unknown
+  onsuccess: (() => void) | null
+  onerror: (() => void) | null
+}
+type IdbStoreLike = {
+  get(k: string): IdbRequestLike<unknown>
+  put(v: string, k: string): IdbRequestLike<unknown>
+  delete(k: string): IdbRequestLike<unknown>
+}
+type IdbLike = {
+  open(
+    name: string,
+    version?: number,
+  ): IdbRequestLike<IdbDbLike> & {
+    onupgradeneeded: (() => void) | null
+    onblocked: (() => void) | null
+  }
+}
+type IdbDbLike = {
+  version: number
+  close(): void
+  onversionchange: (() => void) | null
+  objectStoreNames: { contains(n: string): boolean }
+  createObjectStore(n: string): unknown
+  transaction(
+    store: string,
+    mode: "readonly" | "readwrite",
+  ): {
+    objectStore(n: string): IdbStoreLike
+    error: unknown
+    oncomplete: (() => void) | null
+    onabort: (() => void) | null
+    onerror: (() => void) | null
+  }
+}
+
+/**
+ * IndexedDB: larger than localStorage, and reachable from a service worker,
+ * which localStorage is not. One object store of string values, opened on
+ * first use; a store missing from an existing database is added. Writes resolve
+ * once the transaction commits, so a full disk rejects instead of losing the
+ * value. Pass `indexedDB` explicitly where it is not a global.
+ */
+export function indexedDbStorage(
+  options: { db?: string; store?: string; indexedDB?: unknown } = {},
+): StorageAdapter {
+  const { db: name = "signet", store = "kv" } = options
+  let opened: Promise<IdbDbLike> | null = null
+  // Rejecting does not cancel a blocked open: the browser keeps it queued and runs every
+  // later open of this database behind it. Until it settles, fail fast instead of hanging.
+  let blockedError: Error | null = null
+  const open = () => {
+    if (opened) return opened
+    if (blockedError) return Promise.reject(blockedError)
+    const attempt = (async () => {
+      const idb = (options.indexedDB ?? (globalThis as { indexedDB?: unknown }).indexedDB) as
+        | IdbLike
+        | undefined
+      if (!idb) throw new Error("indexedDbStorage: no indexedDB here")
+      const at = (version?: number) =>
+        new Promise<IdbDbLike>((resolve, reject) => {
+          const req = idb.open(name, version)
+          let blocked = false
+          req.onupgradeneeded = () => {
+            if (!req.result.objectStoreNames.contains(store)) req.result.createObjectStore(store)
+          }
+          req.onsuccess = () => {
+            // We already gave up on this open: do not leave its connection behind.
+            if (blocked) {
+              blockedError = null
+              req.result.close()
+            } else resolve(req.result)
+          }
+          req.onerror = () => {
+            if (blocked) blockedError = null
+            reject(req.error)
+          }
+          // Another connection to this database stays open through our upgrade
+          // (it ignores versionchange), so the open would wait on it forever.
+          req.onblocked = () => {
+            blocked = true
+            blockedError = new Error(
+              `indexedDbStorage: another connection to "${name}" is blocking the upgrade; close it on versionchange`,
+            )
+            reject(blockedError)
+          }
+        })
+      let db = await at()
+      // The database exists without our store (another store made it): bump the
+      // version to add it. A loop, as another context may bump at the same time.
+      while (!db.objectStoreNames.contains(store)) {
+        const next = db.version + 1
+        db.close()
+        db = await at(next)
+      }
+      // Let another context upgrade the database; we reopen on the next call.
+      db.onversionchange = () => {
+        db.close()
+        opened = null
+      }
+      return db
+    })()
+    opened = attempt
+    // A failed open is not kept, so a later call retries.
+    attempt.catch(() => {
+      if (opened === attempt) opened = null
+    })
+    return attempt
+  }
+  const run = async <T>(
+    mode: "readonly" | "readwrite",
+    op: (s: IdbStoreLike) => IdbRequestLike<T>,
+  ) => {
+    const tx = (await open()).transaction(store, mode)
+    const req = op(tx.objectStore(store))
+    // Wait for the commit, not the request: a full disk aborts the transaction after the request succeeded.
+    return new Promise<T>((resolve, reject) => {
+      tx.oncomplete = () => resolve(req.result)
+      tx.onabort = tx.onerror = () => reject(tx.error ?? req.error)
+    })
+  }
+  return {
+    async get(key) {
+      const v = await run("readonly", (s) => s.get(key))
+      return typeof v === "string" ? v : null
+    },
+    async set(key, value) {
+      await run("readwrite", (s) => s.put(value, key))
+    },
+    async remove(key) {
+      await run("readwrite", (s) => s.delete(key))
+    },
+  }
+}
+
 /** `Store` / `LazyStore` from `@tauri-apps/plugin-store` v2, typed by shape. */
 export type TauriStoreLike = {
   get(key: string): Promise<unknown>

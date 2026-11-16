@@ -23,7 +23,7 @@ import ReactMarkdown, { type Components, defaultUrlTransform } from "react-markd
 import remarkGfm from "remark-gfm"
 import remarkParse from "remark-parse"
 import { unified } from "unified"
-
+import { useLabels } from "../../lib/labels.js"
 import { cn } from "../../lib/utils.js"
 
 export type TocEntry = { id: string; text: string; depth: number }
@@ -115,6 +115,7 @@ const hastText = (n: HastLike | undefined): string =>
 function heading(depth: 1 | 2 | 3 | 4 | 5 | 6, anchors: boolean): Components["h1"] {
   const Tag = `h${depth}` as const
   return function MarkdownHeading({ node, id, children, ...rest }) {
+    const l = useLabels()
     const h = (
       <Tag id={id} className={cn("scroll-mt-20 text-text-primary", H_CLASS[depth])} {...rest}>
         {children}
@@ -129,7 +130,7 @@ function heading(depth: 1 | 2 | 3 | 4 | 5 | 6, anchors: boolean): Components["h1
         <a
           href={`#${id}`}
           data-slot="markdown-anchor"
-          aria-label={`Link to ${hastText(node as HastLike).trim() || "this section"}`}
+          aria-label={l.linkToSection(hastText(node as HastLike).trim())}
           className="text-text-muted no-underline opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
         >
           #

@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useLabels } from "../../lib/labels.js"
 import { cn } from "../../lib/utils.js"
 import { Popover, PopoverContent, PopoverTrigger } from "./popover.js"
 
@@ -62,6 +63,7 @@ function EmojiPicker({
   label = "Choose an emoji",
   className,
 }: EmojiPickerProps) {
+  const l = useLabels()
   const [open, setOpen] = useState(false)
   const [other, setOther] = useState("")
   const pick = (e: string) => {
@@ -106,10 +108,10 @@ function EmojiPicker({
           }}
         >
           <input
-            aria-label="Other emoji"
+            aria-label={l.otherEmoji}
             value={other}
             onChange={(ev) => setOther(ev.target.value)}
-            placeholder="Other…"
+            placeholder={l.otherEmojiPlaceholder}
             maxLength={8}
             className="h-9 min-w-0 flex-1 rounded-md border border-border-default bg-bg-surface px-2 text-sm text-text-primary"
           />

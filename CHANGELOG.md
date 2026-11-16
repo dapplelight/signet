@@ -5,6 +5,26 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### create-signet-app: PWA update applies only when every tab is hidden
+
+Activating a new service worker reloads every open tab, so a background tab applying the update reloaded the one in use. A hidden tab now asks the worker, which applies the update only when no window of the app is visible; the last tab to go to the background applies it.
+
+### ui: LabelsProvider, so apps can translate the words components say by themselves
+
+Text that Signet's components show without being passed it ("Close", "Something went wrong", "Search…", table headers, aria labels…) now comes from `useLabels()`, English by default. Wrap the app once to swap them with any i18n library:
+
+```tsx
+<LabelsProvider labels={{ close: t("close"), somethingWentWrong: t("error.title") }}>
+```
+
+Unset keys stay English, nested providers merge, and a component prop for the same text (for example `DataTable`'s `emptyMessage`) still wins. Nothing changes for apps that don't use it. Exports: `LabelsProvider`, `useLabels`, `defaultLabels`, `Labels`.
+
+### lib: offline outbox, sync conflict rules, IndexedDB storage
+
+- `@dapplelight/signet-lib/offline`: `createOutbox<T>({ storage })` saves work done offline and `flush(send)` sends it on reconnect, keeping failures. Runs on any `StorageAdapter`. Where `navigator.locks` exists, tabs and the service worker sharing a key take turns, so an item is sent once per flush; `send` should still be safe to repeat for the same `id`.
+- `@dapplelight/signet-lib/sync`: hybrid logical clock (`tick`, `receive`, `compareHlc`) and `apply(row, change, { guarded })`: per-field last-write-wins, guarded fields (amounts, dates) keep every edit on the row and `conflictOf(row, field)` gives the same open `Conflict` (`shown` plus `others`) in any arrival order. A person's pick is a `set` with `resolve` listing the values they saw (an older edit they never saw stays in the conflict). Retries, however late, change nothing. Edit-after-delete is flagged (`deletedButEdited`). Tested over 2000 random two-device sessions and every order of three.
+- `indexedDbStorage()` in `/storage`: larger than localStorage and reachable from a service worker. Adds its store to an existing database (if another open connection blocks that upgrade it rejects with a clear error rather than hanging, and the next call retries), and writes resolve only once the transaction commits (a full disk rejects). No new dependency.
+
 ### create-signet-app: web template is an installable PWA
 
 The web template now builds a service worker with `vite-plugin-pwa` (injectManifest) and Workbox, added as template dev dependencies only:

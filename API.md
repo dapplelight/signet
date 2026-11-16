@@ -81,10 +81,12 @@ Signet client primitives. API client, the wire contract, and search.
 | `@dapplelight/signet-lib/crypto` | decryptFields, DecryptFieldsOptions, DecryptFieldsResult | Fail-closed field decryption for apps that encrypt user data on the client (app-a's private mode) |
 | `@dapplelight/signet-lib/form` | errorMessages, firstError, applyServerErrors, clearServerErrors, submitWithServerErrors, FieldError, … | TanStack Form integration |
 | `@dapplelight/signet-lib/format` | createCurrencyFormatter, createCompactCurrencyFormatter, formatPercent, createDateFormatter, createDateShortFormatter, createDateTimeFormatter, … | Currency, number and date formatting, plus date arithmetic (./date.ts) |
+| `@dapplelight/signet-lib/offline` | createOutbox, OutboxOptions, Outbox | An outbox for work done offline: `add` saves an item, `flush` sends each one and drops it once sent, keeping failures for the next try |
 | `@dapplelight/signet-lib/search` | source, createSearch, Query, Source, Hit, Section, … | re-exports engine, readers, text, usage |
 | `@dapplelight/signet-lib/session` | createSession, fromTokenResponse, tokenEndpointRefresh, SessionTokens, CreateSessionOptions, Session | Bearer tokens for clients without cookies (an extension, a desktop app, a CLI, React Native), kept in any `StorageAdapter` and handed to the api clien |
-| `@dapplelight/signet-lib/storage` | memoryStorage, webStorage, chromeStorage, tauriStorage, StorageAdapter, ChromeStorageAreaLike, … | A small async key-value interface for strings, with an adapter per surface: the web (localStorage), a Chrome MV3 extension (chrome.storage.local), a T |
+| `@dapplelight/signet-lib/storage` | memoryStorage, webStorage, chromeStorage, indexedDbStorage, tauriStorage, StorageAdapter, … | A small async key-value interface for strings, with an adapter per surface: the web (localStorage), a Chrome MV3 extension (chrome.storage.local), a T |
 | `@dapplelight/signet-lib/storage/file` | fileStorage | A JSON file as a `StorageAdapter`, for Node and Bun CLIs |
+| `@dapplelight/signet-lib/sync` | compareHlc, tick, receive, deletedButEdited, conflictOf, apply, … | Conflict rules for local-first sync: devices edit offline, the server (and any device previewing the result) applies their changes in whatever order t |
 | `@dapplelight/signet-lib/webhooks` | generateWebhookSecret, signWebhook, verifyWebhook, VerifyWebhookOptions | Standard Webhooks signatures (https://www.standardwebhooks.com), Web Crypto only, so the same code signs on a Worker and verifies in any receiver |
 
 ## @dapplelight/signet-mcp
