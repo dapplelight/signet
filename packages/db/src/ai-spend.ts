@@ -17,12 +17,17 @@
  * the `caps` passed here. A user or org with its own row uses it; otherwise
  * the `*` row for that scope; otherwise the option; otherwise no cap.
  *
+ * Pass `aiSpendLedger()` as `tables.aiSpendLedger` to also keep a dated ledger
+ * (per UTC day, model and scope) for `series`, `byModel` and `topSpenders`.
+ * User and org ids are stored only as `hashSubject(id)` (SHA-256 by default),
+ * never raw. Rows older than `retentionDays` (default 400) are pruned.
+ *
  * Fails closed like signet-ai's ledger: a database error refuses the call.
  * Calls in flight are not reserved, so concurrent calls can overshoot a cap by
  * their own cost.
  */
 
-import { and, eq, getTableColumns, inArray, like, sql, type Table } from "drizzle-orm"
+import { and, eq, getTableColumns, gte, inArray, like, lt, sql, type Table } from "drizzle-orm"
 import type { SignetDb } from "./db.js"
 import { periodOf } from "./entitlements.js"
 import { SignetDbError } from "./errors.js"
@@ -99,7 +104,12 @@ export type SpendCapRow = {
 }
 
 export type AiSpendOptions = {
-  tables: { usageCounters: Table; aiSpendCaps: Table }
+  /** `aiSpendLedger` is optional: without it nothing is dated and `series` and `byModel` throw. */
+  tables: { usageCounters: Table; aiSpendCaps: Table; aiSpendLedger?: Table }
+  /** Turns a user or org id into what the ledger stores. Default: SHA-256 hex. May be async (e.g. an HMAC with a secret). */
+  hashSubject?: (id: string) => string | Promise<string>
+  /** Days of ledger kept. Default 400. */
+  retentionDays?: number
   /** Caps used when no row in `aiSpendCaps` applies. Default: none. */
   caps?: SpendCaps
   now?: () => Date
@@ -114,6 +124,21 @@ export function periodEnd(period: SpendPeriod, at: Date): Date {
     : new Date(Date.UTC(y, m + 1, 1))
 }
 
+/** What `record` knows about a call beyond its cost. */
+export type SpendDetail = { model?: string; cacheSavedUnits?: number }
+export type LedgerQuery = { scope?: SpendScope; subject?: string; days: number }
+export type LedgerDay = { day: string; units: number; calls: number; cacheSavedUnits: number }
+export type LedgerModel = { model: string; units: number; calls: number; cacheSavedUnits: number }
+export type LedgerSubject = { subject: string; units: number; calls: number }
+
+export const DEFAULT_RETENTION_DAYS = 400
+const DAY_MS = 86_400_000
+
+const sha256Hex = async (s: string): Promise<string> => {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s))
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("")
+}
+
 const counterOf = (scope: SpendScope, id: string) =>
   scope === "global" ? "global" : `${scope}:${id}`
 
@@ -124,6 +149,10 @@ export function createAiSpend(db: SignetDb<unknown>, options: AiSpendOptions) {
   const uc = getTableColumns(U) as Cols
   const cc = getTableColumns(C) as Cols
   const now = options.now ?? (() => new Date())
+  const L = options.tables.aiSpendLedger
+  const lc = (L ? getTableColumns(L) : {}) as Cols
+  const hash = options.hashSubject ?? sha256Hex
+  const retentionDays = Math.max(1, Math.floor(options.retentionDays ?? DEFAULT_RETENTION_DAYS))
 
   const targets = (s: SpendSubject): Array<[SpendScope, string]> => [
     ["global", "*"],
@@ -200,25 +229,175 @@ export function createAiSpend(db: SignetDb<unknown>, options: AiSpendOptions) {
     return { ok: true }
   }
 
-  /** Add spend to the subject's user, org and global counters for this day and month. */
-  async function record(subject: SpendSubject, units: number, at = now()): Promise<void> {
-    if (!Number.isFinite(units) || units <= 0) return
-    const n = Math.ceil(units)
-    const rows = targets(subject).flatMap(([scope, id]) =>
-      PERIODS.map((p) => ({
-        subject: counterOf(scope, id),
-        key: SPEND_KEY,
-        period: periodOf(p, at),
-        used: n,
+  /** Delete ledger rows older than `retentionDays`; returns how many. */
+  async function prune(at = now()): Promise<number> {
+    if (!L) return 0
+    const cutoff = periodOf("day", new Date(at.getTime() - (retentionDays - 1) * DAY_MS))
+    const rows = await o.delete(L).where(lt(lc.day, cutoff)).returning({ day: lc.day })
+    return rows.length
+  }
+  let prunedOn = ""
+
+  /**
+   * Add spend to the subject's user, org and global counters for this day and
+   * month, and to the dated ledger when there is one. A cache hit costs 0, but
+   * `detail.cacheSavedUnits` still lands in the ledger.
+   */
+  async function record(
+    subject: SpendSubject,
+    units: number,
+    at = now(),
+    detail: SpendDetail = {},
+  ): Promise<void> {
+    const n = Number.isFinite(units) && units > 0 ? Math.ceil(units) : 0
+    const s = detail.cacheSavedUnits
+    const saved = s !== undefined && Number.isFinite(s) && s > 0 ? Math.ceil(s) : 0
+    if (n > 0) {
+      const rows = targets(subject).flatMap(([scope, id]) =>
+        PERIODS.map((p) => ({
+          subject: counterOf(scope, id),
+          key: SPEND_KEY,
+          period: periodOf(p, at),
+          used: n,
+        })),
+      )
+      await o
+        .insert(U)
+        .values(rows)
+        .onConflictDoUpdate({
+          target: [uc.subject, uc.key, uc.period],
+          set: { used: sql`${uc.used} + ${n}` },
+        })
+    }
+    if (!L || (n === 0 && saved === 0)) return
+    const day = periodOf("day", at)
+    const model = detail.model || "unknown"
+    const rows = await Promise.all(
+      targets(subject).map(async ([scope, id]) => ({
+        day,
+        model,
+        scope,
+        subject: scope === "global" ? "*" : await hash(id),
+        units: n,
+        calls: 1,
+        cacheSavedUnits: saved,
       })),
     )
     await o
-      .insert(U)
+      .insert(L)
       .values(rows)
       .onConflictDoUpdate({
-        target: [uc.subject, uc.key, uc.period],
-        set: { used: sql`${uc.used} + ${n}` },
+        target: [lc.day, lc.model, lc.scope, lc.subject],
+        set: {
+          units: sql`${lc.units} + ${n}`,
+          calls: sql`${lc.calls} + 1`,
+          cacheSavedUnits: sql`${lc.cacheSavedUnits} + ${saved}`,
+        },
       })
+    // Once per UTC day per instance; a failed prune must not fail the record.
+    if (prunedOn !== day) {
+      prunedOn = day
+      await prune(at).catch(() => {})
+    }
+  }
+
+  /** The first UTC day of the last `days` days, today included. */
+  const since = (q: { days: number }, at: Date) => {
+    if (!Number.isSafeInteger(q.days) || q.days < 1 || q.days > retentionDays)
+      throw new SignetDbError("BAD_VALUE", `days is a whole number from 1 to ${retentionDays}.`)
+    return periodOf("day", new Date(at.getTime() - (q.days - 1) * DAY_MS))
+  }
+  const ledgerTable = (): Table => {
+    if (!L) throw new Error("Pass aiSpendLedger in tables to use the ledger.") // setup mistake, not bad input
+    return L
+  }
+
+  /**
+   * Spend per UTC day over the last `days` days, oldest first; days with no
+   * spend are left out. No `scope` is the global total. A `subject` (a raw id,
+   * hashed here) needs scope user or org.
+   */
+  async function series(q: LedgerQuery, at = now()): Promise<LedgerDay[]> {
+    const T = ledgerTable()
+    const from = since(q, at)
+    if (q.scope !== undefined && !SCOPES.has(q.scope))
+      throw new SignetDbError("BAD_VALUE", "scope is user, org or global.")
+    if (q.subject !== undefined && (q.scope === undefined || q.scope === "global"))
+      throw new SignetDbError("BAD_VALUE", "subject needs a scope of user or org.")
+    const rows: Cols[] = await o
+      .select({
+        day: lc.day,
+        units: sql`sum(${lc.units})`,
+        calls: sql`sum(${lc.calls})`,
+        cacheSavedUnits: sql`sum(${lc.cacheSavedUnits})`,
+      })
+      .from(T)
+      .where(
+        and(
+          gte(lc.day, from),
+          eq(lc.scope, q.scope ?? "global"),
+          q.subject === undefined ? undefined : eq(lc.subject, await hash(q.subject)),
+        ),
+      )
+      .groupBy(lc.day)
+      .orderBy(lc.day)
+    return rows.map((r) => ({
+      day: String(r.day),
+      units: Number(r.units),
+      calls: Number(r.calls),
+      cacheSavedUnits: Number(r.cacheSavedUnits),
+    }))
+  }
+
+  /** Spend per model over the last `days` days, biggest first. */
+  async function byModel(q: { days: number }, at = now()): Promise<LedgerModel[]> {
+    const T = ledgerTable()
+    const from = since(q, at)
+    const rows: Cols[] = await o
+      .select({
+        model: lc.model,
+        units: sql`sum(${lc.units})`,
+        calls: sql`sum(${lc.calls})`,
+        cacheSavedUnits: sql`sum(${lc.cacheSavedUnits})`,
+      })
+      .from(T)
+      .where(and(gte(lc.day, from), eq(lc.scope, "global")))
+      .groupBy(lc.model)
+      .orderBy(sql`sum(${lc.units}) desc`, lc.model)
+    return rows.map((r) => ({
+      model: String(r.model),
+      units: Number(r.units),
+      calls: Number(r.calls),
+      cacheSavedUnits: Number(r.cacheSavedUnits),
+    }))
+  }
+
+  /** The biggest spenders of a scope over the last `days` days, by subject hash, most first. */
+  async function topSpenders(
+    q: { scope?: "user" | "org"; days: number; limit?: number },
+    at = now(),
+  ): Promise<LedgerSubject[]> {
+    const T = ledgerTable()
+    const from = since(q, at)
+    const scope = q.scope ?? "user"
+    if (scope !== "user" && scope !== "org")
+      throw new SignetDbError("BAD_VALUE", "scope is user or org.")
+    const rows: Cols[] = await o
+      .select({
+        subject: lc.subject,
+        units: sql`sum(${lc.units})`,
+        calls: sql`sum(${lc.calls})`,
+      })
+      .from(T)
+      .where(and(gte(lc.day, from), eq(lc.scope, scope)))
+      .groupBy(lc.subject)
+      .orderBy(sql`sum(${lc.units}) desc`, lc.subject)
+      .limit(Math.min(Math.max(1, Math.floor(q.limit ?? 20)), 200))
+    return rows.map((r) => ({
+      subject: String(r.subject),
+      units: Number(r.units),
+      calls: Number(r.calls),
+    }))
   }
 
   /** Spend and caps for one user, one org, or global (`id` "*"), this day and month. */
@@ -360,10 +539,33 @@ export function createAiSpend(db: SignetDb<unknown>, options: AiSpendOptions) {
    * `check` (or `requireAiSpend` in signet-server). Do not also pass it to an
    * extractor that has `ledger`, or spend counts twice.
    */
-  const onUsage = (report: { costUsd: number; key?: string }): Promise<void> =>
-    record(parseSpendKey(report.key), usdToUnits(report.costUsd)).catch(() => {})
+  const onUsage = (report: {
+    costUsd: number
+    key?: string
+    model?: string
+    /** On a cache hit, what the original call cost. */
+    savedUsd?: number
+  }): Promise<void> =>
+    record(parseSpendKey(report.key), usdToUnits(report.costUsd), now(), {
+      ...(report.model ? { model: report.model } : {}),
+      cacheSavedUnits: usdToUnits(report.savedUsd ?? 0),
+    }).catch(() => {})
 
-  return { check, record, usage, top, caps, setCap, removeCap, ledger, onUsage }
+  return {
+    check,
+    record,
+    usage,
+    top,
+    caps,
+    setCap,
+    removeCap,
+    ledger,
+    onUsage,
+    series,
+    byModel,
+    topSpenders,
+    prune,
+  }
 }
 
 export type AiSpend = ReturnType<typeof createAiSpend>
