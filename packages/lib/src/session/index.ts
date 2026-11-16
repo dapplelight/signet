@@ -93,7 +93,9 @@ export function createSession(opts: CreateSessionOptions): Session {
   const refresh = (): Promise<string | null> => {
     refreshing ??= (async () => {
       try {
-        const before = await load()
+        await load()
+        // Compare with `current`, not the cached load: a pickup updates `current` but not `loaded`.
+        const before = current
         // Another context sharing the storage may have refreshed (and rotated the refresh token) since we cached.
         const t = await read()
         if (t?.accessToken !== before?.accessToken) {

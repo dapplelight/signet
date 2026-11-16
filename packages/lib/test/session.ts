@@ -200,6 +200,26 @@ ok("clear", (await session.token()) === null)
   ok("shared session survives", (await worker.get())?.refreshToken === "r2")
 }
 
+// --- after one pickup, the next refresh still calls opts.refresh when storage has not moved ---
+{
+  const st = memoryStorage()
+  const seen: string[] = []
+  const worker = createSession({
+    storage: st,
+    refresh: async (t) => (
+      seen.push(t.refreshToken ?? ""), { accessToken: "a3", refreshToken: "r3" }
+    ),
+  })
+  await worker.set({ accessToken: "a1", refreshToken: "r1" })
+  await st.set("signet-session", JSON.stringify({ accessToken: "a2", refreshToken: "r2" }))
+  ok("first refresh picks up a2", (await worker.refresh()) === "a2" && seen.length === 0)
+  ok(
+    "second refresh calls opts.refresh with r2",
+    (await worker.refresh()) === "a3" && seen[0] === "r2",
+    seen,
+  )
+}
+
 // --- tokenEndpointRefresh ---
 let posted = ""
 const fakeEndpoint = (status: number) =>
