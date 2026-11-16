@@ -294,6 +294,7 @@ Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"
 | `@dapplelight/signet-ui/screens/auth-screens` | DEFAULT_AUTH_LABELS, AuthMode, AuthChannel, OAuthProvider, AuthLabels, CodeRequest |  |
 | `@dapplelight/signet-ui/screens/billing-screens` | plansFromEntitlements, DEFAULT_BILLING_LABELS, formatMoney, PlanPicker, RestorePurchasesButton, CurrentPlanCard, … |  |
 | `@dapplelight/signet-ui/screens/collab-screens` | DEFAULT_COLLAB_LABELS, mentionsToText, textToMentions, CommentBody, MentionTextarea, CommentThreads, … |  |
+| `@dapplelight/signet-ui/screens/cost-dashboard` | DEFAULT_COST_LABELS, CostDashboard, CostSeriesRow, CostModelRow, CostSubjectRow, CostCapUsage, … |  |
 | `@dapplelight/signet-ui/screens/experiment-screens` | DEFAULT_EXPERIMENT_LABELS, ExperimentStatusBadge, ExperimentList, ExperimentResults, ExperimentForm, PricingExperimentResults, … |  |
 | `@dapplelight/signet-ui/screens/funnel-screens` | DEFAULT_FUNNEL_LABELS, discountedOffering, FunnelQuestion, WebFunnel, loadScript, STRIPE_JS_URL, … |  |
 | `@dapplelight/signet-ui/screens/growth-screens` | DEFAULT_GROWTH_LABELS, WaitlistJoin, InviteAccept, ReferralCard, OnboardingChecklist, FeedbackForm, … |  |

@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-ui: CostDashboard screen
+
+- New `./screens/cost-dashboard` with `CostDashboard`, `DEFAULT_COST_LABELS` and types, for the data of signet-server's `observabilityAdminRoutes` cost endpoints: a spend-over-time chart with cache savings, spend by model, top spenders (hashes as given), global cap usage bars (primary under 80%, amber from 80%, red at 100%) and tiles for spend, cache saved and top model. Give it `data` or a `fetcher(days)` (which also drives Retry); text comes from `labels`, and rows carry `data-slot` plus `data-model`, `data-subject` or `data-period`. Needs the optional peer `recharts`, so it is not in the barrel. Nothing existing changes.
+
 ### signet-ui: auth, onboarding, pricing, checkout and error page blocks
 
 - New `./blocks/auth-page`, `./blocks/onboarding`, `./blocks/pricing`, `./blocks/checkout-summary`, `./blocks/empty-page` and `./blocks/error-page`: whole pages with `labels`, `classNames`, `data-block` / `data-slot` hooks and `ready` / `loading` / `error` states. Back-end calls come in as callbacks (`onRequestCode`, `onVerify`, `onPay`), so a block holds no provider logic. `signet add block <name>` copies them.
