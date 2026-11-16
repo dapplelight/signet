@@ -1,0 +1,38 @@
+---
+title: "Add CSRF Protection"
+description: "Cross-site form posts to your API get a 403 before they reach a cookie-reading route."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-server hono
+```
+</Step>
+<Step>
+### Mount it before the routes
+```ts title="src/app.ts"
+import { corsMiddleware } from "@dapplelight/signet-server/middleware/cors"
+import { csrfMiddleware } from "@dapplelight/signet-server/middleware/csrf"
+
+app.use("*", corsMiddleware({ originEnvKeys: ["WEB_URL", "ADMIN_URL"] }))
+app.use("/api/*", csrfMiddleware({ originEnvKeys: ["WEB_URL", "ADMIN_URL"] }))
+```
+</Step>
+<Step>
+### Set the cookie that needs it
+```ts title="src/server/session.ts"
+const opts = { cookieName: "app_session", secret: c.env.SESSION_SECRET, sameSite: "none" as const }
+```
+`sameSite: "lax"` already blocks cross-site posts. You need the middleware when the frontend and API are on different origins.
+</Step>
+</Steps>
+
+A form-style POST, PUT, PATCH or DELETE needs `Sec-Fetch-Site: same-origin` or a trusted `Origin`. Requests with a bearer header and JSON requests are not checked.
+
+## Next
+<Cards>
+  <Card title="Middleware" href="/docs/packages/server/middleware" description="CORS, CSRF, rate limits and headers." />
+  <Card title="Add sign-in" href="/docs/guides/add-auth" description="Sessions and cookies." />
+</Cards>

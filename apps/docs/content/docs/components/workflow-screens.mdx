@@ -1,0 +1,203 @@
+---
+title: "Workflow Screens"
+description: "A durable workflow run timeline and an approval inbox card with Approve and Reject."
+---
+
+import { WorkflowRunTimelineDemo, ApprovalInboxCardDemo, WaitingTextDemo } from "@/components/demos/workflow-screens"
+
+<Preview>
+  <WorkflowRunTimelineDemo />
+
+```tsx
+import { WorkflowRunTimeline } from "@dapplelight/signet-ui/screens/workflow-screens"
+
+function WorkflowRunTimelineDemo() {
+  return (
+    <WorkflowRunTimeline
+      className="w-full max-w-xl"
+      run={{
+        id: "run_9d1",
+        workflow: "refund-order",
+        status: "waiting",
+        createdAt: "2026-11-16T09:00:00Z",
+        waitingOn: { step: "manager-approval", kind: "approval", until: "2026-11-17T09:00:00Z", approvers: ["asha@example.com"] },
+      }}
+      steps={[
+        { stepId: "validate-order", kind: "run", status: "completed", startedAt: "2026-11-16T09:00:00Z", finishedAt: "2026-11-16T09:00:02Z", summary: "Order 1042 found" },
+        { stepId: "charge-reversal", kind: "run", status: "retrying", attempts: 2, error: "Gateway timeout", wakeAt: "2026-11-16T09:05:00Z", startedAt: "2026-11-16T09:00:03Z" },
+        { stepId: "manager-approval", kind: "approval", status: "waiting", approvers: ["asha@example.com"], startedAt: "2026-11-16T09:01:00Z" },
+      ]}
+      onCancel={() => undefined}
+    />
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add workflow-screens
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  WorkflowRunTimeline,
+  ApprovalInboxCard,
+} from "@dapplelight/signet-ui/screens/workflow-screens"
+```
+
+Data is shaped like signet-db's `wf.get(id)` and `wf.pendingApprovals(user)` (or the JSON from `workflowRoutes`); actions come out as callbacks.
+
+```tsx
+<WorkflowRunTimeline run={run} steps={steps} onCancel={cancel} />
+```
+
+## Examples
+
+### WorkflowRunTimeline
+
+<Preview>
+  <WorkflowRunTimelineDemo />
+
+```tsx
+import { WorkflowRunTimeline } from "@dapplelight/signet-ui/screens/workflow-screens"
+
+function WorkflowRunTimelineDemo() {
+  return (
+    <WorkflowRunTimeline
+      className="w-full max-w-xl"
+      run={{
+        id: "run_9d1",
+        workflow: "refund-order",
+        status: "waiting",
+        createdAt: "2026-11-16T09:00:00Z",
+        waitingOn: { step: "manager-approval", kind: "approval", until: "2026-11-17T09:00:00Z", approvers: ["asha@example.com"] },
+      }}
+      steps={[
+        { stepId: "validate-order", kind: "run", status: "completed", startedAt: "2026-11-16T09:00:00Z", finishedAt: "2026-11-16T09:00:02Z", summary: "Order 1042 found" },
+        { stepId: "charge-reversal", kind: "run", status: "retrying", attempts: 2, error: "Gateway timeout", wakeAt: "2026-11-16T09:05:00Z", startedAt: "2026-11-16T09:00:03Z" },
+        { stepId: "manager-approval", kind: "approval", status: "waiting", approvers: ["asha@example.com"], startedAt: "2026-11-16T09:01:00Z" },
+      ]}
+      onCancel={() => undefined}
+    />
+  )
+}
+```
+
+</Preview>
+
+### ApprovalInboxCard
+
+<Preview>
+  <ApprovalInboxCardDemo />
+
+```tsx
+import { useState } from "react"
+import { ApprovalInboxCard, type WorkflowApprovalView } from "@dapplelight/signet-ui/screens/workflow-screens"
+
+function ApprovalInboxCardDemo() {
+  const [approvals, setApprovals] = useState<WorkflowApprovalView[]>([
+    { runId: "run_9d1", stepId: "manager-approval", workflow: "refund-order", summary: "Refund $240.00 for order 1042", approvers: ["asha@example.com"], requestedAt: "2026-11-16T09:01:00Z" },
+    { runId: "run_9d4", stepId: "discount-approval", workflow: "custom-discount", summary: "30% discount for Northwind Studio", approvers: ["asha@example.com"], requestedAt: "2026-11-16T10:20:00Z" },
+  ])
+  const decide = (a: WorkflowApprovalView) =>
+    setApprovals((l) => l.filter((x) => x.runId !== a.runId))
+  return (
+    <ApprovalInboxCard
+      className="w-full max-w-xl"
+      approvals={approvals}
+      onApprove={decide}
+      onReject={decide}
+    />
+  )
+}
+```
+
+</Preview>
+
+### waitingText
+
+A helper that returns one line on what a run is blocked on, or `null`.
+
+<Preview>
+  <WaitingTextDemo />
+
+```tsx
+import { waitingText } from "@dapplelight/signet-ui/screens/workflow-screens"
+
+function WaitingTextDemo() {
+  const text = waitingText({
+    id: "run_9d1",
+    workflow: "refund-order",
+    status: "waiting",
+    createdAt: "2026-11-16T09:00:00Z",
+    waitingOn: { step: "manager-approval", kind: "approval", until: "2026-11-17T09:00:00Z", approvers: ["Asha Rao"] },
+  })
+  return <p className="text-sm text-text-secondary">{text}</p>
+}
+```
+
+</Preview>
+
+## API Reference
+
+### WorkflowRunTimeline
+
+Also accepts `section` props.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `run` | `WorkflowRunView` | required | The run: status, error and what it waits on. |
+| `steps` | `WorkflowStepView[]` | required | Steps in order, with retries and decisions. |
+| `onCancel` | `() => Promise<unknown> \| unknown` | - | Shows Cancel while the run is active. |
+| `title` | `ReactNode` | - | Heading override. |
+| `labels` | `Partial<WorkflowLabels>` | `DEFAULT_WORKFLOW_LABELS` | Override any string. |
+
+### ApprovalInboxCard
+
+Also accepts `section` props.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `approvals` | `WorkflowApprovalView[]` | required | Approval steps waiting on the signed-in person. |
+| `onApprove` | `(approval: WorkflowApprovalView, reason?: string) => Promise<unknown> \| unknown` | required | Approve. A throw shows a retry message. |
+| `onReject` | `(approval: WorkflowApprovalView, reason?: string) => Promise<unknown> \| unknown` | required | Reject. |
+| `withReason` | `boolean` | `true` | Ask for a reason with each decision. |
+| `href` | `(approval: WorkflowApprovalView) => string` | - | Make the summary a link, e.g. to the run timeline. |
+| `title` | `ReactNode` | - | Heading override. |
+| `labels` | `Partial<WorkflowLabels>` | `DEFAULT_WORKFLOW_LABELS` | Override any string. |
+
+### waitingText
+
+`waitingText(run, labels?)` returns `string | null`.

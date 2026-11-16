@@ -1,0 +1,171 @@
+---
+title: "Radio Group"
+description: "A set of options where exactly one can be selected."
+---
+
+import { RadioGroupDemo, RadioGroupControlledDemo, RadioGroupDisabledDemo, RadioGroupFormDemo } from "@/components/demos/radio-group"
+
+<Preview>
+  <RadioGroupDemo />
+
+```tsx
+import { RadioGroup, RadioGroupItem } from "@dapplelight/signet-ui/components/radio-group"
+
+const plans = [
+  { value: "starter", label: "Starter" },
+  { value: "team", label: "Team" },
+  { value: "scale", label: "Scale" },
+]
+
+export function Demo() {
+  return (
+    <RadioGroup defaultValue="team" aria-label="Plan">
+      {plans.map((p) => (
+        <label key={p.value} className="flex items-center gap-2 text-sm">
+          <RadioGroupItem value={p.value} />
+          {p.label}
+        </label>
+      ))}
+    </RadioGroup>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add radio-group
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { RadioGroup, RadioGroupItem } from "@dapplelight/signet-ui/components/radio-group"
+```
+
+```tsx
+<RadioGroup defaultValue="team" aria-label="Plan">
+  <label className="flex items-center gap-2">
+    <RadioGroupItem value="team" />
+    Team
+  </label>
+</RadioGroup>
+```
+
+Built on UI SDK's radio: one tab stop, and arrow keys move and check.
+
+## Examples
+
+### Controlled
+
+<Preview>
+  <RadioGroupControlledDemo />
+
+```tsx
+const [plan, setPlan] = useState("starter")
+
+<RadioGroup value={plan} onValueChange={(v) => setPlan(v ?? "")} aria-label="Plan">
+  <label className="flex items-center gap-2 text-sm">
+    <RadioGroupItem value="starter" /> Starter
+  </label>
+  <label className="flex items-center gap-2 text-sm">
+    <RadioGroupItem value="team" /> Team
+  </label>
+</RadioGroup>
+```
+
+</Preview>
+
+### Disabled item
+
+<Preview>
+  <RadioGroupDisabledDemo />
+
+```tsx
+<RadioGroup defaultValue="card" aria-label="Payment method">
+  <label className="flex items-center gap-2 text-sm">
+    <RadioGroupItem value="card" /> Card
+  </label>
+  <label className="flex items-center gap-2 text-sm opacity-50">
+    <RadioGroupItem value="wire" disabled /> Wire transfer
+  </label>
+</RadioGroup>
+```
+
+</Preview>
+
+### In a form
+
+<Preview>
+  <RadioGroupFormDemo />
+
+```tsx
+<form onSubmit={onSubmit}>
+  <Label id="radio-delivery">Delivery</Label>
+  <RadioGroup name="delivery" defaultValue="standard" required aria-labelledby="radio-delivery">
+    <label className="flex items-center gap-2 text-sm">
+      <RadioGroupItem value="standard" /> Standard (3 to 5 days)
+    </label>
+    <label className="flex items-center gap-2 text-sm">
+      <RadioGroupItem value="express" /> Express (next day)
+    </label>
+  </RadioGroup>
+</form>
+```
+
+</Preview>
+
+## API Reference
+
+### RadioGroup
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| value | `string \| null` | - | Controlled selected value. `null` selects nothing. |
+| defaultValue | `string \| null` | - | Initial value when uncontrolled. |
+| onValueChange | `(value: string \| null, details) => void` | - | Called when the selection changes. |
+| name | `string` | - | Form field name for the hidden native radio. |
+| disabled | `boolean` | false | Disable every item. |
+| readOnly | `boolean` | false | Show the value without allowing changes. |
+| required | `boolean` | false | Require a choice in a form. |
+| form | `string` | - | `id` of a form to attach the hidden radio to. |
+| loop | `boolean` | true | Whether arrow keys wrap from the last item to the first. |
+| controller | `RadioGroupController` | - | Read and drive the group from outside (`createRadioGroupController()`). |
+| className | `string` | - | Merged with `grid gap-2`. |
+
+### RadioGroupItem
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| value | `string` | - | This option's value. |
+| disabled | `boolean` | false | Disable this option. |
+| className | `string` | - | Class on the radio. Wrap it with its text in a `label`, or give it `aria-label`. |

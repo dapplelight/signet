@@ -1,0 +1,99 @@
+---
+title: "Funnels"
+description: "Web checkout funnels that sell an offering, then unlock the purchase in the app."
+---
+
+## Usage
+```ts
+import { funnelTables } from "@dapplelight/signet-db/columns/sqlite"
+import { createFunnels } from "@dapplelight/signet-db/funnels"
+
+const funnels = createFunnels(db, {
+  tables: { ...funnelTables(), customerEvents },
+  funnels: [{
+    key: "spring", placement: "web", title: "Sleep better",
+    questions: [{ id: "goal", title: "Your goal?", options: [{ value: "sleep", label: "Sleep" }] }],
+  }],
+  discounts: [{ code: "SPRING25", percentOff: 25, expiresAt: "2027-04-01", maxRedemptions: 500, plans: ["pro"] }],
+  offerings, customers, entitlements,
+  checkout: (input) => payments.checkout(input),
+  track: (e) => sink.write([e]),
+  onPaid: async (s) => s.email && sendMail(s.email, (await redemptionLink(opts, s.id)).link),
+})
+
+createPayments({ gateways, db: store, onEvent: async (e) => {
+  await entitlements.applyBillingEvent(e)
+  await customers.record(e)
+  await funnels.applyEvent(e)
+} })
+```
+
+`customerEvents` comes from `monetisationTables()`. The client never sends a price: `start` prices it on the server.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createFunnels(db, options)` | The funnels engine |
+| `funnelSteps(def)` | Every step's analytics event name, in order |
+| `funnelEventName(key, step)` | `funnel:<key>:<step>` |
+| `FUNNEL_TAIL_STEPS` | `plans`, `checkout`, `purchased`, `redeemed` |
+| `periodEnd(from, interval)` | End of one `month`, `year` or `once` interval |
+| Types | `FunnelQuestion`, `FunnelDefinition`, `DiscountDefinition`, `DiscountQuote`, `FunnelProduct`, `FunnelSession`, `CheckoutLike`, `FunnelCheckoutInput`, `FunnelEventLike`, `FunnelTrackedEvent`, `RedeemResult`, `FunnelTables`, `FunnelsOptions`, `Funnels` |
+
+### createFunnels(db, options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `tables` | `{ funnelSessions, discountUses, customerEvents }` | required | |
+| `funnels` | `FunnelDefinition[]` | required | `key`, `placement`, `title?`, `subtitle?`, up to 6 `questions?` |
+| `discounts` | `DiscountDefinition[]` | none | `code`, `percentOff` or `amountOff`, `expiresAt?`, `maxRedemptions?`, `plans?` |
+| `offerings` | `createOfferings(...)` | required | Placement whose web products are sold |
+| `customers` | `createCustomers(...)` | required | Anonymous buyer and merge |
+| `checkout` | `(input) => Promise<Checkout>` | required | signet-payments `payments.checkout` |
+| `entitlements` | `createEntitlements(...)` | none | Default grant, with `billing.plans` from `plansFromProducts` |
+| `grant` | `({ session, event }) => unknown` | none | Replace the default grant, e.g. start a renewing subscription |
+| `onPaid` | `(session) => unknown` | none | After payment, e.g. email the redemption link |
+| `track` | `(event) => unknown` | none | Analytics sink; never fails a purchase |
+| `discountHoldMs` | `number` | 1 hour | How long an unpaid checkout holds a discount use |
+| `now` | `() => Date` | `new Date` | Clock for tests |
+
+Methods:
+
+| Method | What it does |
+| --- | --- |
+| `funnels`, `funnel(key)` | The definitions |
+| `page(key, { code?, audience? })` | What the hosted page shows: funnel, priced web products, discount per product |
+| `quote(code, product)` | Price a code: valid with `off` and `amount`, or a `reason` |
+| `step(key, step, { anonymousId? })` | Record a question, `plans` or `checkout` view |
+| `start(key, { productId, answers?, code?, email?, visitor?, orgId?, returnUrl?, audience? })` | Price, hold the discount, create the anonymous customer, open the checkout |
+| `get(sessionId)` | One session |
+| `applyEvent(event)` | A verified `payment.captured` grants the plan; `refund.processed` ends it |
+| `redeem(sessionId, userId, { orgId? })` | Move the purchase to a signed-in account |
+
+A different captured amount is `amount_mismatch` and grants nothing. `redeem` refusals (`already_redeemed`, `refunded`, `not_paid`, `other_org`, `not_member`) are final.
+
+## Examples
+
+### Start a checkout from a URL discount
+```ts
+const { session, checkout } = await funnels.start("spring", {
+  productId: "price_pro_m",
+  answers: { goal: "sleep" },
+  code: new URL(req.url).searchParams.get("code") ?? undefined,
+  email,
+  visitor: anonymousId,
+})
+return Response.redirect(checkout.url as string)
+```
+
+### Redeem after sign-in
+```ts
+const r = await funnels.redeem(sessionId, userId, { orgId })
+if (!r.redeemed) return c.json({ error: r.reason }, 409)
+```
+
+### Drop-off by step
+```ts
+import { funnelSteps } from "@dapplelight/signet-db/funnels"
+
+await analytics.funnel({ steps: funnelSteps(def) })
+```

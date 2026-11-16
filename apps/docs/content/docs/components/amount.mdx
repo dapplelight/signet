@@ -1,0 +1,219 @@
+---
+title: "Amount"
+description: "A money amount with the locale's digit grouping, the currency's own decimals and an optional credit or debit colour."
+---
+
+import { AmountDemo, AmountLocaleDemo, AmountToneDemo, AmountMinorUnitsDemo, AmountCompactDemo, AmountPartsDemo } from "@/components/demos/amount"
+
+<Preview>
+  <AmountDemo />
+
+```tsx
+import { Amount } from "@dapplelight/signet-ui/domain/amount"
+
+export function AmountDemo() {
+  return (
+    <div className="flex flex-col gap-2 text-center">
+      <Amount value={1250000} notation="compact" className="text-3xl font-semibold" />
+      <span className="text-sm text-neutral-500">Revenue this month</span>
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add amount
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { Amount, formatAmount } from "@dapplelight/signet-ui/domain/amount"
+```
+
+```tsx
+<Amount value={1250000} notation="compact" />
+```
+
+## Examples
+
+### Compact
+
+<Preview>
+  <AmountDemo />
+
+```tsx
+import { Amount } from "@dapplelight/signet-ui/domain/amount"
+
+export function AmountDemo() {
+  return (
+    <div className="flex flex-col gap-2 text-center">
+      <Amount value={1250000} notation="compact" className="text-3xl font-semibold" />
+      <span className="text-sm text-neutral-500">Revenue this month</span>
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Locales
+
+<Preview>
+  <AmountLocaleDemo />
+
+```tsx
+import { Amount } from "@dapplelight/signet-ui/domain/amount"
+
+export function AmountLocaleDemo() {
+  return (
+    <div className="flex flex-col gap-1 text-lg">
+      <Amount value={12500000} />
+      <Amount value={12500000} locale="en-US" currency="USD" />
+      <Amount value={12500000} locale="ja-JP" currency="JPY" />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Tone
+
+<Preview>
+  <AmountToneDemo />
+
+```tsx
+import { Amount } from "@dapplelight/signet-ui/domain/amount"
+
+export function AmountToneDemo() {
+  return (
+    <div className="flex flex-col gap-1 text-lg">
+      <Amount value={4999} tone="credit" />
+      <Amount value={-1299} tone="debit" />
+      <Amount value={2500} tone="transfer" />
+      <Amount value={-18250} tone="auto" />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Minor units
+
+<Preview>
+  <AmountMinorUnitsDemo />
+
+```tsx
+import { Amount } from "@dapplelight/signet-ui/domain/amount"
+
+export function AmountMinorUnitsDemo() {
+  return (
+    <div className="flex flex-col gap-1 text-lg">
+      <Amount value={1234567} minorUnits />
+      <Amount value={123456789n} minorUnits notation="whole" />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Lakh and crore
+
+<Preview>
+  <AmountCompactDemo />
+
+```tsx
+import { Amount } from "@dapplelight/signet-ui/domain/amount"
+
+export function AmountCompactDemo() {
+  return (
+    <div className="flex flex-col gap-1 text-lg">
+      <Amount value={125000} notation="compact" />
+      <Amount value={12500000} notation="compact" />
+      <Amount value={1250000} notation="compact" locale="en-US" currency="USD" />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Parts
+
+<Preview>
+  <AmountPartsDemo />
+
+```tsx
+import { Amount } from "@dapplelight/signet-ui/domain/amount"
+
+export function AmountPartsDemo() {
+  return (
+    <Amount
+      value={48250.75}
+      className="text-2xl font-semibold"
+      classNames={{ currency: "text-neutral-400", fraction: "text-base text-neutral-500" }}
+    />
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+### Amount
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `value` | `number \| string \| bigint` | — | The amount. Use a bigint for exact minor units. |
+| `currency` | `string` | `"INR"` | ISO 4217 code. |
+| `locale` | `string` | `"en-IN"` | Indian locales group by lakh and crore. |
+| `minorUnits` | `boolean` | `false` | `value` is in paise or cents: 12345 INR is ₹123.45. |
+| `notation` | `"standard" \| "whole" \| "compact"` | `"standard"` | Standard shows the currency's decimals, whole none, compact shortens (₹12.5L, $1.3M). |
+| `decimals` | `number` | — | Overrides the number of decimals. In compact notation it is the maximum (default 1). |
+| `tone` | `"credit" \| "debit" \| "transfer" \| "auto"` | — | Colour from the theme's money slots. `auto` picks credit or debit from the sign. |
+| `signDisplay` | `Intl.NumberFormatOptions["signDisplay"]` | `"auto"` | Defaults to `exceptZero` when `tone` is `auto`, so the sign is never shown by colour alone. |
+| `classNames` | `Partial<Record<AmountPart, string>>` | — | Classes per part: `sign`, `currency`, `integer`, `fraction`, `compact`. |
+| `render` | `React.ReactElement` | — | Replaces the `<data>` element, keeping props and parts. |
+| `title` | `string` | — | Compact amounts default to the full amount on hover. |
+
+### formatAmount
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `value` | `AmountValue` | — | The amount to format. |
+| `options` | `Pick<AmountProps, "currency" \| "locale" \| "minorUnits" \| "notation" \| "decimals" \| "signDisplay">` | `{}` | Same options as the component. Returns `{ parts, major, sign }`, for table cells and chart labels. |

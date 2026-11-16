@@ -1,0 +1,216 @@
+---
+title: "Privacy Screens"
+description: "DPDP Act screens: a consent list with one switch per purpose, and data export and erasure requests with their status."
+---
+
+import { ConsentListDemo, DataRequestsDemo, PrivacySectionDemo } from "@/components/demos/privacy-screens"
+
+<Preview>
+  <ConsentListDemo />
+
+```tsx
+import { useState } from "react"
+import { ConsentList, type ConsentRecord } from "@dapplelight/signet-ui/screens/privacy-screens"
+
+function ConsentListDemo() {
+  const [consents, setConsents] = useState<ConsentRecord[]>([
+    { purpose: "analytics", noticeVersion: "2026-09", givenAt: "2026-10-02T10:00:00Z" },
+  ])
+  return (
+    <ConsentList
+      className="w-full max-w-md"
+      purposes={purposes}
+      consents={consents}
+      onGive={(purpose) =>
+        setConsents((c) => [...c, { purpose, noticeVersion: "2026-09", givenAt: new Date().toISOString() }])
+      }
+      onWithdraw={(purpose) =>
+        setConsents((c) =>
+          c.map((r) => (r.purpose === purpose ? { ...r, withdrawnAt: new Date().toISOString() } : r)),
+        )
+      }
+    />
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add privacy-screens
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  ConsentList,
+  DataRequests,
+} from "@dapplelight/signet-ui/screens/privacy-screens"
+```
+
+Shapes match signet-db's privacy module (`Consent`, `DataRequest`); dates may be `Date` objects or JSON strings.
+
+```tsx
+<ConsentList purposes={purposes} consents={consents} onGive={give} onWithdraw={withdraw} />
+```
+
+## Examples
+
+### ConsentList
+
+Withdrawing is one switch, as easy as giving.
+
+<Preview>
+  <ConsentListDemo />
+
+```tsx
+import { useState } from "react"
+import { ConsentList, type ConsentRecord } from "@dapplelight/signet-ui/screens/privacy-screens"
+
+function ConsentListDemo() {
+  const [consents, setConsents] = useState<ConsentRecord[]>([
+    { purpose: "analytics", noticeVersion: "2026-09", givenAt: "2026-10-02T10:00:00Z" },
+  ])
+  return (
+    <ConsentList
+      className="w-full max-w-md"
+      purposes={purposes}
+      consents={consents}
+      onGive={(purpose) =>
+        setConsents((c) => [...c, { purpose, noticeVersion: "2026-09", givenAt: new Date().toISOString() }])
+      }
+      onWithdraw={(purpose) =>
+        setConsents((c) =>
+          c.map((r) => (r.purpose === purpose ? { ...r, withdrawnAt: new Date().toISOString() } : r)),
+        )
+      }
+    />
+  )
+}
+```
+
+</Preview>
+
+### DataRequests
+
+Erasure asks for confirmation first. Both actions hide while one is pending.
+
+<Preview>
+  <DataRequestsDemo />
+
+```tsx
+import { useState } from "react"
+import { DataRequests, type DataRequestRow } from "@dapplelight/signet-ui/screens/privacy-screens"
+
+function DataRequestsDemo() {
+  const [requests, setRequests] = useState<DataRequestRow[]>([
+    {
+      id: "r1",
+      kind: "export",
+      status: "completed",
+      requestedAt: "2026-10-20T08:00:00Z",
+      closedAt: "2026-10-21T08:00:00Z",
+    },
+  ])
+  return (
+    <DataRequests
+      className="w-full max-w-md"
+      requests={requests}
+      onRequestExport={() =>
+        setRequests((r) => [
+          { id: `r${r.length + 1}`, kind: "export", status: "pending", requestedAt: new Date().toISOString(), dueAt: "2026-12-16" },
+          ...r,
+        ])
+      }
+      onRequestErasure={() => undefined}
+      onDownload={() => undefined}
+    />
+  )
+}
+```
+
+</Preview>
+
+### PrivacySection
+
+The titled card both screens sit in; use it for your own privacy content.
+
+<Preview>
+  <PrivacySectionDemo />
+
+```tsx
+import { PrivacySection } from "@dapplelight/signet-ui/screens/privacy-screens"
+
+function PrivacySectionDemo() {
+  return (
+    <PrivacySection className="w-full max-w-md">
+      <h2 className="text-base font-medium">Data retention</h2>
+      <p className="text-text-muted">We keep invoices for 8 years, as the law requires.</p>
+    </PrivacySection>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+### ConsentList
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `purposes` | `readonly ConsentPurpose[]` | required | Every purpose you ask for, in order (`id`, `label`, optional `description`). |
+| `consents` | `readonly ConsentRecord[]` | required | History is fine; the latest per purpose wins. |
+| `onGive` | `(purpose: string) => unknown` | - | Record consent. Throwing puts the switch back. |
+| `onWithdraw` | `(purpose: string) => unknown` | - | Withdraw consent, with no confirm. |
+| `formatDate` | `(date: Date) => string` | browser medium date | Date format. |
+| `labels` | `Partial<PrivacyLabels>` | `DEFAULT_PRIVACY_LABELS` | Override any string. |
+| `className` | `string` | - | Class on the root. |
+| `classNames` | `Partial<Record<"title" \| "list" \| "item" \| "switch", string>>` | - | Classes per part. |
+
+### DataRequests
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `requests` | `readonly DataRequestRow[]` | required | Export and erasure requests with status. |
+| `onRequestExport` | `() => unknown` | - | Ask for an export. Hidden while one is pending. |
+| `onRequestErasure` | `() => unknown` | - | Ask for erasure. Confirms first; hidden while one is pending. |
+| `onDownload` | `(request: DataRequestRow) => unknown` | - | Fetch a completed export's file. |
+| `formatDate` | `(date: Date) => string` | browser medium date | Date format. |
+| `labels` | `Partial<PrivacyLabels>` | `DEFAULT_PRIVACY_LABELS` | Override any string. |
+| `className` | `string` | - | Class on the root. |
+| `classNames` | `Partial<Record<"title" \| "actions" \| "list" \| "item", string>>` | - | Classes per part. |
+
+### PrivacySection
+
+Accepts `section` props and `render`.

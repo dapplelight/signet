@@ -1,0 +1,96 @@
+---
+title: "Add Durable Workflows with Approvals"
+description: "Crash-safe multi-step runs that sleep, wait for events and pause for a named person to approve."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-server @dapplelight/signet-db hono drizzle-orm
+```
+</Step>
+<Step>
+### Add the tables
+```ts title="server/db/schema.ts"
+import { workflowTables } from "@dapplelight/signet-db/columns/sqlite" // or columns/pg
+
+export const { workflowRuns, workflowSteps, workflowEvents } = workflowTables()
+```
+</Step>
+<Step>
+### Define a workflow
+```ts title="server/workflows.ts"
+import { defineWorkflow } from "@dapplelight/signet-db/workflows"
+
+const HOUR = 3_600_000
+const DAY = 24 * HOUR
+
+export const payout = defineWorkflow("payout", async (step, input: { requestId: string }) => {
+  const req = await step.run("load", () => loadRequest(input.requestId))
+  const ok = await step.approval({ approvers: req.approverIds, summary: `Pay ${req.amount}?`, timeout: 2 * DAY })
+  if (!ok.approved) return { paid: false, by: ok.by, timedOut: ok.timedOut }
+  await step.run("pay", () => psp.pay(req), { attempts: 5, backoff: (n) => n * 30_000 })
+  await step.sleep("settle", HOUR)
+  const receipt = await step.waitForEvent(`settled:${req.id}`, { timeout: DAY })
+  return { paid: true, receipt }
+})
+```
+Every tick replays from the top. Finished steps return their stored result, so step ids must be stable and anything non-deterministic belongs inside `step.run`.
+</Step>
+<Step>
+### Create the engine
+```ts title="server/workflows.ts"
+import { createWorkflows } from "@dapplelight/signet-db/workflows"
+import { workflowEvents, workflowRuns, workflowSteps } from "./db/schema"
+
+export const makeWf = (env: Env) =>
+  createWorkflows(db(env), {
+    tables: { workflowRuns, workflowSteps, workflowEvents },
+    workflows: [payout],
+    approvals, // optional: signet-server's kvApprovals
+    notify: (to, r) => notifier.notify(to, "workflow.approval", r),
+  })
+```
+</Step>
+<Step>
+### Start, approve, wake
+```ts title="server/routes/payouts.ts"
+const run = await wf.start(payout, { requestId }, { createdBy: userId })
+await wf.approve(run.id, "approval", managerId)
+await wf.sendEvent(`settled:${requestId}`, receipt)
+```
+</Step>
+<Step>
+### Run the ticks
+```ts title="worker/index.ts"
+export default {
+  fetch: app.fetch,
+  scheduled: (_e: ScheduledEvent, env: Env, ctx: ExecutionContext) => {
+    ctx.waitUntil(makeWf(env).tick({ limit: 25 }))
+  },
+}
+```
+On Bun or Node use `wf.poll({ intervalMs: 1000, signal })`. Nothing runs until something calls `tick()`.
+</Step>
+<Step>
+### Expose it over HTTP
+```ts title="server/app.ts"
+import { workflowRoutes } from "@dapplelight/signet-server/http/workflows"
+
+app.use("/api/workflows/*", requireStoredSession(sessionOpts))
+app.route("/api/workflows", workflowRoutes({
+  workflows: wf,
+  subject: (c) => c.get("session").payload.sub,
+  isAdmin: (c) => c.get("session").payload.role === "admin",
+  canStart: (c, workflow) => workflow === "payout",
+}))
+```
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="Workflows" href="/docs/packages/db/workflows" description="Retries, cancellation, pruning and runner options." />
+  <Card title="Background jobs" href="/docs/guides/add-jobs" description="Fire-and-forget work with no approval step." />
+</Cards>

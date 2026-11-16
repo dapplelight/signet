@@ -1,0 +1,158 @@
+---
+title: "Breadcrumb"
+description: "Displays the path to the current page, using a list of links."
+---
+
+import { BreadcrumbDemo, BreadcrumbSeparatorDemo, BreadcrumbEllipsisDemo } from "@/components/demos/breadcrumb"
+
+<Preview>
+  <BreadcrumbDemo />
+
+```tsx
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@dapplelight/signet-ui/components/breadcrumb"
+
+export function Demo() {
+  return (
+    <Breadcrumb>
+      <BreadcrumbList>
+        <BreadcrumbItem><BreadcrumbLink href="/">Home</BreadcrumbLink></BreadcrumbItem>
+        <BreadcrumbSeparator />
+        <BreadcrumbItem><BreadcrumbLink href="/invoices">Invoices</BreadcrumbLink></BreadcrumbItem>
+        <BreadcrumbSeparator />
+        <BreadcrumbItem><BreadcrumbPage>INV-2041</BreadcrumbPage></BreadcrumbItem>
+      </BreadcrumbList>
+    </Breadcrumb>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add breadcrumb
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  Breadcrumb,
+  BreadcrumbEllipsis,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@dapplelight/signet-ui/components/breadcrumb"
+```
+
+```tsx
+<Breadcrumb>
+  <BreadcrumbList>
+    <BreadcrumbItem><BreadcrumbLink href="/">Home</BreadcrumbLink></BreadcrumbItem>
+    <BreadcrumbSeparator />
+    <BreadcrumbItem><BreadcrumbPage>Invoices</BreadcrumbPage></BreadcrumbItem>
+  </BreadcrumbList>
+</Breadcrumb>
+```
+
+## Examples
+
+### Custom separator
+
+<Preview>
+  <BreadcrumbSeparatorDemo />
+
+```tsx
+<BreadcrumbSeparator><SlashIcon /></BreadcrumbSeparator>
+```
+
+</Preview>
+
+### Collapsed
+
+<Preview>
+  <BreadcrumbEllipsisDemo />
+
+```tsx
+<BreadcrumbItem><BreadcrumbEllipsis label="Show hidden pages" /></BreadcrumbItem>
+```
+
+</Preview>
+
+## API Reference
+
+### Breadcrumb
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `aria-label` | `string` | `"Breadcrumb"` | Name of the nav landmark. |
+
+Renders a `nav`.
+
+### BreadcrumbList, BreadcrumbItem
+
+Render an `ol` and an `li`. Both take `className` and every element prop.
+
+### BreadcrumbLink
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `render` | `ReactElement` | - | Use the router's link element instead of an `a`. Its props are merged in. |
+| `className` | `string` | - | Merged last. |
+
+Plus every `a` prop.
+
+### BreadcrumbPage
+
+The current page. A `span` with `aria-current="page"`, not a link.
+
+### BreadcrumbSeparator
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `children` | `ReactNode` | chevron icon | Replaces the separator icon. |
+
+Renders an `li` hidden from assistive tech.
+
+### BreadcrumbEllipsis
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `label` | `string` | `"More"` | Screen reader text. |

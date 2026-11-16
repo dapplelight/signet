@@ -1,0 +1,43 @@
+---
+title: "Config"
+description: "Shared Biome preset, TypeScript bases and a reusable bun CI workflow."
+---
+
+```bash
+npm i -D @dapplelight/signet-config @biomejs/biome typescript
+```
+
+## Quick start
+
+```json title="biome.json"
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
+  "extends": ["@dapplelight/signet-config/biome"],
+  "files": { "includes": ["**", "!**/dist"] }
+}
+```
+
+```json title="tsconfig.json"
+{
+  "extends": "@dapplelight/signet-config/tsconfig/react.json",
+  "include": ["src"]
+}
+```
+
+```yaml title=".github/workflows/ci.yml"
+name: ci
+on: [pull_request]
+jobs:
+  ci:
+    uses: dapplelight/signet/.github/workflows/ci-bun.yml@main
+```
+
+The CI workflow ships in the Signet repo, not the npm package. See [Biome](/docs/packages/config/biome#ci-bunyml).
+
+## Modules
+
+<Cards>
+  <Card title="Biome" href="/docs/packages/config/biome" description="Lint and format preset, plus the CI workflow." />
+  <Card title="Package" href="/docs/packages/config/package" description="package.json export." />
+  <Card title="TSConfig" href="/docs/packages/config/tsconfig" description="base, react and worker bases." />
+</Cards>

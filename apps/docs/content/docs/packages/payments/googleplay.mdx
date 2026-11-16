@@ -1,0 +1,92 @@
+---
+title: "Google Play"
+description: "Verify and track Google Play purchases and subscriptions from your backend."
+---
+
+## Usage
+
+```ts
+import { googleplay } from "@dapplelight/signet-payments/googleplay"
+
+const play = googleplay({
+  packageName: "com.example.notes",
+  serviceAccount: { client_email: sa.client_email, private_key: sa.private_key }, // from the service account JSON key
+  pubsub: {
+    audience: "https://api.example.com/webhooks/googleplay",
+    serviceAccountEmail: env.PLAY_PUSH_SERVICE_ACCOUNT,
+  },
+})
+
+const payments = createPayments({ gateways: [play], db })
+
+// The app sends the order id after a purchase.
+await payments.verifyPurchase({ gateway: "googleplay", id: orderId, userId })
+await payments.gateway("googleplay").getSubscription(purchaseToken)
+
+// Real-time Developer Notifications, as a Pub/Sub push with authentication on
+app.post("/webhooks/googleplay", (c) => payments.handleWebhook("googleplay", c.req.raw))
+```
+
+Purchases happen on the device, so `createCheckout` is `UNSUPPORTED`.
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `googleplay(config)` | A `GooglePlayGateway` named `googleplay` over androidpublisher v3 |
+| `toGooglePlayPayment(order)` | Map an `orders.get` order to a `Payment` |
+| `toGooglePlaySubscription(token, subscription)` | Map a `subscriptionsv2` resource to a `Subscription` |
+| `GooglePlayConfig`, `GooglePlayGateway` | Types |
+
+### googleplay(config)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `packageName` | `string` | | Required |
+| `serviceAccount` | `{ client_email, private_key, token_uri? }` | | Required. Exchanged for a cached access token |
+| `pubsub` | `{ audience, serviceAccountEmail }` | | The push subscription's auth settings. Required for `verifyWebhook` |
+| `revokeOnRefund` | `boolean` | `true` | End access when refunding |
+
+Plus the shared `baseUrl`, `fetch`, `retries`, `retryDelayMs`.
+
+### Extra methods
+
+| Method | What it does |
+| --- | --- |
+| `getProductPurchase(token)` | The order behind a one-time purchase token |
+| `acknowledgeProduct(productId, token)` | Acknowledge a one-time purchase. Unacknowledged purchases are refunded after three days |
+| `acknowledgeSubscription(productId, token)` | Acknowledge a subscription |
+| `consumeProduct(productId, token)` | Consume a consumable so it can be bought again |
+| `listVoided(query?)` | Cancelled, refunded or charged-back purchases: `{ voided, nextPageToken? }` |
+
+## Restore purchases
+
+```ts
+const { restored, refused } = await payments.restorePurchases({
+  userId,
+  purchases: [
+    { gateway: "googleplay", purchaseToken, type: "subscription" }, // or "product"
+  ],
+})
+```
+
+A subscription with no paid order yet is `refused` with `NOT_FOUND`. One that is another user's is `BAD_INPUT`.
+
+## Notes
+
+- **Ids.** A payment is an order id (`GPA...`). A subscription is its purchase token, which is also `Payment.orderId`.
+- **Notifications** are a hint: the adapter verifies the push's OIDC token, then reads the current state from the API. The service account needs the Orders API (financial data) permission, because amounts come from `orders.get`.
+- **Refunds** are full only. For a prorated subscription refund call `raw("POST", "/purchases/subscriptionsv2/tokens/<token>:revoke", { revocationContext: { proratedRefund: {} } })`.
+- **Cancelling** stops renewal at the period end only. Pass `atPeriodEnd: true`. Ending access now is a refund with revoke.
+- **Pending-refund reviews** arrive as `unknown` events: answer them through `raw` with `orders.reviewrefund`.
+- **Status.** `past_due` covers grace period and account hold. `inGracePeriod: true` means access continues.
+- Not supported: partial refunds, customers, saved methods, payouts, settlements, capture.
+
+## Examples
+
+### Acknowledge a one-time purchase after verifying it
+
+```ts
+const p = await payments.verifyPurchase({ gateway: "googleplay", id: orderId, userId })
+await play.acknowledgeProduct(p.productId as string, p.orderId as string) // orderId is the purchase token
+```

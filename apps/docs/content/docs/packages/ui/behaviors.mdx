@@ -1,0 +1,80 @@
+---
+title: "Behaviors"
+description: "Keyboard shortcuts, controllable state and fuzzy matching the components are built from."
+---
+
+## Usage
+
+```tsx
+import { useShortcut, useShortcutLabel, useControllableState } from "@dapplelight/signet-ui/behaviors"
+
+export function InvoiceSearch({ onOpen }: { onOpen: () => void }) {
+  useShortcut("mod+k", onOpen)
+  const hint = useShortcutLabel("mod+k")
+  return <kbd aria-keyshortcuts={hint.ariaKeyShortcuts}>{hint.text}</kbd>
+}
+```
+
+`mod` is Cmd on Apple platforms and Ctrl elsewhere. Build your own components from these plus token classes.
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `useShortcut(keys, handler, options?)` | Run `handler` while mounted when `keys` is pressed. |
+| `useShortcutLabel(keys)` | `{ text, ariaKeyShortcuts }` for this platform ("⌘K" or "Ctrl+K"). |
+| `useControllableState(options)` | One state that works controlled or uncontrolled. |
+| `matchScore(text, query)` | Fuzzy score from 0 (no match) to 1 (same text). |
+| `ShortcutOptions` | Type: `{ enabled?: boolean }`. |
+| `ControllableStateOptions<T>` | Type: `{ value?, defaultValue, onChange? }`. |
+
+### useShortcut(keys, handler, options?)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `keys` | `string \| null \| undefined` | required | Like `"mod+k"`. `null` registers nothing. |
+| `handler` | `(event: KeyboardEvent) => void` | required | The latest handler always runs; it need not be stable. |
+| `options.enabled` | `boolean` | `true` | A disabled shortcut is not registered. |
+
+A modal dialog built on these behaviors pauses page shortcuts while it is open. `useShortcutLabel` renders the same text on the server and the first client render.
+
+### useControllableState(options)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `value` | `T` | `undefined` | Controlled value. Leave undefined for uncontrolled. |
+| `defaultValue` | `T` | required | Initial value when uncontrolled. |
+| `onChange` | `(value: T) => void` | none | Called on every set, controlled or not. |
+
+Returns `[value, set]`.
+
+## Examples
+
+### A toggle that works both ways
+
+```tsx
+import { useControllableState } from "@dapplelight/signet-ui/behaviors"
+
+type Props = { value?: boolean; defaultValue?: boolean; onChange?: (on: boolean) => void }
+
+export function AutoPayToggle({ value, defaultValue = false, onChange }: Props) {
+  const [on, setOn] = useControllableState({ value, defaultValue, onChange })
+  return (
+    <button type="button" aria-pressed={on} onClick={() => setOn(!on)}>
+      Auto-pay {on ? "on" : "off"}
+    </button>
+  )
+}
+```
+
+### Rank a list like Command does
+
+```ts
+import { matchScore } from "@dapplelight/signet-ui/behaviors"
+
+const hits = customers
+  .map((c) => ({ c, score: matchScore(c.name, query) }))
+  .filter((x) => x.score > 0)
+  .sort((a, b) => b.score - a.score)
+  .map((x) => x.c)
+```

@@ -1,0 +1,132 @@
+---
+title: "Pill Group"
+description: "A row of pill buttons for choosing one filter."
+---
+
+import { PillGroupDemo, PillGroupColoursDemo, PillGroupRangeDemo } from "@/components/demos/pill-group"
+
+<Preview>
+  <PillGroupDemo />
+
+```tsx
+import { useState } from "react"
+import { PillGroup } from "@dapplelight/signet-ui/components/pill-group"
+
+const statuses = [
+  { value: "", label: "All" },
+  { value: "paid", label: "Paid" },
+  { value: "pending", label: "Pending" },
+  { value: "overdue", label: "Overdue" },
+]
+
+export function Demo() {
+  const [status, setStatus] = useState("")
+  return <PillGroup options={statuses} value={status} onChange={setStatus} />
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add pill-group
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { PillGroup } from "@dapplelight/signet-ui/components/pill-group"
+```
+
+```tsx
+<PillGroup options={statuses} value={status} onChange={setStatus} />
+```
+
+## Examples
+
+### Coloured states
+
+<Preview>
+  <PillGroupColoursDemo />
+
+```tsx
+<PillGroup
+  value={status}
+  onChange={setStatus}
+  options={[
+    { value: "paid", label: "Paid", activeClassName: "border-green-500/40 bg-green-500/15 text-text-primary" },
+    { value: "pending", label: "Pending", activeClassName: "border-amber-500/40 bg-amber-500/15 text-text-primary" },
+    { value: "overdue", label: "Overdue", activeClassName: "border-red-500/40 bg-red-500/15 text-text-primary" },
+  ]}
+/>
+```
+
+</Preview>
+
+### Date range
+
+<Preview>
+  <PillGroupRangeDemo />
+
+```tsx
+const [range, setRange] = useState("30d")
+
+<PillGroup
+  value={range}
+  onChange={setRange}
+  options={[
+    { value: "7d", label: "7 days" },
+    { value: "30d", label: "30 days" },
+    { value: "90d", label: "90 days" },
+  ]}
+/>
+```
+
+</Preview>
+
+## API Reference
+
+### PillGroup
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| options | `PillOption[]` | - | The pills, in order. |
+| value | `string` | - | The selected option's value. Use `""` for an All pill. |
+| onChange | `(value: string) => void` | - | Called with the clicked pill's value. |
+| className | `string` | - | Class on the wrapper. |
+
+### PillOption
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| value | `string` | - | Value passed to `onChange`. |
+| label | `string` | - | Text shown in the pill. |
+| activeClassName | `string` | primary tint | Replaces the selected style, e.g. a status colour. |

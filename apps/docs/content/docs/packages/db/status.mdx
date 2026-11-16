@@ -1,0 +1,79 @@
+---
+title: "Status"
+description: "A status page with components and incidents, plus the maintenance switch."
+---
+
+## Usage
+```ts
+import { auditLog, statusTables } from "@dapplelight/signet-db/columns/sqlite"
+import { createStatus } from "@dapplelight/signet-db/status"
+
+// schema.ts: the status tables and the audit table the writes need
+export const { statusComponents, statusIncidents, maintenance } = statusTables()
+export const audit = auditLog()
+
+// app
+const status = createStatus(db, { tables: { statusComponents, statusIncidents, maintenance } })
+const actor = { type: "user", id: staffId } as const
+
+await status.setComponent("api", { name: "API", position: 1 }, { actor })
+const incident = await status.openIncident(
+  { title: "Slow sign-in", impact: "minor", components: ["api"], message: "Looking into it" },
+  { actor },
+)
+await status.updateIncident(incident.id, { status: "resolved", message: "Fixed" }, { actor })
+const page = await status.summary() // what the public status page shows
+```
+
+Writes are audited, so the db needs an audit table: `auditLog()` above, passed as `createDb(sqlite, { audit })`. Then generate and apply the migration as for any table:
+```bash
+npx drizzle-kit generate && npx drizzle-kit migrate
+```
+ Component statuses are set by hand. The overall status is the worst of the components and the impact of open incidents. Maintenance mode shows as `maintenance` unless something is worse.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createStatus(db, options)` | The status store. Methods below. |
+| `worst(a, b)` | The worse of two component statuses. |
+| `COMPONENT_STATUSES` | `operational`, `maintenance`, `degraded`, `partial_outage`, `major_outage` (best to worst). |
+| `INCIDENT_STATUSES` | `investigating`, `identified`, `monitoring`, `resolved`. |
+| `INCIDENT_IMPACTS` | `minor`, `major`, `critical`. |
+| `ComponentStatus`, `IncidentStatus`, `IncidentImpact`, `StatusComponent`, `Incident`, `IncidentUpdate`, `Maintenance`, `StatusSummary`, `StatusTables`, `StatusOptions`, `StatusStore` | Types. |
+
+### createStatus(db, options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `tables` | `{ statusComponents, statusIncidents, maintenance }` | required | From `statusTables()`. |
+| `now` | `() => Date` | `new Date()` | Clock, for tests. |
+
+### Methods
+| Method | What it does |
+| --- | --- |
+| `setComponent(key, { name?, description?, status?, position? }, { actor })` | Add or change a component. New ones need a name and start `operational`. |
+| `removeComponent(key, { actor })` | Returns whether there was one. |
+| `components()` | All components by position. |
+| `openIncident({ title, impact, components?, message, status? }, { actor })` | Components must exist. Status defaults to `investigating`. |
+| `updateIncident(id, { status, message, impact? }, { actor })` | Post an update. `resolved` closes it; a resolved incident cannot change. |
+| `getIncident(id)` / `incidents({ days?, limit? })` | Open incidents, plus those resolved in the last `days`. |
+| `setMaintenance({ on, message?, until? }, { actor })` | Switch maintenance mode. `until` becomes the 503's `Retry-After`. |
+| `maintenance()` | Current `{ on, message, until }`. |
+| `summary({ days? })` | `{ status, components, incidents, maintenance }`; `days` defaults to 7. |
+
+Component keys are 1 to 64 letters, digits, `.`, `_` or `-`. signet-server's `maintenanceMode` middleware reads `maintenance()`.
+
+## Examples
+### Public status endpoint
+```ts
+export async function GET() {
+  return Response.json(await status.summary({ days: 14 }))
+}
+```
+
+### Planned maintenance window
+```ts
+await status.setMaintenance(
+  { on: true, message: "Upgrading the database", until: new Date("2026-12-01T02:00:00Z") },
+  { actor },
+)
+```

@@ -1,0 +1,68 @@
+---
+title: "Add the Error Envelope and Request Validation"
+description: "Every API error has the same JSON shape, validation failures carry field errors, and production hides internals."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-server @dapplelight/signet-lib hono zod
+```
+</Step>
+<Step>
+### Install the handler
+```ts title="src/app.ts"
+import { errorHandler } from "@dapplelight/signet-server/http"
+
+app.onError(errorHandler({
+  isProduction: () => getRuntimeEnv().NODE_ENV === "production",
+  onError: (err, meta) => captureException(err, meta),
+}))
+```
+`isProduction` is a function so it is read per request.
+</Step>
+<Step>
+### Validate input
+```ts title="src/server/things.ts"
+import { ApiException } from "@dapplelight/signet-server/http"
+import { parseBody } from "@dapplelight/signet-server/http/validate"
+
+app.post("/things", async (c) => {
+  const body = await parseBody(c, thingSchema)
+  if (!allowed) throw new ApiException(403, "Not allowed", "NOT_IN_HOUSEHOLD")
+  return c.json(await create(body))
+})
+```
+A bad body is a 400 with `details.fieldErrors`.
+</Step>
+<Step>
+### Type the routes for a client
+```ts title="src/app.ts"
+import { zValidator } from "@dapplelight/signet-server/http/validate"
+
+export const app = new Hono()
+  .post("/api/notes", zValidator("json", NoteInput), (c) => c.json(save(c.req.valid("json")), 201))
+  .get("/api/notes/:id", zValidator("param", z.object({ id: z.string() })), (c) => c.json(get(c.req.valid("param").id)))
+export type AppType = typeof app
+```
+</Step>
+<Step>
+### Read it in the browser
+```ts title="src/web/note-form.tsx"
+import { ApiError } from "@dapplelight/signet-lib/api"
+
+catch (e) {
+  if (e instanceof ApiError && e.code === "VALIDATION_FAILED") setFieldErrors(e.details?.fieldErrors ?? {})
+}
+```
+Branch on `code`, never on the message.
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="HTTP" href="/docs/packages/server/http" description="Handler, validators and route groups." />
+  <Card title="API client" href="/docs/packages/lib/api" description="The client half of the contract." />
+  <Card title="Add the typed API client" href="/docs/guides/add-api-client" description="End-to-end route types." />
+</Cards>

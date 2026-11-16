@@ -1,0 +1,87 @@
+---
+title: "Search"
+description: "Ranked in-app search with query chips, typo tolerance and usage boosts. No UI, no dependencies."
+---
+
+## Usage
+```ts
+import { amounts, createSearch, dates, source } from "@dapplelight/signet-lib/search"
+
+const search = createSearch({
+  sources: [
+    source({
+      kind: "page",
+      title: "Pages",
+      items: [{ id: "invoices", label: "Invoices" }, { id: "team", label: "Team members" }],
+      key: (p) => p.id,
+      name: (p) => p.label,
+      words: (p) => (p.id === "team" ? ["people", "staff"] : []),
+    }),
+    source({
+      kind: "payment",
+      title: "Payments",
+      find: (q) => db.payments.search(q.text, q.filters), // large lists query your own store
+      key: (p) => p.id,
+      name: (p) => p.payee,
+      usesFilters: true,
+      keepOrder: true,
+    }),
+  ],
+  readers: [dates(), amounts()],
+  words: { bijli: "electricity" }, // what people type -> what the data says
+})
+
+const result = search.search("invoce over 5k last month")
+// result.best, result.sections, result.fixed ("typo corrected to"), result.query.chips
+
+search.pick("invoce", result.best ?? result.sections[0].hits[0]) // call when a result is opened
+search.recent(5) // last searches that led somewhere
+```
+
+Pass `store` to keep picks on the device (`memoryStore()` by default).
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createSearch(config)` | Returns `{ search, pick, recent, parse }` |
+| `source(s)` | Erases a source's item type so sources share one list |
+| `Config`, `Source`, `Query`, `Hit`, `Section`, `Result` | Types |
+| `memoryStore(start?)`, `Store`, `Pick` | Picks storage; implement `load`/`save` for MMKV, localStorage or a file |
+| `boost`, `addPick`, `recent`, `BOOST_CAP` | The usage-boost helpers |
+| `norm(s)`, `lev(a, b)`, `sound(w)`, `typo(q, word)`, `quality(name, words, q)` | Text matching primitives |
+
+### createSearch(config)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `sources` | `Source[]` | required | |
+| `readers` | `Reader[]` | none | Run in order over the query |
+| `words` | `Record<string, string>` | `{}` | Word list applied to the query |
+| `store` | `Store` | `memoryStore()` | |
+| `now` | `() => number` | `Date.now` | |
+
+### Source
+| Field | Type | |
+| --- | --- | --- |
+| `kind`, `title` | `string` | Section id and heading |
+| `key(item)`, `name(item)` | `string` | Identity and display/match name |
+| `items` | list or `() => list` | Small lists the engine matches |
+| `find(q)` | `(q: Query) => list` | Big lists: query your own store |
+| `words(item)` | `string[]` | Extra names people search by |
+| `weight(item)` | `number` | 0 to 6 points for how much the item is used |
+| `prior` | `number` | Multiplier on the match score, default 1 |
+| `usesFilters` | `boolean` | Section leads whenever the query has a chip |
+| `keepOrder` | `boolean` | Keep `find`'s order instead of sorting |
+
+## Readers
+Readers pull structured parts out of the query before text matching.
+
+| Export | What it reads |
+| --- | --- |
+| `dates(labels?)` | today, yesterday, this/last week, last N days, month names, year (English and Hindi words) |
+| `amounts(format?, labels?)` | `500`, `3k`, `1.2L`, `over 5k`, `500-1000`, `kam`/`zyada` |
+| `people(names)` | Names or `@name` from your own list |
+| `commands(verbs)` | A leading verb: `add 250 chai` gives `{ verb: "add", amount: 250 }` |
+| `amount(n, unit?)` | Converts `3` and `k` to `3000` |
+| `Reader`, `Chip`, `ReaderContext`, `DateRange`, `AmountRange`, `Command`, `DateLabels`, `AmountLabels` | Types. Write your own `Reader` as `{ name, read(s, ctx) }` |
+
+`result.best` is set only when one result clearly wins and the query has no chips.

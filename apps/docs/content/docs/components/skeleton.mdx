@@ -1,0 +1,125 @@
+---
+title: "Skeleton"
+description: "A pulsing placeholder shown while content loads."
+---
+
+import { SkeletonDemo, SkeletonCardDemo, SkeletonTableDemo } from "@/components/demos/skeleton"
+
+<Preview>
+  <SkeletonDemo />
+
+```tsx
+import { Skeleton } from "@dapplelight/signet-ui/components/skeleton"
+
+export function Demo() {
+  return (
+    <div className="flex items-center gap-4">
+      <Skeleton className="size-12 rounded-full" />
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-[250px]" />
+        <Skeleton className="h-4 w-[200px]" />
+      </div>
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add skeleton
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { Skeleton } from "@dapplelight/signet-ui/components/skeleton"
+```
+
+```tsx
+<Skeleton className="h-4 w-[250px]" />
+```
+
+## Examples
+
+### Card
+
+<Preview>
+  <SkeletonCardDemo />
+
+```tsx
+import { Skeleton } from "@dapplelight/signet-ui/components/skeleton"
+
+export function Demo() {
+  return (
+    <div className="w-full max-w-sm space-y-3">
+      <Skeleton className="h-32 w-full" />
+      <Skeleton className="h-4 w-3/4" />
+      <Skeleton className="h-4 w-1/2" />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### List rows
+
+<Preview>
+  <SkeletonTableDemo />
+
+```tsx
+import { Skeleton } from "@dapplelight/signet-ui/components/skeleton"
+
+export function Demo() {
+  return (
+    <div className="w-full max-w-md divide-y divide-border-subtle">
+      {Array.from({ length: 4 }, (_, i) => (
+        <div key={i} className="flex items-center justify-between py-3">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-4 w-16" />
+        </div>
+      ))}
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `className` | `string` | `-` | Set the size and shape here. Merged over `animate-pulse rounded-xl bg-bg-surface`. |
+
+Plus every native prop of the element.

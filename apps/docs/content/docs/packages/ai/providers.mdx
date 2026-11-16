@@ -1,0 +1,45 @@
+---
+title: "Providers"
+description: "Vercel AI SDK and Workers AI adapters for the extractor."
+---
+
+## Usage
+```ts
+import { createWorkersAI } from "workers-ai-provider"
+import { createExtractor } from "@dapplelight/signet-ai"
+import { aiSdkProvider, workersAiProvider } from "@dapplelight/signet-ai/providers/ai-sdk"
+
+const workersAi = createWorkersAI({ binding: env.AI })
+
+const ai = createExtractor({
+  providers: [
+    workersAiProvider(workersAi("@cf/meta/llama-3.3-70b-instruct-fp8-fast"), undefined, { perCallUsd: 0.0005 }),
+    aiSdkProvider({
+      name: "backup",
+      model: backupModel,
+      pricing: { inputPerMTokens: 0.15, outputPerMTokens: 0.6 },
+    }),
+  ],
+})
+```
+
+Needs `ai` 7 or later. It is not on the package root, so importing the extractor alone does not pull in `ai`.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `aiSdkProvider(options)` | A `Provider` over any AI SDK model, using structured output |
+| `workersAiProvider(model, modelId?, pricing?)` | `aiSdkProvider` named `"workers-ai"` |
+| `modelIdOf(model)` | A label for a model: the string, or its `modelId` |
+| `toUsage(usage)` | SDK usage to `{ inputTokens, outputTokens }` |
+| `AiSdkProviderOptions` | Type |
+
+### aiSdkProvider(options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `name` | `string` | required | Shown in `meta` and logs |
+| `model` | `LanguageModel` | required | From any AI SDK provider package |
+| `pricing` | `Pricing` | none | Required with a ledger |
+| `modelId` | `string` | model's own id | Label for `meta.model` |
+| `temperature` | `number` | `0` | |
+| `maxRetries` | `number` | `0` | SDK retries stay off so spend is not multiplied |

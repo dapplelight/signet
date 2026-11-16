@@ -1,0 +1,116 @@
+---
+title: "Entitlements"
+description: "Plans, features, usage limits and billing events, for users or orgs."
+---
+
+## Usage
+```ts
+import { entitlementTables } from "@dapplelight/signet-db/columns/sqlite" // or /columns/pg
+import { createEntitlements, definePlans } from "@dapplelight/signet-db/entitlements"
+
+export const { subjectPlans, entitlementOverrides, usageCounters } = entitlementTables()
+
+const plans = definePlans({ // lowest first
+  free: { features: ["export"], limits: { seats: 1, aiCredits: 20 } },
+  pro: { features: ["export", "sso"], limits: { seats: 10, aiCredits: 1000 } },
+  team: { features: ["export", "sso", "audit"], limits: { seats: Infinity, aiCredits: 5000 } },
+})
+
+const ent = createEntitlements(db, {
+  plans,
+  default: "free",
+  tables: { subjectPlans, entitlementOverrides, usageCounters },
+  periods: { seats: "total" }, // aiCredits: "month" by default
+  billing: { plans: { price_9f: "pro", "appstore:team.yearly": "team" }, graceMs: 3 * 86_400_000 },
+})
+
+await ent.can(orgId, "sso") // an undeclared feature is a type error
+await ent.limit(orgId, "seats") // a limit a plan leaves out is 0; Infinity is unlimited
+await ent.consume(orgId, "aiCredits", 5) // { ok, used, limit, remaining, period }
+```
+
+A subject is any id: a user or an org. Writes go through `audited`, so the db needs an audit table.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `definePlans(plans)` | Declare plans in code; keys type `can`, `limit`, `consume` |
+| `createEntitlements(db, options)` | The entitlements store |
+| `entitlementTools(options)` | Plan, entitlement and flag tools for AI agents |
+| `PROMOTIONAL` | Gateway name of promotional grants, `"promotional"` |
+| `defaultStatusOf(event)` | Default status read from Stripe, Paddle, Razorpay payloads |
+| `defaultPeriodEndOf(event)` | Default period end from Stripe, Razorpay, Paddle, Lemon Squeezy |
+| `defaultPlanIdOf(event)` | Default gateway plan id from an event |
+| `storeStateOf(gateway, raw)` | App Store or Google Play state, from the store's own status |
+| `periodOf(period, at)` | `"2026-11"`, `"2026-11-15"` or `"all"` in UTC |
+| Types | `PlanDef`, `Plans`, `FeatureOf`, `LimitOf`, `PlanKey`, `Period`, `SubscriptionStatus`, `BillingEvent`, `BillingConfig`, `SubscriptionLike`, `EntitlementTables`, `EntitlementsOptions`, `Override`, `Source`, `Entitlement`, `Resolved`, `Usage`, `BillingResult`, `SourceState`, `Entitlements`, `EntitlementTool`, `EntitlementToolsOptions`, `ApprovalRequest` |
+
+### createEntitlements(db, options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `plans` | `Plans` | required | From `definePlans` |
+| `default` | plan key | required | Plan of a subject with no row, or a lapsed one |
+| `tables` | `{ subjectPlans, entitlementOverrides, usageCounters }` | required | From `entitlementTables()` |
+| `periods` | `{ [limit]: "month" \| "day" \| "total" }` | `"month"` | Usage window per limit |
+| `billing` | `BillingConfig` | none | Maps gateway events to plans |
+| `now` | `() => Date` | `new Date` | Clock for tests |
+
+Methods:
+
+| Method | What it does |
+| --- | --- |
+| `get(subject)` | `plan`, `storedPlan`, `status`, `graceUntil`, `currentPeriodEnd`, `source`, `entitlements`, `features`, `limits`, `overrides` |
+| `can(subject, feature)` | Is the feature on |
+| `limit(subject, key)` | The limit's value |
+| `consume(subject, key, n)` | Add usage only if it stays within the limit, in one conditional UPDATE |
+| `usage(subject)` | This period, every limit |
+| `setPlan(subject, plan, { actor })` | Manual plan; a live subscription on a later plan still wins |
+| `grant`, `revoke(subject, feature, { actor, expiresAt? })` | Feature override |
+| `setLimit(subject, key, value, { actor, expiresAt? })` | Limit override; `null` is unlimited |
+| `removeOverride(subject, id, { actor })` | Delete an override |
+| `grantPromotional(subject, plan, { actor, expiresAt })`, `endPromotional(subject, id, { actor })` | Time-limited plan that lapses on its own |
+| `applyBillingEvent(event, { subject? })` | Apply a signet-payments event |
+| `applySubscription(sub, { subject })` | Apply a subscription read live (restore) |
+
+### billing options
+| Option | Default | |
+| --- | --- | --- |
+| `plans` | required | Gateway plan, price or store product id to plan key; prefix `"appstore:"` or `"googleplay:"` when ids clash |
+| `planIdOf` | `defaultPlanIdOf` | Read the gateway plan id |
+| `statusOf` | `defaultStatusOf` | Status for `created` and `updated` events |
+| `periodEndOf` | `defaultPeriodEndOf` | End of the paid period |
+| `subjectOf` | stored subject | Who owns the subscription, e.g. from gateway metadata |
+| `graceMs` | 3 days | How long `past_due` keeps the paid plan |
+
+Events apply once and out-of-order ones return `{ applied: false, reason: "stale" }`, so the db needs an idempotency table. A subscription belongs to one subject: another returns `reason: "other_subject"`.
+
+## Examples
+
+### Wire payments to entitlements
+```ts
+const payments = createPayments({
+  gateways,
+  db: store,
+  onEvent: (event) => ent.applyBillingEvent(event),
+})
+
+// At checkout, link the subscription to its subject on the first event:
+await ent.applyBillingEvent(event, { subject: orgId })
+```
+
+### Restore purchases
+```ts
+const { restored } = await payments.restorePurchases({ userId, purchases })
+for (const r of restored)
+  if (r.subscription) await ent.applySubscription(r.subscription, { subject: userId })
+```
+
+### Read-only tools for a support agent
+```ts
+import { entitlementTools } from "@dapplelight/signet-db/entitlements"
+
+const tools = entitlementTools({ entitlements: ent, flags: ff, subject: orgId })
+// get_plan, check_entitlement, usage, list_flags
+```
+
+Writes (`grant_feature`, `set_plan`, `set_flag`) need `allowWrites: true` and an `approve` gate; without one they return `APPROVAL_REQUIRED` and change nothing. Use `allSubjects: true` for an operator agent.

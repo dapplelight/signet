@@ -1,0 +1,95 @@
+---
+title: "Offerings"
+description: "Versioned offerings and remote paywalls, served by placement and audience."
+---
+
+## Usage
+```ts
+import { monetisationTables } from "@dapplelight/signet-db/columns/sqlite"
+import { createOfferings } from "@dapplelight/signet-db/offerings"
+
+// schema.ts
+export const { offerings, placements } = monetisationTables()
+
+// app
+const catalog = createOfferings(db, { tables: { offerings, placements }, plans })
+const actor = { type: "user", id: staffId } as const
+
+await catalog.publish(
+  "default",
+  {
+    products: [
+      { id: "pro.monthly", store: "appstore", plan: "pro", interval: "month", price: { amount: 19900, currency: "INR" } },
+      { id: "price_9f", store: "web", plan: "pro", interval: "year", price: { amount: 149900, currency: "INR" } },
+    ],
+    paywall: { title: "Go Pro", highlight: "pro", cta: "Start free trial" },
+  },
+  { actor },
+) // version 1
+
+await catalog.setPlacement(
+  "onboarding",
+  { offering: "default", overrides: [{ when: { country: ["IN"] }, offering: "india" }] },
+  { actor },
+)
+
+const offering = await catalog.current("onboarding", { country: "IN", platform: "appstore" })
+```
+
+Each `publish` writes a new immutable version. Change what the app sells with `publish` and `setPlacement`; never edit a row.
+## API
+| Export | What it does |
+| --- | --- |
+| `createOfferings(db, options)` | The offerings store. Methods below. |
+| `plansFromProducts(products)` | The `billing.plans` map for `createEntitlements`. |
+| `offerEligible(offer, history, now?)` | Whether a customer may see an offer. Never with a live subscription. |
+| `variantOffering(value)` | The `{ offering, version? }` a pricing variant names, or null. |
+| `OfferingsOptions`, `OfferingTables`, `Offerings`, `Offering`, `OfferingProduct`, `ProductStore`, `ProductInterval`, `ProductOffer`, `OfferType`, `OfferEligibility`, `OfferHistory`, `PaywallConfig`, `Audience`, `AudienceRule`, `Placement`, `CurrentOffering`, `PricingVariantValue` | Types. |
+
+### createOfferings(db, options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `tables` | `{ offerings, placements }` | required | From `monetisationTables()`. |
+| `plans` | `definePlans(...)` result | none | When given, every product's `plan` must be one of them. |
+| `experiments` | `createExperiments(...)` | none | Needed for placements that run a pricing experiment. |
+
+### Methods
+| Method | What it does |
+| --- | --- |
+| `publish(key, { products, paywall?, note? }, { actor })` | Validate and write version latest + 1. |
+| `get(key, version?)` | One version, or the latest. |
+| `versions(key)` | All versions, newest first. |
+| `list()` | Every offering's latest version. |
+| `setPlacement(placement, { offering, version?, overrides?, experiment? }, { actor })` | Replaces the whole placement. Every offering named must be published. |
+| `getPlacement(placement)` / `placements()` | Read placements. |
+| `current(placement, audience?, subjectId?)` | The first matching override, else the subject's experiment variant, else the placement's own. Null for an unknown placement. |
+
+### Product shape
+| Field | Type | |
+| --- | --- | --- |
+| `id` | `string` | Store product id, or the web gateway's plan or price id. |
+| `store` | `"appstore" \| "googleplay" \| "web"` | Where it is sold. |
+| `plan` | `string` | Plan key it grants. |
+| `interval` | `"month" \| "year" \| "once"` | Optional. |
+| `price` | `{ amount, currency }` | Display price in minor units. Stores charge their own. |
+| `offers` | `ProductOffer[]` | Up to 10 free trials, intro and win-back offers. |
+
+## Examples
+### Free trial offer for new customers only
+```ts
+{
+  id: "pro.yearly",
+  store: "appstore",
+  plan: "pro",
+  interval: "year",
+  offers: [{ id: "trial7", type: "free_trial", days: 7, eligibility: { neverSubscribed: true } }],
+}
+```
+
+### Map product ids to plans for entitlements
+```ts
+import { plansFromProducts } from "@dapplelight/signet-db/offerings"
+
+const plansByProduct = plansFromProducts((await catalog.get("default"))!.products)
+// { "appstore:pro.monthly": "pro", "price_9f": "pro" }
+```

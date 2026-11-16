@@ -1,0 +1,201 @@
+---
+title: "Table"
+description: "A responsive table with a header, body, rows and cells."
+---
+
+import { TableDemo, TableCompactDemo, TableMutedDemo } from "@/components/demos/table"
+
+<Preview>
+  <TableDemo />
+
+```tsx
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@dapplelight/signet-ui/components/table"
+const invoices = [
+  { id: "INV-1042", status: "Paid", method: "Card", amount: "$250.00" },
+  { id: "INV-1043", status: "Pending", method: "Bank transfer", amount: "$1,180.00" },
+  { id: "INV-1044", status: "Paid", method: "Card", amount: "$89.50" },
+  { id: "INV-1045", status: "Overdue", method: "Bank transfer", amount: "$640.00" },
+]
+
+export function Demo() {
+  return (
+    <Table>
+      <TableCaption>Recent invoices</TableCaption>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Invoice</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead>Method</TableHead>
+          <TableHead className="text-right">Amount</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {invoices.map((inv) => (
+          <TableRow key={inv.id}>
+            <TableCell className="font-medium">{inv.id}</TableCell>
+            <TableCell>{inv.status}</TableCell>
+            <TableCell>{inv.method}</TableCell>
+            <TableCell className="text-right">{inv.amount}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add table
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@dapplelight/signet-ui/components/table"
+```
+
+```tsx
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Invoice</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>INV-1042</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+```
+
+## Examples
+
+### Without caption
+
+<Preview>
+  <TableCompactDemo />
+
+```tsx
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@dapplelight/signet-ui/components/table"
+const invoices = [
+  { id: "INV-1042", status: "Paid", method: "Card", amount: "$250.00" },
+  { id: "INV-1043", status: "Pending", method: "Bank transfer", amount: "$1,180.00" },
+  { id: "INV-1044", status: "Paid", method: "Card", amount: "$89.50" },
+  { id: "INV-1045", status: "Overdue", method: "Bank transfer", amount: "$640.00" },
+]
+
+export function Demo() {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Invoice</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead>Method</TableHead>
+          <TableHead className="text-right">Amount</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {invoices.map((inv) => (
+          <TableRow key={inv.id}>
+            <TableCell className="font-medium">{inv.id}</TableCell>
+            <TableCell>{inv.status}</TableCell>
+            <TableCell>{inv.method}</TableCell>
+            <TableCell className="text-right">{inv.amount}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
+}
+```
+
+</Preview>
+
+### Highlighted row
+
+<Preview>
+  <TableMutedDemo />
+
+```tsx
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@dapplelight/signet-ui/components/table"
+
+export function Demo() {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Member</TableHead>
+          <TableHead>Role</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        <TableRow>
+          <TableCell>Priya Shah</TableCell>
+          <TableCell className="text-text-muted">Owner</TableCell>
+        </TableRow>
+        <TableRow className="bg-bg-elevated">
+          <TableCell>Marcus Lee</TableCell>
+          <TableCell className="text-text-muted">Admin (selected)</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>Ana Torres</TableCell>
+          <TableCell className="text-text-muted">Viewer</TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+`Table` wraps a `<table>` in a `div`. `TableHeader` is `<thead>`, `TableBody` is `<tbody>`, `TableRow` is `<tr>`, `TableHead` is `<th>`, `TableCell` is `<td>` and `TableCaption` is `<caption>` (shown below the table).
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `className` | `string` | `-` | On every part. Merged over the defaults. |
+
+Every part also takes the native props of its element. For sorting, filtering and pagination see Data Table.

@@ -1,0 +1,58 @@
+---
+title: "Paddle"
+description: "Paddle Billing transactions from catalog prices, refunds as adjustments, subscriptions."
+---
+
+## Usage
+
+```ts
+import { paddle } from "@dapplelight/signet-payments/paddle"
+
+const pd = paddle({
+  apiKey: env.PADDLE_API_KEY,
+  webhookSecret: env.PADDLE_WEBHOOK_SECRET,
+  sandbox: true,
+})
+
+// A Transaction from catalog prices. Redirect to checkout.url.
+const checkout = await pd.createCheckout({
+  amount: 1999,
+  currency: "USD",
+  idempotencyKey: "order-1042",
+  extra: { items: [{ price_id: "pri_01hpro", quantity: 1 }] },
+})
+
+// Webhook: Paddle-Signature ts=..;h1=..
+app.post("/webhooks/paddle", (c) => payments.handleWebhook("paddle", c.req.raw))
+```
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `paddle(config)` | A `PaymentGateway` named `paddle` over `api.paddle.com` (Paddle Billing, not Classic) |
+| `PaddleConfig` | Config type |
+
+### paddle(config)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `apiKey` | `string` | | Required. Bearer key, sent with `Paddle-Version: 1` |
+| `webhookSecret` | `string` | | Endpoint secret, needed for `verifyWebhook` |
+
+Plus the shared `sandbox` (`sandbox-api.paddle.com`), `baseUrl`, `fetch`, `retries`, `retryDelayMs`.
+
+## Capabilities
+
+Methods: `card`, `wallet`, `applepay`, `googlepay`. Features: refunds, partial refunds, customers, saved methods, subscriptions, webhooks. No capture, payouts or settlements.
+
+## Quirks
+
+- **Merchant of record.** Checkout needs `extra.items`, an array of `{ price_id, quantity }`. Without it the call is `BAD_INPUT`. The returned amount comes from Paddle's totals.
+- **Your reference** is stored in `custom_data.reference` and comes back on the event.
+- **No idempotency keys.** Paddle has none, so checkout retries are not deduplicated.
+- **Refunds are adjustments** that usually start `pending_approval`. A partial refund is spread over the transaction's line items in order, each up to its total (tax included).
+- **Customers** need an `email`.
+- **Cancel** with `atPeriodEnd: true` takes effect at the next billing period, otherwise immediately.
+- **Webhook**: `h1` repeats while a secret rotates. HMAC-SHA256 hex of `ts:rawBody`, within the timestamp tolerance.
+- **Wallets**: filter them client-side with Paddle.js `allowedPaymentMethods`.

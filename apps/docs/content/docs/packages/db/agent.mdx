@@ -1,0 +1,58 @@
+---
+title: "Agent"
+description: "Per-user database tools for AI agents, safe by construction."
+---
+
+## Usage
+```ts
+import { agentTools } from "@dapplelight/signet-db/agent"
+import { createMcpServer } from "@dapplelight/signet-server/mcp"
+import { notes, orders } from "./schema"
+
+const tools = agentTools(db, {
+  tables: [orders, notes],
+  userId: session.userId,
+  maxRows: 50,
+})
+createMcpServer({ name: "app", version: "1.0.0", tools }) // or call tool.run(input) yourself
+```
+
+Needs `zod`. Each table gets `<table>_list`, `<table>_get` and `<table>_search`. With `allowWrites: true` it also gets `<table>_insert` and `<table>_update`, which take `dryRun: true`.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `agentTools(db, options)` | Build the tool list for one user |
+| `jsonSchema(zodType)` | Zod to JSON Schema, dates as `date-time` strings |
+| `AgentTool` | `{ name, description, annotations, input, inputSchema, run, handler }` |
+| `AgentToolsOptions` | Options type |
+
+### agentTools(db, options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `tables` | `Table[] \| schema module` | required | Each needs a `userId` column |
+| `userId` | `string` | required | The user the agent acts for |
+| `actor` | `Actor` | `{ type: "agent", id: "agent" }` | Recorded in the audit log |
+| `allowWrites` | `boolean` | `false` | Add insert and update tools |
+| `maxRows` | `number` | `100` | Most rows any call returns |
+| `includeEncrypted` | `boolean` | `false` | Return encrypted fields, decrypted |
+
+## Guards
+- Scoped to `userId`; a table without a `userId` column is refused.
+- Soft-deleted rows are hidden; `userId` is never returned.
+- Inputs are strict Zod objects: unknown fields fail with `BAD_INPUT`.
+- Writes are audited as the agent actor.
+
+## Examples
+
+### Let the agent edit, after a dry run
+```ts
+const tools = agentTools(db, {
+  tables: [orders],
+  userId: session.userId,
+  allowWrites: true,
+  actor: { type: "agent", id: "support-bot" },
+})
+const update = tools.find((t) => t.name === "orders_update")!
+await update.run({ id: orderId, set: { item: "Idli" }, dryRun: true }) // { dryRun, before, after }
+```

@@ -1,0 +1,162 @@
+---
+title: "Progress"
+description: "Displays how far a task has got, as a bar."
+---
+
+import { ProgressDemo, ProgressLabelledDemo, ProgressControlledDemo, ProgressRangeDemo, ProgressIndeterminateDemo } from "@/components/demos/progress"
+
+<Preview>
+  <ProgressDemo />
+
+```tsx
+import { Progress } from "@dapplelight/signet-ui/components/progress"
+
+export function Demo() {
+  return <Progress value={64} aria-label="Storage used" />
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add progress
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  Progress,
+  ProgressLabel,
+  ProgressValue,
+} from "@dapplelight/signet-ui/components/progress"
+```
+
+```tsx
+<Progress value={64} aria-label="Storage used" />
+```
+
+Built on Base UI's Progress, so the root takes its props.
+
+## Examples
+
+### Label and value
+
+<Preview>
+  <ProgressLabelledDemo />
+
+```tsx
+<Progress value={72}>
+  <ProgressLabel>Storage used</ProgressLabel>
+  <ProgressValue />
+</Progress>
+```
+
+</Preview>
+
+### Controlled
+
+<Preview>
+  <ProgressControlledDemo />
+
+```tsx
+const [value, setValue] = useState(30)
+
+<Progress value={value}>
+  <ProgressLabel>Uploading invoices</ProgressLabel>
+  <ProgressValue />
+</Progress>
+<Button onClick={() => setValue((v) => (v >= 100 ? 0 : v + 25))}>Upload more</Button>
+```
+
+</Preview>
+
+### Custom range
+
+<Preview>
+  <ProgressRangeDemo />
+
+```tsx
+<Progress value={3} min={0} max={5}>
+  <ProgressLabel>Onboarding steps</ProgressLabel>
+  <ProgressValue>{(_, value) => `${value} of 5`}</ProgressValue>
+</Progress>
+```
+
+</Preview>
+
+### Indeterminate
+
+<Preview>
+  <ProgressIndeterminateDemo />
+
+```tsx
+<Progress value={null} aria-label="Syncing">
+  <ProgressLabel>Syncing orders</ProgressLabel>
+</Progress>
+```
+
+</Preview>
+
+## API Reference
+
+### Progress
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| value | `number \| null` | required | Current value. `null` means indeterminate. |
+| min | `number` | 0 | Lowest value. |
+| max | `number` | 100 | Highest value. |
+| format | `Intl.NumberFormatOptions` | - | How the value is formatted. |
+| locale | `Intl.LocalesArgument` | browser | Locale for formatting the value. |
+| getAriaValueText | `(formatted, value) => string` | - | Accessible value text. |
+| className | `string` | - | Class on the root. |
+| children | `ReactNode` | - | `ProgressLabel` and `ProgressValue`, shown above the bar. |
+
+### ProgressLabel
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| className | `string` | - | Class on the label. |
+
+### ProgressValue
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| children | `(formatted: string \| null, value: number \| null) => ReactNode` | - | Custom text for the value. Defaults to the formatted percentage. |
+| className | `string` | - | Class on the value. |
+
+### ProgressTrack / ProgressIndicator
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| className | `string` | - | The bar and its fill, already rendered by `Progress`. Export them to build your own. |

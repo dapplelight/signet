@@ -1,0 +1,145 @@
+---
+title: "Alert"
+description: "Displays a callout for user attention."
+---
+
+import { AlertDemo, AlertDestructiveDemo, AlertWarningDemo, AlertNoIconDemo } from "@/components/demos/alert"
+
+<Preview>
+  <AlertDemo />
+
+```tsx
+import { Alert, AlertDescription, AlertTitle } from "@dapplelight/signet-ui/components/alert"
+import { InfoIcon } from "lucide-react"
+
+export function Demo() {
+  return (
+    <Alert>
+      <InfoIcon className="size-4" />
+      <AlertTitle>Invoice INV-2041 sent</AlertTitle>
+      <AlertDescription>Acme Corp was emailed a payment link for $4,200.00.</AlertDescription>
+    </Alert>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add alert
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { Alert, AlertDescription, AlertTitle } from "@dapplelight/signet-ui/components/alert"
+```
+
+```tsx
+<Alert>
+  <AlertTitle>Heads up</AlertTitle>
+  <AlertDescription>Something worth reading.</AlertDescription>
+</Alert>
+```
+
+## Examples
+
+### Destructive
+
+<Preview>
+  <AlertDestructiveDemo />
+
+```tsx
+<Alert variant="destructive">
+  <CircleAlertIcon className="size-4" />
+  <AlertTitle>Payment failed</AlertTitle>
+  <AlertDescription>The card ending 4242 was declined. Update it to keep your plan.</AlertDescription>
+</Alert>
+```
+
+</Preview>
+
+### Warning
+
+<Preview>
+  <AlertWarningDemo />
+
+```tsx
+<Alert variant="warning">
+  <AlertTriangleIcon className="size-4" />
+  <AlertTitle>Usage at 92%</AlertTitle>
+  <AlertDescription>You have used 9,200 of 10,000 API calls this month.</AlertDescription>
+</Alert>
+```
+
+</Preview>
+
+### Without an icon
+
+<Preview>
+  <AlertNoIconDemo />
+
+```tsx
+<Alert>
+  <AlertTitle>Scheduled maintenance</AlertTitle>
+  <AlertDescription>Reports will be unavailable on Sunday from 02:00 to 03:00 UTC.</AlertDescription>
+</Alert>
+```
+
+</Preview>
+
+## API Reference
+
+### Alert
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `variant` | `default` \| `destructive` \| `warning` | `default` | Colour of the border, background and icon. |
+| `className` | `string` | - | Merged last. |
+
+Renders a `div` with `role="alert"` and accepts every `div` prop. A direct child `svg` is placed at the start and the text indents past it.
+
+### AlertTitle
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `className` | `string` | - | Merged last. |
+
+Renders an `h5`.
+
+### AlertDescription
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `className` | `string` | - | Merged last. |
+
+Renders a `div`.

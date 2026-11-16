@@ -1,0 +1,95 @@
+---
+title: "Add Analytics"
+description: "Track events from the browser, store them in your own database, and read answers instead of dashboards."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-lib @dapplelight/signet-server @dapplelight/signet-db drizzle-orm
+```
+</Step>
+<Step>
+### Track from the browser
+```ts title="src/web/analytics.ts"
+import { createAnalytics, beaconTransport } from "@dapplelight/signet-lib/analytics"
+
+export const analytics = createAnalytics({
+  transport: beaconTransport("/api/events"),
+  requireConsent: true,
+  traitKeys: ["plan"],
+})
+
+analytics.pageview()
+analytics.track("rsvp_submitted", { guests: 4 })
+analytics.identify(user.id, { plan: "pro" })
+```
+Call `analytics.reset()` on sign-out.
+</Step>
+<Step>
+### Store events in your database
+```ts title="src/db/schema.ts"
+import { analyticsEvents } from "@dapplelight/signet-db/columns/sqlite"
+
+export const events = analyticsEvents()
+```
+```ts title="src/server/analytics.ts"
+import { createAnalyticsStore } from "@dapplelight/signet-db/analytics"
+
+export const store = createAnalyticsStore(db, { table: events, retentionDays: 395, privacy })
+```
+Run `await store.prune()` from a daily cron.
+</Step>
+<Step>
+### Ingest on the server
+```ts title="src/app.ts"
+import { registerIngest, cloudflareEnrichment } from "@dapplelight/signet-server/analytics/ingest"
+import { rateLimit } from "@dapplelight/signet-server/middleware/rate-limit"
+import { store } from "./server/analytics"
+
+app.use("/api/events", rateLimit({ scope: "ingest", max: 60, trust: "cloudflare" }))
+registerIngest(app, "/api/events", {
+  engine: store,
+  enrich: cloudflareEnrichment,
+  userId: (c) => c.get("user")?.id,
+})
+```
+The route is public, so the `userId` resolver is the only way a user id gets in.
+</Step>
+<Step>
+### Record server-side events
+```ts title="src/server/signup.ts"
+import { analyticsContext, serverTracker } from "@dapplelight/signet-server/analytics/session"
+
+const t = serverTracker(store, analyticsContext(c.req.raw.headers))
+await t.identify(user.id)
+await t.track("signup", { plan: "free" })
+```
+</Step>
+<Step>
+### Ask questions
+```ts title="src/server/reports.ts"
+const signups = await store.trend({ event: "signup", period: "week" })
+const funnel = await store.funnel({ steps: ["visit", "signup", "first_project"] })
+const byPlan = await store.breakdown({ event: "signup", property: "plan", limit: 5 })
+```
+</Step>
+<Step>
+### Lead with the answer
+```tsx title="src/web/dashboard.tsx"
+import { MetricHeadline } from "@dapplelight/signet-ui/components/metric-headline"
+
+<MetricHeadline result={signups} label="Signups" />
+```
+</Step>
+</Steps>
+
+For a static invite or marketing site, one Cloudflare Web Analytics script tag is enough and needs no consent banner.
+
+## Next
+<Cards>
+  <Card title="Server analytics" href="/docs/packages/server/analytics" description="Ingest, sinks and Analytics Engine." />
+  <Card title="DB analytics" href="/docs/packages/db/analytics" description="The store and every query." />
+  <Card title="Metric headline" href="/docs/components/metric-headline" description="A trend as one sentence." />
+</Cards>

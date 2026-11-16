@@ -1,0 +1,83 @@
+---
+title: "Add AI Extraction With a Budget"
+description: "Typed, schema-validated LLM output with a cache, a spend cap and a fallback provider."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-ai zod ai
+```
+</Step>
+<Step>
+### Create the extractor
+```ts title="src/server/ai.ts"
+import { createExtractor, memoryCache, createBudgetLedger } from "@dapplelight/signet-ai"
+import { aiSdkProvider } from "@dapplelight/signet-ai/providers/ai-sdk"
+import { createWorkersAI } from "workers-ai-provider"
+
+const workersAi = createWorkersAI({ binding: bindings.AI })
+
+export const ai = createExtractor({
+  providers: [
+    aiSdkProvider({ name: "workers-ai", model: workersAi("@cf/meta/llama-3.3-70b-instruct-fp8-fast"), pricing: { perCallUsd: 0.0005 } }),
+    aiSdkProvider({ name: "backup", model: backupModel, pricing: { inputPerMTokens: 0.15, outputPerMTokens: 0.6 } }),
+  ],
+  cache: memoryCache(),
+  ledger: createBudgetLedger(5, 86_400),
+})
+```
+</Step>
+<Step>
+### Extract
+```ts title="src/server/search.ts"
+const { value, meta } = await ai.extract({
+  schema: intentSchema,
+  input: "8000 se kam ka snowboard",
+  instructions: "Pull the budget, size and category from this shopping request.",
+  budget: { maxCostUsd: 0.002 },
+})
+```
+</Step>
+<Step>
+### Keep answers across restarts
+```ts title="src/server/ai.ts"
+import { kvCache } from "@dapplelight/signet-ai"
+
+createExtractor({ providers, cache: kvCache(bindings.AI_CACHE), cacheTtlSeconds: 86_400 })
+```
+</Step>
+<Step>
+### Share the budget between isolates
+```ts title="src/worker.ts"
+import { BudgetCounter, durableObjectBudgetStore } from "@dapplelight/signet-ai/budget-do"
+export { BudgetCounter }
+
+const ledger = createBudgetLedger(5, 86_400, {
+  store: durableObjectBudgetStore(bindings.AI_BUDGET),
+  perKeyUsd: 0.5,
+})
+await ai.extract({ ...args, budget: { key: userId } })
+```
+```jsonc title="wrangler.jsonc"
+"durable_objects": { "bindings": [{ "name": "AI_BUDGET", "class_name": "BudgetCounter" }] },
+"migrations": [{ "tag": "v1", "new_sqlite_classes": ["BudgetCounter"] }]
+```
+</Step>
+<Step>
+### Test without spend
+```ts title="test/ai.test.ts"
+import { createExtractor, fakeProvider } from "@dapplelight/signet-ai"
+
+const ai = createExtractor({ providers: [fakeProvider({ budget: 8000, category: "snowboard" })] })
+```
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="Extract" href="/docs/packages/ai/extract" description="The extractor and its metadata." />
+  <Card title="Budget" href="/docs/packages/ai/budget" description="Ledgers and stores." />
+  <Card title="Errors" href="/docs/packages/ai/errors" description="AI_BUDGET_EXCEEDED and the other codes." />
+</Cards>

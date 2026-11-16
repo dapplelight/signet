@@ -1,0 +1,103 @@
+---
+title: "Workflows"
+description: "Durable multi-step jobs on your own database: sleep, wait, approve, retry."
+---
+
+## Usage
+```ts
+import { workflowTables } from "@dapplelight/signet-db/columns/sqlite"
+import { createWorkflows, defineWorkflow } from "@dapplelight/signet-db/workflows"
+
+// schema.ts
+export const { workflowRuns, workflowSteps, workflowEvents } = workflowTables()
+
+// app
+const HOUR = 3_600_000
+const DAY = 24 * HOUR
+
+const refund = defineWorkflow("refund", async (step, input: { orderId: string }) => {
+  const order = await step.run("load", () => loadOrder(input.orderId))
+  const ok = await step.approval({
+    approvers: [order.managerId],
+    summary: `Refund ${order.id}?`,
+    timeout: 2 * DAY,
+  })
+  if (!ok.approved) return { refunded: false }
+  await step.run("refund", () => psp.refund(order.paymentId), { attempts: 5 })
+  await step.sleep("cool-off", HOUR)
+  const reply = await step.waitForEvent(`survey:${order.id}`, { timeout: 7 * DAY })
+  return { refunded: true, reply }
+})
+
+const wf = createWorkflows(db, { tables: { workflowRuns, workflowSteps, workflowEvents }, workflows: [refund] })
+const run = await wf.start(refund, { orderId }, { createdBy: userId })
+await wf.tick() // from wf.poll(), setInterval, or a Cloudflare cron trigger
+```
+
+## How it runs
+- `tick()` claims due runs with a lease, then calls your function from the top.
+- A finished step returns its stored result without running again. The first unfinished step runs, or suspends the run.
+- Results are stored as JSON, so Dates come back as strings.
+
+Rules for the function:
+- Step ids are unique within a run and stable across deploys.
+- Time, random and I/O go inside `step.run`.
+- Await steps one at a time.
+- A step that crashed half way runs again, so make it safe to repeat.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `defineWorkflow(name, fn)` | Declare a workflow: `fn(step, input, { runId })`. |
+| `createWorkflows(db, options)` | The engine. Methods below. |
+| `WorkflowTables`, `WorkflowsOptions`, `Workflow`, `Workflows`, `Step`, `StepRunOptions` | Types. |
+| `RunStatus`, `StepKind`, `StepStatus`, `WorkflowRun`, `WorkflowStep`, `WaitingOn` | Run and step records. |
+| `ApprovalDecision`, `ApprovalRequest`, `ApprovalStoreLike`, `PendingWorkflowApproval` | Approval types. |
+
+### Steps
+| Step | What it does |
+| --- | --- |
+| `step.run(id, fn, { attempts?, backoff? })` | Run once per run; retries with backoff. |
+| `step.sleep(id, ms)` / `step.sleepUntil(id, at)` | Suspend the run. |
+| `step.waitForEvent(name, { timeout?, id? })` | Returns the payload, or `null` on timeout (default 7 days). |
+| `step.approval({ approvers, timeout?, summary?, details?, id? })` | `{ approved, by?, reason?, timedOut? }`. Times out as not approved. |
+
+### createWorkflows(db, options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `tables` | `WorkflowTables` | required | From `workflowTables()`. |
+| `workflows` | `Workflow[]` | required | The registry. Names must be unique. |
+| `leaseMs` | `number` | 5 minutes | Keep it above your longest step. |
+| `attempts` | `number` | `3` | Default tries per `step.run`. |
+| `backoff` | `(attempt) => ms` | 2^attempt seconds, max 1 hour | Retry delay. |
+| `approvals` | `ApprovalStoreLike` | none | signet-server's `kvApprovals`: approvers get an inbox record. |
+| `approvalPollMs` | `number` | `60000` | How often a run re-checks `approvals`. |
+| `notify` | `(approver, request) => unknown` | none | Tell each approver. A throw is ignored. |
+| `now` | `() => Date` | `new Date()` | Clock, for tests. |
+
+### Methods
+| Method | What it does |
+| --- | --- |
+| `start(workflow, input, { createdBy? })` | Queue a run; the next `tick` starts it. |
+| `tick({ limit? })` | Drive up to `limit` (10) due runs. Returns `{ runs, nextWakeAt }`. Safe from many runners. |
+| `poll({ intervalMs?, signal?, limit? })` | Tick until the signal aborts (Bun and Node). |
+| `get(id)` | `{ run, steps }` or null. |
+| `list({ status?, workflow?, createdBy?, limit?, before? })` | Newest first. |
+| `sendEvent(name, payload?, { runId? })` | Wake runs waiting on it. Returns `{ id, woken }`. |
+| `decide(runId, stepId, { by, approved, reason? })` | `by` must be an approver. Null if already decided. |
+| `approve(runId, stepId, by, reason?)` / `reject(...)` | Shortcuts for `decide`. |
+| `pendingApprovals(approver)` | Approval steps waiting on a person, for an inbox. |
+| `cancel(runId, { by? })` | Stop a run. False if it had already ended. |
+| `prune(olderThanMs?)` | Delete finished runs and old events (default 30 days). |
+
+## Examples
+### Approve from an HTTP route
+```ts
+const decision = await wf.approve(runId, "approval", session.userId, "Looks right")
+if (!decision) return new Response("Already decided", { status: 409 })
+```
+
+### Wake a run from a webhook
+```ts
+await wf.sendEvent(`survey:${orderId}`, { rating: 5 })
+```

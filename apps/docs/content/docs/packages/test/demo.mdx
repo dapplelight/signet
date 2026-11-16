@@ -1,0 +1,91 @@
+---
+title: "Demo"
+description: "One switch that wires every fake and your seed data so the app runs offline."
+---
+
+## Usage
+
+```ts
+import { createDemo, isDemo } from "@dapplelight/signet-test/demo"
+
+const SEED = { users: [{ id: "user_1", name: "Test User" }], invoices: [] }
+
+export async function setup(env: Record<string, string | undefined>) {
+  const demo = isDemo(env)
+    ? await createDemo({ seed: SEED, user: SEED.users[0], plan: "pro", appEnv: env.APP_ENV })
+    : null
+
+  // use the fakes when demo is on, the real thing otherwise
+  // const payments = demo?.payments ?? createPayments({ ... })
+  // const channels = demo?.senders ?? realSenders
+  // in your router: (await demo?.handle(request)) ?? next()
+  return demo
+}
+```
+
+Nothing is read at import time: `isDemo` takes your env object. `SIGNET_DEMO=1` (or `true`) turns it on.
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `createDemo(options?)` | Build the fakes, clock and seed data; returns a `Demo`. |
+| `isDemo(env)` | `true` when `SIGNET_DEMO` is `"1"` or `"true"`. |
+| `DemoOptions<D>` | Type: options for `createDemo`. |
+| `Demo<D>` | Type: what `createDemo` returns. |
+| `DevState` | Type: what the dev overlay shows. |
+
+### createDemo(options?)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `seed` | `D` | none | Your seed data. Deep-copied; `demo.data` is the live copy. |
+| `user` | `{ id, email?, name? } \| null` | `null` | Shown in the overlay. |
+| `plan` | `string` | none | Shown in the overlay. |
+| `entitlements` | `string[]` | none | Shown in the overlay. |
+| `flags` | `Record<string, boolean \| string \| number>` | none | Shown in the overlay. |
+| `start` | `number \| string \| Date` | now | Start time of the fake clock. |
+| `ai` | replies for `fakeModel` | none | Gives you `demo.model`. Needs `ai` installed. |
+| `appEnv` | `string` | none | Pass your `APP_ENV`. `"production"` throws unless `allowProduction`. |
+| `allowProduction` | `boolean` | `false` | For a public demo deployment that never touches real providers. |
+| `onSeed` | `(data: D) => void \| Promise<void>` | none | Called after seed and reset, to load `data` into your store. |
+
+### The Demo object
+
+| Field | What it is |
+| --- | --- |
+| `clock` | The fake clock. |
+| `outbox`, `senders` | Fake notification senders and their outbox. |
+| `notifyStore` | In-memory store for `createNotifier`. |
+| `gateways` | `{ razorpay, stripe, payu }` fake gateways. |
+| `payments`, `paymentsStore` | `createPayments` over the fakes, and its in-memory store. |
+| `model` | Fake AI model, when `ai` replies were given. |
+| `data` | The live seed data. |
+| `state` | The `DevState` the overlay reads. |
+| `reset()` | Back to the seed: outbox, notify store, gateways, payments store and clock all start over. |
+| `handle(request)` | Answers the routes below, or `null` for any other request. |
+
+### Routes served by `handle`
+
+| Route | What it does |
+| --- | --- |
+| `GET /__signet/dev` | User, plan, entitlements, flags and the last 20 outbox messages, as JSON. |
+| `POST /__signet/seed` | Replace the data with the request body. |
+| `POST /__signet/reset` | Restore the seed and start everything over. |
+| `POST /__signet/pay` | `{ gateway, checkoutId, status? }`: finish a fake checkout through its signed webhook. |
+
+## Examples
+
+### Mount the routes in a router
+
+```ts
+import { createDemo } from "@dapplelight/signet-test/demo"
+
+const demo = await createDemo({ seed: { orders: [] } })
+
+export default {
+  async fetch(request: Request) {
+    return (await demo.handle(request)) ?? new Response("Not found", { status: 404 })
+  },
+}
+```

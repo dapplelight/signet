@@ -1,0 +1,56 @@
+---
+title: "Native"
+description: "Every theme as plain JS values for React Native and anything without CSS variables."
+---
+
+## Usage
+
+```tsx
+import { useColorScheme, View, Text } from "react-native"
+import { nativeTheme } from "@dapplelight/signet-tokens/native"
+
+export function InvoiceCard({ total }: { total: string }) {
+  const t = nativeTheme("editorial", useColorScheme())
+  return (
+    <View style={{ backgroundColor: t.colors.card, borderRadius: t.radius.lg, padding: t.spacing * 4 }}>
+      <Text style={{ color: t.colors.cardForeground, fontSize: t.fontSize.base }}>{total}</Text>
+    </View>
+  )
+}
+```
+
+Colour names are the contract's in camelCase: `--color-card-foreground` is `cardForeground`. Colours are `#rrggbb` or `rgba(r, g, b, a)` strings; radius, spacing and font size are numbers.
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `nativeTheme(name, scheme?)` | One theme in one mode: `{ colors, radius, spacing, fontSize }`. |
+| `NATIVE_THEMES` | Every theme with both modes: `Record<ThemeName, NativeTokens>`. |
+| `THEME_NAMES` | The theme names, for a picker. |
+| `ThemeName` | Type: the theme names. |
+| `Mode` | Type: `"light" \| "dark"`. |
+| `NativeColors` | Type: colour tokens by camelCase name. |
+| `NativeTokens` | Type: `{ light, dark, radius, spacing, fontSize }`. |
+
+### nativeTheme(name, scheme?)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `name` | `ThemeName` | required | Throws on an unknown name. |
+| `scheme` | `"light" \| "dark" \| "unspecified" \| null` | light | Pass `useColorScheme()` as is. Anything but `"dark"` is light. |
+
+## Examples
+
+### Theme picker
+
+```tsx
+import { THEME_NAMES, nativeTheme } from "@dapplelight/signet-tokens/native"
+
+const swatches = THEME_NAMES.map((name) => ({
+  name,
+  primary: nativeTheme(name, "light").colors.primary,
+}))
+```
+
+There is no `useNativeTheme` hook: it would pull `react-native` into this package. Wrap `nativeTheme` in your own.

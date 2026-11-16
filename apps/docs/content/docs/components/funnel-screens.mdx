@@ -1,0 +1,237 @@
+---
+title: "Funnel Screens"
+description: "Web-to-app funnel screens: questions, a paywall with the URL discount priced in, Stripe checkout and the post-purchase redemption card."
+---
+
+import { WebFunnelDemo, FunnelQuestionDemo, FunnelRedemptionDemo, ExpressCheckoutDemo } from "@/components/demos/funnel-screens"
+
+<Preview>
+  <WebFunnelDemo />
+
+```tsx
+import { WebFunnel } from "@dapplelight/signet-ui/screens/funnel-screens"
+
+function WebFunnelDemo() {
+  return (
+    <WebFunnel
+      className="w-full max-w-xl"
+      page={page}
+      code="WELCOME20"
+      onCheckout={() => undefined}
+      display={{ pro: { name: "Pro", features: ["Unlimited workouts", "Meal plans"] } }}
+    />
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add funnel-screens
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  WebFunnel,
+  FunnelQuestion,
+  ExpressCheckout,
+  FunnelRedemption,
+} from "@dapplelight/signet-ui/screens/funnel-screens"
+```
+
+Props are shaped like signet-server's funnel routes JSON; actions come out as callbacks, so any client fits.
+
+```tsx
+<WebFunnel page={page} onCheckout={startCheckout} renderCheckout={(r) => <ExpressCheckout {...r} />} />
+```
+
+## Examples
+
+### WebFunnel
+
+<Preview>
+  <WebFunnelDemo />
+
+```tsx
+import { WebFunnel } from "@dapplelight/signet-ui/screens/funnel-screens"
+
+function WebFunnelDemo() {
+  return (
+    <WebFunnel
+      className="w-full max-w-xl"
+      page={page}
+      code="WELCOME20"
+      onCheckout={() => undefined}
+      display={{ pro: { name: "Pro", features: ["Unlimited workouts", "Meal plans"] } }}
+    />
+  )
+}
+```
+
+</Preview>
+
+### FunnelQuestion
+
+<Preview>
+  <FunnelQuestionDemo />
+
+```tsx
+import { useState } from "react"
+import { FunnelQuestion } from "@dapplelight/signet-ui/screens/funnel-screens"
+
+function FunnelQuestionDemo() {
+  const [value, setValue] = useState<string | string[]>()
+  return (
+    <FunnelQuestion
+      className="w-full max-w-md"
+      question={page.funnel.questions![0]}
+      value={value}
+      onAnswer={setValue}
+    />
+  )
+}
+```
+
+</Preview>
+
+### ExpressCheckout
+
+Stripe.js loads from Stripe at runtime; this demo passes a stand-in `loadStripe` so no key or network is needed.
+
+<Preview>
+  <ExpressCheckoutDemo />
+
+```tsx
+import { ExpressCheckout } from "@dapplelight/signet-ui/screens/funnel-screens"
+
+function ExpressCheckoutDemo() {
+  // A stand-in for Stripe.js so the demo needs no network or keys.
+  const loadStripe = async () => ({
+    elements: () => ({
+      create: () => ({
+        mount: (el: HTMLElement) => {
+          el.textContent = "Payment Element mounts here"
+        },
+        on: () => undefined,
+      }),
+      submit: async () => ({}),
+    }),
+    confirmPayment: async () => ({}),
+  })
+  return (
+    <ExpressCheckout
+      className="w-full max-w-md"
+      publishableKey="pk_test_example"
+      clientSecret="pi_example_secret_example"
+      returnUrl="https://example.com/funnel?session=ses_8f2a"
+      amount={6320}
+      currency="USD"
+      loadStripe={loadStripe}
+    />
+  )
+}
+```
+
+</Preview>
+
+### FunnelRedemption
+
+<Preview>
+  <FunnelRedemptionDemo />
+
+```tsx
+import { FunnelRedemption } from "@dapplelight/signet-ui/screens/funnel-screens"
+
+function FunnelRedemptionDemo() {
+  return (
+    <FunnelRedemption
+      className="w-full max-w-md"
+      data={{
+        session: { id: "ses_8f2a", status: "paid", plan: "pro" },
+        redemption: { link: "https://app.example.com/redeem?t=K7QX-92PD", token: "K7QX-92PD" },
+      }}
+    />
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+All screens accept the props of their root element and `labels` (`Partial<FunnelLabels>`, defaults in `DEFAULT_FUNNEL_LABELS`).
+
+### WebFunnel
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `page` | `FunnelPageView` | required | The funnel, its offering and the URL's discounts per product. |
+| `code` | `string` | `""` | The discount code from the URL, shown in the checkout step. |
+| `onStep` | `(step: string) => void` | - | A step was shown: a question id, `"plans"` or `"checkout"`. |
+| `onCheckout` | `(request: FunnelCheckoutRequest) => unknown` | required | Start the checkout. Its result goes to `renderCheckout`. |
+| `renderCheckout` | `(result: unknown) => ReactNode` | - | Render the gateway step, e.g. `ExpressCheckout`. |
+| `display` | `Record<string, Partial<BillingPlan>>` | - | Names, descriptions and features per plan key for the paywall. |
+
+### FunnelQuestion
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `question` | `FunnelQuestionView` | required | `id`, `title`, `options` and `multiple`. |
+| `value` | `string \| string[]` | - | The current answer. |
+| `onAnswer` | `(value: string \| string[]) => void` | required | Single choice answers on click; multiple choice on Continue. |
+
+### ExpressCheckout
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `publishableKey` | `string` | required | Stripe publishable key. |
+| `clientSecret` | `string` | required | The checkout's PaymentIntent client secret. |
+| `returnUrl` | `string` | required | Where Stripe sends the buyer back (the funnel page with `?session=`). |
+| `amount` | `number` | required | Amount in minor units. |
+| `currency` | `string` | required | Currency code. |
+| `loadStripe` | `(publishableKey: string) => Promise<StripeLike>` | loads `STRIPE_JS_URL` | Return `Stripe(key)`. |
+
+### FunnelRedemption
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `data` | `FunnelSessionView \| null` | required | The latest session read; null while the first read is in flight. Poll until paid. |
+
+### Helpers
+
+| Export | Description |
+| --- | --- |
+| `discountedOffering(offering, discounts)` | The offering with each valid discount priced into its product. |
+| `loadScript(src)` | Load a script once per page. |
+| `STRIPE_JS_URL` | The Stripe.js URL. |

@@ -1,0 +1,52 @@
+---
+title: "Own a Component's Source"
+description: "Copy a signet-ui component into your app, edit it freely, and merge upstream changes later."
+---
+
+<Steps>
+<Step>
+### Install the shared dependencies
+```bash
+npm i @dapplelight/signet-tokens clsx tailwind-merge
+```
+</Step>
+<Step>
+### Copy the component
+```bash
+npx @dapplelight/signet-cli add dialog
+```
+It copies `dialog` and what it imports into `src/components/signet/`.
+</Step>
+<Step>
+### Import your copy
+```tsx title="src/web/confirm.tsx"
+import { Dialog } from "@/components/signet/components/ui/dialog"
+```
+</Step>
+<Step>
+### Check the config
+```json title="signet.json"
+{
+  "dir": "src/components/signet",
+  "alias": "@/components/signet",
+  "items": { "dialog": { "version": "0.2.2", "hash": "…" } }
+}
+```
+Commit `signet.json` and `.signet/`: upgrades merge against them.
+</Step>
+<Step>
+### Upgrade later
+```bash
+npx @dapplelight/signet-cli diff dialog
+npx @dapplelight/signet-cli upgrade --dry-run
+npx @dapplelight/signet-cli upgrade dialog
+```
+Where you and signet-ui changed the same lines, the file keeps git conflict markers. Resolve them, then run lint, typecheck and tests.
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="CLI" href="/docs/packages/cli" description="Commands, flags and merge rules." />
+  <Card title="Dialog" href="/docs/components/dialog" description="The component copied in this guide." />
+</Cards>

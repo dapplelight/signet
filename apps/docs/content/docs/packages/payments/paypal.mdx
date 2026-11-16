@@ -1,0 +1,62 @@
+---
+title: "PayPal"
+description: "PayPal Orders v2, authorize and capture, refunds, subscriptions and payouts."
+---
+
+## Usage
+
+```ts
+import { paypal, paypalValue } from "@dapplelight/signet-payments/paypal"
+
+const pal = paypal({
+  clientId: env.PAYPAL_CLIENT_ID,
+  clientSecret: env.PAYPAL_CLIENT_SECRET,
+  webhookId: env.PAYPAL_WEBHOOK_ID,
+  sandbox: true,
+})
+
+// An Order. Redirect the buyer to checkout.url, then capture.
+const order = await pal.createCheckout({
+  amount: 1999,
+  currency: "USD",
+  idempotencyKey: "order-1042",
+  capture: "manual", // AUTHORIZE; omit for CAPTURE
+})
+await pal.capture(order.gatewayId, { idempotencyKey: "capture-1042" })
+
+// Webhook: verified through PayPal's verify-webhook-signature API
+app.post("/webhooks/paypal", (c) => payments.handleWebhook("paypal", c.req.raw))
+```
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `paypal(config)` | A `PaymentGateway` named `paypal` (Orders v2, Payments v2, Subscriptions v1, Payouts v1) |
+| `paypalValue(amount, currency)` | Minor units to PayPal's value string. HUF, JPY and TWD must be whole, else `BAD_INPUT` |
+| `PayPalConfig` | Config type |
+
+### paypal(config)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `clientId` | `string` | | Required |
+| `clientSecret` | `string` | | Required. OAuth token cached until it expires |
+| `webhookId` | `string` | | Needed for `verifyWebhook` |
+
+Plus the shared `sandbox` (`api-m.sandbox.paypal.com`), `baseUrl`, `fetch`, `retries`, `retryDelayMs`.
+
+## Capabilities
+
+Methods: `wallet`, `card`, `applepay`, `googlepay`. Features: capture, refunds, partial refunds, saved methods, subscriptions, payouts, webhooks. No customers or settlements.
+
+## Quirks
+
+- **`gatewayId` is the order id.** Capture and refund find the authorization or capture inside it. A refund before any capture is `BAD_INPUT`.
+- **Idempotency**: writes carry `PayPal-Request-Id`. Your reference goes in `custom_id`.
+- **Webhook** costs one API call per event, and needs `webhookId`. PayPal's offline certificate check is not used.
+- **Subscriptions** cancel immediately, whatever `atPeriodEnd` says. Getting and cancelling only: create them with `raw`.
+- **Payouts** go to an email: `destination` is the receiver address, `idempotencyKey` is the batch id.
+- **Saved methods** list Vault v3 payment tokens. PayPal has no customer object, so `listPaymentMethods` takes the vault customer id.
+- **Settlements** are unsupported: Transaction Search reports capture ids that cannot be mapped back to orders.
+- **Apple Pay and Google Pay** run through the PayPal JS SDK against the same order. Host the Apple Pay domain file with `applePayDomainAssociation(file)`.

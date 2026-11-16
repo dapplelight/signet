@@ -1,0 +1,104 @@
+---
+title: "Test an App with Fakes and Playwright"
+description: "Fake payment and notification providers, screenshots across every theme, a dev overlay and a no-network demo mode."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i -D @dapplelight/signet-test @playwright/test
+```
+</Step>
+<Step>
+### Test payments against a fake gateway
+```ts title="test/payments.test.ts"
+import { createPayments, memoryStore } from "@dapplelight/signet-payments"
+import { fakeGateway } from "@dapplelight/signet-test/payments"
+
+const gw = fakeGateway("razorpay")
+const payments = createPayments({ gateways: [gw], db: memoryStore() })
+const c = await payments.checkout({ amount: 49900, currency: "INR", idempotencyKey: "k1", userId: "u1" })
+await payments.handleWebhook("razorpay", await gw.complete(c.gatewayId))
+console.log(gw.calls.map((x) => x.method)) // ["createCheckout", "verifyWebhook"]
+```
+</Step>
+<Step>
+### Test notifications against fake senders
+```ts title="test/notify.test.ts"
+import { z } from "zod"
+import { createNotifier, defineTemplates } from "@dapplelight/signet-server/notify/notifier"
+import { fakeNotifyStore, fakeSenders } from "@dapplelight/signet-test"
+
+const { outbox, senders } = fakeSenders()
+const store = fakeNotifyStore()
+const notifier = createNotifier({
+  channels: senders,
+  store,
+  recipients: async () => ({ email: "asha@example.test" }),
+  templates: defineTemplates({
+    welcome: {
+      category: "account",
+      data: z.object({ name: z.string() }),
+      en: { email: { subject: (d) => `Welcome, ${d.name}`, html: (d) => `<p>Hi ${d.name}</p>` } },
+    },
+  }),
+})
+await notifier.notify("u1", "welcome", { name: "Asha" })
+console.log(outbox.last("email")?.rendered.subject) // "Welcome, Asha"
+```
+</Step>
+<Step>
+### Check every theme with Playwright
+```ts title="e2e/dashboard.spec.ts"
+import { test } from "@playwright/test"
+import { expectAcrossThemes, seed, signInAs } from "@dapplelight/signet-test/playwright"
+
+const BASE = "http://localhost:5173"
+const secret = process.env.SESSION_SECRET as string
+
+test("dashboard", async ({ page }) => {
+  await signInAs(page, "user_1", { session: { cookieName: "app_session", secret }, url: BASE })
+  await seed(page, { invoices: [{ id: "inv_1" }] })
+  await page.goto("/dashboard")
+  await expectAcrossThemes(page, "dashboard")
+})
+```
+```bash
+npx playwright test --update-snapshots
+```
+Write baselines on the machine or CI image that checks them: they differ by OS and browser.
+</Step>
+<Step>
+### Add the dev overlay
+```tsx title="src/dev.tsx"
+import { DevOverlay } from "@dapplelight/signet-test/overlay"
+import { THEMES } from "@dapplelight/signet-test/playwright"
+
+export const Dev = ({ theme, setTheme }: { theme: string; setTheme: (t: string) => void }) => (
+  <DevOverlay themes={THEMES} theme={theme} onThemeChange={setTheme} />
+)
+```
+It renders nothing in production builds.
+</Step>
+<Step>
+### Run the app in demo mode
+```ts title="server/demo.ts"
+import { createDemo, isDemo } from "@dapplelight/signet-test/demo"
+
+const SEED = { users: [{ id: "user_1", name: "Test User" }], invoices: [] }
+
+export const demo = isDemo(env)
+  ? await createDemo({ seed: SEED, user: SEED.users[0], plan: "pro", appEnv: env.APP_ENV })
+  : null
+// In your router: (await demo?.handle(request)) ?? next()
+```
+`SIGNET_DEMO=1` turns it on. It refuses `appEnv: "production"` unless `allowProduction` is set.
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="Test package" href="/docs/packages/test" description="Every fake, the Playwright helpers and demo mode." />
+  <Card title="Payments fakes" href="/docs/packages/test/payments" description="Subscriptions, payouts and failure injection." />
+</Cards>

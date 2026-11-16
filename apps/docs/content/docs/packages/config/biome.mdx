@@ -1,0 +1,82 @@
+---
+title: "Biome"
+description: "House lint and format preset, and the reusable bun CI workflow."
+---
+
+## Usage
+
+```json title="biome.json"
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
+  "extends": ["@dapplelight/signet-config/biome"],
+  "files": { "includes": ["**", "!**/dist"] }
+}
+```
+
+Needs Biome 2. Your own settings win over the preset's: keep `files`, `overrides` and anything product-specific in your `biome.json`.
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `@dapplelight/signet-config/biome` | The preset. |
+| `@dapplelight/signet-config/biome.json` | Same file, with the extension. |
+
+### What the preset sets
+
+| Setting | Value |
+| --- | --- |
+| Indent | 2 spaces |
+| Line width | 100 |
+| Quotes | double |
+| Semicolons | `asNeeded` (none) |
+| Organize imports | on |
+| `useHookAtTopLevel` | `error` |
+| `useExhaustiveDependencies` | `warn` |
+| `noExplicitAny` | `warn` |
+| CSS | Tailwind directives parsed |
+| VCS | `useIgnoreFile` on, so the repo needs a `.gitignore` |
+
+The preset has `"root": false` for Signet's own repo. Biome does not inherit `root` through `extends`, so your config stays a root config.
+
+## Examples
+
+### Keep semicolons
+
+```json title="biome.json"
+{
+  "extends": ["@dapplelight/signet-config/biome"],
+  "javascript": { "formatter": { "semicolons": "always" } }
+}
+```
+
+### ci-bun.yml
+
+A reusable `workflow_call` workflow in the Signet repo: checkout, setup-bun, install, lint, typecheck, test, and an optional build. Signet is public, so any repo can call it. Pin `@main`, a tag, or a commit SHA.
+
+```yaml title=".github/workflows/ci.yml"
+name: ci
+on: [pull_request]
+jobs:
+  ci:
+    uses: dapplelight/signet/.github/workflows/ci-bun.yml@main
+    with:
+      bun-version: 1.3.11
+      build: true
+      test: bun test
+```
+
+| Input | Type | Default | |
+| --- | --- | --- | --- |
+| `working-directory` | string | `.` | Where install and every command run. |
+| `bun-version` | string | `latest` | Passed to `oven-sh/setup-bun`. |
+| `fetch-depth` | number | `1` | `0` for scripts that diff against the base branch. |
+| `runs-on` | string | `ubuntu-latest` | |
+| `install` | string | `bun install --frozen-lockfile` | |
+| `lint` | string | `bun run lint` | Empty skips the step. |
+| `typecheck` | string | `bun run typecheck` | Empty skips the step. |
+| `test` | string | `bun run test` | Empty skips the step. |
+| `build` | boolean | `false` | Run `build-command` after the tests. |
+| `build-command` | string | `bun run build` | |
+
+Repo-specific jobs (e2e, integration tests, deploys) stay in your own workflow.

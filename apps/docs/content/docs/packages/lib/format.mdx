@@ -1,0 +1,57 @@
+---
+title: "Format"
+description: "Currency, percent and date formatting plus date arithmetic, on Intl only."
+---
+
+## Usage
+```ts
+import {
+  createCurrencyFormatter,
+  createCompactCurrencyFormatter,
+  createDateFormatter,
+  createRelativeTimeFormatter,
+  addDays,
+  formatPercent,
+} from "@dapplelight/signet-lib/format"
+
+const inr = createCurrencyFormatter("INR", "en-IN")
+inr(1234.5)         // "₹1,235"
+inr(1234.5, true)   // "₹1,234.50"
+
+const cents = createCurrencyFormatter("USD", "en-US", { minorUnits: true })
+cents(12345, true)  // "$123.45"
+
+createCompactCurrencyFormatter("INR", "en-IN")(1_250_000) // "₹12.5L"
+createDateFormatter("en-IN", { timeZone: "Asia/Kolkata" })("2026-03-14") // "14 Mar 2026"
+createRelativeTimeFormatter("en-IN")(addDays(new Date(), -3)) // "3 days ago"
+formatPercent(4.3) // "+4.3%"
+```
+
+A `"YYYY-MM-DD"` string is a calendar date: read as local midnight, never shifted by a time zone.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createCurrencyFormatter(currency?, locale?, options?)` | Returns `(amount, exact?) => string`. Whole units by default, the currency's own decimals when `exact` |
+| `createCompactCurrencyFormatter(currency?, locale?, decimals?, options?)` | Compact amounts; lakh and crore for Indian locales |
+| `formatPercent(value, decimals?)` | Signed percent; default 1 decimal |
+| `createDateFormatter(locale?, options?)` | "14 Mar 2026" |
+| `createDateShortFormatter(locale?, options?)` | Day and month only |
+| `createDateTimeFormatter(locale?, options?)` | Date with hour and minute |
+| `createRelativeTimeFormatter(locale?)` | `(date, now?) => "3 days ago"` |
+| `Amount`, `CurrencyOptions`, `DateFormatOptions` | Types. `Amount` is a number, decimal string or bigint |
+
+Defaults are `"INR"` and `"en-IN"`. `minorUnits: true` reads the amount in cents, paise or fils. Invalid input formats as `0` or an empty string.
+
+### Date arithmetic
+Local time, no mutation, an invalid date gives an invalid `Date`, `NaN` or `false`.
+
+| Export | What it does |
+| --- | --- |
+| `parseDateOnly(s)` | Local midnight for `"YYYY-MM-DD"`; invalid `Date` otherwise |
+| `toDateOnly(date)` | `"YYYY-MM-DD"` from a local date |
+| `addDays(date, n)`, `addMonths(date, n)` | Moves by calendar units; `addMonths` clamps to month end |
+| `startOfDay`, `startOfMonth`, `startOfYear`, `endOfMonth` | Boundaries |
+| `differenceInCalendarDays(left, right)` | Calendar days, DST-safe |
+| `isSameDay`, `isSameMonth` | Comparisons |
+| `DateInput` | Type: `Date \| number` |

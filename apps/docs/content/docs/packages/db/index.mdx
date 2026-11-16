@@ -1,0 +1,68 @@
+---
+title: "Database"
+description: "Drizzle helpers: scoping, money, encryption, audit, plus plans, flags, analytics and more."
+---
+
+```bash
+npm i @dapplelight/signet-db drizzle-orm
+```
+
+## Quick start
+```ts
+import { createDb } from "@dapplelight/signet-db/d1"
+import { scoped } from "@dapplelight/signet-db"
+import * as schema from "./schema"
+
+export default {
+  async fetch(req: Request, bindings: { DB: D1Database }) {
+    const db = createDb(bindings.DB, { schema }) // per request, no env at import time
+    const me = scoped(db, { userId: await userIdFrom(req) })
+    return Response.json(await me.select(schema.orders)) // only this user's rows
+  },
+}
+```
+
+## Core
+
+Exported from `@dapplelight/signet-db`. The core never imports a driver.
+
+| Export | What it does |
+| --- | --- |
+| `scoped(db, { userId })` | Per-user reads and writes; hides soft-deleted rows |
+| `audited(db, { actor })` | Writes that leave an audit entry |
+| `createCipher`, `generateKey` | AES-GCM field encryption with key rotation |
+| `moneyOf`, `addMoney`, `formatMoney` | Integer minor-unit money |
+| `newId`, `idTime` | Sortable 26-char ids |
+| `seed`, `exportUser`, `deleteUser` | Seed rows, per-user export and erasure |
+| `describeSchema`, `defineQuery`, `fromDrizzle` | Schema text for agents, named queries, any Drizzle driver |
+| `enqueue`, `drainOutbox`, `withIdempotency`, `dbCache`, `nextSequence` | Outbox, idempotency keys, AI answer cache, sequences |
+
+## Modules
+<Cards>
+  <Card title="Admin" href="/docs/packages/db/admin" description="An admin API and admin tools generated from the schema." />
+  <Card title="Agent" href="/docs/packages/db/agent" description="Per-user database tools for AI agents." />
+  <Card title="AI Spend" href="/docs/packages/db/ai-spend" description="Per-user, per-org and global AI spend caps." />
+  <Card title="Analytics" href="/docs/packages/db/analytics" description="Events in your own database, with typed questions." />
+  <Card title="Charts" href="/docs/packages/db/charts" description="MRR, subscribers, churn and trials from the customer timeline." />
+  <Card title="Collab" href="/docs/packages/db/collab" description="Comments, mentions, activity and version history." />
+  <Card title="Columns" href="/docs/packages/db/columns" description="Column helpers and ready-made tables for SQLite, D1 and Postgres." />
+  <Card title="Customers" href="/docs/packages/db/customers" description="Customer timeline, identity merge and Customer Center." />
+  <Card title="D1" href="/docs/packages/db/d1" description="Cloudflare D1 driver." />
+  <Card title="Entitlements" href="/docs/packages/db/entitlements" description="Plans, features, usage limits and billing events." />
+  <Card title="Experiments" href="/docs/packages/db/experiments" description="A/B/n tests with sticky assignment and significance." />
+  <Card title="Flags" href="/docs/packages/db/flags" description="Feature flags defined in code, overridable in the database." />
+  <Card title="Funnels" href="/docs/packages/db/funnels" description="Web checkout funnels that unlock the purchase in the app." />
+  <Card title="Growth" href="/docs/packages/db/growth" description="Waitlist, invites, referrals, onboarding, changelog, feedback." />
+  <Card title="Import" href="/docs/packages/db/import" description="Validated, chunked, idempotent bulk insert." />
+  <Card title="Migrations" href="/docs/packages/db/migrations" description="Scan SQL migrations for data-losing changes." />
+  <Card title="Offerings" href="/docs/packages/db/offerings" description="Versioned offerings and remote paywalls." />
+  <Card title="Orgs" href="/docs/packages/db/orgs" description="Organisations, memberships, roles and permissions." />
+  <Card title="Postgres" href="/docs/packages/db/postgres" description="Postgres driver on postgres-js." />
+  <Card title="Pricing" href="/docs/packages/db/pricing" description="Pricing experiments across offerings." />
+  <Card title="Privacy" href="/docs/packages/db/privacy" description="DPDP consent records and data requests." />
+  <Card title="SQLite" href="/docs/packages/db/sqlite" description="SQLite driver on bun:sqlite." />
+  <Card title="Status" href="/docs/packages/db/status" description="Status page and maintenance switch." />
+  <Card title="Webhooks" href="/docs/packages/db/webhooks" description="Signed outbound webhooks with retries and a delivery log." />
+  <Card title="Workflows" href="/docs/packages/db/workflows" description="Durable multi-step runs with approvals." />
+  <Card title="Zod" href="/docs/packages/db/zod" description="Zod schemas generated from table columns." />
+</Cards>

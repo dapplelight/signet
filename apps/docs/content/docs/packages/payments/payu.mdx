@@ -1,0 +1,62 @@
+---
+title: "PayU"
+description: "PayU India hashed form checkout, pre-authorize capture, refunds and settlement details."
+---
+
+## Usage
+
+```ts
+import { payu, payuDate } from "@dapplelight/signet-payments/payu"
+
+const pu = payu({ key: env.PAYU_KEY, salt: env.PAYU_SALT, sandbox: true })
+
+// Returns a form to POST from the browser: form.action and form.fields (with the hash).
+const checkout = await pu.createCheckout({
+  amount: 49_900,
+  currency: "INR",
+  idempotencyKey: "order-1042",
+  returnUrl: "https://shop.example/payu/return",
+  customer: { name: "Asha Rao", email: "asha@example.com" },
+})
+
+// Webhook: no signature header, the payload's `hash` is checked
+app.post("/webhooks/payu", (c) => payments.handleWebhook("payu", c.req.raw))
+```
+
+```ts
+// Render the form and submit it
+const { action, fields } = checkout.form!
+```
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `payu(config)` | A `PaymentGateway` named `payu` |
+| `payuDate(value)` | Parse PayU's zone-less `YYYY-MM-DD HH:mm:ss` as IST (+05:30) |
+| `PayUConfig` | Config type |
+
+### payu(config)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `key` | `string` | | Required |
+| `salt` | `string` | | Required |
+| `postserviceUrl` | `string` | PayU postservice host | Override the server-call URL |
+| `settlementUrl` | `string` | PayU settlement range host | Override the Settlement Detail Range URL |
+
+Plus the shared `sandbox`, `baseUrl` (overrides the `/_payment` URL), `fetch`, `retries`, `retryDelayMs`.
+
+## Capabilities
+
+Methods: `upi`, `card`, `netbanking`, `wallet`, `applepay`. Currency: `INR` only. Features: capture, refunds, partial refunds, settlements, webhooks. No customers, subscriptions or payouts.
+
+## Quirks
+
+- **Checkout needs** `returnUrl`, `customer.email` and `customer.name`. `gatewayId` is your `txnid` (`reference ?? idempotencyKey`). `capture: "manual"` adds `pre_authorize=1`.
+- **Capture and refund** go through the merchant postservice. Capture is queued: the payment flips to `captured` when PayU processes it. Refunds return `pending`.
+- **`raw`** accepts only `POST /postservice` with `{ command, vars }`.
+- **Webhook**: no signature header. The payload `hash` is verified with the reverse hash. Payloads with no hash (dispute notifications) and split payments (`splitInfo`) are rejected.
+- **Settlements** use the Settlement Detail Range API. Timestamps carry no zone and are read as IST.
+- **Subscriptions**: PayU standing instructions are merchant-run `si_transaction` debits. Charge renewals through `raw` with the `si_transaction` command.
+- **Apple Pay** shows on PayU Hosted Checkout but is not forced.

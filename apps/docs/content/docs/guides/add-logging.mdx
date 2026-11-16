@@ -1,0 +1,70 @@
+---
+title: "Add Structured Logging and Sentry"
+description: "JSON logs with a request id and secrets redacted by default, plus error reports to Sentry that work on Workers."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-server
+```
+</Step>
+<Step>
+### Create the logger
+```ts title="server/log.ts"
+import { createLogger } from "@dapplelight/signet-server/observability/logger"
+
+export const log = createLogger({ level: "info", base: { service: "api" } })
+```
+</Step>
+<Step>
+### Give every request its own child logger
+```ts title="server/app.ts"
+import { Hono } from "hono"
+import type { Logger } from "@dapplelight/signet-server/observability/logger"
+import { requestId } from "@dapplelight/signet-server/middleware/request-id"
+import { log } from "./log"
+
+export const app = new Hono<{ Variables: { reqId: string; logger: Logger } }>()
+app.use("*", requestId({ childLogger: (id) => log.child({ reqId: id }) }))
+
+app.get("/orders/:id", (c) => {
+  c.get("logger").info({ orderId: c.req.param("id") }, "order read")
+  return c.text("ok")
+})
+```
+```json
+{"level":"info","time":"2026-09-25T07:15:49.201Z","msg":"order read","service":"api","reqId":"9f3c","orderId":"ord_1"}
+```
+</Step>
+<Step>
+### Change the level at runtime
+```ts title="server/app.ts"
+app.use("*", async (c, next) => {
+  log.level = c.env.LOG_LEVEL ?? "info" // throws on an unknown level
+  await next()
+})
+```
+Passwords, tokens, cookies and API keys are redacted by default. Add more with `redact: ["email"]`.
+</Step>
+<Step>
+### Add Sentry
+```ts title="server/sentry.ts"
+import { createSentry } from "@dapplelight/signet-server/observability/sentry"
+
+export const sentryFor = (env: Env) =>
+  createSentry({ dsn: env.SENTRY_DSN, enabled: env.APP_ENV === "production", environment: env.APP_ENV })
+```
+```ts title="server/app.ts"
+c.executionCtx.waitUntil(sentryFor(c.env).captureException(err, { job: "sync" }))
+```
+Pass the report to `waitUntil`: a Worker is frozen once the response is sent.
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="Observability" href="/docs/packages/server/observability" description="Redaction rules, levels, Sentry scope and options." />
+  <Card title="Middleware" href="/docs/packages/server/middleware" description="requestId and the rest of the stack." />
+</Cards>

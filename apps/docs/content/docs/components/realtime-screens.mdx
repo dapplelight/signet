@@ -1,0 +1,185 @@
+---
+title: "Realtime Screens"
+description: "Presence pieces for a record page: an avatar stack of viewers, an editing badge, a typing indicator and a record-changed banner."
+---
+
+import { AvatarStackDemo, EditingBadgeDemo, TypingIndicatorDemo, RecordChangedBannerDemo } from "@/components/demos/realtime-screens"
+
+<Preview>
+  <AvatarStackDemo />
+  <EditingBadgeDemo />
+
+```tsx
+import { AvatarStack } from "@dapplelight/signet-ui/screens/realtime-screens"
+
+function AvatarStackDemo() {
+  return <AvatarStack members={members} selfId="u1" max={4} />
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add realtime-screens
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  AvatarStack,
+  EditingBadge,
+  TypingIndicator,
+  RecordChangedBanner,
+} from "@dapplelight/signet-ui/screens/realtime-screens"
+```
+
+Members are shaped like signet-server's presence (`useChannel(...).members`); `selfId` leaves you out.
+
+```tsx
+<AvatarStack members={members} selfId={me.id} />
+```
+
+## Examples
+
+### AvatarStack
+
+<Preview>
+  <AvatarStackDemo />
+
+```tsx
+import { AvatarStack } from "@dapplelight/signet-ui/screens/realtime-screens"
+
+function AvatarStackDemo() {
+  return <AvatarStack members={members} selfId="u1" max={4} />
+}
+```
+
+</Preview>
+
+### EditingBadge
+
+Renders nothing unless another member is editing.
+
+<Preview>
+  <EditingBadgeDemo />
+
+```tsx
+import { EditingBadge } from "@dapplelight/signet-ui/screens/realtime-screens"
+
+function EditingBadgeDemo() {
+  return <EditingBadge members={members} selfId="u1" field="amount" fieldLabel="the amount" />
+}
+```
+
+</Preview>
+
+### TypingIndicator
+
+<Preview>
+  <TypingIndicatorDemo />
+
+```tsx
+import { TypingIndicator } from "@dapplelight/signet-ui/screens/realtime-screens"
+
+function TypingIndicatorDemo() {
+  return <TypingIndicator members={members} selfId="u1" />
+}
+```
+
+</Preview>
+
+### RecordChangedBanner
+
+Pair with `useRecordChanges`. Renders nothing while `changed` is false.
+
+<Preview>
+  <RecordChangedBannerDemo />
+
+```tsx
+import { useState } from "react"
+import { RecordChangedBanner } from "@dapplelight/signet-ui/screens/realtime-screens"
+
+function RecordChangedBannerDemo() {
+  const [changed, setChanged] = useState(true)
+  return (
+    <div className="w-full max-w-lg">
+      <RecordChangedBanner
+        changed={changed}
+        by="Marcus Lee"
+        onReload={() => setChanged(false)}
+        onDismiss={() => setChanged(false)}
+      />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+All components accept `labels` (`Partial<RealtimeLabels>`, defaults in `DEFAULT_REALTIME_LABELS`) and the props of their root element.
+
+### AvatarStack
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `members` | `PresenceMemberView[]` | required | Who is in the channel. |
+| `selfId` | `string` | - | Leave yourself out of the stack. |
+| `max` | `number` | `4` | Avatars shown before "+n". |
+| `size` | `"sm" \| "default" \| "lg"` | `"default"` | Avatar size. |
+
+### EditingBadge
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `members` | `PresenceMemberView[]` | required | Who is in the channel. |
+| `selfId` | `string` | - | Leave yourself out. |
+| `field` | `string` | any field | Only someone editing this field. |
+| `fieldLabel` | `string` | the field | A readable name for the field in the text. |
+
+### TypingIndicator
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `members` | `PresenceMemberView[]` | required | Who is in the channel. |
+| `selfId` | `string` | - | Leave yourself out. |
+
+### RecordChangedBanner
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `changed` | `boolean` | required | Show the banner. |
+| `by` | `string` | - | Who changed it, if known. |
+| `onReload` | `() => void` | required | Reload the record. |
+| `onDismiss` | `() => void` | - | Shows a dismiss button when set. |

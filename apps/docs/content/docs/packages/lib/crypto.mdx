@@ -1,0 +1,36 @@
+---
+title: "Crypto"
+description: "Fail-closed field decryption: a field that does not decrypt becomes null."
+---
+
+## Usage
+```ts
+import { decryptFields } from "@dapplelight/signet-lib/crypto"
+
+const { data, undecrypted } = await decryptFields(
+  response, // { transactions: [{ description, merchant: { name } }] }
+  ["transactions.description", "transactions.merchant.name"],
+  {
+    decrypt: (ciphertext, path) => myCipher.decrypt(ciphertext), // bring your own
+    isCiphertext: (value) => value.startsWith("enc:"),            // optional
+  },
+)
+// undecrypted: ["transactions.3.description"]
+```
+
+Never throws, never mutates the input. Ciphertext is never passed through as plaintext.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `decryptFields(input, paths, options)` | Decrypts the fields at `paths`; resolves to `{ data, undecrypted }` |
+| `DecryptFieldsOptions`, `DecryptFieldsResult` | Types |
+
+### decryptFields(input, paths, options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `paths` | `string[]` | required | Dot-separated; arrays are walked without an index |
+| `decrypt` | `(ciphertext, path) => string \| Promise<string>` | required | A throw counts as a failure |
+| `isCiphertext` | `(value, path) => boolean` | every non-empty string | Return `false` only for certain plaintext. A throw means ciphertext |
+
+Missing keys, `null`, `""` and non-strings are left as they are. Failed fields become `null` and their concrete paths (with indexes) are listed in `undecrypted`.

@@ -1,0 +1,98 @@
+---
+title: "Stores"
+description: "Fake App Store and Google Play backends with signed payloads, for the real adapters."
+---
+
+## Usage
+
+```ts
+import { appstore } from "@dapplelight/signet-payments/appstore"
+import { googleplay } from "@dapplelight/signet-payments/googleplay"
+import { fakeAppStore, fakeGooglePlay } from "@dapplelight/signet-test/stores"
+
+const apple = fakeAppStore()
+const event = await appstore(apple.config).verifyWebhook(
+  apple.notification("SUBSCRIBED", "INITIAL_BUY", apple.transaction({ productId: "pro.yearly" })),
+)
+
+const play = fakeGooglePlay()
+play.subscribe("tok-1", { productId: "pro.monthly" })
+await googleplay(play.config).verifyWebhook(play.notification(4, "tok-1")) // 4 = PURCHASED
+```
+
+`fakeAppStore()` builds an ECDSA certificate chain and `fakeGooglePlay()` an RSA JWKS and service account, all inside the test process (Node or Bun). Signed payloads verify through the adapter's own code.
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `fakeAppStore(options?)` | A `FakeAppStore`. |
+| `fakeGooglePlay(options?)` | A `FakeGooglePlay`. |
+| `AppStoreTransaction` | Type: `{ transactionId, originalTransactionId, productId, ... }`. |
+| `AppStoreStatus` | Type: `1 \| 2 \| 3 \| 4 \| 5`. |
+| `FakeAppStore`, `FakeGooglePlay` | Types. |
+| `PlayState` | Type: `SUBSCRIPTION_STATE_ACTIVE`, `_CANCELED`, `_IN_GRACE_PERIOD`, `_ON_HOLD`, `_PAUSED`, `_EXPIRED`. |
+
+### fakeAppStore(options?)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `bundleId` | `string` | `"com.example.app"` | App bundle id. |
+| `now` | `() => number` | `Date.now` | Pass `clock.now`. |
+| `url` | `string` | `"https://app.example.test/webhooks/appstore"` | URL the notification requests are addressed to. |
+
+| Member | What it does |
+| --- | --- |
+| `config` | Spread into `appstore(...)`. |
+| `calls` | What the adapter asked the fake App Store Server API. |
+| `transaction(overrides?)` | A Sandbox transaction with defaults. |
+| `sign(payload)` | Sign any payload as Apple would. |
+| `serve(transaction)` | Answer Get Transaction Info for a hand-built transaction. |
+| `notification(type, subtype, transaction, extra?)` | A signed notification `Request`. |
+| `subscribe({ productId?, price?, periodDays?, appAccountToken? })` | Returns `{ originalTransactionId, notification }`. |
+| `renew(id)` | `DID_RENEW`. |
+| `failRenewal(id, { graceDays? })` | With `graceDays`, grace period (status 4, access kept); without, billing retry (status 3). |
+| `cancelRenewal(id)` | Auto-renew off; access lasts to period end. |
+| `expire(id)` | `EXPIRED`. |
+| `refund(id)` | `REFUND`: revoked, status 5. |
+| `revoke(id)` | `REVOKE`: Family Sharing withdrawn, status 5. |
+
+### fakeGooglePlay(options?)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `packageName` | `string` | `"com.example.app"` | |
+| `now` | `() => number` | `Date.now` | Pass `clock.now`. |
+| `url` | `string` | `"https://app.example.test/webhooks/googleplay"` | Webhook URL; also the Pub/Sub token audience. |
+
+| Member | What it does |
+| --- | --- |
+| `config` | Spread into `googleplay(...)`. |
+| `calls` | What the adapter asked the fake Play API, token endpoint and JWKS. |
+| `subscribe(token, { productId?, state?, periodDays?, price?, accountId? })` | Record an active subscription and its first order; returns the order id. |
+| `notification(type, token)` | A signed Pub/Sub push (4 purchased, 2 renewed, 3 canceled). |
+| `renew(token)` | `RENEWED`. |
+| `failRenewal(token, { graceDays? })` | In grace period with `graceDays`, on hold without. |
+| `cancel(token)` | `CANCELED`: access to period end. |
+| `expire(token)` | `EXPIRED`. |
+| `refund(token, { revoke? })` | Voided-purchase notification; with `revoke` (default true) a `REVOKED` follows. Returns the requests in order. |
+
+## Examples
+
+### Grace period after a failed renewal
+
+```ts
+import { appstore } from "@dapplelight/signet-payments/appstore"
+import { DAY, fakeClock } from "@dapplelight/signet-test"
+import { fakeAppStore } from "@dapplelight/signet-test/stores"
+
+const clock = fakeClock("2026-11-01T10:00:00Z")
+const store = fakeAppStore({ now: clock.now })
+const gw = appstore({ ...store.config, now: clock.now })
+
+const { originalTransactionId, notification } = store.subscribe({ productId: "pro.monthly" })
+await gw.verifyWebhook(notification)
+
+clock.advance(30 * DAY)
+await gw.verifyWebhook(store.failRenewal(originalTransactionId, { graceDays: 6 }))
+```

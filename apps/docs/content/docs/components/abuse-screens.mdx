@@ -1,0 +1,217 @@
+---
+title: "Abuse Screens"
+description: "A bot-check widget for Turnstile or hCaptcha, and the admin AI spend screen with caps and top spenders."
+---
+
+import { CaptchaWidgetDemo, AiSpendAdminDemo, AiSpendAdminReadOnlyDemo } from "@/components/demos/abuse-screens"
+
+<Preview>
+  <CaptchaWidgetDemo />
+
+```tsx
+import { CaptchaWidget } from "@dapplelight/signet-ui/screens/abuse-screens"
+import { useState } from "react"
+
+export function CaptchaWidgetDemo() {
+  const [token, setToken] = useState<string | null>(null)
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <CaptchaWidget provider="test" onToken={setToken} />
+      <code className="text-xs text-neutral-500">{token ?? "no token yet"}</code>
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add abuse-screens
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { CaptchaWidget, AiSpendAdmin } from "@dapplelight/signet-ui/screens/abuse-screens"
+```
+
+```tsx
+<CaptchaWidget provider="turnstile" siteKey="0x4AAA..." onToken={setToken} />
+```
+
+The demo uses `provider="test"`, so no script is loaded. Switch to `turnstile` or `hcaptcha` with a site key in production.
+
+## Examples
+
+### CaptchaWidget
+
+<Preview>
+  <CaptchaWidgetDemo />
+
+```tsx
+import { CaptchaWidget } from "@dapplelight/signet-ui/screens/abuse-screens"
+import { useState } from "react"
+
+export function CaptchaWidgetDemo() {
+  const [token, setToken] = useState<string | null>(null)
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <CaptchaWidget provider="test" onToken={setToken} />
+      <code className="text-xs text-neutral-500">{token ?? "no token yet"}</code>
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### AiSpendAdmin
+
+<Preview>
+  <AiSpendAdminDemo />
+
+```tsx
+import { type AiSpendCap, AiSpendAdmin, type AiSpendOverview, UNITS_PER_USD } from "@dapplelight/signet-ui/screens/abuse-screens"
+import { useState } from "react"
+
+const initialCaps: AiSpendCap[] = [
+  { id: "c1", scope: "global", subject: "*", period: "month", units: usd(1000) },
+  { id: "c2", scope: "user", subject: "usr_9a3f", period: "day", units: usd(10) },
+]
+
+const usd = (n: number) => Math.round(n * UNITS_PER_USD)
+
+const overview: AiSpendOverview = {
+  global: {
+    scope: "global",
+    subject: "*",
+    day: { used: usd(18.42), cap: usd(50), remaining: usd(31.58) },
+    month: { used: usd(412.6), cap: usd(1000), remaining: usd(587.4) },
+  },
+  top: {
+    users: [
+      { subject: "usr_9a3f", used: usd(64.2), cap: usd(100) },
+      { subject: "usr_41cc", used: usd(41.75), cap: null },
+    ],
+    orgs: [{ subject: "org_northwind", used: usd(188.1), cap: usd(300) }],
+  },
+}
+
+export function AiSpendAdminDemo() {
+  const [caps, setCaps] = useState(initialCaps)
+  return (
+    <div className="w-full">
+      <AiSpendAdmin
+        overview={overview}
+        caps={caps}
+        onSetCap={(input) => {
+          setCaps((cs) => [
+            ...cs.filter((c) => !(c.scope === input.scope && c.subject === input.subject && c.period === input.period)),
+            { id: `${input.scope}-${input.subject}-${input.period}`, ...input },
+          ])
+        }}
+        onRemoveCap={(cap) => setCaps((cs) => cs.filter((c) => c.id !== cap.id))}
+      />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### AiSpendAdmin, read only
+
+<Preview>
+  <AiSpendAdminReadOnlyDemo />
+
+```tsx
+import { type AiSpendCap, AiSpendAdmin, type AiSpendOverview, UNITS_PER_USD } from "@dapplelight/signet-ui/screens/abuse-screens"
+
+const initialCaps: AiSpendCap[] = [
+  { id: "c1", scope: "global", subject: "*", period: "month", units: usd(1000) },
+  { id: "c2", scope: "user", subject: "usr_9a3f", period: "day", units: usd(10) },
+]
+
+const usd = (n: number) => Math.round(n * UNITS_PER_USD)
+
+const overview: AiSpendOverview = {
+  global: {
+    scope: "global",
+    subject: "*",
+    day: { used: usd(18.42), cap: usd(50), remaining: usd(31.58) },
+    month: { used: usd(412.6), cap: usd(1000), remaining: usd(587.4) },
+  },
+  top: {
+    users: [
+      { subject: "usr_9a3f", used: usd(64.2), cap: usd(100) },
+      { subject: "usr_41cc", used: usd(41.75), cap: null },
+    ],
+    orgs: [{ subject: "org_northwind", used: usd(188.1), cap: usd(300) }],
+  },
+}
+
+export function AiSpendAdminReadOnlyDemo() {
+  return (
+    <div className="w-full">
+      <AiSpendAdmin overview={overview} caps={initialCaps} />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+### CaptchaWidget
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `provider` | `"turnstile" \| "hcaptcha" \| "test"` | — | `test` loads nothing and reports the test token at once. |
+| `siteKey` | `string` | — | The provider's public site key. Not needed in test mode. |
+| `onToken` | `(token: string \| null) => void` | — | The token to send with the form; null when it expires. |
+| `onError` | `(error: unknown) => void` | — | Called when the script or widget fails. |
+| `theme` | `"light" \| "dark" \| "auto"` | — | Widget theme. |
+| `action` | `string` | — | Turnstile: the action the server's verifier expects. |
+| `scriptSrc` | `string` | — | Load the script from here instead, for a self-hosted copy. |
+| `labels` | `Partial<typeof DEFAULT_CAPTCHA_LABELS>` | — | Every string, in English by default. Spread `DEFAULT_CAPTCHA_LABELS` to translate. |
+
+### AiSpendAdmin
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `overview` | `AiSpendOverview` | — | `GET /usage`: global day and month usage, top users and orgs. |
+| `caps` | `readonly AiSpendCap[]` | — | Rows of `GET /caps`. |
+| `onSetCap` | `(input: AiSpendCapInput) => unknown` | — | `PUT /caps`. Without it the screen is read-only. Return false or throw to show a failure. |
+| `onRemoveCap` | `(cap: AiSpendCap) => unknown` | — | `DELETE /caps/:scope/:subject/:period`. |
+| `format` | `(units: number) => string` | `formatUnits` | How cost units read. Default US dollars. |
+| `labels` | `Partial<AiSpendLabels>` | — | Every string, in English by default. Spread `DEFAULT_AI_SPEND_LABELS` to translate. |

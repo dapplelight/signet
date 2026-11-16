@@ -1,0 +1,89 @@
+---
+title: "Expose an App to Agents"
+description: "Every validated route becomes an MCP tool run as the caller, with per-user tools and approvals for writes."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-server @modelcontextprotocol/server hono zod
+```
+</Step>
+<Step>
+### Turn routes into tools
+```ts title="server/app.ts"
+import { Hono } from "hono"
+import { z } from "zod"
+import { zValidator } from "@dapplelight/signet-server/http/validate"
+import { appTools, asTool } from "@dapplelight/signet-server/mcp"
+import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
+
+const Note = z.object({ title: z.string(), body: z.string() })
+
+export const app = new Hono()
+  .get("/api/notes", zValidator("query", z.object({ q: z.string().optional() }).describe("Search my notes")), list)
+  .post("/api/notes", asTool({ description: "Save a note" }), zValidator("json", Note), save)
+  .post("/api/webhook", asTool(false), zValidator("json", Event), hook) // never a tool
+
+mountMcp(app, "/mcp", { name: "notes", version: "1.0.0", tools: appTools(app) })
+```
+GET routes are read tools. Every other method asks for approval first. Each call runs in-process with the caller's `authorization` and `cookie`.
+</Step>
+<Step>
+### Give agents without prompts a pending approval
+```ts title="server/app.ts"
+import { approvalGate, kvApprovals } from "@dapplelight/signet-server/mcp"
+import { approvalRoutes } from "@dapplelight/signet-server/http/routes"
+
+const approvals = kvApprovals(kv, {
+  ttlSeconds: 86_400,
+  onEvent: ({ type, record }) => audit.write({ type, ...record }),
+})
+
+mountMcp(app, "/mcp", {
+  name: "notes",
+  version: "1.0.0",
+  approvals,
+  middleware: [requireStoredSession(sessions)],
+  principal: ({ c }) => c?.get("session")?.payload.sub,
+  tools: [...appTools(app), ...paymentTools(payments, { userId, approve: approvalGate })],
+})
+
+app.use("/api/approvals/*", requireStoredSession(sessions))
+app.route("/api/approvals", approvalRoutes({ approvals, subject: (c) => c.get("session").payload.sub }))
+```
+The person approves or denies at `/api/approvals/:id/approve` or `/deny`. The agent then repeats the same call.
+</Step>
+<Step>
+### Show different tools to different people
+```ts title="server/app.ts"
+mountMcp(app, "/mcp", {
+  name: "notes",
+  version: "1.0.0",
+  middleware: [requireToken({ verifier, resourceMetadataUrl: META })],
+  tools: async ({ token }) => ((await isAdmin(token!.claims.sub)) ? [...base, ...admin] : base),
+})
+```
+A tool left out of a caller's list is not callable by them either.
+</Step>
+<Step>
+### Add guardrails
+```ts title="server/app.ts"
+mountMcp(app, "/mcp", {
+  name: "notes",
+  version: "1.0.0",
+  tools,
+  timeoutMs: 10_000,
+  onToolCall: ({ tool, principal, durationMs, ok, code }) =>
+    audit.write({ tool, principal, durationMs, ok, code }),
+})
+```
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="MCP servers" href="/docs/packages/server/mcp" description="routesAsTools, annotations, list_changed, the MCP client." />
+  <Card title="Add MCP tools" href="/docs/guides/add-mcp-tools" description="Hand-written tools with typed input and output." />
+</Cards>

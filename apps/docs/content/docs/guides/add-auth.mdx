@@ -1,0 +1,65 @@
+---
+title: "Add Sign-In"
+description: "A passcode gate or a full Better Auth user system, with CSRF protection in front of the cookie."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-server hono
+```
+</Step>
+<Step>
+### Gate a site with a passcode
+```ts title="src/server/gate.ts"
+import { verifyPasscode } from "@dapplelight/signet-server/auth/passcode"
+import { issueSession, sessionCookie } from "@dapplelight/signet-server/auth/session"
+
+const opts = { cookieName: "rsvp_session", secret: c.env.SESSION_SECRET, sameSite: "none" as const }
+
+if (!(await verifyPasscode(body.passcode, c.env.PASSCODE_HASH))) return c.json({ error: "Wrong passcode" }, 401)
+c.header("Set-Cookie", sessionCookie(await issueSession(opts), opts))
+```
+</Step>
+<Step>
+### Hash the passcode offline
+```ts title="scripts/hash-passcode.ts"
+import { hashPasscode } from "@dapplelight/signet-server/auth/passcode"
+
+console.log(await hashPasscode(process.argv[2]))
+```
+Store the output as the `PASSCODE_HASH` secret, never the passcode.
+</Step>
+<Step>
+### Or use Better Auth for real accounts
+```ts title="src/server/auth.ts"
+import { betterAuthDefaults, socialProviders } from "@dapplelight/signet-server/auth/better-auth"
+
+export const auth = betterAuth({
+  ...betterAuthDefaults(env),
+  database: drizzleAdapter(db, { provider: "pg", schema }),
+  socialProviders: socialProviders(
+    { google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } },
+    (p, reason) => logger.warn("auth.provider_skipped", { provider: p, reason }),
+  ),
+})
+```
+</Step>
+<Step>
+### Turn on CSRF
+```ts title="src/app.ts"
+import { csrfMiddleware } from "@dapplelight/signet-server/middleware/csrf"
+
+app.use("/api/*", csrfMiddleware({ originEnvKeys: ["WEB_URL", "ADMIN_URL"] }))
+```
+Required once the cookie is `sameSite: "none"`. Mount it before any route that reads the cookie.
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="Auth" href="/docs/packages/server/auth" description="Sessions, API keys, OTP and guards." />
+  <Card title="Add CSRF protection" href="/docs/guides/add-csrf" description="Options and the cross-origin case." />
+  <Card title="Add the error envelope" href="/docs/guides/add-error-envelope" description="Consistent errors for your routes." />
+</Cards>

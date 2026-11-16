@@ -1,0 +1,54 @@
+---
+title: "Session"
+description: "Bearer tokens for clients without cookies, with refresh, kept in any storage adapter."
+---
+
+## Usage
+```ts
+import { createApiClient } from "@dapplelight/signet-lib/api"
+import { createSession, fromTokenResponse, tokenEndpointRefresh } from "@dapplelight/signet-lib/session"
+import { chromeStorage } from "@dapplelight/signet-lib/storage"
+
+const session = createSession({
+  storage: chromeStorage(),
+  refresh: tokenEndpointRefresh(`${API}/auth/token`, "team-extension"),
+})
+
+const api = createApiClient({
+  baseUrl: API,
+  credentials: "omit",
+  token: session.token,
+  refresh: session.refresh,
+})
+
+// after sign-in
+await session.set(fromTokenResponse(await res.json()))
+session.subscribe((tokens) => setSignedIn(tokens !== null))
+```
+
+For an extension, a desktop app, a CLI or React Native. The server half is the `client-login` routes in the Server package.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createSession(options)` | Returns a `Session` |
+| `fromTokenResponse(body, now?)` | OAuth `access_token`, `refresh_token`, `expires_in` to `SessionTokens` |
+| `tokenEndpointRefresh(url, clientId, fetch?)` | A `refresh` that posts `grant_type=refresh_token`. 400 or 401 gives `null` (signs out); a network error or 5xx throws (keeps the session) |
+| `SessionTokens`, `CreateSessionOptions`, `Session` | Types |
+
+### createSession(options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `storage` | `StorageAdapter` | required | |
+| `key` | `string` | `"signet-session"` | |
+| `refresh` | `(tokens) => Promise<SessionTokens \| null>` | none | `null` clears the session |
+| `skewMs` | `number` | `30000` | Refresh this long before `expiresAt` |
+
+### Session methods
+| Method | What it does |
+| --- | --- |
+| `get()` | Stored tokens or `null` |
+| `set(tokens)` / `clear()` | Store or remove tokens; notifies subscribers |
+| `subscribe(listener)` | Called on every set, clear, refresh and change from another tab or extension page. Returns unsubscribe |
+| `token()` | Access token, refreshed first when about to expire. For `createApiClient({ token })` |
+| `refresh()` | One refresh at a time; new access token or `null`. For `createApiClient({ refresh })` |

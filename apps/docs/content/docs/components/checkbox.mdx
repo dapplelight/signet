@@ -1,0 +1,132 @@
+---
+title: "Checkbox"
+description: "A control that allows the user to toggle between checked and not checked."
+---
+
+import { CheckboxDemo, CheckboxCheckedDemo, CheckboxDisabledDemo, CheckboxControlledDemo } from "@/components/demos/checkbox"
+
+<Preview>
+  <CheckboxDemo />
+
+```tsx
+import { Checkbox } from "@dapplelight/signet-ui/components/checkbox"
+
+export function Demo() {
+  return (
+    <div className="flex items-center gap-2">
+      <Checkbox id="terms" />
+      <label htmlFor="terms" className="text-sm">Accept terms and conditions</label>
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add checkbox
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { Checkbox } from "@dapplelight/signet-ui/components/checkbox"
+```
+
+```tsx
+<Checkbox />
+```
+
+## Examples
+
+### Checked
+
+<Preview>
+  <CheckboxCheckedDemo />
+
+```tsx
+<Checkbox id="receipts" defaultChecked />
+<label htmlFor="receipts">Email me receipts</label>
+```
+
+</Preview>
+
+### Disabled
+
+<Preview>
+  <CheckboxDisabledDemo />
+
+```tsx
+<Checkbox id="sso" disabled />
+<label htmlFor="sso">Enforce SSO (Enterprise plan)</label>
+```
+
+</Preview>
+
+### Controlled
+
+<Preview>
+  <CheckboxControlledDemo />
+
+```tsx
+const [selected, setSelected] = React.useState<string[]>(["INV-2041"])
+
+{invoices.map((id) => (
+  <div key={id} className="flex items-center gap-2">
+    <Checkbox
+      id={id}
+      checked={selected.includes(id)}
+      onCheckedChange={(v) => toggle(id, v === true)}
+    />
+    <label htmlFor={id}>{id}</label>
+  </div>
+))}
+```
+
+</Preview>
+
+## API Reference
+
+### Checkbox
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `checked` | `boolean \| "indeterminate"` | - | Controlled state. |
+| `defaultChecked` | `boolean \| "indeterminate"` | - | Initial state when uncontrolled. |
+| `onCheckedChange` | `(checked: boolean \| "indeterminate") => void` | - | Runs when the state changes. |
+| `disabled` | `boolean` | `false` | Prevents interaction. |
+| `required` | `boolean` | `false` | Marks it required in a form. |
+| `name` | `string` | - | Form field name. |
+| `value` | `string` | `"on"` | Form value when checked. |
+| `className` | `string` | - | Merged last. |
+
+Built on a Radix checkbox, so it takes every `button` prop. Pair it with a `label` using `id` and `htmlFor`.

@@ -1,0 +1,121 @@
+---
+title: "Emoji Picker"
+description: "Pick one emoji from a curated grid, or type any other with the device keyboard."
+---
+
+import { EmojiPickerDemo, EmojiPickerEmptyDemo, EmojiPickerCustomDemo } from "@/components/demos/emoji-picker"
+
+<Preview>
+  <EmojiPickerDemo />
+
+```tsx
+import { useState } from "react"
+import { EmojiPicker } from "@dapplelight/signet-ui/components/emoji-picker"
+
+export function Demo() {
+  const [icon, setIcon] = useState<string | null>("🎯")
+  return <EmojiPicker value={icon} onChange={setIcon} label="Goal icon" />
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add emoji-picker
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { EmojiPicker } from "@dapplelight/signet-ui/components/emoji-picker"
+```
+
+```tsx
+<EmojiPicker value={icon} onChange={setIcon} label="Goal icon" />
+```
+
+## Examples
+
+### Empty
+
+<Preview>
+  <EmojiPickerEmptyDemo />
+
+```tsx
+import { useState } from "react"
+import { EmojiPicker } from "@dapplelight/signet-ui/components/emoji-picker"
+
+export function Demo() {
+  const [icon, setIcon] = useState<string | null>(null)
+  return <EmojiPicker value={icon} onChange={setIcon} label="Category icon" />
+}
+```
+
+</Preview>
+
+### Custom set
+
+<Preview>
+  <EmojiPickerCustomDemo />
+
+```tsx
+import { useState } from "react"
+import { EmojiPicker } from "@dapplelight/signet-ui/components/emoji-picker"
+
+export function Demo() {
+  const [icon, setIcon] = useState<string | null>("☕")
+  return (
+    <EmojiPicker
+      value={icon}
+      onChange={setIcon}
+      label="Expense category"
+      emojis={["☕", "🍽️", "🛒", "🚗", "🏠", "💡"]}
+    />
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+### EmojiPicker
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `value` | `string \| null \| undefined` | required | The selected emoji. |
+| `onChange` | `(emoji: string) => void` | required | Called with the chosen emoji; the popover then closes. |
+| `emojis` | `string[]` | `DEFAULT_EMOJIS` | The grid contents. |
+| `label` | `string` | `"Choose an emoji"` | Accessible name of the trigger and grid. |
+| `className` | `string` | none | Merged onto the trigger. |
+
+`DEFAULT_EMOJIS` is exported.

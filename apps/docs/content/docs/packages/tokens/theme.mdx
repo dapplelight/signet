@@ -1,0 +1,77 @@
+---
+title: "Theme"
+description: "One brand colour in, every colour token of a theme out, contrast-checked."
+---
+
+## Usage
+
+```ts
+import { writeFileSync } from "node:fs"
+import { buildTheme, toCss } from "@dapplelight/signet-tokens/theme"
+
+const theme = buildTheme({ brand: "#e11d48", base: "cinematic" })
+
+writeFileSync("src/brand.css", toCss(theme))
+console.log(theme.adjustments) // tokens moved to reach contrast
+```
+
+Import `brand.css` in place of the base theme, before `base.css`. Or from the CLI: `signet theme "#e11d48" --base cinematic > src/brand.css`.
+
+Text tokens reach WCAG 4.5:1 on every surface they sit on; focus and chart colours 3:1. A pale brand comes back darker in light mode, with the change listed in `adjustments`. The result overrides colours only: radius, type, spacing and motion stay the base theme's.
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `buildTheme(options)` | Derive a `Theme` from a brand colour, in OKLCH. |
+| `toCss(theme, opts?)` | The theme as a CSS file that imports its base. |
+| `toDesignTokens(theme)` | W3C Design Tokens JSON. |
+| `fromDesignTokens(json, base?)` | Read that JSON back into a `Theme`. |
+| `toFigmaVariables(theme)` | Body for Figma's `POST /v1/files/:key/variables`. |
+| `normalizeHex(hex)` | Normalise `#rgb` or `#rrggbb`. |
+| `hexToOklch(hex)` / `oklchToHex(lch)` | Convert between hex and OKLCH. |
+| `contrast(a, b)` | WCAG contrast ratio of two colours. |
+| `over(fg, bg, alpha)` | Flatten a translucent colour onto a background. |
+| `DENSITY` | Spacing multiplier per level: compact 0.8, comfortable 1, spacious 1.25. |
+| `DENSITY_SLOTS` | Components that have their own density token. |
+| `Base`, `Mode`, `DensityLevel`, `Density`, `DensitySlot`, `Vars`, `Adjustment`, `Theme`, `BuildThemeOptions`, `DesignTokens` | Types. |
+
+### buildTheme(options)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `brand` | `string` | required | `#rgb` or `#rrggbb`. |
+| `base` | `"editorial" \| "cinematic" \| "finance"` | `"editorial"` | Shipped theme to layer over. Throws on others. |
+| `mode` | `"light" \| "dark" \| "both"` | `"both"` | Which modes to build. |
+| `density` | `Density` | none | `all` or a slot, each `compact`, `comfortable` or `spacious`. |
+
+### toCss(theme, opts?)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `importBase` | `boolean` | `true` | `false` leaves out the base theme import, to append to a stylesheet that already has it. |
+
+## Examples
+
+### Compact brand theme, dark only
+
+```ts
+import { buildTheme, toCss } from "@dapplelight/signet-tokens/theme"
+
+const css = toCss(
+  buildTheme({ brand: "#0f766e", mode: "dark", density: { all: "compact", card: "spacious" } }),
+)
+```
+
+### Push tokens to Figma
+
+```ts
+import { buildTheme, toFigmaVariables } from "@dapplelight/signet-tokens/theme"
+
+const body = toFigmaVariables(buildTheme({ brand: "#2563eb" }))
+await fetch(`https://api.figma.com/v1/files/${fileKey}/variables`, {
+  method: "POST",
+  headers: { "X-Figma-Token": figmaToken },
+  body: JSON.stringify(body),
+})
+```

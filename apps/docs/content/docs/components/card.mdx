@@ -1,0 +1,181 @@
+---
+title: "Card"
+description: "Displays a card with header, content and footer."
+---
+
+import { CardDemo, CardWithActionDemo, CardWithFooterDemo, CardSmallDemo } from "@/components/demos/card"
+
+<Preview>
+  <CardDemo />
+
+```tsx
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@dapplelight/signet-ui/components/card"
+
+export function Demo() {
+  return (
+    <Card className="w-full max-w-sm">
+      <CardHeader>
+        <CardTitle>Monthly revenue</CardTitle>
+        <CardDescription>November 2026</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <p className="text-3xl font-semibold">$48,200</p>
+        <p className="text-sm text-text-muted">+12% from October</p>
+      </CardContent>
+    </Card>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add card
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@dapplelight/signet-ui/components/card"
+```
+
+```tsx
+<Card>
+  <CardHeader>
+    <CardTitle>Title</CardTitle>
+    <CardDescription>Description</CardDescription>
+  </CardHeader>
+  <CardContent>Content</CardContent>
+  <CardFooter>Footer</CardFooter>
+</Card>
+```
+
+## Examples
+
+### Header action
+
+<Preview>
+  <CardWithActionDemo />
+
+```tsx
+<Card>
+  <CardHeader>
+    <CardTitle>Team members</CardTitle>
+    <CardDescription>8 of 10 seats used</CardDescription>
+    <CardAction>
+      <Button size="sm" variant="outline">Invite</Button>
+    </CardAction>
+  </CardHeader>
+  <CardContent>
+    <p className="text-sm">Priya Nair, Marcus Chen, Sofia Alvarez and 5 others.</p>
+  </CardContent>
+</Card>
+```
+
+</Preview>
+
+### Footer
+
+<Preview>
+  <CardWithFooterDemo />
+
+```tsx
+<Card>
+  <CardHeader>
+    <CardTitle>Invoice INV-2041</CardTitle>
+    <CardDescription>Acme Corp, due 30 Nov 2026</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <p className="text-2xl font-semibold">$4,200.00</p>
+  </CardContent>
+  <CardFooter className="justify-end gap-2">
+    <Button variant="outline">Download</Button>
+    <Button>Send reminder</Button>
+  </CardFooter>
+</Card>
+```
+
+</Preview>
+
+### Small
+
+<Preview>
+  <CardSmallDemo />
+
+```tsx
+<Card size="sm">
+  <CardHeader>
+    <CardTitle>Open tickets</CardTitle>
+    <CardDescription>Support queue</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <p className="text-2xl font-semibold">17</p>
+  </CardContent>
+</Card>
+```
+
+</Preview>
+
+## API Reference
+
+### Card
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `size` | `default` \| `sm` | `default` | `sm` tightens the padding and gaps. |
+| `className` | `string` | - | Merged last. |
+
+Renders a `div`. A first-child `img` runs edge to edge.
+
+### CardHeader, CardTitle, CardDescription, CardContent, CardFooter
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `className` | `string` | - | Merged last. |
+
+Each renders a `div` and takes every `div` prop. `CardFooter` has a top border and a tinted background.
+
+### CardAction
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `className` | `string` | - | Merged last. |
+
+Sits at the top right of `CardHeader`, spanning the title and description rows.

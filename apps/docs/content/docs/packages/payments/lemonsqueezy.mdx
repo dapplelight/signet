@@ -1,0 +1,60 @@
+---
+title: "Lemon Squeezy"
+description: "Lemon Squeezy variant checkouts at a custom price, order refunds and subscriptions."
+---
+
+## Usage
+
+```ts
+import { lemonsqueezy } from "@dapplelight/signet-payments/lemonsqueezy"
+
+const ls = lemonsqueezy({
+  apiKey: env.LEMONSQUEEZY_API_KEY,
+  storeId: "1",
+  currency: "USD",
+  variantId: "7",
+  webhookSecret: env.LEMONSQUEEZY_WEBHOOK_SECRET,
+})
+
+// A checkout for the variant at a custom price. Redirect to checkout.url.
+const checkout = await ls.createCheckout({
+  amount: 1999,
+  currency: "USD",
+  idempotencyKey: "order-1042",
+  customer: { email: "asha@example.com" },
+})
+
+// Webhook: X-Signature, HMAC-SHA256 hex of the raw body
+app.post("/webhooks/lemonsqueezy", (c) => payments.handleWebhook("lemonsqueezy", c.req.raw))
+```
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `lemonsqueezy(config)` | A `PaymentGateway` named `lemonsqueezy` over `api.lemonsqueezy.com/v1` (JSON:API, bearer key) |
+| `LemonSqueezyConfig` | Config type |
+
+### lemonsqueezy(config)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `apiKey` | `string` | | Required. The key decides test or live |
+| `storeId` | `string` | | Required |
+| `currency` | `string` | | Required. The store's currency; the only one accepted |
+| `variantId` | `string` | | Default variant. Override per checkout with `extra.variantId` |
+| `webhookSecret` | `string` | | Signing secret, needed for `verifyWebhook` |
+
+Plus the shared `baseUrl`, `fetch`, `retries`, `retryDelayMs`.
+
+## Capabilities
+
+Methods: `card`, `wallet`, `applepay`, `googlepay`. Features: refunds, partial refunds, customers, subscriptions, webhooks. No capture, saved methods, payouts or settlements.
+
+## Quirks
+
+- **Payments are Orders.** The checkout carries your reference in `checkout_data.custom.reference` so the `order_created` webhook links back. No variant (config or `extra.variantId`) is `BAD_INPUT`.
+- **Customers** need a name and an email.
+- **Cancel** always stops at the period end (`cancelled` until `ends_at`), whatever `atPeriodEnd` says.
+- **Webhook** has no timestamp and no event id. The inbox id is built from event name, resource id and `updated_at`.
+- **Refund ids** are `<order>:refund:<refunded amount after it>`, so a refund made here lines up with its `order_refunded` webhook. A second partial refund made in the Dashboard arrives as a cumulative amount and over-counts the ledger: refund through this package.

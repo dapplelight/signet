@@ -1,0 +1,59 @@
+---
+title: "Server"
+description: "Backend primitives for Hono apps: auth, HTTP, jobs, MCP, notifications and realtime."
+---
+
+```bash
+npm i @dapplelight/signet-server
+```
+
+`hono`, `zod` and `@modelcontextprotocol/server` are optional peers, needed only by the modules that use them. Every module takes a config object and never reads env at import, so it runs on Workers, Node and Bun.
+
+<AgentPrompt title="Add Signet's server kit to this API">
+Add the Signet MCP server so you can read Signet's docs: run `claude mcp add signet -- bunx @dapplelight/signet-mcp`, or add it to .cursor/mcp.json with command "bunx" and args ["@dapplelight/signet-mcp"].
+
+Then install `@dapplelight/signet-server` along with `hono` and `zod`, and wire it into my Hono app: requestId() on "*", rateLimit() on "/api/*", errorHandler() through app.onError, and zValidator("json", schema) on every route that reads a body.
+
+Throw ApiException for expected errors instead of returning ad-hoc JSON. Import from the subpath modules, such as `@dapplelight/signet-server/http`. Look up each module's options with the MCP tools before using it, then run my typecheck and tests.
+</AgentPrompt>
+
+## Quick start
+
+```ts
+import { Hono } from "hono"
+import { ApiException, errorHandler } from "@dapplelight/signet-server/http"
+import { zValidator } from "@dapplelight/signet-server/http/validate"
+import { requestId } from "@dapplelight/signet-server/middleware/request-id"
+import { rateLimit } from "@dapplelight/signet-server/middleware/rate-limit"
+import { z } from "zod"
+
+const app = new Hono()
+app.use("*", requestId())
+app.use("/api/*", rateLimit({ max: 100, windowSeconds: 60, trust: "cloudflare" }))
+app.onError(errorHandler({ isProduction: () => process.env.NODE_ENV === "production" }))
+
+app.post("/api/orders", zValidator("json", z.object({ sku: z.string() })), (c) => {
+  const { sku } = c.req.valid("json") // 400 with field errors if invalid
+  if (sku === "sold-out") throw new ApiException(409, "Out of stock", "OUT_OF_STOCK")
+  return c.json({ sku }, 201)
+})
+```
+
+## Modules
+
+<Cards>
+  <Card title="Abuse" href="/docs/packages/server/abuse" description="Captcha checks and disposable-email blocking." />
+  <Card title="Adapters" href="/docs/packages/server/adapters" description="KV, queue, blob and defer plugs for Cloudflare, Node, Vercel, Upstash, S3." />
+  <Card title="Analytics" href="/docs/packages/server/analytics" description="Event ingest, server tracking and sinks." />
+  <Card title="Auth" href="/docs/packages/server/auth" description="Sessions, devices, API keys, phone codes, client sign-in." />
+  <Card title="Env" href="/docs/packages/server/env" description="Workers-safe, lazily validated environment." />
+  <Card title="HTTP" href="/docs/packages/server/http" description="Error envelope, validation, OpenAPI, caching and route groups." />
+  <Card title="Jobs" href="/docs/packages/server/jobs" description="Background jobs, retries, schedules and durable steps." />
+  <Card title="MCP" href="/docs/packages/server/mcp" description="Typed tools, resources, prompts and approvals for agents." />
+  <Card title="Middleware" href="/docs/packages/server/middleware" description="CORS, CSRF, rate limits, headers, maintenance mode." />
+  <Card title="Notify" href="/docs/packages/server/notify" description="Email, SMS, WhatsApp, push, Telegram and an inbox." />
+  <Card title="OAuth Resource Server" href="/docs/packages/server/oauth-rs" description="Verify access tokens issued elsewhere." />
+  <Card title="Observability" href="/docs/packages/server/observability" description="JSON logger and Sentry reporting." />
+  <Card title="Realtime" href="/docs/packages/server/realtime" description="Presence, live updates and shared state." />
+  <Card title="Storage" href="/docs/packages/server/storage" description="Checked uploads with quotas and cleanup." />
+</Cards>

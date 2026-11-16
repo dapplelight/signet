@@ -1,0 +1,227 @@
+---
+title: "Alert Dialog"
+description: "A modal dialog that interrupts the user with a confirmation and waits for an answer."
+---
+
+import { AlertDialogDemo, AlertDialogControlledDemo, AlertDialogAsyncDemo } from "@/components/demos/alert-dialog"
+
+<Preview>
+  <AlertDialogDemo />
+
+```tsx
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@dapplelight/signet-ui/components/alert-dialog"
+import { Button } from "@dapplelight/signet-ui/components/button"
+
+export function Demo() {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger render={<Button variant="outline" />}>Delete project</AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete "Q4 Planning"?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This permanently removes the project and its 38 tasks. This cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction variant="destructive">Delete</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add alert-dialog
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@dapplelight/signet-ui/components/alert-dialog"
+```
+
+```tsx
+<AlertDialog>
+  <AlertDialogTrigger render={<Button />}>Open</AlertDialogTrigger>
+  <AlertDialogContent>
+    <AlertDialogHeader>
+      <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+      <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+    </AlertDialogHeader>
+    <AlertDialogFooter>
+      <AlertDialogCancel>Cancel</AlertDialogCancel>
+      <AlertDialogAction>Continue</AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>
+```
+
+## Examples
+
+### Controlled
+
+<Preview>
+  <AlertDialogControlledDemo />
+
+```tsx
+const [open, setOpen] = React.useState(false)
+const [status, setStatus] = React.useState("Subscription active")
+
+<AlertDialog
+  open={open}
+  onOpenChange={(next, details) => {
+    setOpen(next)
+    if (!next && details.returnValue === "confirm") setStatus("Subscription cancelled")
+  }}
+>
+  <AlertDialogTrigger render={<Button variant="outline" />}>Cancel subscription</AlertDialogTrigger>
+  <AlertDialogContent>
+    <AlertDialogHeader>
+      <AlertDialogTitle>Cancel your Pro plan?</AlertDialogTitle>
+      <AlertDialogDescription>You keep access until 30 Nov 2026.</AlertDialogDescription>
+    </AlertDialogHeader>
+    <AlertDialogFooter>
+      <AlertDialogCancel>Keep plan</AlertDialogCancel>
+      <AlertDialogAction>Cancel plan</AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>
+```
+
+</Preview>
+
+### Async action
+
+<Preview>
+  <AlertDialogAsyncDemo />
+
+```tsx
+<AlertDialogAction
+  action={async () => {
+    await refundOrders()
+  }}
+>
+  Refund
+</AlertDialogAction>
+```
+
+</Preview>
+
+## API Reference
+
+### AlertDialog
+
+Takes the options of the underlying alert dialog. It is always modal and an outside press never closes it.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `open` | `boolean` | - | Controlled open state. |
+| `defaultOpen` | `boolean` | `false` | Initial state when uncontrolled. |
+| `onOpenChange` | `(open, details) => void` | - | `details.reason` says why, `details.returnValue` is the `value` of the button that closed it (`"confirm"` or `"cancel"`). |
+| `dismissible` | `boolean` | `true` | Whether Escape and Android's back gesture can close it. An outside press never does. |
+| `onDismissAttempt` | `(details) => void` | - | Runs when a dismissal was refused. |
+| `onOpenChangeComplete` | `(open: boolean) => void` | - | Runs after the open or close animation ends. |
+| `pendingAnnouncement` | `string` | `"Loading"` | What screen readers hear once an action has been pending for a second. |
+| `persistentElements` | `(Element \| string)[]` | - | Elements that stay usable while the page is inert. |
+| `controller` | `AlertDialogController` | - | Open, close and inspect it from anywhere (`createAlertDialogController()`). |
+
+### AlertDialogTrigger
+
+Renders a `button`. Pass `render` to use your own element, such as a `Button`. Also takes `payload`, `shortcut` and `disabled`.
+
+### AlertDialogContent
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `className` | `string` | - | Merged onto the dialog surface. |
+| `backdropClassName` | `string` | - | Merged onto the backdrop. |
+| `initialFocus` | `"auto" \| "content" \| "none" \| selector \| element \| function` | `"auto"` | Where focus goes on open. `"auto"` picks the first Close part, the safe answer. |
+| `finalFocus` | `"trigger" \| "none" \| selector \| element \| function` | `"trigger"` | Where focus returns on close. |
+| `keepMounted` | `boolean` | `false` | Keep it in the page, hidden, while closed. |
+
+### AlertDialogHeader, AlertDialogFooter
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `className` | `string` | - | Merged last. |
+
+Plus every `div` prop. The footer stacks on phones and right-aligns from `sm` up.
+
+### AlertDialogTitle, AlertDialogDescription
+
+Render an `h2` and a `p`. They name and describe the dialog for screen readers.
+
+### AlertDialogAction
+
+The agreeing answer. Closes with `returnValue` `"confirm"`.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `variant` | `default` \| `outline` \| `secondary` \| `ghost` \| `destructive` \| `link` | `default` | Button variant. |
+| `size` | Button size | - | Button size. |
+| `action` | `(event, details) => unknown` | - | Runs before closing. Return a Promise to keep the dialog open and the button pending until it settles. |
+| `value` | `string` | `"confirm"` | Reported as `returnValue`. |
+
+### AlertDialogCancel
+
+The safe answer. Put it first: it takes focus when the dialog opens. Closes with `returnValue` `"cancel"`.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `variant` | Button variant | `outline` | Button variant. |
+| `size` | Button size | - | Button size. |
+| `action` | `(event, details) => unknown` | - | Runs before closing. |

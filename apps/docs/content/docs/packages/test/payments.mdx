@@ -1,0 +1,90 @@
+---
+title: "Payments"
+description: "Fake Razorpay, Stripe and PayU servers behind the real signet-payments adapters."
+---
+
+## Usage
+
+```ts
+import { createPayments, memoryStore } from "@dapplelight/signet-payments"
+import { fakeGateway } from "@dapplelight/signet-test/payments"
+
+const gw = fakeGateway("razorpay")
+const payments = createPayments({ gateways: [gw], db: memoryStore() })
+
+const c = await payments.checkout({ amount: 49900, currency: "INR", idempotencyKey: "k1", userId: "u1" })
+await payments.handleWebhook("razorpay", await gw.complete(c.gatewayId)) // or { status: "failed" }
+
+console.log(gw.calls.map((x) => x.method)) // ["createCheckout", "verifyWebhook"]
+console.log(gw.state.payments.size) // 1, in Razorpay's payment format
+```
+
+`fakeGateway` is the real adapter pointed at an in-memory server that speaks that gateway's HTTP API: id formats, bodies, checkout handoff, idempotency keys and signed webhooks. Nothing reaches the network.
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `fakeGateway(shape, options?)` | A `FakeGateway` for `"razorpay"`, `"stripe"` or `"payu"`. |
+| `FakeGateway` | Type: a `PaymentGateway` plus the helpers below. |
+| `FakeGatewayState` | Type: maps of `payments`, `orders`, `refunds`, `customers`, `methods`, `subscriptions`, `payouts`. |
+| `GatewayShape` | Type: `"razorpay" \| "stripe" \| "payu"`. |
+| `GatewayCall` | Type: `{ method, args }`. |
+| `Fault` | Type: `"decline" \| "unavailable" \| "timeout"`. |
+
+### fakeGateway(shape, options?)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `webhookSecret` | `string` | `"whsec_signet_test_fake_secret"` | Secret used to sign webhooks. |
+| `now` | `() => number` | `Date.now` | Epoch ms for every timestamp and Stripe's signature check. Pass `clock.now`. |
+
+### FakeGateway helpers
+
+| Member | What it does |
+| --- | --- |
+| `calls` | Interface calls, in order. |
+| `requests` | HTTP requests the adapter made to the fake server. |
+| `state` | The server's maps. |
+| `complete(checkoutId, { status? })` | The buyer finishes checkout: `"captured"` (default), `"authorized"` or `"failed"`. Returns the signed webhook `Request`. |
+| `subscribe({ plan, amount?, currency?, customer?, periodDays?, notes? })` | Start an active subscription; returns `{ id, webhooks }`. Not on PayU. |
+| `renew(id, { fail? })` | Charge the next period. A failed charge halts on Razorpay and goes `past_due` on Stripe. Returns webhooks. |
+| `settlePayout(id, outcome)` | `"processed"`, `"failed"` or `"reversed"`. Returns the webhook. Not on PayU. |
+| `takeWebhooks()` | Webhooks queued by API changes (`cancelSubscription`, refunds), oldest first. |
+| `fail(fault, { on?, times? })` | Make the next matching server requests fail. |
+| `reset()` | Empty every map, queued webhook and fault. Ids keep counting. |
+
+PayU has no subscription or payout API, so those reject `UNSUPPORTED`, as the real adapter does.
+
+### Faults
+
+`on` matches `"METHOD /path"` (PayU: the command name). `times` defaults to 1.
+
+| Fault | Effect |
+| --- | --- |
+| `decline` | The gateway refuses. |
+| `unavailable` | The server is down. |
+| `timeout` | The server does the work, then the response is lost. A keyed retry must get the stored answer, not repeat it. |
+
+Webhook `Request`s are single-read: `.clone()` one to deliver it twice.
+
+## Examples
+
+### Failed renewal
+
+```ts
+import { fakeGateway } from "@dapplelight/signet-test/payments"
+
+const gw = fakeGateway("stripe")
+const { id } = await gw.subscribe({ plan: "pro_monthly", amount: 49900, currency: "INR" })
+const hooks = await gw.renew(id, { fail: true }) // subscription goes past_due
+```
+
+### Retry after a timeout
+
+```ts
+const gw = fakeGateway("razorpay")
+gw.fail("timeout", { on: "POST /v1/orders" })
+// the first checkout attempt times out after the server created the order;
+// retrying with the same idempotencyKey must return the same order
+```

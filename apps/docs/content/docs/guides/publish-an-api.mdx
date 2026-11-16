@@ -1,0 +1,98 @@
+---
+title: "Publish an API"
+description: "An OpenAPI spec and reference page generated from your validators, signed outbound webhooks, and HTTP caching."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-server @dapplelight/signet-lib hono zod
+```
+</Step>
+<Step>
+### Serve OpenAPI from your validators
+```ts title="server/app.ts"
+import { apiDoc, serveOpenApi } from "@dapplelight/signet-server/http/openapi"
+import { zValidator } from "@dapplelight/signet-server/http/validate"
+
+app.get("/notes/:id", apiDoc({ summary: "Get a note", tags: ["Notes"], response: Note }), zValidator("param", Id), get)
+app.post("/notes", apiDoc({ responses: { 201: { description: "Created", schema: Note } } }), zValidator("json", NoteInput), create)
+app.get("/health", apiDoc({ security: false }), health) // public
+app.post("/internal/sync", apiDoc(false), sync)          // not in the spec
+
+serveOpenApi(app, {
+  info: { title: "Notes API", version: "1.0.0" },
+  security: { session: { cookieName: "sid" }, apiKey: { prefix: "app" } },
+})
+```
+`GET /openapi.json` returns OpenAPI 3.1 and `GET /docs` an HTML reference.
+</Step>
+<Step>
+### Register outbound webhooks
+```ts title="server/db/webhooks.ts"
+import { webhookTables } from "@dapplelight/signet-db/columns/sqlite" // or /columns/pg
+import { createWebhooks } from "@dapplelight/signet-db/webhooks"
+
+export const { webhookEndpoints, webhookDeliveries } = webhookTables()
+
+export const webhooks = createWebhooks(db, { endpoints: webhookEndpoints, deliveries: webhookDeliveries })
+```
+```ts title="server/app.ts"
+import { webhookRoutes } from "@dapplelight/signet-server/http/webhooks"
+
+app.use("/api/webhooks/*", requireStoredSession(sessionOpts))
+app.route("/api/webhooks", webhookRoutes({ webhooks, owner: (c) => c.get("session").payload.sub }))
+```
+</Step>
+<Step>
+### Queue an event with the change that caused it
+```ts title="server/routes/orders.ts"
+await db.batch([
+  (tx) => tx.insert(orders).values(order),
+  ...(await webhooks.statements({ owner: orgId, type: "order.created", data: order })),
+])
+```
+</Step>
+<Step>
+### Deliver from a cron
+```ts title="worker/index.ts"
+import { drainOutbox } from "@dapplelight/signet-db"
+import { WEBHOOK_TOPIC } from "@dapplelight/signet-db/webhooks"
+
+await drainOutbox(db, { send: (m) => (m.topic === WEBHOOK_TOPIC ? webhooks.send(m) : queue.send(m)) })
+```
+</Step>
+<Step>
+### Verify on the receiving side
+```ts title="receiver/hooks.ts"
+import { verifyWebhook } from "@dapplelight/signet-lib/webhooks"
+
+app.post("/hooks/orders", async (c) => {
+  const body = await c.req.text() // the raw text: re-serialised JSON does not verify
+  if (!(await verifyWebhook(WEBHOOK_SECRET, c.req.raw.headers, body))) return c.text("bad signature", 401)
+  const id = c.req.header("webhook-id") // the same on every retry: dedupe on it
+  return c.body(null, 204)
+})
+```
+</Step>
+<Step>
+### Cache read endpoints
+```ts title="server/app.ts"
+import { cachedResponse, httpCache } from "@dapplelight/signet-server/http/cache"
+
+app.get("/plans", httpCache({ maxAge: 300, staleWhileRevalidate: 60 }), listPlans)
+app.get("/me/orders", requireStoredSession(sessionOpts), httpCache({ private: true }), myOrders)
+app.get("/stats", (c) =>
+  cachedResponse(c, { kv, freshSeconds: 60, staleSeconds: 600, varyBy: orgId(c) }, async () => c.json(await buildStats())),
+)
+```
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="HTTP" href="/docs/packages/server/http" description="OpenAPI, validators, caching and the error envelope." />
+  <Card title="Webhooks" href="/docs/packages/db/webhooks" description="Retries, delivery log, redelivery and URL safety." />
+  <Card title="API screens" href="/docs/components/api-screens" description="ApiReference and WebhookDeliveryLog." />
+</Cards>

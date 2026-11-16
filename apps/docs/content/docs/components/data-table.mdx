@@ -1,0 +1,287 @@
+---
+title: "Data Table"
+description: "A table with sorting, row selection, search, filters, column visibility and CSV export, built on TanStack Table."
+---
+
+import { DataTableDemo, DataTableSortableDemo, DataTableSelectableDemo, DataTableToolbarDemo, DataTableClickableDemo, DataTableEmptyDemo } from "@/components/demos/data-table"
+
+<Preview>
+  <DataTableDemo />
+
+```tsx
+import { Badge } from "@dapplelight/signet-ui/components/badge"
+import { DataTable, type DataTableProps } from "@dapplelight/signet-ui/components/data-table"
+
+type Invoice = {
+  id: string
+  customer: string
+  amount: number
+  status: "paid" | "open" | "overdue" | "draft"
+  due: string
+}
+
+const invoices: Invoice[] = [
+  { id: "INV-1042", customer: "Northwind Traders", amount: 12400, status: "paid", due: "2026-10-04" },
+  { id: "INV-1043", customer: "Globex Corporation", amount: 8250, status: "open", due: "2026-11-18" },
+  { id: "INV-1044", customer: "Initech", amount: 3120, status: "overdue", due: "2026-10-29" },
+  { id: "INV-1045", customer: "Umbrella Health", amount: 21900, status: "paid", due: "2026-10-12" },
+  { id: "INV-1046", customer: "Hooli", amount: 5600, status: "open", due: "2026-11-25" },
+  { id: "INV-1047", customer: "Stark Logistics", amount: 18750, status: "paid", due: "2026-10-20" },
+  { id: "INV-1048", customer: "Wayne Freight", amount: 940, status: "draft", due: "2026-12-02" },
+  { id: "INV-1049", customer: "Acme Supplies", amount: 7300, status: "overdue", due: "2026-10-15" },
+  { id: "INV-1050", customer: "Soylent Foods", amount: 15200, status: "open", due: "2026-11-30" },
+  { id: "INV-1051", customer: "Cyberdyne Systems", amount: 2680, status: "paid", due: "2026-10-08" },
+]
+
+const statusVariant = {
+  paid: "default",
+  open: "secondary",
+  overdue: "destructive",
+  draft: "outline",
+} as const
+
+const columns: DataTableProps<Invoice>["columns"] = [
+  { accessorKey: "id", header: "Invoice" },
+  { accessorKey: "customer", header: "Customer" },
+  {
+    accessorKey: "amount",
+    header: "Amount",
+    cell: ({ row }) => `$${row.original.amount.toLocaleString()}`,
+  },
+  {
+    accessorKey: "status",
+    header: "Status",
+    meta: { filter: "facet" },
+    cell: ({ row }) => (
+      <Badge variant={statusVariant[row.original.status]}>{row.original.status}</Badge>
+    ),
+  },
+  { accessorKey: "due", header: "Due" },
+]
+
+export function Demo() {
+  return (
+    <div className="w-full">
+      <DataTable columns={columns} data={invoices} getRowId={(r) => r.id} />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add data-table
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { DataTable } from "@dapplelight/signet-ui/components/data-table"
+```
+
+```tsx
+<DataTable columns={columns} data={invoices} getRowId={(row) => row.id} sortable />
+```
+
+## Examples
+
+### Sorting
+
+<Preview>
+  <DataTableSortableDemo />
+
+```tsx
+import { DataTable } from "@dapplelight/signet-ui/components/data-table"
+
+// uses the invoices and columns from the first example
+export function Demo() {
+  return (
+    <div className="w-full">
+      <DataTable columns={columns} data={invoices} getRowId={(r) => r.id} sortable />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Row selection
+
+<Preview>
+  <DataTableSelectableDemo />
+
+```tsx
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { DataTable } from "@dapplelight/signet-ui/components/data-table"
+
+// uses the invoices and columns from the first example
+export function Demo() {
+  return (
+    <div className="w-full">
+      <DataTable
+        columns={columns}
+        data={invoices}
+        getRowId={(r) => r.id}
+        selectable
+        bulkActions={(selected) => (
+          <Button size="sm" variant="outline">
+            Send reminder to {selected.length}
+          </Button>
+        )}
+      />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Search, columns and export
+
+<Preview>
+  <DataTableToolbarDemo />
+
+```tsx
+import { DataTable } from "@dapplelight/signet-ui/components/data-table"
+
+// uses the invoices and columns from the first example
+export function Demo() {
+  return (
+    <div className="w-full">
+      <DataTable
+        columns={columns}
+        data={invoices}
+        getRowId={(r) => r.id}
+        sortable
+        searchable={{ placeholder: "Search invoices" }}
+        columnsMenu
+        exportFilename="invoices"
+      />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Clickable rows
+
+<Preview>
+  <DataTableClickableDemo />
+
+```tsx
+import { useState } from "react"
+import { DataTable } from "@dapplelight/signet-ui/components/data-table"
+
+// uses the invoices and columns from the first example
+export function Demo() {
+  const [open, setOpen] = useState<Invoice | null>(null)
+  return (
+    <div className="w-full space-y-2">
+      <DataTable
+        columns={columns}
+        data={invoices}
+        getRowId={(r) => r.id}
+        onRowClick={setOpen}
+        getRowLabel={(r) => `Open ${r.id} for ${r.customer}`}
+      />
+      <p className="text-sm text-muted-foreground">
+        {open ? `${open.id}: ${open.customer}` : "Click a row"}
+      </p>
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Empty
+
+<Preview>
+  <DataTableEmptyDemo />
+
+```tsx
+import { DataTable } from "@dapplelight/signet-ui/components/data-table"
+
+// uses the invoices and columns from the first example
+export function Demo() {
+  return (
+    <div className="w-full">
+      <DataTable columns={columns} data={[]} emptyMessage="No invoices yet." />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+### DataTable
+
+Every feature is off by default and opt-in by prop. There is no built-in pagination: scroll long lists with `virtual`.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `columns` | `ColumnDef<DataTableFeatures, TData, unknown>[]` | required | TanStack column definitions. Set `meta.filter` to `"facet"` or `"text"` for a toolbar filter, and `meta.filterLabel` to name it. |
+| `data` | `TData[]` | required | The rows. |
+| `getRowId` | `(row: TData, index: number) => string` | row index | Stable row ids, for selection and `activeRowId`. |
+| `sortable` | `boolean` | `false` | Click a header to sort; shift-click adds a column. |
+| `selectable` | `boolean` | `false` | Checkbox column, select-all header and a bulk-actions bar. |
+| `selectedRowIds` | `readonly string[]` | none | Controlled selection. |
+| `onSelectedRowIdsChange` | `(ids: string[]) => void` | none | Called when selection changes. |
+| `bulkActions` | `(selected: TData[]) => ReactNode` | none | Rendered in the bulk bar while rows are selected. |
+| `searchable` | `boolean \| { placeholder?: string }` | `false` | A search box across every visible column. |
+| `columnsMenu` | `boolean` | `false` | A menu to show and hide columns. |
+| `exportFilename` | `string` | none | Adds an export button that downloads the current view as `<name>.csv`. |
+| `onRowClick` | `(row: TData) => void` | none | Makes rows clickable and keyboard focusable. |
+| `getRowLabel` | `(row: TData) => string` | none | Accessible name for a clickable row. |
+| `activeRowId` | `string` | none | Row marked `data-active` and scrolled into view. |
+| `emptyMessage` | `string` | none | Shown when there are no rows. |
+| `virtual` | `{ rowHeight: number; height: number \| string; overscan?: number }` | none | Render only visible rows, under a sticky header. Keep cells to one line. |
+| `view` | `DataTableView` | none | Controlled filters, sorting and column visibility. |
+| `defaultView` | `DataTableView` | empty | Starting view when uncontrolled. |
+| `onViewChange` | `(view: DataTableView) => void` | none | Called when the view changes. |
+| `savedViews` | `{ views: SavedView[]; onSave: (name, view) => void; onDelete?: (id) => void }` | none | Named views in the toolbar. |
+| `manual` | `boolean` | `false` | The server filters and sorts; `data` is shown as given. |
+| `facetCounts` | `Record<string, Record<string, number>>` | computed | Server-side counts per facet value. |
+| `total` | `number` | `data.length` | Unfiltered row count, for "12 of 10,000". |
+| `tableRef` | `MutableRefObject<Table \| undefined>` | none | Exposes the TanStack table instance. |
+| `className` | `string` | none | Class for the root. |
+
+### TruncatedCell
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `children` | `ReactNode` | required | Cell content; a tooltip shows when a string or number is cut off. |
+| `className` | `string` | none | Class for the cell. |

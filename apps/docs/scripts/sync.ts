@@ -1,8 +1,6 @@
 /**
- * One page per package, generated from its package.json and its rows in
- * API.md: an install command and a card per module. Not the README: READMEs
- * are written for maintainers and agents, docs pages stay short and visual.
- * Output is gitignored. Fails if a package has no page.
+ * Package nav and coverage: every package and every module area it exports
+ * (per API.md) must have a hand-written page under content/docs/packages.
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
@@ -12,10 +10,38 @@ const out = join(import.meta.dirname, "../content/docs/packages")
 
 /** Nav groups and labels, in the order a new app touches them. */
 const GROUPS: [string, [string, string][]][] = [
-  ["Start", [["create-signet-app", "Create Signet App"], ["cli", "CLI"], ["mcp", "MCP Server"]]],
-  ["Frontend", [["ui", "UI"], ["tokens", "Tokens"], ["lib", "Client Lib"]]],
-  ["Backend", [["server", "Server"], ["db", "Database"], ["payments", "Payments"], ["ai", "AI"]]],
-  ["Tooling", [["config", "Config"], ["test", "Test"]]],
+  [
+    "Start",
+    [
+      ["create-signet-app", "Create Signet App"],
+      ["cli", "CLI"],
+      ["mcp", "MCP Server"],
+    ],
+  ],
+  [
+    "Frontend",
+    [
+      ["ui", "UI"],
+      ["tokens", "Tokens"],
+      ["lib", "Client Lib"],
+    ],
+  ],
+  [
+    "Backend",
+    [
+      ["server", "Server"],
+      ["db", "Database"],
+      ["payments", "Payments"],
+      ["ai", "AI"],
+    ],
+  ],
+  [
+    "Tooling",
+    [
+      ["config", "Config"],
+      ["test", "Test"],
+    ],
+  ],
 ]
 const LABEL = Object.fromEntries(GROUPS.flatMap(([, items]) => items))
 const PACKAGES = Object.keys(LABEL)
@@ -26,57 +52,48 @@ const found = readdirSync(join(root, "packages")).filter((p) =>
 const missing = found.filter((p) => !PACKAGES.includes(p))
 if (missing.length) throw new Error(`packages without a docs page: ${missing.join(", ")}`)
 
-/** `| \`@dapplelight/signet-lib/api\` | exports | What |` rows, per package. */
-function modules(name: string) {
+/** Stylesheet exports share one "themes" page; `biome.json` is `biome`. */
+const area = (a: string) => (a.endsWith(".css") ? "themes" : a.replace(/\.json$/, ""))
+
+/** Module areas a package exports, from API.md: `server/http/cors` -> `http`. */
+function areas(name: string) {
   const api = readFileSync(join(root, "API.md"), "utf8")
   const section = api.split(/^## /m).find((s) => s.startsWith(`${name}\n`))
   if (!section) return []
-  return [...section.matchAll(/^\| `([^`]+)` \| ([^|]*) \| (.*) \|$/gm)].map(
-    ([, path, exports, what]) => ({
-      path,
-      title: path === name ? "main" : path.slice(name.length + 1),
-      // "re-exports a, b, c" says nothing; show the first exports instead.
-      what: what.startsWith("re-exports")
-        ? exports
-            .split(", ")
-            .filter((e) => e !== "…")
-            .slice(0, 4)
-            .join(", ")
-        : short(what),
-    }),
-  )
-}
-
-/** First clause, at most ~10 words: a card caption, not a paragraph. */
-function short(text: string) {
-  const clause = text
-    .replace(/`/g, "")
-    .replace(/\s*\(.*?\)/g, "")
-    .split(/[:;.]\s|, plus | — /)[0]
-  const words = clause.split(/\s+/)
-  return words.length > 10 ? `${words.slice(0, 10).join(" ")}…` : clause
+  const paths = [...section.matchAll(/^\| `([^`]+)` \|/gm)].map(([, p]) => p)
+  return [
+    ...new Set(
+      paths.filter((p) => p !== name).map((p) => area(p.slice(name.length + 1).split("/")[0])),
+    ),
+  ]
 }
 
 const esc = (s: string) => s.replace(/"/g, "&quot;").replace(/[{}<>]/g, "")
 
-rmSync(out, { recursive: true, force: true })
-mkdirSync(out, { recursive: true })
+// Package pages are hand-written: content/docs/packages/<pkg>/index.mdx plus
+// one page per module area. This only builds the nav and fails the build if
+// a package or an exported area has no page.
+const gaps: string[] = []
 for (const pkg of PACKAGES) {
-  const m = JSON.parse(readFileSync(join(root, "packages", pkg, "package.json"), "utf8"))
-  const cli = m.bin && !m.exports
-  const install = cli ? `npx ${m.name}` : `npm i ${m.name}`
-  const mods = modules(m.name)
-  const cards = mods.length
-    ? `## Modules\n\n<Cards>\n${mods
-        .map((x) => `  <Card title="${esc(x.title)}" description="${esc(x.what)}" />`)
-        .join("\n")}\n</Cards>\n`
-    : ""
+  const dir = join(out, pkg)
+  const name = JSON.parse(readFileSync(join(root, "packages", pkg, "package.json"), "utf8")).name
+  if (!existsSync(join(dir, "index.mdx"))) gaps.push(`${pkg}/index.mdx`)
+  const want = areas(name)
+  for (const a of want) if (!existsSync(join(dir, `${a}.mdx`))) gaps.push(`${pkg}/${a}.mdx`)
+  const extra = existsSync(dir)
+    ? readdirSync(dir)
+        .filter((f) => f.endsWith(".mdx") && f !== "index.mdx")
+        .map((f) => f.slice(0, -4))
+        .filter((f) => !want.includes(f))
+    : []
+  mkdirSync(dir, { recursive: true })
   writeFileSync(
-    join(out, `${pkg}.mdx`),
-    `---\ntitle: "${LABEL[pkg]}"\ndescription: "${esc(m.description ?? "")}"\n---\n\n` +
-      `\`\`\`bash\n${install}\n\`\`\`\n\n${cards}`,
+    join(dir, "meta.json"),
+    `${JSON.stringify({ title: LABEL[pkg], pages: ["index", ...want, ...extra] }, null, 2)}\n`,
   )
 }
+if (gaps.length && !process.env.DOCS_ALLOW_GAPS)
+  throw new Error(`package docs missing (${gaps.length}): ${gaps.join(", ")}`)
 writeFileSync(
   join(out, "meta.json"),
   `${JSON.stringify({ title: "Packages", root: true, pages: GROUPS.flatMap(([g, items]) => [`---${g}---`, ...items.map(([p]) => p)]) }, null, 2)}\n`,

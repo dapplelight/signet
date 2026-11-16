@@ -1,0 +1,136 @@
+---
+title: "Responsive Sheet"
+description: "One container for add and edit forms: a bottom drawer on phones, a centred dialog on desktop."
+---
+
+import { ResponsiveSheetDemo, ResponsiveSheetEditDemo, ResponsiveSheetBreakpointDemo } from "@/components/demos/responsive-sheet"
+
+<Preview>
+  <ResponsiveSheetDemo />
+
+```tsx
+import { useState } from "react"
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { ResponsiveSheet } from "@dapplelight/signet-ui/components/responsive-sheet"
+
+export function Demo() {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>Add expense</Button>
+      {open && (
+        <ResponsiveSheet
+          title="Add expense"
+          description="Log a purchase against this month's budget."
+          onClose={() => setOpen(false)}
+        >
+          <ExpenseForm onDone={() => setOpen(false)} />
+        </ResponsiveSheet>
+      )}
+    </>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add responsive-sheet
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { ResponsiveSheet } from "@dapplelight/signet-ui/components/responsive-sheet"
+```
+
+```tsx
+{open && (
+  <ResponsiveSheet title="Add expense" onClose={() => setOpen(false)}>
+    <ExpenseForm />
+  </ResponsiveSheet>
+)}
+```
+
+It is always open. Mount it only while it should show, so the form inside starts fresh each time.
+
+## Examples
+
+### Editing a row
+
+<Preview>
+  <ResponsiveSheetEditDemo />
+
+```tsx
+const [editing, setEditing] = useState<string | null>(null)
+
+<Button variant="ghost" size="sm" onClick={() => setEditing("ORD-2041")}>Edit</Button>
+
+{editing && (
+  <ResponsiveSheet title={`Edit ${editing}`} onClose={() => setEditing(null)}>
+    <OrderForm id={editing} />
+  </ResponsiveSheet>
+)}
+```
+
+</Preview>
+
+### Custom breakpoint
+
+<Preview>
+  <ResponsiveSheetBreakpointDemo />
+
+```tsx
+<ResponsiveSheet
+  title="Invite teammate"
+  desktopQuery="(min-width: 1024px)"
+  onClose={() => setOpen(false)}
+>
+  <InviteForm />
+</ResponsiveSheet>
+```
+
+</Preview>
+
+## API Reference
+
+### ResponsiveSheet
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| title | `ReactNode` | - | Sheet title. |
+| description | `ReactNode` | - | Optional line under the title. |
+| onClose | `() => void` | - | Called on dismiss: swipe, Escape or outside click. |
+| children | `ReactNode` | - | The form or content. |
+| testId | `string` | - | `data-testid` on the body wrapper, next to `data-sheet` (`"drawer"` or `"dialog"`). |
+| desktopQuery | `string` | md breakpoint | Media query where the dialog takes over from the drawer. |
+| className | `string` | - | Class on the body wrapper. |

@@ -1,0 +1,155 @@
+---
+title: "Calendar"
+description: "A date field component that allows users to enter and edit date."
+---
+
+import { CalendarDemo, CalendarRangeDemo, CalendarDropdownDemo, CalendarDisabledDemo } from "@/components/demos/calendar"
+
+<Preview>
+  <CalendarDemo />
+
+```tsx
+import { Calendar } from "@dapplelight/signet-ui/components/calendar"
+import * as React from "react"
+
+export function Demo() {
+  const [date, setDate] = React.useState<Date | undefined>(new Date(2026, 10, 17))
+  return (
+    <Calendar
+      mode="single"
+      selected={date}
+      onSelect={setDate}
+      className="rounded-lg border"
+    />
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add calendar
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { Calendar } from "@dapplelight/signet-ui/components/calendar"
+```
+
+```tsx
+<Calendar mode="single" selected={date} onSelect={setDate} />
+```
+
+## Examples
+
+### Range
+
+<Preview>
+  <CalendarRangeDemo />
+
+```tsx
+const [range, setRange] = React.useState<DateRange | undefined>({
+  from: new Date(2026, 10, 10),
+  to: new Date(2026, 10, 18),
+})
+
+<Calendar mode="range" selected={range} onSelect={setRange} />
+```
+
+</Preview>
+
+### Month and year dropdowns
+
+<Preview>
+  <CalendarDropdownDemo />
+
+```tsx
+<Calendar
+  mode="single"
+  selected={date}
+  onSelect={setDate}
+  captionLayout="dropdown"
+  startMonth={new Date(2024, 0)}
+  endMonth={new Date(2028, 11)}
+/>
+```
+
+</Preview>
+
+### Disabled days
+
+<Preview>
+  <CalendarDisabledDemo />
+
+```tsx
+<Calendar
+  mode="single"
+  selected={date}
+  onSelect={setDate}
+  disabled={[{ dayOfWeek: [0, 6] }, { before: new Date(2026, 10, 17) }]}
+/>
+```
+
+</Preview>
+
+## API Reference
+
+### Calendar
+
+Built on `react-day-picker` v10, a peer dependency. Every `DayPicker` prop works; these are the ones Signet sets or adds.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `mode` | `single` \| `multiple` \| `range` | - | Selection mode. |
+| `selected` | `Date \| Date[] \| DateRange` | - | Selected value, shaped by `mode`. |
+| `onSelect` | `(value) => void` | - | Runs when the selection changes. |
+| `required` | `boolean` | `false` | Keep a day selected: clicking the selected day does not clear it. |
+| `min` / `max` | `number` | - | Fewest and most days in `multiple` or `range` mode. |
+| `month` / `defaultMonth` / `onMonthChange` | `Date` / `Date` / `(month: Date) => void` | current month | Control the visible month. |
+| `startMonth` / `endMonth` | `Date` | - | Limit how far the user can navigate. |
+| `numberOfMonths` | `number` | `1` | Months shown side by side. |
+| `weekStartsOn` | `0` to `6` | locale | First day of the week; `0` is Sunday. |
+| `showWeekNumber` | `boolean` | `false` | Show a week number column. |
+| `timeZone` | `string` | local | IANA time zone the days are computed in. |
+| `showOutsideDays` | `boolean` | `true` | Show days from adjacent months. |
+| `captionLayout` | `label` \| `dropdown` \| `dropdown-months` \| `dropdown-years` | `label` | Month caption style. |
+| `buttonVariant` | Button variant | `ghost` | Variant of the previous and next buttons. |
+| `locale` | `Locale` | - | Locale for labels and the month dropdown. |
+| `disabled` | `Matcher \| Matcher[]` | - | Days that cannot be picked. |
+| `classNames` | `Partial<ClassNames>` | - | Overrides per slot, merged over the defaults. |
+| `components` | `Partial<CustomComponents>` | - | Replace parts such as `DayButton`. |
+| `className` | `string` | - | Merged onto the root. |
+
+### CalendarDayButton
+
+The button each day renders. Exported for building a custom `DayButton`. Takes the `DayButton` props plus `locale`.

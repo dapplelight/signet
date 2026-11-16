@@ -1,0 +1,57 @@
+---
+title: "TSConfig"
+description: "Strict TypeScript bases for scripts, React apps and Workers."
+---
+
+## Usage
+
+```json title="tsconfig.json"
+{
+  "extends": "@dapplelight/signet-config/tsconfig/react.json",
+  "compilerOptions": {
+    "paths": { "@/*": ["./src/*"] },
+    "types": ["vite/client"]
+  },
+  "include": ["src"]
+}
+```
+
+## API
+
+The export `@dapplelight/signet-config/tsconfig/*.json` resolves to these files.
+
+| File | For | Adds to base |
+| --- | --- | --- |
+| `tsconfig/base.json` | Scripts, shared packages | none |
+| `tsconfig/react.json` | Vite + React SPA | DOM libs, `jsx: react-jsx` |
+| `tsconfig/worker.json` | Cloudflare Workers | no DOM lib |
+
+`base.json` sets: `strict`, `target` and `lib` ES2022, `module: ESNext`, `moduleResolution: bundler`, `moduleDetection: force`, `isolatedModules`, `resolveJsonModule`, `noFallthroughCasesInSwitch`, `skipLibCheck`, `noEmit`, and `types: []`.
+
+### Things to know
+
+- No `baseUrl`. Declare `paths` in your own tsconfig; they resolve relative to it.
+- `types` is empty. List what you use (`["bun"]`, `["node"]`). Your `types` replaces the base's.
+- The bases set `noEmit`. A build config sets `noEmit: false` and its own `outDir` and `declaration`.
+
+## Examples
+
+### Cloudflare Worker
+
+```json title="tsconfig.json"
+{
+  "extends": "@dapplelight/signet-config/tsconfig/worker.json",
+  "compilerOptions": { "types": ["@cloudflare/workers-types"] },
+  "include": ["src"]
+}
+```
+
+### Next.js app
+
+```json title="tsconfig.json"
+{
+  "extends": "@dapplelight/signet-config/tsconfig/react.json",
+  "compilerOptions": { "jsx": "preserve", "plugins": [{ "name": "next" }] },
+  "include": ["src", "next-env.d.ts"]
+}
+```

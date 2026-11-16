@@ -1,0 +1,234 @@
+---
+title: "Monetisation Screens"
+description: "A server-configured paywall, a self-serve customer center, an admin billing timeline and a promotional grant form."
+---
+
+import { RemotePaywallDemo, CustomerCenterDemo, CustomerTimelineDemo, PromotionalGrantFormDemo } from "@/components/demos/monetisation-screens"
+
+<Preview>
+  <RemotePaywallDemo />
+
+```tsx
+import { RemotePaywall } from "@dapplelight/signet-ui/screens/monetisation-screens"
+
+function RemotePaywallDemo() {
+  return (
+    <RemotePaywall
+      offering={offering}
+      display={{
+        starter: { name: "Starter", features: ["5 projects", "Email support"] },
+        pro: { name: "Pro", features: ["Unlimited projects", "Priority support", "API access"] },
+      }}
+      onPurchase={() => undefined}
+      onImpression={() => undefined}
+    />
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add monetisation-screens
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  RemotePaywall,
+  CustomerCenter,
+  CustomerTimeline,
+  PromotionalGrantForm,
+} from "@dapplelight/signet-ui/screens/monetisation-screens"
+```
+
+Data is shaped like signet-db's offerings and customers results (or their JSON); actions come out as callbacks.
+
+```tsx
+<RemotePaywall offering={offering} onPurchase={(product) => checkout(product)} />
+```
+
+## Examples
+
+### RemotePaywall
+
+<Preview>
+  <RemotePaywallDemo />
+
+```tsx
+import { RemotePaywall } from "@dapplelight/signet-ui/screens/monetisation-screens"
+
+function RemotePaywallDemo() {
+  return (
+    <RemotePaywall
+      offering={offering}
+      display={{
+        starter: { name: "Starter", features: ["5 projects", "Email support"] },
+        pro: { name: "Pro", features: ["Unlimited projects", "Priority support", "API access"] },
+      }}
+      onPurchase={() => undefined}
+      onImpression={() => undefined}
+    />
+  )
+}
+```
+
+</Preview>
+
+### CustomerCenter
+
+<Preview>
+  <CustomerCenterDemo />
+
+```tsx
+import { CustomerCenter } from "@dapplelight/signet-ui/screens/monetisation-screens"
+
+function CustomerCenterDemo() {
+  return (
+    <CustomerCenter
+      className="w-full max-w-xl"
+      overview={{
+        plan: "pro",
+        status: "active",
+        currentPeriodEnd: "2026-12-14",
+        renews: true,
+        source: { gateway: "stripe", subscriptionId: "sub_1042" },
+        store: false,
+        manageUrl: null,
+        canCancel: true,
+        retention: { kind: "discount", percent: 30, months: 3 },
+      }}
+      onCancel={() => true}
+      onAcceptRetention={() => true}
+      onRequestRefund={() => true}
+      onContactSupport={() => true}
+    />
+  )
+}
+```
+
+</Preview>
+
+### CustomerTimeline
+
+<Preview>
+  <CustomerTimelineDemo />
+
+```tsx
+import { CustomerTimeline } from "@dapplelight/signet-ui/screens/monetisation-screens"
+
+function CustomerTimelineDemo() {
+  return (
+    <CustomerTimeline
+      className="w-full max-w-xl"
+      entries={[
+        { id: "1", kind: "payment", gateway: "stripe", eventType: "payment_succeeded", amount: 1900, currency: "USD", occurredAt: "2026-11-14T08:00:00Z" },
+        { id: "2", kind: "subscription", gateway: "stripe", eventType: "subscription_renewed", subscriptionId: "sub_1042", occurredAt: "2026-11-14T08:00:00Z" },
+        { id: "3", kind: "payment", gateway: "appstore", eventType: "payment_succeeded", amount: 1900, currency: "USD", approximate: true, occurredAt: "2026-10-14T08:00:00Z" },
+        { id: "4", kind: "refund", gateway: "stripe", eventType: "refund_request", amount: 1900, currency: "USD", occurredAt: "2026-09-20T11:30:00Z" },
+      ]}
+      totals={[{ currency: "USD", paid: 5700, refunded: 1900, approximate: true }]}
+    />
+  )
+}
+```
+
+</Preview>
+
+### PromotionalGrantForm
+
+<Preview>
+  <PromotionalGrantFormDemo />
+
+```tsx
+import { PromotionalGrantForm } from "@dapplelight/signet-ui/screens/monetisation-screens"
+
+function PromotionalGrantFormDemo() {
+  return (
+    <PromotionalGrantForm
+      className="w-full max-w-sm"
+      plans={["starter", "pro"]}
+      defaultDays={14}
+      onGrant={() => true}
+    />
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+All screens accept the props of their root element and `labels` (`Partial<MonetisationLabels>`, defaults in `DEFAULT_MONETISATION_LABELS`).
+
+### RemotePaywall
+
+Also takes the `Paywall` props from billing-screens (`value`, `interval`, `currentPlan`, `source`, `onRestore` and so on) except `plans`, `onSubscribe`, `title` and `subtitle`, which come from the offering.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `offering` | `RemoteOffering` | required | The server's current offering with its paywall config. |
+| `display` | `Record<string, Partial<BillingPlan>>` | - | Names, descriptions and features per plan key; prices come from the offering. |
+| `onPurchase` | `(product, plan, interval, offer?) => unknown` | - | Buy the product through your checkout or store. `offer` is the best offer for this customer. |
+| `onImpression` | `(offering: RemoteOffering) => unknown` | - | Called once when the paywall is shown. |
+
+### CustomerCenter
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `overview` | `CustomerOverview` | required | Plan, status, renewal date, source and retention offer. |
+| `plans` | `readonly BillingPlan[]` | - | Plans, to name the current one. |
+| `onCancel` | `() => unknown` | - | Cancel a web subscription. Resolve `false` on failure. |
+| `onAcceptRetention` | `() => unknown` | - | Accept the retention offer shown before cancelling. |
+| `onRequestRefund` | `(reason: string) => unknown` | - | Request a refund of the latest payment. |
+| `onContactSupport` | `(message: string) => unknown` | - | Send a message to support. |
+| `onRestore` | `() => unknown` | - | Restore earlier store purchases. |
+
+### CustomerTimeline
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `entries` | `readonly CustomerTimelineEntry[]` | required | Billing events across App Store, Google Play and web, newest first. |
+| `totals` | `readonly CustomerTimelineTotal[]` | `[]` | Ledger totals per currency. |
+
+### PromotionalGrantForm
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `plans` | `readonly string[]` | required | Plan keys an admin may grant. |
+| `defaultDays` | `number` | `30` | Days preselected. |
+| `onGrant` | `(grant: { plan: string; days: number; note?: string }) => unknown` | required | Grant the plan; it lapses on its own. |
+
+### plansFromOffering
+
+`plansFromOffering(offering, source = "web", display = {}, badge?)` returns the `BillingPlan[]` for one source, ready for `PlanPicker`.

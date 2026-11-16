@@ -1,0 +1,210 @@
+---
+title: "Chart"
+description: "Beautiful charts built on recharts, coloured by the active theme."
+---
+
+import { ChartDemo, ChartLineDemo, ChartAreaDemo, ChartLegendDemo } from "@/components/demos/chart"
+
+<Preview>
+  <ChartDemo />
+
+```tsx
+import {
+  type ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@dapplelight/signet-ui/components/chart"
+import { Bar, BarChart, CartesianGrid, XAxis } from "recharts"
+
+const data = [
+  { month: "Jun", revenue: 31200, expenses: 24100 },
+  { month: "Jul", revenue: 35800, expenses: 25300 },
+  { month: "Aug", revenue: 33900, expenses: 26800 },
+  { month: "Sep", revenue: 40100, expenses: 27200 },
+  { month: "Oct", revenue: 43000, expenses: 28900 },
+  { month: "Nov", revenue: 48200, expenses: 29400 },
+]
+
+const config = {
+  revenue: { label: "Revenue" },
+  expenses: { label: "Expenses" },
+} satisfies ChartConfig
+
+export function Demo() {
+  return (
+    <ChartContainer config={config} className="aspect-[2/1] w-full">
+      <BarChart data={data}>
+        <CartesianGrid vertical={false} />
+        <XAxis dataKey="month" tickLine={false} axisLine={false} />
+        <ChartTooltip content={<ChartTooltipContent />} />
+        <Bar dataKey="revenue" fill="var(--color-revenue)" radius={4} />
+        <Bar dataKey="expenses" fill="var(--color-expenses)" radius={4} />
+      </BarChart>
+    </ChartContainer>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add chart
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  type ChartConfig,
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@dapplelight/signet-ui/components/chart"
+```
+
+```tsx
+<ChartContainer config={config} className="aspect-[2/1] w-full">
+  <BarChart data={data}>
+    <XAxis dataKey="month" />
+    <ChartTooltip content={<ChartTooltipContent />} />
+    <Bar dataKey="revenue" fill="var(--color-revenue)" />
+  </BarChart>
+</ChartContainer>
+```
+
+## Examples
+
+### Line
+
+<Preview>
+  <ChartLineDemo />
+
+```tsx
+<ChartContainer config={config} className="aspect-[2/1] w-full">
+  <LineChart data={data}>
+    <CartesianGrid vertical={false} />
+    <XAxis dataKey="month" tickLine={false} axisLine={false} />
+    <ChartTooltip content={<ChartTooltipContent indicator="line" />} />
+    <Line dataKey="revenue" stroke="var(--color-revenue)" strokeWidth={2} dot={false} />
+    <Line dataKey="expenses" stroke="var(--color-expenses)" strokeWidth={2} dot={false} />
+  </LineChart>
+</ChartContainer>
+```
+
+</Preview>
+
+### Area
+
+<Preview>
+  <ChartAreaDemo />
+
+```tsx
+<ChartContainer config={config} className="aspect-[2/1] w-full">
+  <AreaChart data={data}>
+    <CartesianGrid vertical={false} />
+    <XAxis dataKey="month" tickLine={false} axisLine={false} />
+    <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+    <Area
+      dataKey="revenue"
+      stroke="var(--color-revenue)"
+      fill="var(--color-revenue)"
+      fillOpacity={0.2}
+    />
+  </AreaChart>
+</ChartContainer>
+```
+
+</Preview>
+
+### Legend
+
+<Preview>
+  <ChartLegendDemo />
+
+```tsx
+<ChartLegend content={<ChartLegendContent />} />
+```
+
+</Preview>
+
+## API Reference
+
+Import from `@dapplelight/signet-ui/components/chart` only. It is not in the barrel because `recharts` (version 3.8 up to 4) is an optional peer dependency. Colours come from the theme's optional `--chart-1` to `--chart-6`, each falling back to a core token.
+
+### ChartContainer
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `config` | `ChartConfig` | required | Maps each series key to a `label`, an optional `icon`, and a `color` or per-theme `theme`. Defines the `--color-<key>` variable. |
+| `children` | recharts chart | required | One recharts chart, such as `BarChart`. |
+| `id` | `string` | generated | Stable id for the generated style block. |
+| `className` | `string` | - | Merged last. Default is `aspect-video`. |
+
+A series with neither `color` nor `theme` takes the palette entry at its position, wrapping after six.
+
+### ChartConfig
+
+`Record<string, { label?: ReactNode; icon?: ComponentType } & ({ color?: string } \| { theme: { light: string; dark: string } })>`
+
+### ChartTooltipContent
+
+Pass as `content` of `ChartTooltip`, which is recharts' `Tooltip`.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `indicator` | `dot` \| `line` \| `dashed` | `dot` | Shape of the series marker. |
+| `hideLabel` | `boolean` | `false` | Hide the heading. |
+| `hideIndicator` | `boolean` | `false` | Hide the marker. |
+| `nameKey` | `string` | - | Payload key used to look up the series label. |
+| `labelKey` | `string` | - | Payload key used to look up the heading. |
+| `labelFormatter` | `(value, payload) => ReactNode` | - | Format the heading. |
+| `formatter` | recharts formatter | - | Replace each row. |
+| `color` | `string` | - | Override the marker colour. |
+| `className` | `string` | - | Merged last. |
+
+### ChartLegendContent
+
+Pass as `content` of `ChartLegend`, which is recharts' `Legend`.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `hideIcon` | `boolean` | `false` | Use a swatch instead of the config `icon`. |
+| `nameKey` | `string` | - | Payload key used to look up the series label. |
+| `verticalAlign` | `top` \| `bottom` | `bottom` | Spacing side. Set by recharts. |
+| `className` | `string` | - | Merged last. |
+
+### Other exports
+
+`ChartTooltip` and `ChartLegend` re-export recharts' `Tooltip` and `Legend`. `CHART_COLORS` is the default palette and `ChartStyle` writes the colour variables.

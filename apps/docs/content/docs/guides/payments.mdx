@@ -1,0 +1,99 @@
+---
+title: "Take Payments"
+description: "Checkout across Razorpay and Stripe with a verified webhook inbox, a ledger, store purchases and daily reconciliation."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-payments
+```
+</Step>
+<Step>
+### Create the payments service
+```ts title="server/payments.ts"
+import { createPayments, sqlStore } from "@dapplelight/signet-payments"
+import { razorpay } from "@dapplelight/signet-payments/razorpay"
+import { stripe } from "@dapplelight/signet-payments/stripe"
+
+// Build per request: Workers have no env at module scope.
+export const paymentsFor = (env: Env) =>
+  createPayments({
+    gateways: [
+      razorpay({ keyId: env.RAZORPAY_KEY_ID, keySecret: env.RAZORPAY_KEY_SECRET, webhookSecret: env.RAZORPAY_WEBHOOK_SECRET }),
+      stripe({ secretKey: env.STRIPE_SECRET_KEY, webhookSecret: env.STRIPE_WEBHOOK_SECRET }),
+    ],
+    route: (i) => (i.currency === "INR" ? "razorpay" : "stripe"),
+    fallback: true, // on an outage only, never on a decline
+    db: sqlStore({ query: async (s, p) => (await env.DB.prepare(s).bind(...p).all()).results }, { dialect: "sqlite" }),
+  })
+```
+Create the tables with the statements from `paymentsSchema("sqlite")`.
+</Step>
+<Step>
+### Start a checkout
+```ts title="server/routes/checkout.ts"
+app.post("/api/checkout", async (c) => {
+  const checkout = await paymentsFor(c.env).checkout({
+    amount: 49900, // minor units
+    currency: "INR",
+    idempotencyKey: orderId,
+    reference: orderId,
+    userId,
+  })
+  return c.json(checkout)
+})
+```
+</Step>
+<Step>
+### Receive webhooks
+```ts title="server/routes/webhooks.ts"
+app.post("/webhooks/:gateway", (c) => paymentsFor(c.env).handleWebhook(c.req.param("gateway"), c.req.raw))
+```
+The signature is verified on the raw body, the event is stored once, and captures, fees and refunds post to the ledger exactly once.
+</Step>
+<Step>
+### Verify store purchases
+```ts title="server/payments.ts"
+import { appstore } from "@dapplelight/signet-payments/appstore"
+import { googleplay } from "@dapplelight/signet-payments/googleplay"
+
+const gateways = [
+  appstore({ issuerId, keyId, privateKey: p8, bundleId, appAppleId }),
+  googleplay({ packageName, serviceAccount: { client_email, private_key }, pubsub }),
+]
+```
+```ts title="server/routes/purchases.ts"
+await payments.verifyPurchase({ gateway: "appstore", id: transactionId, userId })
+const { restored, refused } = await payments.restorePurchases({ userId, purchases })
+```
+</Step>
+<Step>
+### Reconcile daily
+```ts title="worker/index.ts"
+import { reconcileJob } from "@dapplelight/signet-payments"
+
+const job = reconcileJob(store, payments.gateway("razorpay"), { onMismatch: alert })
+await job() // yesterday, UTC: call from a cron
+```
+Mismatches are `missing`, `amount_differs` or `extra`.
+</Step>
+<Step>
+### Give agents refunds behind approval
+```ts title="server/mcp.ts"
+import { paymentTools } from "@dapplelight/signet-payments/agent"
+import { approvalGate } from "@dapplelight/signet-server/mcp"
+
+const tools = paymentTools(payments, { userId, approve: approvalGate })
+```
+Without `approve`, `refund_payment` returns `APPROVAL_REQUIRED` and refunds nothing.
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="Payments" href="/docs/packages/payments" description="Capability matrix, Apple Pay, notes on gaps." />
+  <Card title="Plans and entitlements" href="/docs/guides/add-plans" description="Turn billing events into plans and limits." />
+  <Card title="Test with fakes" href="/docs/guides/add-tests" description="fakeGateway runs your webhook route and ledger." />
+</Cards>

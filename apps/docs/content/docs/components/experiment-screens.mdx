@@ -1,0 +1,259 @@
+---
+title: "Experiment Screens"
+description: "Admin screens for A/B experiments: a list, a per-variant results readout, a create and edit form, and a pricing readout."
+---
+
+import { ExperimentListDemo, ExperimentResultsDemo, ExperimentFormDemo, PricingExperimentResultsDemo } from "@/components/demos/experiment-screens"
+
+<Preview>
+  <ExperimentResultsDemo />
+
+```tsx
+import { ExperimentResults } from "@dapplelight/signet-ui/screens/experiment-screens"
+
+function ExperimentResultsDemo() {
+  return (
+    <ExperimentResults
+      className="w-full max-w-3xl"
+      experiment={experiments[0]}
+      results={results}
+      onStop={() => undefined}
+      onRollout={() => undefined}
+    />
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add experiment-screens
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  ExperimentList,
+  ExperimentResults,
+  ExperimentForm,
+  PricingExperimentResults,
+} from "@dapplelight/signet-ui/screens/experiment-screens"
+```
+
+Data is shaped like signet-db's `createExperiments` results or the `experimentAdminRoutes` JSON; actions come out as callbacks that may be async. An action that throws or resolves `false` shows the failure message.
+
+```tsx
+<ExperimentResults experiment={experiment} results={results} onStop={stop} />
+```
+
+## Examples
+
+### ExperimentList
+
+<Preview>
+  <ExperimentListDemo />
+
+```tsx
+import { useState } from "react"
+import { ExperimentList } from "@dapplelight/signet-ui/screens/experiment-screens"
+
+function ExperimentListDemo() {
+  const [selected, setSelected] = useState("onboarding-checklist")
+  return (
+    <ExperimentList
+      className="w-full max-w-xl"
+      experiments={experiments}
+      selected={selected}
+      onSelect={setSelected}
+    />
+  )
+}
+```
+
+</Preview>
+
+### ExperimentResults
+
+<Preview>
+  <ExperimentResultsDemo />
+
+```tsx
+import { ExperimentResults } from "@dapplelight/signet-ui/screens/experiment-screens"
+
+function ExperimentResultsDemo() {
+  return (
+    <ExperimentResults
+      className="w-full max-w-3xl"
+      experiment={experiments[0]}
+      results={results}
+      onStop={() => undefined}
+      onRollout={() => undefined}
+    />
+  )
+}
+```
+
+</Preview>
+
+### ExperimentForm
+
+<Preview>
+  <ExperimentFormDemo />
+
+```tsx
+import { ExperimentForm } from "@dapplelight/signet-ui/screens/experiment-screens"
+
+function ExperimentFormDemo() {
+  return (
+    <ExperimentForm
+      className="w-full max-w-xl"
+      experiment={experiments[1]}
+      onSubmit={() => true}
+      onStart={() => undefined}
+    />
+  )
+}
+```
+
+</Preview>
+
+### PricingExperimentResults
+
+<Preview>
+  <PricingExperimentResultsDemo />
+
+```tsx
+import { PricingExperimentResults, type PricingReadoutView } from "@dapplelight/signet-ui/screens/experiment-screens"
+
+function PricingExperimentResultsDemo() {
+  const readout: PricingReadoutView = {
+    placements: ["onboarding"],
+    alpha: 0.05,
+    control: "monthly-first",
+    variants: [
+      {
+        key: "monthly-first",
+        offering: { offering: "pro-monthly" },
+        exposed: 2400,
+        converted: 168,
+        rate: 0.07,
+        lift: null,
+        pValue: null,
+        significant: false,
+        trials: 410,
+        trialConverted: 120,
+        trialConversion: 0.29,
+        revenue: { USD: 167832 },
+        revenuePerExposed: { USD: 70 },
+        ltv: { estimate: true, perCurrency: { USD: 5400 }, churn: 0.08, expectedPayments: 12 },
+      },
+      {
+        key: "annual-first",
+        offering: { offering: "pro-annual" },
+        exposed: 2380,
+        converted: 214,
+        rate: 0.09,
+        lift: 0.2857,
+        pValue: 0.011,
+        significant: true,
+        trials: 430,
+        trialConverted: 150,
+        trialConversion: 0.35,
+        revenue: { USD: 256800 },
+        revenuePerExposed: { USD: 108 },
+        ltv: { estimate: true, perCurrency: { USD: 6200 }, churn: 0.06, expectedPayments: 16 },
+      },
+    ],
+  }
+  return (
+    <PricingExperimentResults
+      className="w-full max-w-4xl"
+      experiment={{ ...experiments[1], status: "running" }}
+      readout={readout}
+      onRollout={() => undefined}
+      onStop={() => undefined}
+    />
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+All screens also accept the props of their root element and `labels` (`Partial<ExperimentLabels>`, defaults in `DEFAULT_EXPERIMENT_LABELS`).
+
+### ExperimentList
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `experiments` | `readonly ExperimentView[]` | required | Experiments to list. |
+| `selected` | `string` | - | Key of the experiment shown, marked `aria-current`. |
+| `onSelect` | `(key: string) => void` | - | Called when one is picked. |
+
+### ExperimentResults
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `experiment` | `ExperimentView` | required | The experiment. |
+| `results` | `ExperimentResultsView \| null` | - | Per-variant results; null when the server has no events table. |
+| `onStart` | `() => unknown` | - | Start or resume. |
+| `onStop` | `() => unknown` | - | Stop. |
+| `onRollout` | `(variant: string) => unknown` | - | Roll out a variant. |
+
+### ExperimentForm
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `experiment` | `ExperimentView` | - | The experiment to edit; omitted creates one. |
+| `offerings` | `readonly OfferingChoice[]` | - | Offerings to pick per variant (pricing experiment); omitted shows a JSON value field. |
+| `onSubmit` | `(input: ExperimentInputView) => unknown` | required | Create or save. Resolve `false` or throw to show the failure. |
+| `onStart` | `() => unknown` | - | Start the experiment. |
+| `onStop` | `() => unknown` | - | Stop the experiment. |
+
+### PricingExperimentResults
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `experiment` | `ExperimentView` | required | The experiment. |
+| `readout` | `PricingReadoutView` | required | Per-variant offering, conversion, trial conversion, revenue and LTV. |
+| `onRollout` | `(variant: string) => unknown` | - | Make a variant's offering the placement's offering. |
+| `onStart` | `() => unknown` | - | Start the experiment. |
+| `onStop` | `() => unknown` | - | Stop the experiment. |
+
+### ExperimentStatusBadge
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `status` | `"draft" \| "running" \| "stopped" \| "rolled_out"` | required | Status to show. |
+| `labels` | `Partial<ExperimentLabels>` | - | Override any string. |

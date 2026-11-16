@@ -1,0 +1,230 @@
+---
+title: "Job Runs"
+description: "A table of background job runs with state, attempts, progress, error and retry or cancel actions."
+---
+
+import { JobRunsDemo, JobRunsReadOnlyDemo, JobRunsEmptyDemo } from "@/components/demos/job-runs"
+
+<Preview>
+  <JobRunsDemo />
+
+```tsx
+import { type JobRun, JobRuns } from "@dapplelight/signet-ui/domain/job-runs"
+import { useState } from "react"
+
+const initial: JobRun[] = [
+  {
+    id: "run_8f21",
+    job: "invoice.generate",
+    state: "running",
+    attempt: 1,
+    progress: { done: 340, total: 500, note: "March invoices" },
+  },
+  { id: "run_8f20", job: "email.digest", state: "done", attempt: 1 },
+  {
+    id: "run_8f1e",
+    job: "payout.settle",
+    state: "dead",
+    attempt: 5,
+    error: { code: "GATEWAY_TIMEOUT", message: "Bank did not respond" },
+  },
+  { id: "run_8f1b", job: "report.export", state: "queued", attempt: 0 },
+]
+
+export function JobRunsDemo() {
+  const [runs, setRuns] = useState(initial)
+  return (
+    <div className="w-full">
+      <JobRuns
+        runs={runs}
+        onRetry={(run) =>
+          setRuns((rs) =>
+            rs.map((r) =>
+              r.id === run.id ? { ...r, state: "queued", attempt: r.attempt + 1, error: undefined } : r,
+            ),
+          )
+        }
+        onCancel={(run) => setRuns((rs) => rs.map((r) => (r.id === run.id ? { ...r, state: "cancelled" } : r)))}
+      />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add job-runs
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { JobRuns, type JobRun } from "@dapplelight/signet-ui/domain/job-runs"
+```
+
+```tsx
+<JobRuns runs={runs} onRetry={retry} onCancel={cancel} />
+```
+
+## Examples
+
+### Retry and cancel
+
+<Preview>
+  <JobRunsDemo />
+
+```tsx
+import { type JobRun, JobRuns } from "@dapplelight/signet-ui/domain/job-runs"
+import { useState } from "react"
+
+const initial: JobRun[] = [
+  {
+    id: "run_8f21",
+    job: "invoice.generate",
+    state: "running",
+    attempt: 1,
+    progress: { done: 340, total: 500, note: "March invoices" },
+  },
+  { id: "run_8f20", job: "email.digest", state: "done", attempt: 1 },
+  {
+    id: "run_8f1e",
+    job: "payout.settle",
+    state: "dead",
+    attempt: 5,
+    error: { code: "GATEWAY_TIMEOUT", message: "Bank did not respond" },
+  },
+  { id: "run_8f1b", job: "report.export", state: "queued", attempt: 0 },
+]
+
+export function JobRunsDemo() {
+  const [runs, setRuns] = useState(initial)
+  return (
+    <div className="w-full">
+      <JobRuns
+        runs={runs}
+        onRetry={(run) =>
+          setRuns((rs) =>
+            rs.map((r) =>
+              r.id === run.id ? { ...r, state: "queued", attempt: r.attempt + 1, error: undefined } : r,
+            ),
+          )
+        }
+        onCancel={(run) => setRuns((rs) => rs.map((r) => (r.id === run.id ? { ...r, state: "cancelled" } : r)))}
+      />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Read only
+
+<Preview>
+  <JobRunsReadOnlyDemo />
+
+```tsx
+import { type JobRun, JobRuns } from "@dapplelight/signet-ui/domain/job-runs"
+
+const initial: JobRun[] = [
+  {
+    id: "run_8f21",
+    job: "invoice.generate",
+    state: "running",
+    attempt: 1,
+    progress: { done: 340, total: 500, note: "March invoices" },
+  },
+  { id: "run_8f20", job: "email.digest", state: "done", attempt: 1 },
+  {
+    id: "run_8f1e",
+    job: "payout.settle",
+    state: "dead",
+    attempt: 5,
+    error: { code: "GATEWAY_TIMEOUT", message: "Bank did not respond" },
+  },
+  { id: "run_8f1b", job: "report.export", state: "queued", attempt: 0 },
+]
+
+export function JobRunsReadOnlyDemo() {
+  return (
+    <div className="w-full">
+      <JobRuns runs={initial.slice(0, 2)} />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Empty
+
+<Preview>
+  <JobRunsEmptyDemo />
+
+```tsx
+import { JobRuns } from "@dapplelight/signet-ui/domain/job-runs"
+
+export function JobRunsEmptyDemo() {
+  return (
+    <div className="w-full">
+      <JobRuns runs={[]} emptyMessage="Nothing has run yet" />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+### JobRuns
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `runs` | `JobRun[]` | — | Rows as `jobs.status(id)` or a dead-letter entry describe them. |
+| `onRetry` | `(run: JobRun) => void` | — | Shows Retry on failed (`dead`) runs. |
+| `onCancel` | `(run: JobRun) => void` | — | Shows Cancel on runs that have not finished. |
+| `emptyMessage` | `string` | `"No job runs"` | Shown when `runs` is empty. |
+| `className` | `string` | — | Class for the table. |
+
+### JobRun
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `id` | `string` | — | Run id. |
+| `job` | `string` | — | Job name. |
+| `state` | `string` | — | `running`, `done`, `dead`, `cancelled`, or any other state. |
+| `attempt` | `number` | — | Attempts so far. |
+| `error` | `{ code: string; message?: string }` | — | Shown in red. |
+| `progress` | `{ done: number; total?: number; note?: string }` | — | Shown as `done/total · note`. |
+| `updatedAt` | `string` | — | Last update. |

@@ -1,0 +1,342 @@
+---
+title: "Growth Screens"
+description: "Waitlist join, invite accept, referral card, onboarding checklist, feedback form and widget, and a what's new widget."
+---
+
+import { WaitlistJoinDemo, InviteAcceptDemo, InviteAcceptExpiredDemo, ReferralCardDemo, OnboardingChecklistDemo, FeedbackFormDemo, FeedbackWidgetDemo, WhatsNewDemo } from "@/components/demos/growth-screens"
+
+<Preview>
+  <OnboardingChecklistDemo />
+
+```tsx
+import { useState } from "react"
+import { OnboardingChecklist } from "@dapplelight/signet-ui/screens/growth-screens"
+
+function OnboardingChecklistDemo() {
+  const [done, setDone] = useState<string[]>(["profile"])
+  return (
+    <OnboardingChecklist
+      className="w-full max-w-sm"
+      done={done}
+      onDoneChange={setDone}
+      onStepSelect={(step) => setDone((d) => (d.includes(step.key) ? d : [...d, step.key]))}
+      steps={[
+        { key: "profile", title: "Complete your profile", description: "Add a photo and your team name." },
+        { key: "invite", title: "Invite a teammate", description: "Work together on the same board." },
+        { key: "import", title: "Import your invoices", description: "Upload a CSV from your old tool." },
+      ]}
+    />
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add growth-screens
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  WaitlistJoin,
+  InviteAccept,
+  ReferralCard,
+  OnboardingChecklist,
+  FeedbackWidget,
+  WhatsNew,
+} from "@dapplelight/signet-ui/screens/growth-screens"
+```
+
+Data is shaped like signet-db's growth module results; actions come out as callbacks.
+
+```tsx
+<WaitlistJoin onJoin={(email) => growth.joinWaitlist(email)} />
+```
+
+## Examples
+
+### WaitlistJoin
+
+<Preview>
+  <WaitlistJoinDemo />
+
+```tsx
+import { WaitlistJoin } from "@dapplelight/signet-ui/screens/growth-screens"
+
+function WaitlistJoinDemo() {
+  return (
+    <WaitlistJoin
+      className="w-full max-w-sm"
+      onJoin={(email) => ({ email, position: 412, joined: true })}
+    />
+  )
+}
+```
+
+</Preview>
+
+### InviteAccept
+
+<Preview>
+  <InviteAcceptDemo />
+
+```tsx
+import { InviteAccept } from "@dapplelight/signet-ui/screens/growth-screens"
+
+function InviteAcceptDemo() {
+  return (
+    <InviteAccept
+      className="w-full max-w-sm"
+      invite={{
+        inviterName: "Asha Rao",
+        scopeName: "Northwind Studio",
+        role: "editor",
+        email: "marcus@example.com",
+        expiresAt: "2026-12-01",
+      }}
+      onAccept={() => ({ ok: true })}
+      onDecline={() => undefined}
+    />
+  )
+}
+```
+
+</Preview>
+
+A failure that is known up front, such as a token that did not resolve, shows through `error`.
+
+<Preview>
+  <InviteAcceptExpiredDemo />
+
+```tsx
+import { InviteAccept } from "@dapplelight/signet-ui/screens/growth-screens"
+
+function InviteAcceptExpiredDemo() {
+  return (
+    <InviteAccept
+      className="w-full max-w-sm"
+      invite={{ scopeName: "Northwind Studio" }}
+      error="expired"
+      onAccept={() => ({ ok: false, reason: "expired" })}
+    />
+  )
+}
+```
+
+</Preview>
+
+### ReferralCard
+
+<Preview>
+  <ReferralCardDemo />
+
+```tsx
+import { ReferralCard } from "@dapplelight/signet-ui/screens/growth-screens"
+
+function ReferralCardDemo() {
+  return (
+    <ReferralCard
+      className="w-full max-w-sm"
+      code="ASHA20"
+      url="https://app.example.com/?ref=ASHA20"
+      stats={{ referred: 14, converted: 5, rewarded: 3 }}
+    />
+  )
+}
+```
+
+</Preview>
+
+### OnboardingChecklist
+
+<Preview>
+  <OnboardingChecklistDemo />
+
+```tsx
+import { useState } from "react"
+import { OnboardingChecklist } from "@dapplelight/signet-ui/screens/growth-screens"
+
+function OnboardingChecklistDemo() {
+  const [done, setDone] = useState<string[]>(["profile"])
+  return (
+    <OnboardingChecklist
+      className="w-full max-w-sm"
+      done={done}
+      onDoneChange={setDone}
+      onStepSelect={(step) => setDone((d) => (d.includes(step.key) ? d : [...d, step.key]))}
+      steps={[
+        { key: "profile", title: "Complete your profile", description: "Add a photo and your team name." },
+        { key: "invite", title: "Invite a teammate", description: "Work together on the same board." },
+        { key: "import", title: "Import your invoices", description: "Upload a CSV from your old tool." },
+      ]}
+    />
+  )
+}
+```
+
+</Preview>
+
+### FeedbackForm
+
+<Preview>
+  <FeedbackFormDemo />
+
+```tsx
+import { FeedbackForm } from "@dapplelight/signet-ui/screens/growth-screens"
+
+function FeedbackFormDemo() {
+  return (
+    <FeedbackForm
+      className="w-full max-w-sm"
+      rating
+      onSubmit={() => new Promise((resolve) => setTimeout(resolve, 400))}
+    />
+  )
+}
+```
+
+</Preview>
+
+### FeedbackWidget
+
+<Preview>
+  <FeedbackWidgetDemo />
+
+```tsx
+import { FeedbackWidget } from "@dapplelight/signet-ui/screens/growth-screens"
+
+function FeedbackWidgetDemo() {
+  return <FeedbackWidget rating onSubmit={() => undefined} />
+}
+```
+
+</Preview>
+
+### WhatsNew
+
+<Preview>
+  <WhatsNewDemo />
+
+```tsx
+import { useState } from "react"
+import { WhatsNew } from "@dapplelight/signet-ui/screens/growth-screens"
+
+function WhatsNewDemo() {
+  const [unseen, setUnseen] = useState(2)
+  return <WhatsNew entries={entries} unseen={unseen} onOpen={() => setUnseen(0)} />
+}
+```
+
+</Preview>
+
+## API Reference
+
+All screens accept `labels` (`Partial<GrowthLabels>`, defaults in `DEFAULT_GROWTH_LABELS`) except where noted, and the props of their root element.
+
+### WaitlistJoin
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `onJoin` | `(email: string) => Promise<WaitlistResult> \| WaitlistResult` | required | Join and return the place in line. |
+| `result` | `WaitlistResult \| null` | - | The result (controlled), e.g. from an earlier visit. |
+| `defaultResult` | `WaitlistResult \| null` | - | Initial result when uncontrolled. |
+| `onResultChange` | `(result: WaitlistResult \| null) => void` | - | Called when the result changes. |
+| `title` | `ReactNode` | - | Heading override. |
+
+### InviteAccept
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `invite` | `InviteDetails` | required | Inviter, scope, role, email and expiry. |
+| `onAccept` | `() => Promise<InviteAcceptResult> \| InviteAcceptResult` | required | Accept the invite. |
+| `onDecline` | `() => void` | - | Shows Decline when set. |
+| `onAccepted` | `() => void` | - | Called after a successful accept, e.g. to navigate. |
+| `error` | `"not_found" \| "expired" \| "used" \| "revoked" \| "email_mismatch"` | - | Show a failure straight away. |
+
+### ReferralCard
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `code` | `string` | required | The referral code. |
+| `url` | `string` | required | The link that carries the code. |
+| `stats` | `{ referred: number; converted: number; rewarded: number }` | - | Counts of friends. |
+| `onShare` | `(url: string) => void` | Web Share API, else copy | Replaces the share action. |
+| `title` | `ReactNode` | - | Heading override. |
+
+### OnboardingChecklist
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `steps` | `readonly OnboardingStep[]` | required | `key`, `title` and optional `description`. |
+| `done` | `readonly string[]` | - | Done step keys (controlled). |
+| `defaultDone` | `readonly string[]` | - | Initial done keys when uncontrolled. |
+| `onDoneChange` | `(done: string[]) => void` | - | Called when done keys change. |
+| `onStepSelect` | `(step: OnboardingStep) => void` | - | A step was chosen: take the user there. |
+| `onDismiss` | `() => void` | - | Shows Dismiss when set. |
+| `title` | `ReactNode` | - | Heading override. |
+
+### FeedbackForm
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `onSubmit` | `(input: FeedbackInput) => Promise<unknown> \| unknown` | required | Send the feedback. |
+| `kinds` | `readonly string[]` | bug, idea, praise, other | Feedback kinds. |
+| `rating` | `boolean` | - | Ask for 1 to 5 stars too. |
+| `defaultKind` | `string` | - | The kind selected first. |
+
+### FeedbackWidget
+
+Takes every `FeedbackForm` prop, plus:
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `open` | `boolean` | - | Popover open state (controlled). |
+| `defaultOpen` | `boolean` | `false` | Initial open state. |
+| `onOpenChange` | `(open: boolean) => void` | - | Called when it opens or closes. |
+| `trigger` | `ReactElement` | - | Replaces the trigger button. |
+| `contentClassName` | `string` | - | Class on the popover content. |
+
+### WhatsNew
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `entries` | `readonly ChangelogEntry[]` | required | Every entry, newest first. |
+| `unseen` | `number` | `0` | How many are unseen. |
+| `onOpen` | `() => void` | - | Opened: mark them seen. |
+| `open` | `boolean` | - | Open state (controlled). |
+| `defaultOpen` | `boolean` | `false` | Initial open state. |
+| `onOpenChange` | `(open: boolean) => void` | - | Called when it opens or closes. |
+| `trigger` | `ReactElement` | - | Replaces the trigger button. |
+| `className` | `string` | - | Class on the trigger. |
+| `contentClassName` | `string` | - | Class on the popover content. |

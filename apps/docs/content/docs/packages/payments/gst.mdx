@@ -1,0 +1,86 @@
+---
+title: "GST"
+description: "GST tax invoices for India: GSTIN checks, CGST/SGST/IGST, numbering and HTML output."
+---
+
+## Usage
+
+```ts
+import {
+  financialYear,
+  gstInvoice,
+  invoiceNumber,
+  renderGstInvoiceHtml,
+} from "@dapplelight/signet-payments/gst"
+
+const now = new Date()
+const fy = financialYear(now) // "2026-27", 1 April to 31 March IST
+const seq = await nextSequence(db, schema.sequences, `invoice:INV:${fy}`) // signet-db
+
+const inv = gstInvoice({
+  number: invoiceNumber({ prefix: "INV", fy, seq }), // "INV/26-27/0001"
+  date: now,
+  supplier: { name: "Northwind Software LLP", address: "12 MG Road, Bengaluru", gstin: "29AABCN1234F1ZS" },
+  recipient: { name: "Acme Retail Pvt Ltd", address: "4 Park Street, Kolkata", gstin: "19AABCA5678K1Z7" },
+  placeOfSupply: "19", // a GST state code; deciding it is yours
+  lines: [{ description: "Plan, 1 year", hsn: "998314", quantity: 1, unit: "OTH", unitPrice: 99_900, rate: 18 }],
+})
+
+inv.taxType // "intra": CGST + SGST (UTGST in a UT without a legislature); "inter": IGST
+inv.totals  // { taxable, cgst, sgst, utgst, igst, total } in paise
+const html = renderGstInvoiceHtml(inv) // print it, or turn it into a PDF yourself
+```
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `gstInvoice(input)` | Check against rule 46 and compute every tax amount. Throws `BAD_INPUT` or `UNSUPPORTED` |
+| `renderGstInvoiceHtml(invoice)` | A complete self-contained HTML page. Every value is escaped |
+| `invoiceNumber({ prefix?, fy, seq, pad? })` | `INV/26-27/0001`. `pad` defaults to 4. At most 16 characters |
+| `financialYear(date)` | Indian financial year, e.g. `"2026-27"` |
+| `isValidGstin(gstin)` | Format, state code and check character |
+| `parseGstin(gstin)` | `{ gstin, stateCode, pan }`, or `BAD_INPUT` |
+| `gstinCheckChar(first14)` | The 15th GSTIN character |
+| `isHsnOrSac(code)` | 4, 6 or 8 digits |
+| `isValidInvoiceNumber(n)` | Rule 46(b): at most 16 letters, digits, `-` and `/` |
+| `numberInWords(n)` | Whole number in words, Indian system (thousand, lakh, crore) |
+| `amountInWords(paise)` | `amountInWords(1250)` is `"Rupees Twelve and Fifty Paise Only"` |
+| `formatInr(paise)` | `"1,23,456.78"` |
+| `GST_STATES` | State codes to `{ name, ut? }` |
+| `UNREGISTERED_ADDRESS_FROM` | Taxable value in paise from which an unregistered recipient's address and state are required (Rs 50,000) |
+| `GstInvoiceInput`, `GstInvoice`, `GstInvoiceLine`, `GstLine`, `GstParty`, `GstTaxType` | Types |
+
+### gstInvoice(input)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `number` | `string` | | From `invoiceNumber`, unique in the financial year |
+| `date` | `Date` | | |
+| `supplier` | `GstParty` | | `name`, `address` and a valid `gstin` required |
+| `recipient` | `GstParty` | | `name` required. Add `gstin`, or `stateCode` for an unregistered buyer. `sez: true` makes it IGST |
+| `placeOfSupply` | `string` | | GST state code |
+| `lines` | `GstLine[]` | | At least one |
+| `shipTo` | `string` | | Delivery address, when different |
+| `notes` | `string` | | |
+| `reverseCharge` | `false` | | Must be false or absent |
+
+A line is `{ description, hsn, quantity, unit, unitPrice, discount?, rate }`. Prices and discounts are paise. `rate` is a percent that splits in half, with up to 3 decimals.
+
+## Notes
+
+- Tax is rounded per line to the paisa, half up, in exact integer arithmetic.
+- `taxType` is `inter` when `placeOfSupply` differs from the supplier's state or the recipient is an SEZ unit. Otherwise it is `intra`, and `stateTax` is `SGST` or `UTGST`.
+- Refused with `UNSUPPORTED` or `BAD_INPUT`, never guessed: reverse charge, exports and other zero-rated supplies, cess, place of supply `97`, TDS/TCS and non-resident GSTIN formats.
+- Not built: e-invoicing (IRN and signed QR), the B2C dynamic QR, credit and debit notes, the HSN digit count your turnover requires, digital signatures, PDF output.
+
+## Examples
+
+### Validate a customer's GSTIN at sign-up
+
+```ts
+import { isValidGstin, parseGstin } from "@dapplelight/signet-payments/gst"
+
+if (!isValidGstin(form.gstin)) return c.json({ error: "Invalid GSTIN" }, 422)
+const { stateCode } = parseGstin(form.gstin) // use it as placeOfSupply for a B2B sale
+```

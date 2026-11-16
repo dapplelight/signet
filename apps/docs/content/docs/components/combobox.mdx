@@ -1,0 +1,230 @@
+---
+title: "Combobox"
+description: "Autocomplete input and command palette with a list of suggestions."
+---
+
+import { ComboboxDemo, ComboboxClearDemo, ComboboxMultipleDemo, ComboboxControlledDemo } from "@/components/demos/combobox"
+
+<Preview>
+  <ComboboxDemo />
+
+```tsx
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@dapplelight/signet-ui/components/combobox"
+
+const customers = ["Acme Corp", "Globex", "Initech", "Umbrella Ltd", "Wayne Enterprises", "Stark Industries"]
+
+export function Demo() {
+  return (
+    <Combobox items={customers}>
+      <ComboboxInput placeholder="Select a customer" />
+      <ComboboxContent>
+        <ComboboxEmpty>No customers found.</ComboboxEmpty>
+        <ComboboxList>
+          {(item) => (
+            <ComboboxItem key={item} value={item}>
+              {item}
+            </ComboboxItem>
+          )}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add combobox
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxChipsInput,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxValue,
+  useComboboxAnchor,
+} from "@dapplelight/signet-ui/components/combobox"
+```
+
+```tsx
+<Combobox items={items}>
+  <ComboboxInput placeholder="Search" />
+  <ComboboxContent>
+    <ComboboxEmpty>No results.</ComboboxEmpty>
+    <ComboboxList>
+      {(item) => <ComboboxItem key={item} value={item}>{item}</ComboboxItem>}
+    </ComboboxList>
+  </ComboboxContent>
+</Combobox>
+```
+
+## Examples
+
+### Clear button
+
+<Preview>
+  <ComboboxClearDemo />
+
+```tsx
+<Combobox items={customers} defaultValue="Globex">
+  <ComboboxInput placeholder="Select a customer" showClear />
+  ...
+</Combobox>
+```
+
+</Preview>
+
+### Multiple
+
+<Preview>
+  <ComboboxMultipleDemo />
+
+```tsx
+const anchor = useComboboxAnchor()
+
+<Combobox multiple items={customers} defaultValue={["Acme Corp", "Initech"]}>
+  <ComboboxChips ref={anchor}>
+    <ComboboxValue>
+      {(values: string[]) => (
+        <>
+          {values.map((value) => (
+            <ComboboxChip key={value}>{value}</ComboboxChip>
+          ))}
+          <ComboboxChipsInput placeholder="Add customer" />
+        </>
+      )}
+    </ComboboxValue>
+  </ComboboxChips>
+  <ComboboxContent anchor={anchor}>
+    ...
+  </ComboboxContent>
+</Combobox>
+```
+
+</Preview>
+
+### Controlled
+
+<Preview>
+  <ComboboxControlledDemo />
+
+```tsx
+const [value, setValue] = React.useState<string | null>("Umbrella Ltd")
+
+<Combobox items={customers} value={value} onValueChange={setValue}>
+  ...
+</Combobox>
+```
+
+</Preview>
+
+## API Reference
+
+Built on the Base UI combobox. `Combobox` is the Base UI `Combobox.Root`, so it takes its props.
+
+### Combobox
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `items` | `T[]` or groups | - | The options. Filtering is done for you. |
+| `filter` | `null \| (item, query, itemToString?) => boolean` | built-in | Custom match; `null` turns filtering off (for server-side search). |
+| `inputValue` / `onInputValueChange` | `string` / `(value, details) => void` | - | Control the typed text. |
+| `autoHighlight` | `boolean` | `false` | Highlight the first match while typing. |
+| `value` | `T \| T[] \| null` | - | Controlled value. |
+| `defaultValue` | `T \| T[] \| null` | - | Initial value when uncontrolled. |
+| `onValueChange` | `(value, details) => void` | - | Runs when the selection changes. |
+| `multiple` | `boolean` | `false` | Allow several values. Value becomes an array. |
+| `open` / `onOpenChange` | `boolean` / `(open) => void` | - | Control the popup. |
+| `disabled` / `readOnly` / `required` | `boolean` | `false` | Field state. |
+| `name` | `string` | - | Form field name. |
+
+### ComboboxInput
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `showTrigger` | `boolean` | `true` | Show the chevron button. |
+| `showClear` | `boolean` | `false` | Show a clear button. |
+| `disabled` | `boolean` | `false` | Disable the input and its buttons. |
+| `className` | `string` | - | Merged onto the input group. |
+
+Plus every Base UI combobox input prop, such as `placeholder`.
+
+### ComboboxContent
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `side` | `top` \| `bottom` \| `left` \| `right` \| `inline-start` \| `inline-end` | `bottom` | Side of the anchor. |
+| `align` | `start` \| `center` \| `end` | `start` | Alignment on that side. |
+| `sideOffset` | `number` | `6` | Gap from the anchor. |
+| `alignOffset` | `number` | `0` | Shift along the alignment axis. |
+| `anchor` | element or ref | - | Anchor to position against. Use `useComboboxAnchor()` with chips. |
+
+### ComboboxList, ComboboxItem, ComboboxEmpty
+
+`ComboboxList` takes a render function of each item. `ComboboxItem` takes `value` and shows a check when selected. `ComboboxEmpty` shows only when nothing matches.
+
+### ComboboxGroup, ComboboxLabel, ComboboxCollection, ComboboxSeparator
+
+For grouped lists: a group, its label, the group's item collection and a divider.
+
+### ComboboxChips, ComboboxChip, ComboboxChipsInput
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `showRemove` (`ComboboxChip`) | `boolean` | `true` | Show the remove button on a chip. |
+
+`ComboboxChips` is the field for multiple selection, `ComboboxChip` one selected value and `ComboboxChipsInput` the typing area.
+
+### ComboboxValue, ComboboxTrigger
+
+`ComboboxValue` renders the selected value, or a render function of it. `ComboboxTrigger` is the chevron button, for building your own field.
+
+### useComboboxAnchor
+
+Returns a ref to place on `ComboboxChips`, then pass to `ComboboxContent` as `anchor`.

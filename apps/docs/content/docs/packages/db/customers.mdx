@@ -1,0 +1,122 @@
+---
+title: "Customers"
+description: "Customer timeline across stores and web, identity merge and a Customer Center."
+---
+
+## Usage
+```ts
+import { entitlementTables, monetisationTables } from "@dapplelight/signet-db/columns/sqlite"
+import { createCustomers } from "@dapplelight/signet-db/customers"
+
+export const { subjectPlans, entitlementOverrides } = entitlementTables()
+export const { customerIdentities, customerEvents, customerRequests } = monetisationTables()
+
+const customers = createCustomers(db, {
+  tables: { subjectPlans, entitlementOverrides, customerIdentities, customerEvents, customerRequests },
+  entitlements: ent,
+  payments: store, // signet-payments store: payments, ledger, merge
+})
+
+createPayments({
+  gateways,
+  db: store,
+  onEvent: async (e) => {
+    const subject = await customers.resolve(ownerOf(e)) // the app's user id or an anonymous id
+    await ent.applyBillingEvent(e, { subject })
+    await customers.record(e, { subject })
+  },
+})
+
+await customers.timeline(userId) // { entries: [{ kind, gateway, amount, ... }], totals: [{ currency, paid, refunded, approximate }] }
+```
+
+Tables come from `monetisationTables()` and `entitlementTables()`. `record` puts each event on the timeline once.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createCustomers(db, options)` | The customers engine |
+| `timelineKind(event)` | Timeline kind of a payments event, or `undefined` |
+| `isTrial(event)` | Whether a purchase is a free trial |
+| Types | `TimelineKind`, `CustomerEventLike`, `TimelineEntry`, `TimelineTotal`, `PaymentsStoreLike`, `ResolvedLike`, `ConsumptionContext`, `ConsumptionInfo`, `SubscriptionSource`, `RetentionOffer`, `RequestKind`, `RequestStatus`, `CustomerRequest`, `CustomerNotice`, `Overview`, `MergeResult`, `CustomerTables`, `CustomersOptions`, `Customers` |
+
+Timeline kinds: `purchase`, `trial`, `renewal`, `refund`, `cancellation`, `uncancellation`, `billing_issue`, `grace_period`, `expiration`, `paused`, `dispute`, `refund_request`, `promotional`, `discount`.
+
+### createCustomers(db, options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `tables` | `CustomerTables` | required | Identities, events, requests, subject plans, overrides |
+| `entitlements` | `createEntitlements(...)` | required | `get` is read; promotional grants need its own methods |
+| `payments` | `PaymentsStoreLike` | none | Adds payments and ledger totals to the timeline; moves payments on merge |
+| `notify` | `(notice) => unknown` | none | Tell the team of a refund request or support message |
+| `cancel` | `(source) => unknown` | none | Cancel a web subscription at its gateway; without it none are cancellable |
+| `manageUrl` | `(source) => string \| null` | store pages | Where a store subscription is managed |
+| `googlePlayPackage` | `string` | none | For the Google Play manage link |
+| `retention` | `{ offer, eligible?, apply }` | none | Retention offer shown before cancelling |
+| `isMember` | `(userId, orgId) => unknown` | none | Check org membership on merge |
+| `consumption` | `{ consented, ... }` | none | Answer Apple CONSUMPTION_REQUEST; `consented` is required |
+| `now` | `() => Date` | `new Date` | Clock for tests |
+
+Methods:
+
+| Method | What it does |
+| --- | --- |
+| `anonymousId({ orgId? })` | New `anon_<uuid>` id, before sign-in |
+| `resolve(id)` | The account an id was merged into, else the id |
+| `merge({ anonymousId, userId, orgId? }, { actor? })` | Move subscriptions, grants, timeline, requests and payments to the account |
+| `record(event, { subject?, country? })` | Put an event on the timeline once |
+| `timeline(subject, { limit? })` | Entries and totals per currency |
+| `overview(subject)` | Plan, status, renewal, `manageUrl`, `canCancel`, retention |
+| `cancel(subject, { reason? })` | Web: cancel at the gateway. Store: `{ cancelled: false, reason: "store", manageUrl }` |
+| `acceptRetention(subject)` | Once per customer |
+| `requestRefund(subject, { gateway, paymentId, reason })` | Once per payment; notifies the team |
+| `contactSupport(subject, { message, email?, topic? })` | Record and notify |
+| `requests({ subject?, kind?, status?, limit? })`, `setRequestStatus(id, status, { actor })` | Work the request queue |
+| `logImpression(subject, { offering, version?, placement?, country? })` | Log a paywall view for charts |
+| `withOffers(subject, offering)` | Cut each product's offers to what this customer may see |
+| `redeemOffer(subject, offering, offerId)` | Claim an offer once |
+| `grantPromotional(subject, { plan, days \| expiresAt, note? }, { actor })`, `endPromotional(subject, id, { actor })` | Promotional plan |
+| `consumptionInfo(event, { subject? })` | Apple's consumption response body |
+
+`merge` refusals (`not_anonymous`, `same_subject`, `target_is_anonymous`, `already_merged`, `other_org`, `not_member`) are final. Repeating a merge into the same account returns `already: true`.
+
+## Examples
+
+### Sign-in merges the anonymous buyer
+```ts
+const anon = await customers.anonymousId({ orgId }) // buy as this id before sign-in
+const r = await customers.merge({ anonymousId: anon, userId, orgId })
+if (!r.merged) return c.json({ error: r.reason }, 409)
+```
+
+### Customer Center
+```ts
+const customers = createCustomers(db, {
+  tables, entitlements: ent,
+  notify: (n) => notifier.notify(teamId, "customer.request", { kind: n.kind, text: n.text }),
+  cancel: (s) => payments.gateway(s.gateway).cancelSubscription(s.subscriptionId, { atPeriodEnd: true }),
+  retention: { offer: { kind: "discount", percent: 50, months: 3 }, apply: ({ source }) => applyCoupon(source) },
+  googlePlayPackage: "com.example.app",
+})
+
+await customers.overview(userId)
+await customers.requestRefund(userId, { gateway: "appstore", paymentId, reason: "Charged twice" })
+```
+
+### Win-back offer
+```ts
+const offering = await customers.withOffers(userId, await off.current("onboarding", audience))
+const r = await customers.redeemOffer(userId, offering, "winback50")
+// { redeemed: true, offer, product } | { redeemed: false, reason: "not_eligible" | "already_used" | "no_such_offer" }
+```
+
+### Answer Apple's refund request
+```ts
+onEvent: async (e) => {
+  await customers.record(e) // on the timeline as refund_request
+  const r = await customers.consumptionInfo(e)
+  if (r.respond) await appstoreGateway.sendConsumptionInfo(r.transactionId, r.body)
+}
+```
+
+`respond: false` says why (`no_consent`, `no_subject`, `not_configured`, `not_consumption_request`). With no consent, send nothing.

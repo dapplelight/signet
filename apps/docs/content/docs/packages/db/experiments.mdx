@@ -1,0 +1,73 @@
+---
+title: "Experiments"
+description: "A/B/n tests with sticky assignment and a significance readout."
+---
+
+## Usage
+```ts
+import { analyticsEvents, experimentTables } from "@dapplelight/signet-db/columns/sqlite"
+import { createExperiments } from "@dapplelight/signet-db/experiments"
+
+export const { experiments, experimentExposures } = experimentTables()
+export const events = analyticsEvents()
+
+const ex = createExperiments(db, { tables: { experiments, experimentExposures }, events })
+
+await ex.create("onboarding-copy", {
+  variants: [{ key: "control", weight: 50 }, { key: "short", weight: 50, value: { steps: 3 } }],
+  goal: "signup_completed", // an analytics event name
+  audience: { plan: ["free"] }, // optional: a flag rule's `when`
+}, { actor })
+await ex.start("onboarding-copy", { actor })
+
+await ex.expose("onboarding-copy", { id: userId }) // { variant: "short", value: { steps: 3 }, reason: "assigned", first: true }
+await ex.results("onboarding-copy") // per variant: exposed, converted, rate, lift, pValue, significant
+await ex.rollout("onboarding-copy", "short", { actor }) // everyone gets "short"
+```
+
+Assignment is sticky with no storage: the flags' `bucket` laid over the cumulative weights. The first variant is the control.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createExperiments(db, options)` | The experiments store |
+| `assignOf(experiment, subject)` | Pure assignment for a loaded experiment |
+| `pickVariant(variants, salt, subjectId)` | The variant a subject lands in |
+| `checkVariants(variants)` | Validate: 2 to 10, unique keys, positive weights |
+| `twoProportionTest(c1, n1, c2, n2)` | Two-sided p-value; `null` when it says nothing |
+| Types | `ExperimentStatus`, `Variant`, `Experiment`, `ExperimentInput`, `AssignmentReason`, `Assignment`, `VariantResult`, `ExperimentResults`, `ExperimentTables`, `ExperimentsOptions`, `Experiments` |
+
+### createExperiments(db, options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `tables` | `{ experiments, experimentExposures }` | required | From `experimentTables()` |
+| `events` | `Table` | none | The `analyticsEvents()` table; needed for `results` |
+| `now` | `() => Date` | `new Date` | Clock for tests |
+
+Methods:
+
+| Method | What it does |
+| --- | --- |
+| `create(key, input, { actor })` | New draft: `variants`, `goal`, optional `description`, `audience`, `salt` |
+| `update(key, input, { actor })` | Change a draft only |
+| `get(key)`, `list()` | Read experiments |
+| `start`, `stop(key, { actor })` | Run or pause; stopped gives everyone the control |
+| `rollout(key, variant, { actor })` | Give everyone that variant from now on |
+| `assign(key, subject)` | The subject's variant, nothing recorded |
+| `expose(key, subject)` | Assign and record the first exposure while running |
+| `results(key, { goal?, alpha? })` | Readout; `alpha` defaults to 0.05 |
+
+Lifecycle: `draft`, `start`, `running`, `stop`, `stopped`, `rollout`, `rolled_out`. A wrong move is a `CONFLICT`. Outside the audience a subject gets the control (`not_eligible`); a draft or stopped test gives the control (`not_running`).
+
+A conversion is the subject's goal event (`userId` or `anonymousId` equal to the subject id) at or after their exposure. Each variant is compared with the control by a two-sided two-proportion z-test; with many variants, lower `alpha`.
+
+## Examples
+
+### Call expose where the person sees it
+```ts
+const a = await ex.expose("onboarding-copy", { id: userId, plan })
+const steps = (a?.value as { steps?: number } | null)?.steps ?? 5
+```
+
+### Test a price per placement
+See [Pricing](/docs/packages/db/pricing): a variant's `value` can name an offering.

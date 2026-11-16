@@ -1,0 +1,351 @@
+---
+title: "Auth Screens"
+description: "Sign in and sign up with an email or phone code or OAuth, then verify the code."
+---
+
+import { AuthScreenDemo, VerifyCodeScreenDemo, SessionExpiredScreenDemo, CodeRequestFormDemo, VerifyCodeFormDemo, OAuthButtonsDemo, AuthPartsDemo } from "@/components/demos/auth-screens"
+
+<Preview>
+  <AuthScreenDemo />
+
+```tsx
+import { AuthScreen } from "@dapplelight/signet-ui/screens/auth-screens"
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
+const providers = [{ id: "google", label: "Google" }]
+
+export function AuthScreenDemo() {
+  return (
+    <AuthScreen
+      providers={providers}
+      onOAuth={() => wait(500)}
+      onRequestCode={() => wait(500)}
+      onVerify={async ({ code }) => {
+        await wait(400)
+        if (code !== "123456") throw new Error("That code is wrong. Try 123456.")
+      }}
+      footer={<p className="text-center text-xs text-neutral-500">By continuing you accept the terms.</p>}
+    />
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add auth-screens
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { AuthScreen, VerifyCodeScreen, SessionExpiredScreen } from "@dapplelight/signet-ui/screens/auth-screens"
+```
+
+```tsx
+<AuthScreen onRequestCode={sendCode} onVerify={verify} />
+```
+
+## Examples
+
+### AuthScreen
+
+<Preview>
+  <AuthScreenDemo />
+
+```tsx
+import { AuthScreen } from "@dapplelight/signet-ui/screens/auth-screens"
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
+const providers = [{ id: "google", label: "Google" }]
+
+export function AuthScreenDemo() {
+  return (
+    <AuthScreen
+      providers={providers}
+      onOAuth={() => wait(500)}
+      onRequestCode={() => wait(500)}
+      onVerify={async ({ code }) => {
+        await wait(400)
+        if (code !== "123456") throw new Error("That code is wrong. Try 123456.")
+      }}
+      footer={<p className="text-center text-xs text-neutral-500">By continuing you accept the terms.</p>}
+    />
+  )
+}
+```
+
+</Preview>
+
+### VerifyCodeScreen
+
+<Preview>
+  <VerifyCodeScreenDemo />
+
+```tsx
+import { VerifyCodeScreen } from "@dapplelight/signet-ui/screens/auth-screens"
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
+const providers = [{ id: "google", label: "Google" }]
+
+export function VerifyCodeScreenDemo() {
+  return (
+    <VerifyCodeScreen
+      channel="phone"
+      to="+91******3210"
+      onBack={() => undefined}
+      onVerify={async (code) => {
+        await wait(400)
+        if (code !== "123456") throw new Error("That code is wrong. Try 123456.")
+      }}
+      onResend={() => wait(300)}
+      resendAfterSeconds={10}
+    />
+  )
+}
+```
+
+</Preview>
+
+### SessionExpiredScreen
+
+<Preview>
+  <SessionExpiredScreenDemo />
+
+```tsx
+import { SessionExpiredScreen } from "@dapplelight/signet-ui/screens/auth-screens"
+import { useState } from "react"
+
+export function SessionExpiredScreenDemo() {
+  const [clicks, setClicks] = useState(0)
+  return (
+    <div className="flex flex-col gap-2">
+      <SessionExpiredScreen onSignIn={() => setClicks((n) => n + 1)} />
+      <p className="text-center text-xs text-neutral-500">Sign-in requested {clicks} times</p>
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### CodeRequestForm
+
+<Preview>
+  <CodeRequestFormDemo />
+
+```tsx
+import { CodeRequestForm } from "@dapplelight/signet-ui/screens/auth-screens"
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
+const providers = [{ id: "google", label: "Google" }]
+
+export function CodeRequestFormDemo() {
+  return (
+    <div className="w-full max-w-sm">
+      <CodeRequestForm channel="email" onSubmit={() => wait(500)} />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### VerifyCodeForm
+
+<Preview>
+  <VerifyCodeFormDemo />
+
+```tsx
+import { VerifyCodeForm } from "@dapplelight/signet-ui/screens/auth-screens"
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
+const providers = [{ id: "google", label: "Google" }]
+
+export function VerifyCodeFormDemo() {
+  return (
+    <div className="w-full max-w-sm">
+      <VerifyCodeForm
+        length={4}
+        resendAfterSeconds={0}
+        onVerify={async (code) => {
+          await wait(300)
+          if (code !== "1234") throw new Error("Try 1234.")
+        }}
+        onResend={() => wait(300)}
+      />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### OAuthButtons
+
+<Preview>
+  <OAuthButtonsDemo />
+
+```tsx
+import { OAuthButtons } from "@dapplelight/signet-ui/screens/auth-screens"
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
+const providers = [{ id: "google", label: "Google" }]
+
+export function OAuthButtonsDemo() {
+  return (
+    <div className="w-full max-w-sm">
+      <OAuthButtons
+        providers={[
+          { id: "google", label: "Google" },
+          { id: "github", label: "GitHub" },
+        ]}
+        onSelect={() => wait(800)}
+      />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### AuthCard, AuthHeader, AuthDivider and AuthError
+
+<Preview>
+  <AuthPartsDemo />
+
+```tsx
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { AuthCard, AuthDivider, AuthError, AuthHeader } from "@dapplelight/signet-ui/screens/auth-screens"
+
+export function AuthPartsDemo() {
+  return (
+    <AuthCard>
+      <AuthHeader title="Join Acme" description="Create a workspace for your team." />
+      <Button size="lg">Continue with email</Button>
+      <AuthDivider>or</AuthDivider>
+      <Button size="lg" variant="outline">Use single sign-on</Button>
+      <AuthError>That email is already registered.</AuthError>
+    </AuthCard>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+### AuthScreen
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `mode` | `"sign-in" \| "sign-up"` | — | Controlled mode. |
+| `defaultMode` | `"sign-in" \| "sign-up"` | `"sign-in"` | Initial mode. |
+| `onModeChange` | `(mode: AuthMode) => void` | — | Called when the mode changes. |
+| `channels` | `readonly AuthChannel[]` | `["email", "phone"]` | Code channels to offer, in order. Empty for OAuth only. |
+| `channel` | `"email" \| "phone"` | — | Selected channel, controlled. |
+| `defaultChannel` | `"email" \| "phone"` | `first channel` | Initial channel. |
+| `onChannelChange` | `(channel: AuthChannel) => void` | — | Called when the channel changes. |
+| `onRequestCode` | `(request: CodeRequest) => unknown` | — | Send a code. Throw to show an error. |
+| `onVerify` | `(request: CodeRequest & { code: string }) => unknown` | — | Check the code and start the session. |
+| `providers` | `readonly OAuthProvider[]` | `[]` | OAuth buttons: `id`, `label`, `icon`. |
+| `onOAuth` | `(provider: OAuthProvider, mode: AuthMode) => unknown` | — | Start the OAuth flow. |
+| `logo` | `ReactNode` | — | Shown above the title. |
+| `footer` | `ReactNode` | — | Under the form: terms, a privacy link. |
+| `codeLength` | `number` | `6` | Digits in the code. |
+| `resendAfterSeconds` | `number` | `30` | Seconds before Resend unlocks. |
+| `hideModeSwitch` | `boolean` | — | Hide the New here / Have an account switch. |
+| `labels` | `Partial<AuthLabels>` | — | Every string, in English by default. Spread `DEFAULT_AUTH_LABELS` to translate. |
+| `classNames` | `Partial<Record<"card" \| "header" \| "oauth" \| "divider" \| "tabs" \| "form" \| "verify" \| "footer", string>>` | — | Classes per part. |
+
+### VerifyCodeScreen
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `channel` | `"email" \| "phone"` | `"email"` | Picks the icon and title. |
+| `to` | `string` | — | Where the code went, shown as you pass it (mask it first). |
+| `onBack` | `() => void` | — | Shows a Change link back to the previous step. |
+| `logo` | `ReactNode` | — | Replaces the icon. |
+| `onVerify` | `(code: string) => unknown` | — | Check the code. |
+| `onResend` | `() => unknown` | — | Resend the code. |
+| `length` | `number` | `6` | Digits in the code. |
+| `resendAfterSeconds` | `number` | `30` | Seconds before Resend unlocks; 0 unlocks at once. |
+| `labels` | `Partial<AuthLabels>` | — | Every string, in English by default. Spread `DEFAULT_AUTH_LABELS` to translate. |
+
+### SessionExpiredScreen
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `onSignIn` | `() => unknown` | — | Called by the Sign in again button. |
+| `logo` | `ReactNode` | — | Replaces the clock icon. |
+| `labels` | `Partial<AuthLabels>` | — | Every string, in English by default. Spread `DEFAULT_AUTH_LABELS` to translate. |
+
+### CodeRequestForm
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `channel` | `"email" \| "phone"` | — | Which field to show. |
+| `onSubmit` | `(to: string) => unknown` | — | Send the code. |
+| `defaultValue` | `string` | — | Initial address. |
+| `labels` | `Partial<AuthLabels>` | — | Every string, in English by default. Spread `DEFAULT_AUTH_LABELS` to translate. |
+
+### VerifyCodeForm
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `onVerify` | `(code: string) => unknown` | — | Called when the code is full or submitted. |
+| `onResend` | `() => unknown` | — | Resend the code. |
+| `length` | `number` | `6` | Digits in the code. |
+| `resendAfterSeconds` | `number` | `30` | Seconds before Resend unlocks. |
+| `labels` | `Partial<AuthLabels>` | — | Every string, in English by default. Spread `DEFAULT_AUTH_LABELS` to translate. |
+
+### OAuthButtons
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `providers` | `readonly OAuthProvider[]` | — | One button each. |
+| `onSelect` | `(provider: OAuthProvider) => unknown` | — | May redirect away; a returned Promise keeps the button pending. |
+| `labels` | `Partial<AuthLabels>` | — | Every string, in English by default. Spread `DEFAULT_AUTH_LABELS` to translate. |
+
+### AuthHeader
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `title` | `ReactNode` | — | The heading. |
+| `description` | `ReactNode` | — | Text under the heading. |
+| `icon` | `ReactNode` | — | An icon or your logo, above the title. |
+
+### AuthCard, AuthDivider, AuthError
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `className` | `string` | — | Merged over the defaults. AuthCard also takes `render` to swap its element. |

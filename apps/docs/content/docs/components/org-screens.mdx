@@ -1,0 +1,295 @@
+---
+title: "Org Screens"
+description: "An org switcher, member list with roles, invite dialog, accept-invite page and org settings."
+---
+
+import { OrgSwitcherDemo, MembersListDemo, InviteDialogDemo, AcceptInvitePageDemo, OrgSettingsDemo } from "@/components/demos/org-screens"
+
+<Preview>
+  <MembersListDemo />
+
+```tsx
+import { useState } from "react"
+import { MembersList, type OrgMember, type OrgInvitation } from "@dapplelight/signet-ui/screens/org-screens"
+
+function MembersListDemo() {
+  const [members, setMembers] = useState<OrgMember[]>([
+    { userId: "u1", role: "owner", user: { name: "Asha Rao", email: "asha@example.com" } },
+    { userId: "u2", role: "admin", user: { name: "Marcus Lee", email: "marcus@example.com" } },
+    { userId: "u3", role: "member", user: { name: "Priya Nair", email: "priya@example.com" } },
+  ])
+  const [invites, setInvites] = useState<OrgInvitation[]>([
+    { id: "i1", email: "dev@example.com", role: "member", expiresAt: "2026-12-01" },
+  ])
+  return (
+    <MembersList
+      className="w-full max-w-xl"
+      members={members}
+      roles={["owner", "admin", "member"]}
+      currentUserId="u1"
+      canManage
+      onRoleChange={(m, role) =>
+        setMembers((l) => l.map((x) => (x.userId === m.userId ? { ...x, role } : x)))
+      }
+      onRemove={(m) => setMembers((l) => l.filter((x) => x.userId !== m.userId))}
+      invitations={invites}
+      onRevokeInvite={(i) => setInvites((l) => l.filter((x) => x.id !== i.id))}
+      onInvite={() => undefined}
+    />
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add org-screens
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  OrgSwitcher,
+  MembersList,
+  InviteDialog,
+  OrgSettings,
+} from "@dapplelight/signet-ui/screens/org-screens"
+```
+
+Data is shaped like signet-server's `orgRoutes` responses; actions come out as callbacks.
+
+```tsx
+<MembersList members={members} roles={["admin", "member"]} canManage onRemove={remove} />
+```
+
+## Examples
+
+### OrgSwitcher
+
+<Preview>
+  <OrgSwitcherDemo />
+
+```tsx
+import { useState } from "react"
+import { OrgSwitcher } from "@dapplelight/signet-ui/screens/org-screens"
+
+function OrgSwitcherDemo() {
+  const [current, setCurrent] = useState("o1")
+  return (
+    <OrgSwitcher
+      orgs={orgs}
+      currentId={current}
+      onSwitch={setCurrent}
+      onCreate={() => undefined}
+    />
+  )
+}
+```
+
+</Preview>
+
+### MembersList
+
+<Preview>
+  <MembersListDemo />
+
+```tsx
+import { useState } from "react"
+import { MembersList, type OrgMember, type OrgInvitation } from "@dapplelight/signet-ui/screens/org-screens"
+
+function MembersListDemo() {
+  const [members, setMembers] = useState<OrgMember[]>([
+    { userId: "u1", role: "owner", user: { name: "Asha Rao", email: "asha@example.com" } },
+    { userId: "u2", role: "admin", user: { name: "Marcus Lee", email: "marcus@example.com" } },
+    { userId: "u3", role: "member", user: { name: "Priya Nair", email: "priya@example.com" } },
+  ])
+  const [invites, setInvites] = useState<OrgInvitation[]>([
+    { id: "i1", email: "dev@example.com", role: "member", expiresAt: "2026-12-01" },
+  ])
+  return (
+    <MembersList
+      className="w-full max-w-xl"
+      members={members}
+      roles={["owner", "admin", "member"]}
+      currentUserId="u1"
+      canManage
+      onRoleChange={(m, role) =>
+        setMembers((l) => l.map((x) => (x.userId === m.userId ? { ...x, role } : x)))
+      }
+      onRemove={(m) => setMembers((l) => l.filter((x) => x.userId !== m.userId))}
+      invitations={invites}
+      onRevokeInvite={(i) => setInvites((l) => l.filter((x) => x.id !== i.id))}
+      onInvite={() => undefined}
+    />
+  )
+}
+```
+
+</Preview>
+
+### InviteDialog
+
+<Preview>
+  <InviteDialogDemo />
+
+```tsx
+import { useState } from "react"
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { InviteDialog } from "@dapplelight/signet-ui/screens/org-screens"
+
+function InviteDialogDemo() {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>Invite teammate</Button>
+      <InviteDialog
+        open={open}
+        onOpenChange={setOpen}
+        roles={["member", "admin"]}
+        onInvite={async ({ email }) => ({
+          link: `https://app.example.com/invite/${email ? "k7qx92pd" : "m3zt81la"}`,
+        })}
+      />
+    </>
+  )
+}
+```
+
+</Preview>
+
+### AcceptInvitePage
+
+<Preview>
+  <AcceptInvitePageDemo />
+
+```tsx
+import { AcceptInvitePage } from "@dapplelight/signet-ui/screens/org-screens"
+
+function AcceptInvitePageDemo() {
+  return (
+    <AcceptInvitePage
+      className="min-h-0 w-full"
+      org={{ id: "o1", name: "Northwind Studio", brandColor: "#2563eb" }}
+      invite={{ inviterName: "Asha Rao", scopeName: "Northwind Studio", role: "member" }}
+      onAccept={() => ({ ok: true })}
+      onDecline={() => undefined}
+    />
+  )
+}
+```
+
+</Preview>
+
+### OrgSettings
+
+<Preview>
+  <OrgSettingsDemo />
+
+```tsx
+import { OrgSettings } from "@dapplelight/signet-ui/screens/org-screens"
+
+function OrgSettingsDemo() {
+  return (
+    <OrgSettings
+      className="w-full max-w-md"
+      org={{ name: "Northwind Studio", theme: "finance", brandColor: "#2563eb" }}
+      onSave={() => undefined}
+    />
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+All screens accept `labels` (`Partial<OrgLabels>`, defaults in `DEFAULT_ORG_LABELS`).
+
+### OrgSwitcher
+
+Also accepts `div` props.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `orgs` | `{ org: OrgSummary; role?: string }[]` | required | The user's orgs. |
+| `currentId` | `string \| null` | required | The current org's id. |
+| `onSwitch` | `(orgId: string) => void \| Promise<void>` | required | Switch org, then reload or refetch. |
+| `onCreate` | `() => void` | - | Shows a "New organisation" item. |
+
+### MembersList
+
+Also accepts `section` props.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `members` | `OrgMember[]` | required | Members with roles. |
+| `roles` | `string[]` | required | Role names the picker offers. |
+| `currentUserId` | `string` | - | Marked "you"; can leave but not change their own role. |
+| `canManage` | `boolean` | - | Show the role picker and remove buttons. |
+| `onRoleChange` | `(member: OrgMember, role: string) => void \| Promise<void>` | - | Change a member's role. |
+| `onRemove` | `(member: OrgMember) => void \| Promise<void>` | - | Remove a member. |
+| `invitations` | `OrgInvitation[]` | - | Pending invites, listed under the members. |
+| `onRevokeInvite` | `(invite: OrgInvitation) => void \| Promise<void>` | - | Revoke an invite. |
+| `onInvite` | `() => void` | - | Shows an Invite button, e.g. to open `InviteDialog`. |
+| `title` | `ReactNode` | - | Heading override. |
+
+### InviteDialog
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `open` | `boolean` | required | Whether the dialog is open. |
+| `onOpenChange` | `(open: boolean) => void` | required | Called when it opens or closes. |
+| `roles` | `string[]` | required | Roles the inviter may hand out. The first is the default. |
+| `defaultRole` | `string` | first role | Role preselected. |
+| `askEmail` | `boolean` | `true` | Ask for an email the invite is bound to. Turn off when there is no verified email to match. |
+| `onInvite` | `(input: { email?: string; role: string }) => Promise<{ link: string }>` | required | Create the invite and return the link to share. |
+| `className` | `string` | - | Class on the dialog. |
+
+### AcceptInvitePage
+
+Takes every `InviteAccept` prop (`invite`, `onAccept`, `onDecline`, `onAccepted`, `error`; see Growth Screens), plus:
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `org` | `OrgSummary` | - | The org's logo and colour, shown on top. |
+
+### OrgSettings
+
+Also accepts `form` props except `onSubmit`.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `org` | `OrgSettingsValue` | required | `name`, `theme` and `brandColor`. |
+| `themes` | `string[]` | `["editorial", "cinematic", "finance"]` | Theme names to offer. |
+| `onSave` | `(changes: Partial<OrgSettingsValue>) => void \| Promise<void>` | required | Called with only the changed fields. |
+| `readOnly` | `boolean` | `false` | Disable editing. |

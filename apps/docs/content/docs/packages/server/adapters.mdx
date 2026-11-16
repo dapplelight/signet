@@ -1,0 +1,134 @@
+---
+title: "Adapters"
+description: "Plug interfaces so server code runs on Cloudflare, Node, Bun, Vercel, Upstash and S3."
+---
+
+## Usage
+
+```ts
+import { cloudflareKv, cloudflareQueue, r2BlobStore } from "@dapplelight/signet-server/adapters/cloudflare"
+import { upstashKv, qstashQueue } from "@dapplelight/signet-server/adapters/upstash"
+import { fsBlobStore } from "@dapplelight/signet-server/adapters/node"
+import { memoryKv, waitUntilDefer, kvRateLimitStore } from "@dapplelight/signet-server/adapters"
+
+// Workers
+const kv = cloudflareKv(env.KV)
+const files = r2BlobStore(env.UPLOADS)
+const jobsQueue = cloudflareQueue(env.JOBS)
+const defer = waitUntilDefer(ctx)
+
+// Anywhere fetch runs
+const redis = upstashKv({ url: env.UPSTASH_URL, token: env.UPSTASH_TOKEN })
+
+// Docker or a laptop
+const disk = fsBlobStore("/data/uploads")
+
+// Exact shared rate limiting off Cloudflare
+const limits = kvRateLimitStore(redis)
+```
+
+Four interfaces: `KeyValue`, `Queue<T>`, `BlobStore` and `Defer`. No adapter adds a dependency, and each takes config as an argument, never from env at import.
+
+## API
+
+### `adapters` (interfaces and in-memory)
+
+| Export | What it does |
+| --- | --- |
+| `KeyValue` | `get`, `set(key, value, { ttlSeconds })`, `delete`, optional atomic `incr(key, ttlSeconds)`. |
+| `Queue<T>` | `send(message, { delaySeconds })`. |
+| `BlobStore` | `put`, `get`, `delete`, optional `signedUrl(key, { expiresInSeconds, method })`. |
+| `Defer` | `(work: Promise) => void`: run work after the response. |
+| `BlobBody` | `ArrayBuffer \| Uint8Array \| string`. |
+| `memoryKv()` | In-process `KeyValue`: tests, dev, one container. |
+| `memoryQueue(handler, onError?)` | In-process `Queue`. No retries; pending messages die with the process. |
+| `processDefer(onError?)` | Node and Bun: let the work run, catch its error. |
+| `waitUntilDefer(ctx)` | Anything with `waitUntil`: Workers `ctx`, Netlify `context`. |
+| `kvRateLimitStore(kv, prefix?)` | A `RateLimitStore` over any `KeyValue`. Exact with `incr`, approximate without. |
+| `assertBlobKey(key)` | Throws on an empty, absolute, `.`, `..` or backslash key. |
+
+### `adapters/cloudflare`
+
+| Export | What it does |
+| --- | --- |
+| `cloudflareKv(namespace)` | Workers KV as `KeyValue` (no `incr`). |
+| `r2BlobStore(bucket)` | R2 as `BlobStore` (no presigning). |
+| `cloudflareQueue(binding)` | Queues producer as `Queue`: whole-second delays, `sendBatch` split into calls of 100. |
+| `QUEUE_BATCH_MAX` | `100`. |
+| `KvNamespaceLike`, `R2BucketLike`, `QueueBindingLike`, `CloudflareQueue` | Structural binding types. |
+
+### `adapters/node`
+
+| Export | What it does |
+| --- | --- |
+| `fsBlobStore(dir)` | Filesystem `BlobStore`. Mount a volume at `dir`. Rejects `..` and absolute keys. |
+
+### `adapters/s3`
+
+| Export | What it does |
+| --- | --- |
+| `s3BlobStore(config)` | S3, R2's S3 API or MinIO. SigV4 presigned GET and PUT and multipart, fetch only. |
+| `S3Config`, `S3BlobStore` | Types. |
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `endpoint` | `string` | required | e.g. `https://s3.eu-west-1.amazonaws.com`. |
+| `region` | `string` | required | `auto` for R2. |
+| `bucket` | `string` | required | |
+| `accessKeyId` | `string` | required | |
+| `secretAccessKey` | `string` | required | |
+| `virtualHosted` | `boolean` | path style | `<bucket>.<host>` addressing. |
+| `now` | `() => Date` | now | For tests. |
+
+### `adapters/supabase`
+
+| Export | What it does |
+| --- | --- |
+| `supabaseBlobStore(config)` | Supabase Storage over REST, with signed URLs and `resumable(key, { contentType })` TUS targets. |
+| `SupabaseStorageConfig`, `SupabaseBlobStore` | Types. |
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `url` | `string` | required | Project URL. |
+| `serviceRoleKey` | `string` | required | Server only. |
+| `bucket` | `string` | required | |
+| `publishableKey` | `string` | none | Anon key for TUS clients. Only for `resumable`. |
+
+### `adapters/upstash`
+
+| Export | What it does |
+| --- | --- |
+| `upstashKv(config)` | Redis REST as `KeyValue`, with atomic `incr`. |
+| `upstashRateLimitStore(config)` | Exact `RateLimitStore` on Redis. |
+| `qstashQueue(config)` | QStash as `Queue`: publishes each message as JSON to `destinationUrl`. |
+| `UpstashConfig`, `QstashConfig` | `{ url, token }` and `{ token, destinationUrl, baseUrl? }`. |
+
+### `adapters/vercel`
+
+| Export | What it does |
+| --- | --- |
+| `vercelDefer(waitUntil, onError?)` | `Defer` from `waitUntil` in `@vercel/functions`. |
+
+## Examples
+
+### Exact rate limit on Upstash
+
+```ts
+import { rateLimit } from "@dapplelight/signet-server/middleware/rate-limit"
+import { upstashRateLimitStore } from "@dapplelight/signet-server/adapters/upstash"
+
+app.use("/api/*", rateLimit({
+  store: (c) => upstashRateLimitStore({ url: c.env.UPSTASH_URL, token: c.env.UPSTASH_TOKEN }),
+  trust: { forwardedHops: 1 },
+}))
+```
+
+### Vercel background work
+
+```ts
+import { waitUntil } from "@vercel/functions"
+import { vercelDefer } from "@dapplelight/signet-server/adapters/vercel"
+
+const defer = vercelDefer(waitUntil)
+defer(sendReceipt(order.id))
+```

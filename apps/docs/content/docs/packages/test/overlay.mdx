@@ -1,0 +1,54 @@
+---
+title: "Overlay"
+description: "A dev-only panel: current user, plan, theme switcher and the fake outbox."
+---
+
+## Usage
+
+```tsx
+import { DevOverlay } from "@dapplelight/signet-test/overlay"
+import { THEMES } from "@dapplelight/signet-test/playwright"
+
+export function Dev({ theme, setTheme }: { theme: string; setTheme: (t: string) => void }) {
+  return <DevOverlay themes={THEMES} theme={theme} onThemeChange={setTheme} />
+}
+```
+
+A small panel in the corner. It reads demo mode's `/__signet/dev` (or the `state` prop). Styled with the theme's CSS variables, so it needs no Tailwind scanning.
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `DevOverlay(props)` | The panel. Renders nothing in production by default. |
+| `DevOverlayProps` | Type: props of `DevOverlay`. |
+| `DevState` | Type: `{ user?, plan?, entitlements?, flags?, outbox?, demo? }`. |
+
+### DevOverlay(props)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `state` | `DevState` | none | Shown as is. Without it, the panel fetches `src` when opened. |
+| `src` | `string` | `"/__signet/dev"` | Demo mode's state route. |
+| `themes` | `readonly string[]` | none | Themes to offer. Hidden without `onThemeChange`. |
+| `theme` | `string` | none | The current theme. |
+| `onThemeChange` | `(theme: string) => void` | none | Switch the app's theme; each theme is its own stylesheet, so the app does it. |
+| `enabled` | `boolean` | not in production | Render at all. |
+| `defaultOpen` | `boolean` | `false` | Start open. |
+| `position` | `"bottom-right" \| "bottom-left"` | `"bottom-right"` | Corner. |
+
+## Keeping it out of production
+
+- Bundlers that honour the `production` export condition (Vite, esbuild, Bun, webpack in production mode) resolve the import to a stub that renders nothing, so the panel is not in the bundle.
+- Elsewhere it renders nothing when `process.env.NODE_ENV` is `"production"`.
+- `enabled` overrides both checks.
+
+## Examples
+
+### Tie it to demo mode
+
+```tsx
+import { DevOverlay } from "@dapplelight/signet-test/overlay"
+
+export const Dev = ({ isDemo }: { isDemo: boolean }) => <DevOverlay enabled={isDemo} />
+```

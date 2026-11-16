@@ -1,0 +1,69 @@
+---
+title: "Dodo"
+description: "Dodo Payments checkout sessions as merchant of record, with refunds and subscriptions."
+---
+
+## Usage
+
+```ts
+import { dodo } from "@dapplelight/signet-payments/dodo"
+
+const dd = dodo({
+  apiKey: env.DODO_API_KEY,
+  webhookSecret: env.DODO_WEBHOOK_SECRET, // whsec_...
+  productId: "pdt_pay_what_you_want",
+  sandbox: true, // the key's mode must match
+})
+
+// A Checkout Session. Redirect to checkout.url.
+const checkout = await dd.createCheckout({
+  amount: 1999,
+  currency: "USD",
+  idempotencyKey: "order-1042",
+  reference: "order-1042",
+  returnUrl: "https://shop.example/done",
+})
+
+// Or price from your catalog
+await dd.createCheckout({
+  amount: 1999,
+  currency: "USD",
+  idempotencyKey: "order-1043",
+  extra: { product_cart: [{ product_id: "pdt_pro", quantity: 1 }] },
+})
+
+// Webhook: Standard Webhooks (webhook-id, webhook-timestamp, webhook-signature)
+app.post("/webhooks/dodo", (c) => payments.handleWebhook("dodo", c.req.raw))
+```
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `dodo(config)` | A `PaymentGateway` named `dodo` (bearer key) |
+| `DodoConfig` | Config type |
+
+### dodo(config)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `apiKey` | `string` | | Required |
+| `webhookSecret` | `string` | | The signing secret (`whsec_...`), needed for `verifyWebhook` |
+| `productId` | `string` | | A pay-what-you-want product, priced by the input `amount` |
+
+Plus the shared `sandbox` (`test.dodopayments.com`, else `live.dodopayments.com`), `baseUrl`, `fetch`, `retries`, `retryDelayMs`.
+
+## Capabilities
+
+Methods: `card`, `wallet`, `applepay`, `googlepay`. Features: refunds, partial refunds, customers, saved methods, subscriptions, webhooks. No capture, payouts or settlements.
+
+## Quirks
+
+- **`gatewayId` is the `session_id`.** Payments that come out of it are `pay_...` ids, linked through `orderId`.
+- **Cart**: with neither `extra.product_cart` nor `productId`, checkout is `BAD_INPUT`. The session is priced in the product's currency.
+- **`method: "applepay"` or `"googlepay"`** sends `allowed_payment_method_types` with `credit` and `debit` kept as the fallback.
+- **No idempotency keys**, so refunds are sent once and never retried.
+- **Partial refunds** are per item: the amount is spread over the payment's line items by `refundable_amount`. Methods that allow no partial refund are `BAD_INPUT`.
+- **Customers** need a name and an email.
+- **Cancel** with `atPeriodEnd: true` sets `cancel_at_next_billing_date`, otherwise `status: "cancelled"`. `currentPeriodEnd` is `next_billing_date`.
+- **Apple Pay** on your own domain needs the domain file: `applePayDomainAssociation(file)`.

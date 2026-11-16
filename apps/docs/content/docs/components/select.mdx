@@ -1,0 +1,255 @@
+---
+title: "Select"
+description: "A dropdown for choosing one option from a list."
+---
+
+import { SelectDemo, SelectGroupsDemo, SelectControlledDemo, SelectSmallDemo, SelectDisabledDemo } from "@/components/demos/select"
+
+<Preview>
+  <SelectDemo />
+
+```tsx
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@dapplelight/signet-ui/components/select"
+
+export function Demo() {
+  return (
+    <Select defaultValue="usd">
+      <SelectTrigger className="w-48" aria-label="Currency">
+        <SelectValue placeholder="Currency" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="usd">USD</SelectItem>
+        <SelectItem value="eur">EUR</SelectItem>
+        <SelectItem value="gbp">GBP</SelectItem>
+      </SelectContent>
+    </Select>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add select
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "@dapplelight/signet-ui/components/select"
+```
+
+```tsx
+<Select>
+  <SelectTrigger className="w-48">
+    <SelectValue placeholder="Currency" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="usd">USD</SelectItem>
+  </SelectContent>
+</Select>
+```
+
+Built on Base UI's Select.
+
+## Examples
+
+### Groups
+
+<Preview>
+  <SelectGroupsDemo />
+
+```tsx
+<Select>
+  <SelectTrigger className="w-56" aria-label="Region">
+    <SelectValue placeholder="Choose a region" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectGroup>
+      <SelectLabel>Americas</SelectLabel>
+      <SelectItem value="us-east">US East</SelectItem>
+      <SelectItem value="us-west">US West</SelectItem>
+    </SelectGroup>
+    <SelectSeparator />
+    <SelectGroup>
+      <SelectLabel>Europe</SelectLabel>
+      <SelectItem value="eu-west">EU West</SelectItem>
+      <SelectItem value="eu-central">EU Central</SelectItem>
+    </SelectGroup>
+  </SelectContent>
+</Select>
+```
+
+</Preview>
+
+### Controlled
+
+<Preview>
+  <SelectControlledDemo />
+
+```tsx
+const [status, setStatus] = useState<string | null>("pending")
+
+<Select value={status} onValueChange={setStatus}>
+  <SelectTrigger className="w-48" aria-label="Order status">
+    <SelectValue placeholder="Status" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="pending">Pending</SelectItem>
+    <SelectItem value="shipped">Shipped</SelectItem>
+    <SelectItem value="delivered">Delivered</SelectItem>
+  </SelectContent>
+</Select>
+```
+
+</Preview>
+
+### Small
+
+<Preview>
+  <SelectSmallDemo />
+
+```tsx
+<Select defaultValue="30">
+  <SelectTrigger size="sm" className="w-36" aria-label="Range">
+    <SelectValue />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="7">Last 7 days</SelectItem>
+    <SelectItem value="30">Last 30 days</SelectItem>
+  </SelectContent>
+</Select>
+```
+
+</Preview>
+
+### Disabled and invalid
+
+<Preview>
+  <SelectDisabledDemo />
+
+```tsx
+<Select disabled defaultValue="usd">
+  <SelectTrigger className="w-40" aria-label="Currency">
+    <SelectValue />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="usd">USD</SelectItem>
+  </SelectContent>
+</Select>
+
+<Select>
+  <SelectTrigger className="w-40" aria-label="Plan" aria-invalid>
+    <SelectValue placeholder="Plan (required)" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="team">Team</SelectItem>
+  </SelectContent>
+</Select>
+```
+
+</Preview>
+
+## API Reference
+
+### Select
+
+Base UI's Select root. Common props:
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| value | `Value \| null` | - | Controlled value. |
+| defaultValue | `Value \| null` | - | Initial value when uncontrolled. |
+| onValueChange | `(value: Value \| null, details) => void` | - | Called when the selection changes. |
+| multiple | `boolean` | false | Allow several values; `value` becomes an array. |
+| items | `Record<string, ReactNode> \| { label, value }[]` | - | Lets `SelectValue` show an item's label instead of its raw value. |
+| open | `boolean` | - | Controlled open state. |
+| defaultOpen | `boolean` | false | Initial open state. |
+| onOpenChange | `(open: boolean, details) => void` | - | Called when the popup opens or closes. |
+| modal | `boolean` | true | Block outside interaction while open. |
+| name | `string` | - | Form field name. |
+| disabled | `boolean` | false | Disable the select. |
+| readOnly | `boolean` | false | Show the value but block changes. |
+| required | `boolean` | false | Require a choice in a form. |
+
+### SelectTrigger
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| size | `"sm" \| "default"` | `"default"` | Trigger height. |
+| className | `string` | - | Class on the trigger. `aria-invalid` shows the error style. |
+
+### SelectValue
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| placeholder | `ReactNode` | - | Shown while nothing is selected. |
+| children | `ReactNode \| ((value) => ReactNode)` | - | Custom text for the selected value. |
+
+### SelectContent
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| side | `"top" \| "bottom" \| "left" \| "right" \| "inline-start" \| "inline-end"` | `"bottom"` | Preferred side. |
+| sideOffset | `number` | 4 | Gap from the trigger. |
+| align | `"start" \| "center" \| "end"` | `"center"` | Alignment against the trigger. |
+| alignOffset | `number` | 0 | Offset along the alignment axis. |
+| alignItemWithTrigger | `boolean` | true | Line the selected item up over the trigger. |
+
+### SelectItem
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| value | `Value` | - | This option's value; any type, matching the root. |
+| disabled | `boolean` | false | Disable this option. |
+| children | `ReactNode` | - | Label. A truncated label shows a tooltip on hover. |
+
+### SelectGroup / SelectLabel / SelectSeparator
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| className | `string` | - | Group options under a label, and split groups with a separator. |

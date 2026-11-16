@@ -1,0 +1,57 @@
+---
+title: "Ground"
+description: "Embeddings, in-memory similarity search and answers with verified citations."
+---
+
+## Usage
+```ts
+import { embedDocuments, searchDocuments, groundedAnswer } from "@dapplelight/signet-ai/ground"
+
+const indexed = await embedDocuments(embeddingModel, [
+  { id: "shipping", text: "Delivery takes 3 to 5 working days." },
+  { id: "returns", text: "Returns are free within 30 days." },
+])
+// store `indexed` anywhere: a JSON column, KV. Vectors are plain number arrays.
+
+const hits = await searchDocuments(embeddingModel, "how long is delivery", indexed, {
+  topK: 5,
+  minScore: 0.3,
+})
+
+const r = await groundedAnswer({ model, question: "How long is delivery?", documents: hits })
+if (!r.grounded) return "I couldn't find that in our help pages."
+// r.answer, r.citations: [{ id, quote }], r.rejected
+```
+
+Needs `ai` 7 or later.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `embedDocuments(model, docs, options?)` | Embeds all documents in one batched call |
+| `searchDocuments(model, query, docs, options?)` | Cosine-ranks documents against a query, best first |
+| `groundedAnswer(options)` | Answers only from `documents`, with each citation checked |
+| `Doc`, `EmbeddedDoc`, `SearchHit` | Types: `{ id, text }`, plus `embedding` or `score` |
+| `Citation`, `GroundedAnswer` | Types |
+
+### searchDocuments options
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `topK` | `number` | `5` | |
+| `minScore` | `number` | `0` | Drop hits below this |
+| `provider`, `pricing`, `onUsage`, `key`, `abortSignal` | | | As in Chat. `operation` is `embed` |
+
+### groundedAnswer(options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `model` | `LanguageModel` | required | |
+| `question` | `string` | required | |
+| `documents` | `Doc[]` | required | Pick them first with `searchDocuments` or your own query |
+| `instructions` | `string` | none | Extra rules, e.g. tone or length |
+| `provider`, `pricing`, `onUsage`, `key`, `abortSignal` | | | `operation` is `ground` |
+
+Returns `{ answer, citations, rejected, grounded }`. A citation survives only if its document id exists and its quote appears in that document (case and whitespace ignored). `grounded` is true when at least one survives.
+
+<Callout type="warn">
+This checks citations, not reasoning. Show the quotes next to the answer. There is no vector store: ranking is in memory, fine for a few thousand documents.
+</Callout>

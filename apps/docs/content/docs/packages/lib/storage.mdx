@@ -1,0 +1,42 @@
+---
+title: "Storage"
+description: "One async key-value interface for strings, with an adapter per platform."
+---
+
+## Usage
+```ts
+import { webStorage, chromeStorage, indexedDbStorage, memoryStorage } from "@dapplelight/signet-lib/storage"
+import { fileStorage } from "@dapplelight/signet-lib/storage/file"
+
+const storage = webStorage() // localStorage, looked up on first use
+
+await storage.set("theme", "dark")
+await storage.get("theme")   // "dark"; null when missing
+await storage.remove("theme")
+
+// Node or Bun CLI: a JSON file, owner-only (0600), written through a temp file and rename
+const cliStorage = fileStorage(join(homedir(), ".config", "team-cli", "auth.json"))
+```
+
+Nothing touches a platform global at import time, so it loads in a service worker, a webview or a CLI.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `memoryStorage()` | In memory. For tests and SSR |
+| `webStorage(storage?)` | `localStorage` by default; pass `sessionStorage` or a stub. `watch` follows other tabs |
+| `chromeStorage(area?)` | `chrome.storage.local` by default (needs the `storage` permission). `watch` follows every extension context |
+| `indexedDbStorage(options?)` | IndexedDB; works in a service worker. Options `db` (`"signet"`), `store` (`"kv"`), `indexedDB` |
+| `tauriStorage(store)` | A Tauri plugin-store `Store` you pass in; saves after each write |
+| `fileStorage(path)` | From `@dapplelight/signet-lib/storage/file`. JSON file for Node and Bun; its own path so browsers never import `node:fs` |
+| `StorageAdapter`, `ChromeStorageAreaLike`, `TauriStoreLike` | Types |
+
+### StorageAdapter
+| Method | |
+| --- | --- |
+| `get(key)` | `Promise<string \| null>` |
+| `set(key, value)` | `Promise<void>` |
+| `remove(key)` | `Promise<void>` |
+| `watch?(key, cb)` | Calls `cb(value \| null)` when changed from outside; returns unsubscribe. Absent for memory and files |
+
+`fileStorage` queues this process's writes; two processes writing at once can still lose one.

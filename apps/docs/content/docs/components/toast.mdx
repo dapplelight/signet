@@ -1,0 +1,188 @@
+---
+title: "Toast"
+description: "Brief messages that stack in a corner and clear on their own."
+---
+
+import { ToastDemo, ToastTypesDemo, ToastActionDemo, ToastPromiseDemo } from "@/components/demos/toast"
+
+<Preview>
+  <ToastDemo />
+
+```tsx
+import { Toaster, toast } from "@dapplelight/signet-ui/components/toast"
+import { Button } from "@dapplelight/signet-ui/components/button"
+
+export function Demo() {
+  return (
+    <>
+      <Toaster />
+      <Button variant="outline" onClick={() => toast("Invoice INV-1042 sent")}>
+        Send invoice
+      </Button>
+    </>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add toast
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { Toaster, toast } from "@dapplelight/signet-ui/components/toast"
+```
+
+```tsx
+// Mount once near the app root
+<Toaster />
+
+// Call from anywhere
+toast("Invoice sent")
+```
+
+## Examples
+
+### Types
+
+<Preview>
+  <ToastTypesDemo />
+
+```tsx
+import { Toaster, toast } from "@dapplelight/signet-ui/components/toast"
+import { Button } from "@dapplelight/signet-ui/components/button"
+
+export function Demo() {
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Button variant="outline" onClick={() => toast.success("Payment received")}>Success</Button>
+      <Button variant="outline" onClick={() => toast.info("3 orders shipped today")}>Info</Button>
+      <Button variant="outline" onClick={() => toast.warning("Card expires next month")}>Warning</Button>
+      <Button variant="outline" onClick={() => toast.error("Could not reach the bank")}>Error</Button>
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Description and action
+
+<Preview>
+  <ToastActionDemo />
+
+```tsx
+import { Toaster, toast } from "@dapplelight/signet-ui/components/toast"
+import { Button } from "@dapplelight/signet-ui/components/button"
+
+export function Demo() {
+  return (
+    <Button
+      variant="outline"
+      onClick={() =>
+        toast("Order #1042 archived", {
+          description: "It moves out of your active list.",
+          action: { label: "Undo", onClick: () => toast.success("Order restored") },
+          cancel: { label: "Dismiss" },
+        })
+      }
+    >
+      Archive order
+    </Button>
+  )
+}
+```
+
+</Preview>
+
+### Promise
+
+<Preview>
+  <ToastPromiseDemo />
+
+```tsx
+import { Toaster, toast } from "@dapplelight/signet-ui/components/toast"
+import { Button } from "@dapplelight/signet-ui/components/button"
+
+export function Demo() {
+  return (
+    <Button
+      variant="outline"
+      onClick={() =>
+        toast.promise(new Promise((resolve) => setTimeout(resolve, 1500)), {
+          loading: "Exporting orders...",
+          success: "Export ready",
+          error: "Export failed",
+        })
+      }
+    >
+      Export orders
+    </Button>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+`Toaster`
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `position` | `"top-left" \| "top-center" \| "top-right" \| "bottom-left" \| "bottom-center" \| "bottom-right"` | `"bottom-right"` | Where the stack sits. Left and right follow the writing direction. |
+| `expand` | `boolean` | hover and focus | Keep the stack expanded. |
+| `visibleToasts` | `number` | `3` | How many show at once; the rest wait. |
+| `closeButton` | `boolean` | `false` | Show a close button on dismissible toasts. |
+| `label` | `string` | `"Notifications"` | Region name for screen readers. |
+| `closeLabel` | `string` | `"Close"` | Accessible name of the close button. |
+| `pendingAnnouncement` | `string` | `-` | What screen readers hear while a slow action runs. |
+| `hotkey` | `string \| null` | `"F6"` | Key that moves focus into the region and back. `null` turns it off. |
+| `className` | `string` | `-` | Merged onto the region. |
+| `classNames` | `Partial<Record<"toast" \| "icon" \| "content" \| "title" \| "description" \| "action" \| "cancel" \| "close", string>>` | `{}` | Classes for each part of every toast. |
+
+`toast(message, options?)` returns the toast id. Variants: `toast.success`, `toast.info`, `toast.warning`, `toast.error`, `toast.loading`, `toast.promise(promise, messages, options?)` and `toast.dismiss(id?)`. The API mirrors sonner.
+
+`ToastOptions`
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `id` | `string` | `-` | Reuse an id to update a toast that is still showing. |
+| `description` | `ReactNode` | `-` | Second line. |
+| `duration` | `number` | `5000` | Milliseconds. `Infinity` keeps it until dismissed. |
+| `dismissible` | `boolean` | `true` | Whether swipe, Escape and the close button can dismiss it. |
+| `action` | `{ label: ReactNode; onClick: () => unknown }` | `-` | A button such as Undo. A returned Promise keeps the toast open until it settles. |
+| `cancel` | `{ label: ReactNode; onClick?: () => void }` | `-` | A second button that only dismisses. |
+| `onDismiss` | `() => void` | `-` | Called when it is dismissed. |

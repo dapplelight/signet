@@ -1,0 +1,136 @@
+---
+title: "Storage"
+description: "Checked uploads over any blob store: presigned or streamed, with quotas and cleanup."
+---
+
+## Usage
+
+```ts
+import { createUploads } from "@dapplelight/signet-server/storage"
+import { s3BlobStore } from "@dapplelight/signet-server/adapters/s3"
+import { memoryKv } from "@dapplelight/signet-server/adapters"
+
+const uploads = createUploads({
+  store: s3BlobStore({
+    endpoint: env.S3_ENDPOINT, region: "auto", bucket: "avatars",
+    accessKeyId: env.S3_KEY, secretAccessKey: env.S3_SECRET,
+  }),
+  maxBytes: 5_000_000,
+  allowedTypes: ["image/png", "image/jpeg", "image/webp"],
+  kv, // quotas, dedupe and abandoned-upload tracking need it
+  quota: { bytes: 100_000_000 },
+  afterUpload: (u) => makeThumbnail.enqueue({ key: u.key }),
+})
+
+// 1. Check name, size, type and quota, then get a signed PUT URL.
+const { url, key, headers } = await uploads.presignUpload({ userId }, { name: "me.png", type: "image/png", size: 48_000 })
+// browser: fetch(url, { method: "PUT", body: file, headers })
+
+// 2. A signed URL cannot enforce size or content, so confirm re-checks what landed.
+await uploads.confirmUpload({ userId }, key) // deletes the file if it fails
+```
+
+Keys are `<userId>/<uuid>-<safe name>` and every method refuses a key outside the caller's prefix.
+
+## API
+
+### `storage`
+
+| Export | What it does |
+| --- | --- |
+| `createUploads(options)` | The upload manager (methods below). |
+| `abandonedUploadsJob(uploads, name?)` | A job that runs `cleanupAbandoned`. Schedule it. |
+| `cloudflareImagesResizer(binding)` | A `Resizer` over the Cloudflare Images binding. |
+| `assertContentMatches(bytes, declaredType)` | Throws `TYPE_MISMATCH` when the bytes contradict the type. |
+| `sniffType(bytes)` | PNG, JPEG, GIF, WebP or PDF from the first bytes, else `undefined`. |
+| `stripMetadata(bytes)` | Remove EXIF, XMP and IPTC (GPS included) from JPEG, PNG and WebP. Others unchanged. |
+| `UploadError` | `code` and the HTTP `status` to answer with. |
+| `Uploads`, `UploadsOptions`, `UploadContext`, `UploadFile`, `Upload`, `Resizer`, `MultipartBlobStore`, `ResumableBlobStore`, `TusTarget`, `ImagesBindingLike` | Types. |
+
+| `UploadError` code | Status |
+| --- | --- |
+| `EMPTY`, `BAD_KEY` | 400 |
+| `FORBIDDEN` | 403 |
+| `NOT_FOUND` | 404 |
+| `TOO_LARGE`, `QUOTA_EXCEEDED` | 413 |
+| `TYPE_NOT_ALLOWED`, `TYPE_MISMATCH` | 415 |
+| `PRESIGN_UNSUPPORTED`, `RESUMABLE_UNSUPPORTED` | 501 |
+
+### createUploads(options)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `store` | `BlobStore` | required | |
+| `maxBytes` | `number` | required | |
+| `allowedTypes` | `string[]` | required | `image/png` or a family like `image/*`. |
+| `kv` | `KeyValue` | none | Needed for `dedupe`, `quota` (without `usage`) and abandoned tracking. |
+| `quota` | `{ bytes, usage?(ctx) }` | none | Bytes per user. `usage` counts from your own table. |
+| `dedupe` | `boolean` | `false` | Store identical content once at `sha256/<hash>`, reference-counted. |
+| `stripMetadata` | `boolean` | `true` | Applies in `acceptUpload`. |
+| `keyFor` | `(ctx, file) => string` | `<userId>/<uuid>-<name>` | Must stay under `canAccess`. |
+| `canAccess` | `(ctx, key) => boolean` | keys under `<userId>/` | |
+| `urlTtlSeconds` | `number` | `900` | Lifetime of signed URLs. |
+| `afterUpload` | `(upload) => unknown` | none | After confirm or accept: enqueue a follow-up job. |
+| `abandonAfterHours` | `number` | `24` | |
+| `resizer` | `Resizer` | none | For `uploads.resize`. |
+
+| Method | What it does |
+| --- | --- |
+| `presignUpload(ctx, file)` | `{ key, url, method, headers, expiresInSeconds }`. |
+| `confirmUpload(ctx, key)` | Re-check size, type and quota on what arrived; delete it if it fails. |
+| `acceptUpload(ctx, request, { name? })` | Stream the request body through the server for stores that cannot presign. Stops at `maxBytes`, sniffs magic bytes, strips metadata. |
+| `startResumable(ctx, file, { partSize? })` | `s3BlobStore`: multipart part URLs. `supabaseBlobStore`: a TUS target. |
+| `completeMultipart(ctx, key, uploadId, parts)` | Finish a multipart upload, then confirm. |
+| `presignDownload(ctx, key)`, `read(ctx, key)` | A signed GET URL, or the bytes. |
+| `remove(ctx, key)` | Delete, releasing quota and the dedupe reference. |
+| `usage(ctx)` | Bytes counted against the caller's quota. |
+| `cleanupAbandoned(now?)` | Delete unconfirmed uploads older than `abandonAfterHours`; abort unfinished multipart. Needs `kv`. |
+| `resize(ctx, key, { width?, height?, fit?, format? })` | Write `<key>@<width>w` through the `resizer` (default format `image/webp`). Variants do not count toward quota. |
+
+Stores that cannot presign (`fsBlobStore`, an R2 binding) throw `PRESIGN_UNSUPPORTED`: use `acceptUpload`.
+
+## Examples
+
+### Upload through your server (no presigning)
+
+```ts
+import { fsBlobStore } from "@dapplelight/signet-server/adapters/node"
+
+const uploads = createUploads({ store: fsBlobStore("/data/uploads"), maxBytes: 2_000_000, allowedTypes: ["application/pdf"] })
+
+app.put("/api/documents", async (c) => {
+  const upload = await uploads.acceptUpload({ userId: c.get("session").sub }, c.req.raw, { name: "contract.pdf" })
+  return c.json({ key: upload.key }, 201)
+})
+```
+
+### Answer upload errors with their status
+
+```ts
+import { UploadError } from "@dapplelight/signet-server/storage"
+
+app.onError((err, c) => {
+  if (err instanceof UploadError) return c.json({ success: false, error: err.message, code: err.code }, err.status)
+  throw err
+})
+```
+
+### Clean up abandoned uploads hourly
+
+```ts
+import { defineSchedule } from "@dapplelight/signet-server/jobs"
+import { abandonedUploadsJob } from "@dapplelight/signet-server/storage"
+
+const cleanup = abandonedUploadsJob(uploads)
+const hourly = defineSchedule({ name: "uploads-cleanup", cron: "17 * * * *", job: cleanup })
+// createJobs({ jobs: [cleanup], schedules: [hourly], queue, store })
+```
+
+### Resize on Workers
+
+```ts
+import { cloudflareImagesResizer, createUploads } from "@dapplelight/signet-server/storage"
+
+const uploads = createUploads({ store, maxBytes, allowedTypes, resizer: cloudflareImagesResizer(env.IMAGES) })
+await uploads.resize({ userId }, key, { width: 256 }) // call from a job enqueued in afterUpload
+```

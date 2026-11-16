@@ -1,0 +1,366 @@
+---
+title: "Collab Screens"
+description: "Comment threads with @mentions, an activity feed and a version history panel for any record."
+---
+
+import { CommentThreadsDemo, MentionTextareaDemo, ActivityFeedDemo, VersionHistoryDemo, VersionDiffDemo } from "@/components/demos/collab-screens"
+
+<Preview>
+  <CommentThreadsDemo />
+
+```tsx
+import { useState } from "react"
+import { CommentThreads, type CollabThread, type CollabPerson } from "@dapplelight/signet-ui/screens/collab-screens"
+
+function CommentThreadsDemo() {
+  const people: CollabPerson[] = [
+    { id: "u1", name: "Asha Rao" },
+    { id: "u2", name: "Marcus Lee" },
+    { id: "u3", name: "Priya Nair" },
+  ]
+  const [threads, setThreads] = useState<CollabThread[]>([
+    {
+      id: "c1",
+      author: people[0],
+      body: "Invoice INV-2041 looks right. @[Marcus Lee](user:u2) can you confirm the tax line?",
+      createdAt: "2026-11-10T09:30:00Z",
+      replies: [
+        {
+          id: "c2",
+          parentId: "c1",
+          author: people[1],
+          body: "Confirmed, GST is 18%.",
+          createdAt: "2026-11-10T10:05:00Z",
+        },
+      ],
+    },
+  ])
+  return (
+    <CommentThreads
+      className="w-full max-w-xl"
+      threads={threads}
+      currentUserId="u1"
+      onSearchPeople={(q) => people.filter((p) => p.name.toLowerCase().includes(q.toLowerCase()))}
+      onAdd={({ body, parentId }) => {
+        const c = { id: `c${Date.now()}`, parentId, author: people[0], body, createdAt: new Date().toISOString() }
+        setThreads((t) =>
+          parentId
+            ? t.map((x) => (x.id === parentId ? { ...x, replies: [...x.replies, c] } : x))
+            : [...t, { ...c, replies: [] }],
+        )
+      }}
+      onEdit={(comment, body) =>
+        setThreads((t) =>
+          t.map((x) => ({
+            ...x,
+            body: x.id === comment.id ? body : x.body,
+            replies: x.replies.map((r) => (r.id === comment.id ? { ...r, body } : r)),
+          })),
+        )
+      }
+      onDelete={(comment) => setThreads((t) => t.filter((x) => x.id !== comment.id))}
+    />
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add collab-screens
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  CommentThreads,
+  ActivityFeed,
+  VersionHistory,
+} from "@dapplelight/signet-ui/screens/collab-screens"
+```
+
+Data goes in as props shaped like signet-db's `createCollab` results (or the JSON from `collabRoutes`); actions come out as callbacks.
+
+```tsx
+<CommentThreads threads={threads} onAdd={addComment} onSearchPeople={searchPeople} />
+```
+
+## Examples
+
+### CommentThreads
+
+<Preview>
+  <CommentThreadsDemo />
+
+```tsx
+import { useState } from "react"
+import { CommentThreads, type CollabThread, type CollabPerson } from "@dapplelight/signet-ui/screens/collab-screens"
+
+function CommentThreadsDemo() {
+  const people: CollabPerson[] = [
+    { id: "u1", name: "Asha Rao" },
+    { id: "u2", name: "Marcus Lee" },
+    { id: "u3", name: "Priya Nair" },
+  ]
+  const [threads, setThreads] = useState<CollabThread[]>([
+    {
+      id: "c1",
+      author: people[0],
+      body: "Invoice INV-2041 looks right. @[Marcus Lee](user:u2) can you confirm the tax line?",
+      createdAt: "2026-11-10T09:30:00Z",
+      replies: [
+        {
+          id: "c2",
+          parentId: "c1",
+          author: people[1],
+          body: "Confirmed, GST is 18%.",
+          createdAt: "2026-11-10T10:05:00Z",
+        },
+      ],
+    },
+  ])
+  return (
+    <CommentThreads
+      className="w-full max-w-xl"
+      threads={threads}
+      currentUserId="u1"
+      onSearchPeople={(q) => people.filter((p) => p.name.toLowerCase().includes(q.toLowerCase()))}
+      onAdd={({ body, parentId }) => {
+        const c = { id: `c${Date.now()}`, parentId, author: people[0], body, createdAt: new Date().toISOString() }
+        setThreads((t) =>
+          parentId
+            ? t.map((x) => (x.id === parentId ? { ...x, replies: [...x.replies, c] } : x))
+            : [...t, { ...c, replies: [] }],
+        )
+      }}
+      onEdit={(comment, body) =>
+        setThreads((t) =>
+          t.map((x) => ({
+            ...x,
+            body: x.id === comment.id ? body : x.body,
+            replies: x.replies.map((r) => (r.id === comment.id ? { ...r, body } : r)),
+          })),
+        )
+      }
+      onDelete={(comment) => setThreads((t) => t.filter((x) => x.id !== comment.id))}
+    />
+  )
+}
+```
+
+</Preview>
+
+### MentionTextarea
+
+<Preview>
+  <MentionTextareaDemo />
+
+```tsx
+import { useState } from "react"
+import { MentionTextarea, CommentBody, type CollabPerson } from "@dapplelight/signet-ui/screens/collab-screens"
+
+function MentionTextareaDemo() {
+  const [value, setValue] = useState("Thanks @[Asha Rao](user:u1), shipping Friday.")
+  const people: CollabPerson[] = [
+    { id: "u1", name: "Asha Rao" },
+    { id: "u2", name: "Marcus Lee" },
+    { id: "u3", name: "Priya Nair" },
+  ]
+  return (
+    <div className="w-full max-w-md space-y-3">
+      <MentionTextarea
+        value={value}
+        onValueChange={setValue}
+        onSearch={(q) => people.filter((p) => p.name.toLowerCase().includes(q.toLowerCase()))}
+        placeholder="Write a comment. Type @ to mention someone."
+      />
+      <CommentBody body={value} />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### ActivityFeed
+
+<Preview>
+  <ActivityFeedDemo />
+
+```tsx
+import { ActivityFeed, type CollabTimelineItem } from "@dapplelight/signet-ui/screens/collab-screens"
+
+function ActivityFeedDemo() {
+  const items: CollabTimelineItem[] = [
+    {
+      kind: "change",
+      id: "a1",
+      at: "2026-11-12T14:20:00Z",
+      actor: { id: "u2", name: "Marcus Lee" },
+      summary: "Marcus Lee changed status to Paid",
+      action: "update",
+      changes: [{ field: "status", from: "sent", to: "paid" }],
+    },
+    {
+      kind: "comment",
+      id: "a2",
+      at: "2026-11-11T09:00:00Z",
+      actor: { id: "u1", name: "Asha Rao" },
+      summary: "Asha Rao commented",
+      comment: {
+        id: "c1",
+        author: { id: "u1", name: "Asha Rao" },
+        body: "Sent the reminder to the client.",
+        createdAt: "2026-11-11T09:00:00Z",
+      },
+    },
+    {
+      kind: "change",
+      id: "a3",
+      at: "2026-11-10T08:00:00Z",
+      actor: { id: "u1", name: "Asha Rao" },
+      summary: "Asha Rao created the invoice",
+      action: "insert",
+    },
+  ]
+  return <ActivityFeed className="w-full max-w-xl" items={items} />
+}
+```
+
+</Preview>
+
+### VersionHistory
+
+<Preview>
+  <VersionHistoryDemo />
+
+```tsx
+import { VersionHistory } from "@dapplelight/signet-ui/screens/collab-screens"
+
+function VersionHistoryDemo() {
+  return (
+    <VersionHistory
+      className="w-full max-w-xl"
+      versions={versions}
+      onRestore={(v) => ({ version: versions.length + 1 + v.version })}
+      onUndo={() => undefined}
+    />
+  )
+}
+```
+
+</Preview>
+
+### VersionDiff
+
+<Preview>
+  <VersionDiffDemo />
+
+```tsx
+import { VersionDiff } from "@dapplelight/signet-ui/screens/collab-screens"
+
+function VersionDiffDemo() {
+  return <VersionDiff className="w-full max-w-md" changes={versions[0].changes} />
+}
+```
+
+</Preview>
+
+## API Reference
+
+### CommentThreads
+
+Also accepts `section` props.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `threads` | `CollabThread[]` | required | Comments with their `replies`. |
+| `currentUserId` | `string` | - | Shows Edit and Delete on this user's own comments. |
+| `canModerate` | `boolean` | - | Shows Delete on everyone's comments. |
+| `onAdd` | `(input: { body: string; parentId?: string }) => Promise<unknown> \| unknown` | required | Called for a new comment or reply. A throw keeps the text and shows a retry message. |
+| `onEdit` | `(comment: CollabComment, body: string) => Promise<unknown> \| unknown` | - | Called when a comment is edited. |
+| `onDelete` | `(comment: CollabComment) => Promise<unknown> \| unknown` | - | Called when a comment is deleted. |
+| `onSearchPeople` | `(query: string) => Promise<CollabPerson[]> \| CollabPerson[]` | required | Members matching the `@` query. |
+| `title` | `ReactNode` | - | Heading override. |
+| `labels` | `Partial<CollabLabels>` | `DEFAULT_COLLAB_LABELS` | Override any string. |
+
+### MentionTextarea
+
+Also accepts `textarea` props except `onChange` and `defaultValue`.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `value` | `string` | required | Body with mentions as `@[Name](user:<id>)`. |
+| `onValueChange` | `(body: string) => void` | required | Called with the stored form of the body. |
+| `onSearch` | `(query: string) => Promise<CollabPerson[]> \| CollabPerson[]` | required | Members matching the query. |
+| `labels` | `Partial<CollabLabels>` | `DEFAULT_COLLAB_LABELS` | Override any string. |
+
+### ActivityFeed
+
+Also accepts `section` props.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `items` | `CollabTimelineItem[]` | required | Timeline entries, newest first. |
+| `onLoadMore` | `() => Promise<unknown> \| unknown` | - | Shows Load more when set. |
+| `hasMore` | `boolean` | - | Whether more entries exist. |
+| `title` | `ReactNode` | - | Heading override. |
+| `labels` | `Partial<CollabLabels>` | `DEFAULT_COLLAB_LABELS` | Override any string. |
+
+### VersionHistory
+
+Also accepts `section` props.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `versions` | `CollabVersion[]` | required | Versions, newest first. |
+| `onRestore` | `(version: CollabVersion) => Promise<unknown> \| unknown` | - | Restore the selected version. A throw shows its message. |
+| `onUndo` | `(latest: CollabVersion) => Promise<unknown> \| unknown` | - | Undo the latest change. |
+| `defaultSelected` | `number` | latest | The version shown first. |
+| `title` | `ReactNode` | - | Heading override. |
+| `labels` | `Partial<CollabLabels>` | `DEFAULT_COLLAB_LABELS` | Override any string. |
+
+### VersionDiff
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `changes` | `CollabFieldChange[]` | required | Field, `from` and `to` values. |
+| `labels` | `Partial<CollabLabels>` | `DEFAULT_COLLAB_LABELS` | Override any string. |
+| `className` | `string` | - | Class on the table. |
+
+### CommentBody
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `body` | `string` | required | Text with stored mentions, rendered as chips. |
+| `className` | `string` | - | Extra classes. |

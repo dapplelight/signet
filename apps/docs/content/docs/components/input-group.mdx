@@ -1,0 +1,202 @@
+---
+title: "Input Group"
+description: "An input joined with icons, text, buttons or a footer in one bordered field."
+---
+
+import { InputGroupDemo, InputGroupTextDemo, InputGroupButtonDemo, InputGroupTextareaDemo } from "@/components/demos/input-group"
+
+<Preview>
+  <InputGroupDemo />
+
+```tsx
+import { SearchIcon } from "lucide-react"
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@dapplelight/signet-ui/components/input-group"
+
+export function Demo() {
+  return (
+    <InputGroup className="max-w-sm">
+      <InputGroupAddon>
+        <SearchIcon />
+      </InputGroupAddon>
+      <InputGroupInput placeholder="Search invoices" aria-label="Search invoices" />
+    </InputGroup>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add input-group
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@dapplelight/signet-ui/components/input-group"
+```
+
+```tsx
+<InputGroup>
+  <InputGroupAddon>
+    <SearchIcon />
+  </InputGroupAddon>
+  <InputGroupInput placeholder="Search" />
+</InputGroup>
+```
+
+## Examples
+
+### Text addons
+
+<Preview>
+  <InputGroupTextDemo />
+
+```tsx
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@dapplelight/signet-ui/components/input-group"
+
+export function Demo() {
+  return (
+    <div className="grid w-full max-w-sm gap-3">
+      <InputGroup>
+        <InputGroupAddon>
+          <InputGroupText>$</InputGroupText>
+        </InputGroupAddon>
+        <InputGroupInput placeholder="0.00" inputMode="decimal" aria-label="Amount" />
+        <InputGroupAddon align="inline-end">
+          <InputGroupText>USD</InputGroupText>
+        </InputGroupAddon>
+      </InputGroup>
+      <InputGroup>
+        <InputGroupAddon>
+          <InputGroupText>https://</InputGroupText>
+        </InputGroupAddon>
+        <InputGroupInput placeholder="acme" aria-label="Subdomain" />
+        <InputGroupAddon align="inline-end">
+          <InputGroupText>.signet.app</InputGroupText>
+        </InputGroupAddon>
+      </InputGroup>
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### Button
+
+<Preview>
+  <InputGroupButtonDemo />
+
+```tsx
+import { useState } from "react"
+import { EyeIcon, EyeOffIcon } from "lucide-react"
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@dapplelight/signet-ui/components/input-group"
+
+export function Demo() {
+  const [show, setShow] = useState(false)
+  return (
+    <InputGroup className="max-w-sm">
+      <InputGroupInput
+        type={show ? "text" : "password"}
+        defaultValue="hunter2-hunter2"
+        aria-label="API secret"
+      />
+      <InputGroupAddon align="inline-end">
+        <InputGroupButton
+          size="icon-xs"
+          aria-label={show ? "Hide secret" : "Show secret"}
+          onClick={() => setShow((s) => !s)}
+        >
+          {show ? <EyeOffIcon /> : <EyeIcon />}
+        </InputGroupButton>
+      </InputGroupAddon>
+    </InputGroup>
+  )
+}
+```
+
+</Preview>
+
+### Textarea
+
+<Preview>
+  <InputGroupTextareaDemo />
+
+```tsx
+import { InputGroup, InputGroupAddon, InputGroupText, InputGroupTextarea } from "@dapplelight/signet-ui/components/input-group"
+
+export function Demo() {
+  return (
+    <InputGroup className="max-w-sm">
+      <InputGroupTextarea placeholder="Add a note to this invoice" aria-label="Invoice note" />
+      <InputGroupAddon align="block-end">
+        <InputGroupText>0 / 280</InputGroupText>
+      </InputGroupAddon>
+    </InputGroup>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+### InputGroup
+
+The bordered wrapper, `role="group"`. Takes `div` props.
+
+### InputGroupAddon
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `align` | `"inline-start" \| "inline-end" \| "block-start" \| "block-end"` | `"inline-start"` | Where the addon sits. Block values stack it above or below the control. |
+
+Clicking an addon focuses the input.
+
+### InputGroupButton
+
+A `Button` with compact sizes.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `size` | `"xs" \| "sm" \| "icon-xs" \| "icon-sm"` | `"xs"` | Size. |
+| `variant` | Button variants | `"ghost"` | Button variant. |
+| `type` | `"button" \| "submit" \| "reset"` | `"button"` | Button type. |
+
+### InputGroupInput, InputGroupTextarea, InputGroupText
+
+`InputGroupInput` and `InputGroupTextarea` take `input` and `textarea` props. `InputGroupText` is a `span` for static text or an icon.

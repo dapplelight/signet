@@ -1,0 +1,48 @@
+---
+title: "Zod"
+description: "Zod schemas generated from a table's columns, for request bodies and rows."
+---
+
+## Usage
+```ts
+import { toZod } from "@dapplelight/signet-db/zod"
+import { invoices } from "./schema"
+
+const createInvoice = toZod(invoices, { mode: "insert" })
+const patchInvoice = toZod(invoices, { mode: "update" })
+
+const body = createInvoice.parse(await request.json())
+```
+
+## API
+| Export | What it does |
+| --- | --- |
+| `toZod(table, { mode, keep? })` | A Zod object schema for the table. Unknown keys are stripped. |
+| `MANAGED_KEYS` | `id`, `createdAt`, `updatedAt`, `deletedAt`, `userId`: left out of `insert` and `update`. |
+| `ZodMode` | `"insert" \| "update" \| "select"`. |
+| `ZodOutput<T, M, K>` | The TypeScript type a mode produces. |
+
+### toZod(table, options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `mode` | `"insert" \| "update" \| "select"` | required | What the schema validates. |
+| `keep` | managed keys | `[]` | Managed keys to keep in `insert` and `update`. |
+
+| Mode | Schema |
+| --- | --- |
+| `insert` | What a client may send. Columns with a default or that allow null are optional. |
+| `update` | The insert schema with every field optional. |
+| `select` | A full row as read through signet-db (encrypted fields as plaintext or null). |
+
+Rules the schema applies:
+- Dates accept ISO strings and epoch milliseconds.
+- A column named `<x>Currency` next to `<x>` must be three capital letters.
+- Integer columns must be safe integers.
+- Encrypted columns take plaintext strings.
+- A primary key `id` is left out only when it has a default.
+
+## Examples
+### Let an import supply the id
+```ts
+const importInvoice = toZod(invoices, { mode: "insert", keep: ["id"] })
+```

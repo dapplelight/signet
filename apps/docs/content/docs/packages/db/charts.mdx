@@ -1,0 +1,61 @@
+---
+title: "Charts"
+description: "MRR, subscribers, churn and trials from the customer timeline."
+---
+
+## Usage
+```ts
+import { chartsCsv, createCharts } from "@dapplelight/signet-db/charts"
+import { monetisationTables } from "@dapplelight/signet-db/columns/sqlite"
+
+export const { offerings, customerEvents, chartAudiences } = monetisationTables()
+
+const charts = createCharts(db, {
+  tables: { customerEvents, chartAudiences, offerings },
+  fx: { base: "USD", rates: { INR: 0.012, EUR: 1.08 } }, // optional: totals in one currency
+})
+
+const r = await charts.metrics({ from: "2026-10-01", to: "2026-10-31", store: "appstore", country: "IN" })
+r.days[0].mrr // { INR: 249900 }, minor units per currency
+r.summary.churnRate
+```
+
+Reads `customerEvents`, which `customers.record` and `customers.logImpression` write. Ranges are at most 731 days.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createCharts(db, options)` | Charts engine |
+| `chartsCsv(result)` | A result as CSV, money in major units |
+| Types | `ChartFilter`, `ChartQuery`, `PerCurrency`, `ChartDay`, `ChartSummary`, `ChartResult`, `Audience`, `ChartsOptions`, `Charts` |
+
+### createCharts(db, options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `tables` | `{ customerEvents, chartAudiences?, offerings? }` | required | `chartAudiences` is needed for saved audiences |
+| `products` | `OfferingProduct[]` | every offering version's | For plan, interval and trial length |
+| `fx` | `{ base, rates }` | none | `rates[c]` is one major unit of `c` in `base`; sets `mrrTotal` |
+| `trialDays` | `number` | `7` | Trial length when the product has no free-trial offer |
+| `attributionDays` | `number` | `7` | How long a paywall impression counts for a start |
+| `now` | `() => Date` | `new Date` | Clock for tests |
+
+Methods: `metrics(query)`, `csv(query)`, `saveAudience(name, filter, { actor })`, `audiences()`, `removeAudience(id, { actor })`.
+
+A query is `{ from, to, store?, plan?, country?, offering?, audience? }`. `store` is `"appstore"`, `"googleplay"`, `"web"` or one gateway name.
+
+Each day has `activeSubscribers`, `activeTrials`, `mrr`, `mrrTotal`, `newRevenue`, `renewalRevenue`, `refunds`, `refundCount`, `newSubscriptions`, `trialsStarted`, `trialConversions`, `churned`, `impressions`, `conversions`. `summary` adds `trialConversion`, `churnRate`, `paywallConversion`.
+
+App Store amounts are list prices, so those results say `approximate: true`.
+
+## Examples
+
+### Save an audience and export it
+```ts
+const india = await charts.saveAudience("India App Store", { store: "appstore", country: "IN" }, { actor })
+const csv = await charts.csv({ from: "2026-10-01", to: "2026-10-31", audience: india.id })
+```
+
+### Count paywall views
+```ts
+await customers.logImpression(userId, { offering: "default", version: 3, country: "IN" })
+```

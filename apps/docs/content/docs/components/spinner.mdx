@@ -1,0 +1,135 @@
+---
+title: "Spinner"
+description: "A loading indicator that announces itself to screen readers."
+---
+
+import { SpinnerDemo, SpinnerSizeDemo, SpinnerButtonDemo, SpinnerColorDemo } from "@/components/demos/spinner"
+
+<Preview>
+  <SpinnerDemo />
+
+```tsx
+import { Spinner } from "@dapplelight/signet-ui/components/spinner"
+
+export function Demo() {
+  return (
+    <Spinner />
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add spinner
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { Spinner } from "@dapplelight/signet-ui/components/spinner"
+```
+
+```tsx
+<Spinner />
+```
+
+## Examples
+
+### Sizes
+
+<Preview>
+  <SpinnerSizeDemo />
+
+```tsx
+import { Spinner } from "@dapplelight/signet-ui/components/spinner"
+
+export function Demo() {
+  return (
+    <div className="flex items-center gap-4">
+      <Spinner className="size-3" />
+      <Spinner />
+      <Spinner className="size-6" />
+      <Spinner className="size-8" />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### In a button
+
+<Preview>
+  <SpinnerButtonDemo />
+
+```tsx
+import { Spinner } from "@dapplelight/signet-ui/components/spinner"
+import { Button } from "@dapplelight/signet-ui/components/button"
+
+export function Demo() {
+  return (
+    <Button disabled>
+      <Spinner aria-label="Saving" className="text-current" />
+      Saving invoice
+    </Button>
+  )
+}
+```
+
+</Preview>
+
+### Colour and label
+
+<Preview>
+  <SpinnerColorDemo />
+
+```tsx
+import { Spinner } from "@dapplelight/signet-ui/components/spinner"
+
+export function Demo() {
+  return (
+    <Spinner className="size-6 text-primary" aria-label="Syncing orders" />
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `aria-label` | `string` | `"Loading"` | What screen readers hear. It has `role="status"`. |
+| `className` | `string` | `size-4 text-text-muted` | Size and colour. The spin stops under `prefers-reduced-motion`. |
+
+Plus every native `<svg>` prop.

@@ -1,0 +1,122 @@
+---
+title: "OAuth Resource Server"
+description: "Accept access tokens issued elsewhere: JWT verification, scopes and discovery metadata."
+---
+
+## Usage
+
+```ts
+import { Hono } from "hono"
+import { createTokenVerifier } from "@dapplelight/signet-server/oauth-rs"
+import { registerProtectedResourceMetadata, requireScopes, requireToken } from "@dapplelight/signet-server/oauth-rs/hono"
+
+const RESOURCE = "https://api.example.com"
+const META = `${RESOURCE}/.well-known/oauth-protected-resource`
+const app = new Hono()
+
+registerProtectedResourceMetadata(app as never, {
+  resource: RESOURCE,
+  authorizationServers: ["https://auth.example.com"],
+  scopesSupported: ["orders:read", "orders:write"],
+})
+
+const verifier = createTokenVerifier({
+  issuer: "https://auth.example.com",
+  audience: RESOURCE, // required: a token for another service is not for you
+  jwksUri: "https://auth.example.com/.well-known/jwks.json",
+})
+
+app.use("/api/*", requireToken({ verifier, resourceMetadataUrl: META }))
+app.post("/api/orders", requireScopes(META, "orders:write"), createOrder)
+// In a handler: c.get("token").claims.sub, c.get("token").scopes
+```
+
+This is the opposite side from `auth/`: that logs users in, this accepts tokens minted elsewhere. Only JWTs are verified locally. There is no token introspection, client registration or authorization server.
+
+## API
+
+### `oauth-rs` (verify, jwks, metadata)
+
+| Export | What it does |
+| --- | --- |
+| `createTokenVerifier(options)` | `verify(token)` resolves `{ claims, scopes }` or throws `TokenError`. |
+| `createJwksCache(options)` | JWKS cache by `kid`, with rate-limited refetch on an unknown `kid`. |
+| `scopesOf(claims)` | Scopes from `scope` (string) or `scp` (string or array). |
+| `protectedResourceMetadata(options)` | The RFC 9728 document. |
+| `wwwAuthenticate(args)` | The `WWW-Authenticate` header value for a 401 or 403. |
+| `TokenError` | Has `code` (`invalid_token` or `insufficient_scope`) and `status` (401 or 403). |
+| `SUPPORTED_ALGS` | `RS256`, `RS384`, `RS512`, `ES256`, `ES384`. |
+| `Claims`, `VerifiedToken`, `VerifierOptions`, `TokenVerifier`, `Jwk`, `SupportedAlg`, `JwksOptions`, `JwksCache`, `ProtectedResourceMetadata`, `MetadataOptions` | Types. |
+
+### `oauth-rs/hono`
+
+| Export | What it does |
+| --- | --- |
+| `requireToken(options)` | Verify the bearer token; sets `token` and `subject` on the context. |
+| `requireScopes(resourceMetadataUrl, ...scopes)` | Per-route scopes. A 403 names the scope for step-up. |
+| `registerProtectedResourceMetadata(app, options, path?)` | Serve the metadata (default `/.well-known/oauth-protected-resource`). |
+| `METADATA_PATH` | The default path. |
+| `RequireTokenOptions` | Options type. |
+
+### createTokenVerifier(options)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `issuer` | `string` | required | Must match `iss` exactly. |
+| `audience` | `string` | required | This server's identifier (RFC 8707). A token for another audience is rejected. |
+| `jwksUri` | `string` | required | |
+| `clockSkewSeconds` | `number` | `60` | |
+| `allowedAlgs` | `SupportedAlg[]` | all supported | `none` and symmetric algorithms are always rejected. |
+| `requireAtJwt` | `boolean` | `false` | Require `typ: at+jwt` so an ID token cannot be replayed. |
+| `jwks` | `JwksCache` | built from `jwksUri` | |
+| `now` | `() => number` | `Date.now` | |
+
+### createJwksCache(options)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `jwksUri` | `string` | required | |
+| `ttlSeconds` | `number` | `600` | |
+| `minRefetchSeconds` | `number` | `60` | Gap between refetches triggered by an unknown `kid`. |
+| `fetchTimeoutMs` | `number` | `5000` | |
+| `fetchImpl` | `typeof fetch` | global | |
+
+### requireToken(options)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `verifier` | `TokenVerifier` | required | |
+| `resourceMetadataUrl` | `string` | required | Absolute URL, sent on every 401. |
+| `scopes` | `string[]` | none | Scopes every request must carry. |
+
+### registerProtectedResourceMetadata(app, options)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `resource` | `string` | required | Canonical id clients put in `resource`. |
+| `authorizationServers` | `string[]` | required | |
+| `scopesSupported` | `string[]` | none | |
+| `documentation` | `string` | none | |
+
+Only the `Authorization` header is advertised as a bearer method. The raw token is never put on the context, only claims.
+
+## Examples
+
+### Require a scope on every request
+
+```ts
+app.use("/mcp/*", requireToken({ verifier, resourceMetadataUrl: META, scopes: ["orders:read"] }))
+```
+
+### Check a token yourself
+
+```ts
+import { TokenError, createTokenVerifier } from "@dapplelight/signet-server/oauth-rs"
+
+try {
+  const { claims, scopes } = await verifier.verify(bearer)
+  console.log(claims.sub, scopes)
+} catch (err) {
+  if (err instanceof TokenError) console.log(err.code, err.status)
+}
+```

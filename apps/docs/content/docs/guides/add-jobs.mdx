@@ -1,0 +1,98 @@
+---
+title: "Add Background Jobs"
+description: "Typed background jobs with retries, a dead-letter list, cron schedules and a queue consumer on your runtime."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-server zod
+```
+</Step>
+<Step>
+### Define a job and a schedule
+```ts title="server/jobs.ts"
+import { z } from "zod"
+import { defineJob, defineSchedule } from "@dapplelight/signet-server/jobs"
+
+export const sendReceipt = defineJob({
+  name: "send-receipt",
+  input: z.object({ orderId: z.string() }),
+  retry: { attempts: 5, backoff: "exponential", baseSeconds: 30 },
+  timeoutSeconds: 20,
+  run: async ({ orderId }, ctx) => mailer.receipt(orderId, { signal: ctx.signal }),
+})
+
+export const cleanup = defineJob({
+  name: "cleanup",
+  input: z.object({}),
+  run: async () => purgeExpiredSessions(),
+})
+
+export const nightly = defineSchedule({ name: "nightly", cron: "30 2 * * *", job: cleanup, input: {} })
+```
+</Step>
+<Step>
+### Wire it to Cloudflare Queues
+```ts title="worker/index.ts"
+import { cloudflareKv } from "@dapplelight/signet-server/adapters/cloudflare"
+import { cloudflareConsumer, cloudflareScheduled, createJobs } from "@dapplelight/signet-server/jobs"
+import { cleanup, nightly, sendReceipt } from "../server/jobs"
+
+// wrangler: [[queues.producers]] binding = "JOBS"; [[queues.consumers]] queue = "jobs";
+//           [triggers] crons = ["* * * * *"]
+export const makeJobs = (env: Env) =>
+  createJobs({
+    jobs: [sendReceipt, cleanup],
+    schedules: [nightly],
+    queue: env.JOBS,
+    store: cloudflareKv(env.KV),
+  })
+
+export default {
+  fetch: app.fetch,
+  queue: (batch: MessageBatch, env: Env) => cloudflareConsumer(makeJobs(env))(batch),
+  scheduled: (event: ScheduledEvent, env: Env, ctx: ExecutionContext) =>
+    cloudflareScheduled(makeJobs(env))(event, env, ctx),
+}
+```
+</Step>
+<Step>
+### Enqueue from a route
+```ts title="server/routes/orders.ts"
+await sendReceipt.enqueue({ orderId }, { key: orderId }) // once per key
+```
+</Step>
+<Step>
+### Or run in one container (Node, Bun, Docker)
+```ts title="server/main.ts"
+import { upstashKv } from "@dapplelight/signet-server/adapters/upstash"
+import { inProcessJobs, startScheduler } from "@dapplelight/signet-server/jobs"
+
+const jobs = inProcessJobs({
+  jobs: [sendReceipt, cleanup],
+  schedules: [nightly],
+  store: upstashKv({ url: UPSTASH_URL, token: UPSTASH_TOKEN }),
+})
+const stop = startScheduler(jobs)
+process.on("SIGTERM", stop)
+```
+Pending runs die with the process. Use QStash for more than one container.
+</Step>
+<Step>
+### Handle failures
+```ts title="server/admin.ts"
+const dead = await jobs.listDead()
+await jobs.retryDead(dead[0].id)
+```
+Delivery is at least once, so make `run` safe to repeat or key it.
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="Jobs" href="/docs/packages/server/jobs" description="Steps, events, budgets, outbox, QStash and agent tools." />
+  <Card title="Workflows" href="/docs/guides/add-workflows" description="Long-running work that needs a person's approval." />
+  <Card title="Job runs" href="/docs/components/job-runs" description="Show runs, progress and failures in the UI." />
+</Cards>

@@ -1,0 +1,44 @@
+---
+title: "Webhooks"
+description: "Standard Webhooks signing and verifying on Web Crypto only."
+---
+
+## Usage
+```ts
+import { generateWebhookSecret, signWebhook, verifyWebhook } from "@dapplelight/signet-lib/webhooks"
+
+// Sender (a Worker, a server)
+const secret = generateWebhookSecret() // "whsec_..." show once, store it
+const body = JSON.stringify({ type: "invoice.paid", invoiceId: "INV-1042" })
+const headers = await signWebhook({ secret, id: "evt_01", body })
+await fetch(endpoint.url, { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body })
+
+// Receiver
+app.post("/webhooks/billing", async (c) => {
+  const raw = await c.req.text() // the raw body, exactly as received
+  if (!(await verifyWebhook(env.WEBHOOK_SECRET, c.req.raw.headers, raw))) return c.text("bad signature", 400)
+  // dedupe on the webhook-id header: it is the same on every retry
+  return c.text("ok")
+})
+```
+
+<Callout type="warn">
+Verify the raw body text. Re-serialised JSON does not verify.
+</Callout>
+
+## API
+| Export | What it does |
+| --- | --- |
+| `generateWebhookSecret()` | New `whsec_` secret: 32 random bytes, base64 |
+| `signWebhook({ secret, id, body, timestamp? })` | The `webhook-id`, `webhook-timestamp`, `webhook-signature` headers. `secret` may be a list during rotation |
+| `verifyWebhook(secret, headers, body, options?)` | `true` when a `v1` signature matches and the timestamp is in tolerance. Never throws |
+| `VerifyWebhookOptions` | Type |
+
+### verifyWebhook options
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `toleranceSeconds` | `number` | `300` | Reject timestamps further from now, either way |
+| `now` | `number` | `Date.now()` | Milliseconds, for tests |
+| `headerPrefix` | `string` | `"webhook"` | `"svix"` verifies Svix and Resend |
+
+`headers` is a `Headers` or a plain record.

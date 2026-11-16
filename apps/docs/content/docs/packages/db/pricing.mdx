@@ -1,0 +1,79 @@
+---
+title: "Pricing"
+description: "Pricing experiments: read out which offering earns more, then roll out the winner."
+---
+
+## Usage
+```ts
+import { createExperiments } from "@dapplelight/signet-db/experiments"
+import { createOfferings } from "@dapplelight/signet-db/offerings"
+import { createPricing } from "@dapplelight/signet-db/pricing"
+
+const ex = createExperiments(db, { tables: experimentTables(), events })
+const offerings = createOfferings(db, { tables, plans, experiments: ex })
+const actor = { type: "user", id: staffId } as const
+
+await ex.create(
+  "annual-first",
+  {
+    variants: [
+      { key: "control", weight: 50 },
+      { key: "annual", weight: 50, value: { offering: "annual-first" } },
+    ],
+    goal: "subscribed",
+  },
+  { actor },
+)
+await offerings.setPlacement("onboarding", { offering: "default", experiment: "annual-first" }, { actor })
+await ex.start("annual-first", { actor })
+await offerings.current("onboarding", audience, subjectId) // sticky variant, exposure recorded
+
+const pricing = createPricing(db, {
+  offerings,
+  experiments: ex,
+  tables: { experimentExposures, customerEvents, customerIdentities },
+})
+const result = await pricing.readout("annual-first")
+await pricing.rollout("annual-first", "annual", { actor })
+```
+
+Attribution needs no extra writes: a subject's purchases are their customer timeline events at or after exposure. Pass `customerIdentities` to follow anonymous ids through merges. The first variant is the control.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createPricing(db, options)` | `{ readout, rollout }`. |
+| `pricingReadout(variants, exposures, events, opts?)` | The readout as a pure function. |
+| `PricingOptions`, `PricingTables`, `Pricing`, `PricingReadout`, `PricingVariantReadout`, `PricingExposure`, `PricingEvent`, `PerCurrency` | Types. |
+
+### createPricing(db, options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `tables.experimentExposures` | table | required | From `experimentTables()`. |
+| `tables.customerEvents` | table | required | From `monetisationTables()`. |
+| `tables.customerIdentities` | table | none | Follow anonymous exposures to the merged account. |
+| `offerings` | `createOfferings(...)` | required | Needs `placements` and `setPlacement`. |
+| `experiments` | `createExperiments(...)` | required | Needs `get` and `rollout`. |
+
+### readout(key, options)
+Returns `{ experiment, status, winner, placements, alpha, control, variants }`. `alpha` defaults to `0.05`; `maxPayments` caps the LTV estimate (24).
+
+| Per variant | Meaning |
+| --- | --- |
+| `exposed`, `converted`, `rate` | Subjects who started a trial or bought after exposure. |
+| `lift`, `pValue`, `significant` | Against the control, by a two-proportion z-test. Null for the control. |
+| `trials`, `trialConverted`, `trialConversion` | Trial starts and how many paid after. |
+| `revenue`, `revenuePerExposed` | Per currency, in minor units. Charges minus refunds. |
+| `approximate` | Some revenue is App Store list price, not settled money. |
+| `ltv` | An estimate (`estimate: true`): average charge times expected payments. Null with no charges. |
+
+### rollout(key, variant, options)
+The experiment gives everyone the variant and stops. Every placement running it serves that variant's offering directly, with the experiment unlinked. Safe to retry after a partial failure. Throws if no placement runs the experiment.
+
+## Examples
+### Decide on a result
+```ts
+const { variants } = await pricing.readout("annual-first")
+const best = variants.find((v) => v.significant && (v.lift ?? 0) > 0)
+if (best) await pricing.rollout("annual-first", best.key, { actor })
+```

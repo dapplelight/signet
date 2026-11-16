@@ -1,0 +1,181 @@
+---
+title: "Domain"
+description: "Larger building blocks: money amounts, CSV import, kanban, uploads, job runs, trend chip."
+---
+
+## Usage
+
+```tsx
+import { Amount } from "@dapplelight/signet-ui/domain/amount"
+
+export function InvoiceTotal({ paise }: { paise: number }) {
+  return <Amount value={paise} minorUnits tone="auto" />
+}
+```
+
+These are not in the barrel import; import each from its own path.
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `domain/amount`: `Amount`, `formatAmount` | Money with locale grouping, sign and credit/debit tone. |
+| `domain/csv-import`: `CsvImport` | Paste or pick a CSV, map columns, validate rows, import. |
+| `domain/csv-import`: `autoMatch`, `validateRows` | The mapping and validation steps as functions. |
+| `domain/csv-import`: `parseCsv`, `toCsv`, `csvField`, `detectDelimiter` | CSV parsing and writing. |
+| `domain/csv-import`: `DEFAULT_CSV_IMPORT_LABELS` | Every string in English; override per key. |
+| `domain/job-runs`: `JobRuns`, `JobRun` | Table of background job runs with retry and cancel. |
+| `domain/kanban`: `Kanban`, `KanbanColumn`, `KanbanColumnHeader`, `KanbanColumnTitle`, `KanbanList`, `KanbanItem` | Board with drag and keyboard moves. |
+| `domain/kanban`: `moveItem`, `findItem` | Pure board helpers. |
+| `domain/trend-chip`: `TrendChip` | `+4.2% ↑` in green or red. |
+| `domain/upload`: `Upload`, `xhrUpload` | Drop or pick files, upload with progress and retry. |
+| Types | `AmountProps`, `AmountTone`, `AmountValue`, `AmountPart`, `CsvField`, `CsvSchema`, `CsvMapping`, `CsvRowResult`, `CsvImportReport`, `CsvImportLabels`, `CsvImportProps`, `JobRunsProps`, `KanbanBoard`, `KanbanMove`, `KanbanMessages`, `KanbanProps`, `KanbanColumnProps`, `KanbanItemProps`, `UploadTarget`, `UploadTransport` |
+
+### Amount
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `value` | `number \| string \| bigint` | required | Use a string or bigint for exact values. |
+| `currency` | `string` | `"INR"` | ISO 4217 code. |
+| `locale` | `string` | `"en-IN"` | Indian locales group by lakh and crore. |
+| `minorUnits` | `boolean` | `false` | `value` is paise or cents. |
+| `notation` | `"standard" \| "whole" \| "compact"` | `"standard"` | Compact gives ₹12.5L, ₹1.2Cr, $1.3M. |
+| `decimals` | `number` | currency's own | In compact notation, the maximum (default 1). |
+| `tone` | `"credit" \| "debit" \| "transfer" \| "auto"` | none | Uses the theme's money slots. `auto` picks credit or debit from the sign. |
+| `signDisplay` | `Intl` `signDisplay` | `"auto"` | `"exceptZero"` with `tone="auto"`. |
+| `classNames` | `Partial<Record<"sign" \| "currency" \| "integer" \| "fraction" \| "compact", string>>` | none | Class per part. |
+| `render` | `ReactElement` | none | Replaces the `<data>` element. |
+
+`formatAmount(value, options)` returns `{ parts, major, sign }` so a table cell or chart label formats the same way. Tones read `--money-credit`, `--money-debit`, `--money-transfer` (see the `finance.css` theme), falling back to status colours.
+
+### CsvImport
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `fields` | `CsvField[]` | required | `{ key, label?, aliases?, required? }`. |
+| `onImport` | `(rows: T[]) => Promise<CsvImportReport \| undefined> \| CsvImportReport \| undefined` | required | Gets the valid rows. Return `{ inserted, skipped?, errors? }` to show server errors per row. |
+| `schema` | `{ safeParse }` (zod works) | none | Without it, rows are the mapped strings. |
+| `delimiter` | `string` | detected | Separator. |
+| `previewRows` | `number` | `100` | Rows in the review table. |
+| `maxBytes` | `number` | 10 MB | Largest file read. |
+| `labels` | `Partial<CsvImportLabels>` | English | Override any string. |
+| `classNames` | per part | none | `root`, `title`, `source`, `mapping`, `review`, `table`, `cell`, `error`, `actions`, `status`. |
+
+### Upload
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `getTarget` | `(file: File) => Promise<UploadTarget>` | required | Ask your server for `{ url, method?, headers? }`. |
+| `onUploaded` | `(file, target) => void \| Promise<void>` | none | Confirm the upload with your server. |
+| `accept` | `string[]` | any | `image/png` or `image/*`. A hint; the server enforces. |
+| `maxBytes` | `number` | none | A hint; the server enforces. |
+| `multiple` | `boolean` | `false` | |
+| `label` | `string` | "Drop a file here or choose one" | |
+| `transport` | `UploadTransport` | `xhrUpload` | XHR PUT, for progress. |
+
+### JobRuns
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `runs` | `JobRun[]` | required | `{ id, job, state, attempt, error?, progress?, updatedAt? }`. |
+| `onRetry` | `(run) => void` | none | Button on `dead` runs. |
+| `onCancel` | `(run) => void` | none | Button on runs not `done`, `dead` or `cancelled`. |
+| `emptyMessage` | `string` | none | |
+
+### Kanban
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `value` / `defaultValue` | `Record<string, string[]>` | `{}` | Column id to ordered item ids. |
+| `onValueChange` | `(board) => void` | none | The whole board after a drop. |
+| `onItemMove` | `(move) => void` | none | `{ item, from, to, index }`, for saving to a server. |
+| `messages` | `Partial<KanbanMessages>` | English | Screen reader text. |
+
+`KanbanColumn` takes `value` and optional `label`; `KanbanItem` takes `value` and optional `label`. Keyboard: Space or Enter picks up, arrows move, Space or Enter drops, Escape cancels.
+
+## Examples
+
+### Import customers from a CSV
+
+```tsx
+import { CsvImport } from "@dapplelight/signet-ui/domain/csv-import"
+import { z } from "zod"
+
+const row = z.object({ name: z.string().min(1), email: z.string().email() })
+
+export function ImportCustomers() {
+  return (
+    <CsvImport
+      fields={[
+        { key: "name", required: true },
+        { key: "email", aliases: ["E-mail"], required: true },
+      ]}
+      schema={row}
+      onImport={async (rows) => {
+        const res = await fetch("/api/customers/import", { method: "POST", body: JSON.stringify(rows) })
+        return res.json() // { inserted, skipped?, errors? }
+      }}
+    />
+  )
+}
+```
+
+### Order board
+
+```tsx
+import { Kanban, KanbanColumn, KanbanColumnHeader, KanbanColumnTitle, KanbanItem, KanbanList } from "@dapplelight/signet-ui/domain/kanban"
+
+export function OrderBoard({ orders }: { orders: Record<string, { id: string; label: string }[]> }) {
+  return (
+    <Kanban
+      aria-label="Orders"
+      defaultValue={{ new: ["o1", "o2"], packed: ["o3"], shipped: [] }}
+      onItemMove={(m) => fetch(`/api/orders/${m.item}`, { method: "PATCH", body: JSON.stringify({ status: m.to }) })}
+    >
+      {(board) =>
+        Object.keys(board).map((col) => (
+          <KanbanColumn key={col} value={col}>
+            <KanbanColumnHeader>
+              <KanbanColumnTitle>{col}</KanbanColumnTitle>
+            </KanbanColumnHeader>
+            <KanbanList>
+              {board[col]?.map((id) => (
+                <KanbanItem key={id} value={id}>
+                  {id}
+                </KanbanItem>
+              ))}
+            </KanbanList>
+          </KanbanColumn>
+        ))
+      }
+    </Kanban>
+  )
+}
+```
+
+### Upload with a presigned URL
+
+```tsx
+import { Upload } from "@dapplelight/signet-ui/domain/upload"
+
+export function ReceiptUpload() {
+  return (
+    <Upload
+      accept={["image/*", "application/pdf"]}
+      maxBytes={5 * 1024 * 1024}
+      getTarget={async (file) => {
+        const res = await fetch("/api/uploads", { method: "POST", body: JSON.stringify({ name: file.name, type: file.type }) })
+        return res.json() // { url, method?, headers? }
+      }}
+    />
+  )
+}
+```
+
+### Trend chip
+
+```tsx
+import { TrendChip } from "@dapplelight/signet-ui/domain/trend-chip"
+
+<TrendChip value={4.2} /> // "+4.2% ↑" in green; negatives are red; NaN shows a dash
+```

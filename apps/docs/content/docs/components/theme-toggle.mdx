@@ -1,0 +1,128 @@
+---
+title: "Theme Toggle"
+description: "A segmented light, dark and system control, plus a single flip button."
+---
+
+import { ThemeToggleDemo, ThemeToggleLabelsDemo, ThemeToggleButtonDemo } from "@/components/demos/theme-toggle"
+
+<Preview>
+  <ThemeToggleDemo />
+
+```tsx
+import { ThemeToggle, ThemeToggleButton } from "@dapplelight/signet-ui/components/theme-toggle"
+import { ThemeProvider } from "@dapplelight/signet-ui/components/theme-provider"
+
+export function Demo() {
+  return (
+    <ThemeProvider>
+      <ThemeToggle />
+    </ThemeProvider>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add theme-toggle
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { ThemeToggle, ThemeToggleButton } from "@dapplelight/signet-ui/components/theme-toggle"
+```
+
+```tsx
+<ThemeProvider>
+  <ThemeToggle />
+</ThemeProvider>
+```
+
+## Examples
+
+### With labels
+
+<Preview>
+  <ThemeToggleLabelsDemo />
+
+```tsx
+import { ThemeToggle, ThemeToggleButton } from "@dapplelight/signet-ui/components/theme-toggle"
+import { ThemeProvider } from "@dapplelight/signet-ui/components/theme-provider"
+
+export function Demo() {
+  return (
+    <ThemeProvider>
+      <ThemeToggle showLabels />
+    </ThemeProvider>
+  )
+}
+```
+
+</Preview>
+
+### Single button
+
+<Preview>
+  <ThemeToggleButtonDemo />
+
+```tsx
+import { ThemeToggle, ThemeToggleButton } from "@dapplelight/signet-ui/components/theme-toggle"
+import { ThemeProvider } from "@dapplelight/signet-ui/components/theme-provider"
+
+export function Demo() {
+  return (
+    <ThemeProvider>
+      <ThemeToggleButton />
+    </ThemeProvider>
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+`ThemeToggle`
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `showLabels` | `boolean` | `false` | Show Light, Dark and System beside the icons. Good for a settings page. |
+| `className` | `string` | `-` | Merged onto the group. |
+
+`ThemeToggleButton`
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `className` | `string` | `-` | Merged onto the button. It flips light and dark. |
+
+Both need a `ThemeProvider` above them. Labels come from the labels provider. These demos change the theme of this page.

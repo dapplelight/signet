@@ -1,0 +1,43 @@
+---
+title: "D1"
+description: "Cloudflare D1 driver for signet-db."
+---
+
+## Usage
+```ts
+import { createDb } from "@dapplelight/signet-db/d1"
+import { createCipher, scoped } from "@dapplelight/signet-db"
+import { eq } from "drizzle-orm"
+import * as schema from "./schema"
+
+export default {
+  async fetch(req: Request, bindings: { DB: D1Database; FIELD_KEY: string }) {
+    // Build per request: Workers have no env at import time.
+    const db = createDb(bindings.DB, {
+      schema,
+      cipher: createCipher({ keys: { k1: bindings.FIELD_KEY }, current: "k1" }),
+    })
+    const me = scoped(db, { userId: await userIdFrom(req) })
+    return Response.json(await me.select(schema.orders, eq(schema.orders.status, "open")))
+  },
+}
+```
+
+D1 has no `BEGIN`, so atomic groups such as `deleteUser` and `db.batch` run as one D1 batch.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createDb(binding, config?)` | Wrap a D1 binding in a `SignetDb` |
+
+### createDb(binding, config)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `schema` | `Record<string, unknown>` | none | Your table module, for typed `db.orm` |
+| `cipher` | `Cipher` | none | Encrypts and decrypts `encrypted()` columns |
+| `audit` | `Table` | none | The `auditLog()` table; turns on `audited()` |
+| `outbox` | `Table` | none | The `outbox()` table |
+| `idempotency` | `Table` | none | The `idempotencyKeys()` table |
+| `versions` | `{ table, track }` | none | Version history for tracked tables |
+
+On D1 a change and its audit entry are separate statements, not one transaction.

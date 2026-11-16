@@ -1,0 +1,224 @@
+---
+title: "Notification Screens"
+description: "An in-app notification inbox and a preferences centre with one switch per category and channel."
+---
+
+import { NotificationInboxDemo, NotificationInboxEmptyDemo, InboxItemDemo, NotificationPreferencesDemo } from "@/components/demos/notification-screens"
+
+<Preview>
+  <NotificationInboxDemo />
+
+```tsx
+import { useState } from "react"
+import { NotificationInbox } from "@dapplelight/signet-ui/screens/notification-screens"
+
+function NotificationInboxDemo() {
+  const [items, setItems] = useState(initial)
+  const now = new Date().toISOString()
+  return (
+    <NotificationInbox
+      className="w-full max-w-lg"
+      items={items}
+      onMarkRead={(ids) =>
+        setItems((l) => l.map((i) => (ids.includes(i.id) ? { ...i, readAt: now } : i)))
+      }
+      onMarkAllRead={() => setItems((l) => l.map((i) => ({ ...i, readAt: i.readAt ?? now })))}
+      onArchive={(item) => setItems((l) => l.filter((i) => i.id !== item.id))}
+    />
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+npx @dapplelight/signet-cli add notification-screens
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import {
+  NotificationInbox,
+  NotificationPreferences,
+} from "@dapplelight/signet-ui/screens/notification-screens"
+```
+
+Shapes match signet-server's notifier: `InboxEntry` from `inbox.list`, `ChannelPrefs` from `getPrefs` and `updatePrefs`.
+
+```tsx
+<NotificationInbox items={items} onMarkRead={markRead} />
+```
+
+## Examples
+
+### NotificationInbox
+
+<Preview>
+  <NotificationInboxDemo />
+
+```tsx
+import { useState } from "react"
+import { NotificationInbox } from "@dapplelight/signet-ui/screens/notification-screens"
+
+function NotificationInboxDemo() {
+  const [items, setItems] = useState(initial)
+  const now = new Date().toISOString()
+  return (
+    <NotificationInbox
+      className="w-full max-w-lg"
+      items={items}
+      onMarkRead={(ids) =>
+        setItems((l) => l.map((i) => (ids.includes(i.id) ? { ...i, readAt: now } : i)))
+      }
+      onMarkAllRead={() => setItems((l) => l.map((i) => ({ ...i, readAt: i.readAt ?? now })))}
+      onArchive={(item) => setItems((l) => l.filter((i) => i.id !== item.id))}
+    />
+  )
+}
+```
+
+</Preview>
+
+An empty inbox shows the all-caught-up state.
+
+<Preview>
+  <NotificationInboxEmptyDemo />
+
+```tsx
+import { NotificationInbox } from "@dapplelight/signet-ui/screens/notification-screens"
+
+function NotificationInboxEmptyDemo() {
+  return <NotificationInbox className="w-full max-w-lg" items={[]} />
+}
+```
+
+</Preview>
+
+### InboxItem
+
+One row, on its own. It is a button; pass `render={<a href={item.link} />}` to make it a link.
+
+<Preview>
+  <InboxItemDemo />
+
+```tsx
+import { InboxItem } from "@dapplelight/signet-ui/screens/notification-screens"
+
+function InboxItemDemo() {
+  return (
+    <div className="w-full max-w-lg">
+      <InboxItem item={initial[0]} onOpen={() => undefined} />
+      <InboxItem item={initial[2]} onOpen={() => undefined} />
+    </div>
+  )
+}
+```
+
+</Preview>
+
+### NotificationPreferences
+
+<Preview>
+  <NotificationPreferencesDemo />
+
+```tsx
+import { useState } from "react"
+import { NotificationPreferences, type ChannelPrefs } from "@dapplelight/signet-ui/screens/notification-screens"
+
+function NotificationPreferencesDemo() {
+  const [value, setValue] = useState<ChannelPrefs>({ marketing: { email: false } })
+  return (
+    <NotificationPreferences
+      className="w-full max-w-xl"
+      value={value}
+      onValueChange={setValue}
+      channels={["email", "push", "inApp"]}
+      categories={[
+        { id: "billing", label: "Billing", description: "Receipts and failed payments.", required: true },
+        { id: "mentions", label: "Mentions", description: "When someone @mentions you." },
+        { id: "marketing", label: "Product news", description: "New features and tips." },
+      ]}
+    />
+  )
+}
+```
+
+</Preview>
+
+## API Reference
+
+### NotificationInbox
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `items` | `readonly InboxEntry[]` | required | Notifications, newest first. |
+| `unreadCount` | `number` | unread among `items` | Count for the badge. |
+| `filter` | `"all" \| "unread"` | - | Filter (controlled). |
+| `defaultFilter` | `"all" \| "unread"` | `"all"` | Initial filter. |
+| `onFilterChange` | `(filter: InboxFilter) => void` | - | Called when the filter changes. |
+| `onMarkRead` | `(ids: string[]) => unknown` | - | Opening an unread item calls it. |
+| `onMarkAllRead` | `() => unknown` | - | Mark everything read. |
+| `onArchive` | `(item: InboxEntry) => unknown` | - | Adds an archive button per item. |
+| `onOpen` | `(item: InboxEntry) => void` | - | Follow the item's link or open a detail view. |
+| `renderItem` | `(item: InboxEntry) => ReactElement \| undefined` | - | Swap each item's element, e.g. a link. |
+| `hasMore` | `boolean` | - | Shows Load more. |
+| `onLoadMore` | `() => unknown` | - | Fetch the next page. |
+| `locale` | `string` | browser | Locale for relative times. |
+| `labels` | `Partial<NotificationLabels>` | `DEFAULT_NOTIFICATION_LABELS` | Override any string. |
+| `className` | `string` | - | Class on the root. |
+| `classNames` | `Partial<Record<"header" \| "filter" \| "list" \| "item" \| "empty" \| "more", string>>` | - | Classes per part. |
+
+### InboxItem
+
+Also accepts `button` props except `onClick`, and `render`.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `item` | `InboxEntry` | required | The notification. |
+| `onOpen` | `(item: InboxEntry) => void` | - | Called on click. |
+| `locale` | `string` | browser | Locale for relative times. |
+| `labels` | `Partial<NotificationLabels>` | - | Override any string. |
+
+### NotificationPreferences
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `categories` | `readonly PreferenceCategory[]` | required | `id`, `label`, optional `description`, and `required` for always-on categories. |
+| `channels` | `readonly NotifyChannel[]` | `["email", "push", "inApp"]` | Columns, in order. |
+| `value` | `ChannelPrefs` | - | Prefs (controlled). |
+| `defaultValue` | `ChannelPrefs` | `{}` | Initial prefs. |
+| `onValueChange` | `(value: ChannelPrefs) => void` | - | Every change, with the full next value. |
+| `onToggle` | `(change: { category; channel; on }) => unknown` | - | Save one change. Throwing puts the switch back. |
+| `labels` | `Partial<NotificationLabels>` | `DEFAULT_NOTIFICATION_LABELS` | Override any string. |
+| `className` | `string` | - | Class on the root. |
+| `classNames` | `Partial<Record<"table" \| "row" \| "switch", string>>` | - | Classes per part. |

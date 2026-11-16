@@ -1,0 +1,44 @@
+---
+title: "Cache"
+description: "Answer caches keyed by schema, instructions, input and model."
+---
+
+## Usage
+```ts
+import { createExtractor, kvCache, memoryCache } from "@dapplelight/signet-ai"
+
+const ai = createExtractor({
+  providers,
+  cache: kvCache(env.AI_CACHE), // or memoryCache() for one process
+  cacheTtlSeconds: 86_400,
+})
+
+await ai.extract({ schema, input, instructions, cache: false }) // skip the cache for one call
+```
+
+## API
+| Export | What it does |
+| --- | --- |
+| `memoryCache(maxEntries?)` | In-process cache. Default 500 entries, oldest evicted |
+| `kvCache(store, prefix?)` | Shared cache over Workers KV or a `KeyValueLike`. Default prefix `signet-ai-cache` |
+| `cacheKey(schemaFingerprint, instructions, input, model?)` | SHA-256 hex key |
+| `fingerprintSchema(schema)` | Stable string for a Zod schema shape |
+| `Cache` | Type: `get(key)` and `set(key, entry, ttlSeconds)`. Bring your own store |
+
+Entries carry their own expiry, checked on read. A Workers KV key shorter than 60 seconds is stored for 60 and still expires on time. A cache that is down reads as a miss.
+
+## Examples
+### A custom cache
+```ts
+import type { Cache } from "@dapplelight/signet-ai"
+
+const redisCache: Cache = {
+  async get(key) {
+    const raw = await redis.get(`ai:${key}`)
+    return raw ? JSON.parse(raw) : undefined
+  },
+  async set(key, entry, ttlSeconds) {
+    await redis.set(`ai:${key}`, JSON.stringify(entry), { ex: ttlSeconds })
+  },
+}
+```

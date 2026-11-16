@@ -1,0 +1,58 @@
+---
+title: "Test"
+description: "Fake providers with the real interfaces, Playwright theme checks, dev overlay and demo mode."
+---
+
+```bash
+bun add -d @dapplelight/signet-test
+```
+
+Every peer is optional. Install the one a subpath needs: `@dapplelight/signet-payments`, `@dapplelight/signet-server`, `ai`, `@playwright/test`, `react` and `@dapplelight/signet-ui`.
+
+## Quick start
+
+```ts
+import { createPayments, memoryStore } from "@dapplelight/signet-payments"
+import { fakeGateway } from "@dapplelight/signet-test/payments"
+
+const gw = fakeGateway("razorpay")
+const payments = createPayments({ gateways: [gw], db: memoryStore() })
+const checkout = await payments.checkout({ amount: 49900, currency: "INR", idempotencyKey: "k1", userId: "u1" })
+await payments.handleWebhook("razorpay", await gw.complete(checkout.gatewayId))
+```
+
+Each fake implements the interface the real module takes, so the code under test runs unchanged, and each records its calls for assertions.
+
+## Root helpers
+
+Imported from `@dapplelight/signet-test` itself.
+
+| Export | What it does |
+| --- | --- |
+| `fakeClock(start?)` | `{ now, date, set, advance }`; pass `now` to any Signet option named `now`. Does not patch `Date`. |
+| `SECOND`, `MINUTE`, `HOUR`, `DAY` | Milliseconds. |
+| `fakeFetch(routes?, options?)` | A `fetch` answering from a `"METHOD /path"` table; unrouted calls 404; logs `calls`. |
+| `fakeSenders(outbox?)`, `fakeSender(...)`, `createOutbox(options?)` | Email, SMS, WhatsApp, push and Telegram senders writing to one outbox. |
+| `fakeNotifyStore(options?)` | In-memory `NotifyStore` whose TTLs follow the clock. |
+
+```ts
+import { DAY, fakeClock, fakeFetch } from "@dapplelight/signet-test"
+
+const clock = fakeClock("2026-11-01T10:00:00Z")
+clock.advance(30 * DAY)
+
+const f = fakeFetch({ "GET /v1/invoices/inv_1": { id: "inv_1", status: "paid" } })
+const res = await f.fetch("https://api.example.test/v1/invoices/inv_1")
+console.log(f.calls[0]?.path) // "/v1/invoices/inv_1"
+```
+
+## Modules
+
+<Cards>
+  <Card title="AI" href="/docs/packages/test/ai" description="A fake language model for the AI SDK." />
+  <Card title="Demo" href="/docs/packages/test/demo" description="One switch that runs the app offline." />
+  <Card title="Overlay" href="/docs/packages/test/overlay" description="Dev-only panel: user, plan, theme, outbox." />
+  <Card title="Payments" href="/docs/packages/test/payments" description="Razorpay, Stripe and PayU servers behind the real adapters." />
+  <Card title="Playwright" href="/docs/packages/test/playwright" description="Sign in, seed, and screenshot across themes." />
+  <Card title="Stores" href="/docs/packages/test/stores" description="Fake App Store and Google Play backends." />
+</Cards>

@@ -1,0 +1,95 @@
+---
+title: "Jev"
+description: "Classifier decisions that always resolve with a safe fallback."
+---
+
+## Usage
+```ts
+import { createJev } from "@dapplelight/signet-ai/jev"
+
+// Build where env exists (a handler or a CLI main), never at module scope.
+const jev = createJev({
+  apiKey: env.JEV_API_KEY, // missing: every call returns its fallback
+  allowSensitive: false,   // opt in to send private or financial text
+  onEvent: (e) => log.info("jev", e), // redacted: no key, state or question
+})
+
+const d = await jev.choice({
+  question: "Which category fits this support ticket?",
+  options: { billing: "Invoices, refunds", shipping: "Delivery, tracking", unsure: null },
+  state: ticket.subject,
+  fallback: "unsure",
+  sensitive: false,
+})
+
+if (d.confident) route(d.value)
+else review.push({ best: d.answer, confidence: d.confidence, reason: d.reason })
+```
+
+Fetch only, no SDK. It never throws for the failures that matter.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createJev(config)` | Returns `{ enabled, choice, score, noul, batch }` |
+| `JEV_DEFAULT_MODEL` | `"jev-1.13.0"` |
+| `JEV_DEFAULT_MIN_CONFIDENCE` | `0.95` |
+| `JEV_DEFAULT_TIMEOUT_MS` | `8000` |
+| `JEV_DEFAULT_BASE_URL` | `"https://api.typesafe.ai"` |
+| `Jev`, `JevConfig`, `JevDecision`, `JevNoulDecision`, `JevEvent`, `JevFallbackReason`, `JevBatchQuestion`, `JevBatchResult`, `JevState`, `JevJson`, `JevOptions`, `ChoiceArgs`, `ScoreArgs`, `NoulArgs`, `BatchArgs`, `JevFetch` | Types |
+
+### createJev(config)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `apiKey` | `string` | none | Sent only in the Authorization header |
+| `model` | `string` | `JEV_DEFAULT_MODEL` | |
+| `minConfidence` | `number` | `0.95` | Floor, 0 to 1 |
+| `timeoutMs` | `number` | `8000` | Total per call, no retries |
+| `allowSensitive` | `boolean` | `false` | Decide it once in config, not per caller |
+| `baseUrl` | `string` | `JEV_DEFAULT_BASE_URL` | |
+| `fetch` | `JevFetch` | global `fetch` | |
+| `onEvent` | `(event) => void` | none | One event per decision |
+
+### Methods
+Every call takes `state`, `sensitive` (required), `fallback`, and optionally `minConfidence` and `signal`. `jev.enabled` is `false` without a key.
+
+| Method | Extra args | `value` |
+| --- | --- | --- |
+| `choice` | `question`, `options` (labels or label to description, up to 255) | one of the labels |
+| `score` | `question`, `levels` (2 to 10, index is the score) | a number |
+| `noul` | `question` | a boolean; `probability` holds the raw yes-probability |
+| `batch` | `questions`: named `choice`, `score` or `noul` questions about one state | a decision per name |
+
+A decision is `{ value, confident: true, source: "jev", confidence }` or `{ value, confident: false, source: "fallback", reason, confidence?, answer? }`.
+
+### Fallback reasons
+| `reason` | When |
+| --- | --- |
+| `sensitive_not_allowed` | `sensitive` is not `false` and the instance lacks `allowSensitive`. Checked first; no request is made |
+| `no_key` | Key missing or blank |
+| `low_confidence` | Below the floor. `answer` and `confidence` are kept for review |
+| `timeout` | Over `timeoutMs` |
+| `http_error` | Non-2xx. The event carries `status` |
+| `network_error` | Fetch rejected |
+| `invalid_response` | Malformed answer, or a label outside the offered set |
+| `invalid_request` | No questions, bad floor, score levels outside 2 to 10, or a fallback not in the options |
+| `aborted` | Your `signal` fired |
+
+<Callout type="warn">
+A JS caller that omits `sensitive` is treated as sensitive. Never send private or financial text unless the owner opted in through `allowSensitive`.
+</Callout>
+
+## Examples
+### Batch several questions in one request
+```ts
+const r = await jev.batch({
+  state: review.text,
+  sensitive: false,
+  questions: {
+    topic: { type: "choice", question: "What is it about?", options: ["quality", "price"], fallback: "quality" },
+    angry: { type: "noul", question: "Is the customer angry?", fallback: false },
+  },
+})
+r.topic.value // "quality" | "price"
+r.angry.probability
+```

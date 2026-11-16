@@ -1,0 +1,49 @@
+---
+title: "Migrations"
+description: "Scan SQL migrations for changes that lose data or break running code."
+---
+
+## Usage
+```bash
+npx signet-db-check                      # ./drizzle and ./migrations
+npx signet-db-check drizzle/0007_add_status.sql
+```
+
+In CI, check only the migrations a change adds:
+```bash
+signet-db-check $(git diff --name-only --diff-filter=A origin/main -- 'drizzle/*.sql')
+```
+
+From code:
+```ts
+import { checkMigrationSql, formatIssues } from "@dapplelight/signet-db/migrations"
+
+const issues = checkMigrationSql(sql, "drizzle/0007_add_status.sql")
+if (issues.length) console.error(formatIssues(issues))
+```
+
+## API
+| Export | What it does |
+| --- | --- |
+| `checkMigrationSql(sql, file?)` | Issues found in one migration's SQL. |
+| `formatIssues(issues)` | One readable entry per issue: `file:line  kind  message`. |
+| `MigrationIssue` | `{ kind, file, line, statement, message }`. |
+| `MigrationIssueKind` | The kinds below. |
+| `signet-db-check [paths...]` | CLI. Exits 1 if anything is flagged, 2 if a path is missing. |
+
+| Kind | Flags |
+| --- | --- |
+| `drop-table` | `DROP TABLE` |
+| `drop-column` | `ALTER TABLE ... DROP COLUMN` |
+| `rename` | Renaming a table or column |
+| `not-null-without-default` | Adding `NOT NULL` with no `DEFAULT`, or `SET NOT NULL` |
+
+Works on drizzle-kit output (`--> statement-breakpoint`) and plain `;`-separated SQL. SQLite table rebuilds (`__new_x` copied, renamed to `x`) are not flagged.
+
+## Examples
+### Accept a deliberate change
+Put the marker inside the statement. Use `all` to accept every kind.
+```sql
+-- signet-allow: drop-column
+ALTER TABLE `invoices` DROP COLUMN `legacy_ref`;
+```

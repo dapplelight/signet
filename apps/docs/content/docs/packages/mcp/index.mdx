@@ -1,0 +1,120 @@
+---
+title: "MCP"
+description: "An MCP server that gives AI agents Signet's docs, exports, components, themes and checks."
+---
+
+```bash
+npx @dapplelight/signet-mcp
+```
+
+Everything it answers comes from an index built from the repo when the package is built, and it ships inside the package. It makes no network calls. Runs on Node 20+ or Bun.
+
+## Quick start
+
+<Tabs items={["Claude Code", "Cursor", "Claude Desktop"]}>
+  <Tab value="Claude Code">
+```bash
+claude mcp add signet -- bunx @dapplelight/signet-mcp
+```
+  </Tab>
+  <Tab value="Cursor">
+```json title=".cursor/mcp.json"
+{
+  "mcpServers": {
+    "signet": { "command": "bunx", "args": ["@dapplelight/signet-mcp"] }
+  }
+}
+```
+  </Tab>
+  <Tab value="Claude Desktop">
+Desktop does not always see a shell's `PATH`, so use `npx`.
+
+```json title="claude_desktop_config.json"
+{
+  "mcpServers": {
+    "signet": { "command": "npx", "args": ["-y", "@dapplelight/signet-mcp"] }
+  }
+}
+```
+  </Tab>
+</Tabs>
+
+## Tools
+
+All read-only.
+
+| Tool | What it returns |
+| --- | --- |
+| `search_docs(query, limit?)` | Doc sections, exports, components and recipes that match, with refs to follow. Start here. |
+| `read_doc(name, section?)` | A doc, whole or one section. |
+| `list_exports(package?)` | Every import path, its summary and symbol names. |
+| `get_export(path, symbol)` | The symbol's signature, JSDoc, source file and every path that exports it. |
+| `list_components()` | Each `signet-ui` component, its import path and exports. |
+| `get_component(name)` | Props, cva variants and defaults, a usage example, contract variables it reads. |
+| `compose_component(need, limit?)` | Closest components and behaviors for a need in words, with parts and an example. |
+| `list_themes()` / `get_theme(name, include_css?)` | Shipped themes, how to import one, the CSS to copy. |
+| `list_tokens(kind?)` | The theme contract: 78 required and 16 optional variables. |
+| `check_theme(css)` | Findings against the contract: missing variables, optional slots, WCAG contrast. |
+| `build_theme({ brand, base?, mode?, density?, format? })` | A full theme from one brand colour; `format` is `css`, `tokens` or `figma`. |
+| `scaffold_app({ name, template, theme })` | The exact `create-signet-app` command, files it will create, next steps. |
+| `scaffold_files({ name, template, theme })` | Every file the scaffolder would write, with contents, for an agent without a shell. |
+| `check_app({ files })` or `check_app({ path })` | Convention findings with fixes. `path` reads local disk and is offered by the stdio bin only. |
+| `recipe(task)` | Install line, the doc sections that do the job, and how to verify. |
+| `migration(from, to?, package?)` | Changelog entries in the range, breaking bullets pulled out, current versions. |
+
+`recipe` tasks: `add-auth`, `add-rate-limit`, `add-csrf`, `add-error-envelope`, `add-env`, `add-api-client`, `add-web-push`, `add-ai-extraction`, `add-analytics`, `add-portability-adapters`, `add-db`, `add-mcp-tools`, `mcp-by-default`, `add-oauth`, `add-logging`, `add-theme`.
+
+## Resources and prompts
+
+Every doc is a resource at `signet://docs/<name>`: `signet`, `api`, `conventions`, `migration`, `changelog`, `contributing`, `publishing`, `repo-guide`, `contract`, `analytics`, and one per package README.
+
+| Prompt | Arguments |
+| --- | --- |
+| `build-signet-app` | idea, template |
+| `review-against-signet` | target |
+| `add-signet-feature` | feature, app |
+
+## Host it over HTTP
+
+On any fetch host (Workers, Bun, Deno):
+
+```ts
+import { signetMcpFetch } from "@dapplelight/signet-mcp"
+
+export default { fetch: signetMcpFetch() }
+```
+
+Or as a route on a Hono app:
+
+```ts
+import { signetMcpOptions } from "@dapplelight/signet-mcp"
+import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
+
+mountMcp(app, "/mcp", signetMcpOptions())
+```
+
+`signetMcpOptions({ tools, resources, prompts })` adds your own beside Signet's. A hosted server offers `check_app` with `files` only.
+
+### Your database, as tools
+
+Pass a signet-db instance and the tables an agent may reach (each needs a `userId` column). The server adds `<table>_list`, `<table>_get` and `<table>_search`.
+
+```ts
+import { agentTools } from "@dapplelight/signet-db/agent"
+import { signetMcpOptions } from "@dapplelight/signet-mcp"
+import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
+
+mountMcp(app, "/mcp", {
+  ...signetMcpOptions({ db: { db, agentTools, tables: [orders, notes] } }),
+  middleware: [requireToken({ verifier, resourceMetadataUrl })],
+})
+```
+
+| Option | Default | |
+| --- | --- | --- |
+| `allowWrites` | `false` | Adds `<table>_insert` and `<table>_update`, which take `dryRun: true`. |
+| `maxRows` | `100` | Rows per call. |
+| `userId` | token `sub` | `(caller) => ...` to pick another. With no identity there are no db tools. |
+| `scopes` | none | `{ read: [...], write: [...] }`. Without it any caller with a verified `sub` runs every db tool. Name `read` always, and `write` when `allowWrites` is true. |
+
+Tools are built per request, so each user sees only their own rows. Use `mountMcp` or `resolveMcpServer`, not `signetMcpFetch`, with a database.

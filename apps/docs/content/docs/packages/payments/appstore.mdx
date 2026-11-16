@@ -1,0 +1,102 @@
+---
+title: "App Store"
+description: "Verify and track Apple App Store purchases and subscriptions from your backend."
+---
+
+## Usage
+
+```ts
+import { appstore } from "@dapplelight/signet-payments/appstore"
+
+const payments = createPayments({
+  gateways: [
+    appstore({
+      issuerId: env.APPSTORE_ISSUER_ID,
+      keyId: env.APPSTORE_KEY_ID,
+      privateKey: env.APPSTORE_P8, // In-App Purchase key, PKCS#8 PEM
+      bundleId: "com.example.notes",
+      appAppleId: 1234567890,
+    }),
+  ],
+  db,
+})
+
+// The app sends the transaction id after a StoreKit purchase.
+await payments.verifyPurchase({ gateway: "appstore", id: transactionId, userId })
+await payments.gateway("appstore").getSubscription(originalTransactionId)
+
+// Server Notifications V2
+app.post("/webhooks/appstore", (c) => payments.handleWebhook("appstore", c.req.raw))
+```
+
+Purchases happen on the device, so `createCheckout` is `UNSUPPORTED`.
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `appstore(config)` | An `AppStoreGateway` named `appstore` over the App Store Server API |
+| `toAppStorePayment(transaction)` | Map a decoded transaction to a `Payment` (`approximate: true`) |
+| `checkConsumptionRequest(body)` | Return a clean `ConsumptionRequest`, or throw `BAD_INPUT` |
+| `APPLE_ROOT_CA_G3_SHA256` | Pinned fingerprint of Apple Root CA - G3 |
+| `AppStoreConfig`, `AppStoreGateway`, `ConsumptionRequest`, `ConsumptionDeliveryStatus` | Types |
+
+### appstore(config)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `issuerId` | `string` | | Required. From App Store Connect, Users and Access, Keys |
+| `keyId` | `string` | | Required |
+| `privateKey` | `string` | | Required. The `.p8` contents |
+| `bundleId` | `string` | | Required. Payloads for another bundle are rejected |
+| `appAppleId` | `number` | | When set, production notifications must carry it |
+| `allowSandbox` | `boolean` | `false` | With `sandbox: false`, also accept Sandbox-signed data (a staging server) |
+| `trustedRoots` | `string[]` | Apple Root CA - G3 | SHA-256 fingerprints of trusted roots |
+
+Plus the shared `sandbox` (`api.storekit-sandbox.apple.com`), `baseUrl`, `fetch`, `retries`, `retryDelayMs`.
+
+### Extra methods
+
+| Method | What it does |
+| --- | --- |
+| `decodeTransaction(jws)` | Verify a StoreKit `jwsRepresentation` and normalise it |
+| `transactionHistory(anyTransactionId, query?)` | Every transaction for the customer: `{ payments, revision?, hasMore }` |
+| `refundHistory(anyTransactionId, revision?)` | Refunded transactions, same shape |
+| `sendConsumptionInfo(transactionId, body)` | Answer a `CONSUMPTION_REQUEST` notification |
+
+## Restore purchases
+
+```ts
+const { restored, refused } = await payments.restorePurchases({
+  userId,
+  purchases: [{ gateway: "appstore", signedTransaction: jwsRepresentation }],
+})
+for (const r of restored) if (r.subscription) await ent.applySubscription(r.subscription, { subject: userId }) // signet-db
+```
+
+A purchase that is already another user's lands in `refused` with `BAD_INPUT`, a forged JWS with `BAD_SIGNATURE`. An outage throws, so retry the call.
+
+## Notes
+
+- **Ids.** A payment is a `transactionId`. A subscription is its `originalTransactionId`, which is also `Payment.orderId`, so renewals link to the first purchase.
+- **Amounts are approximate.** They are Apple's configured price, not settled revenue. Payments carry `approximate: true` and ledger postings use kind `capture:approximate` and `refund:approximate`. There is no settlement report, so they are never reconciled.
+- **Status.** `past_due` covers billing retry and grace period, and `inGracePeriod: true` means access continues. `cancelled` with a future `currentPeriodEnd` means renewal is off.
+- **Refunds and cancelling** are unsupported: customers ask Apple and cancel in their account settings.
+- **Signatures.** Every signed payload is verified up the x5c chain to Apple Root CA - G3, then the ES256 signature. Revocation (OCSP) is not checked.
+- **Environments.** A production adapter rejects Sandbox data unless `allowSandbox: true`. A `sandbox: true` adapter rejects Production data.
+- **Events.** `SUBSCRIBED` is `subscription.created`, `DID_RENEW` is `subscription.charged`, `REFUND` is `refund.processed`. A `CONSUMPTION_REQUEST` arrives as `unknown` with Apple's reason in `raw.payload.data`.
+
+## Examples
+
+### Answer a refund request
+
+```ts
+// `apple` is the value `appstore({...})` returned: the extra methods are on it, not on `payments.gateway()`.
+await apple.sendConsumptionInfo(transactionId, {
+  customerConsented: true, // for a customer who did not consent, send nothing
+  deliveryStatus: "DELIVERED",
+  sampleContentProvided: false,
+  consumptionPercentage: 12_000, // milliunits of a percent: 12%
+  refundPreference: "DECLINE",
+})
+```

@@ -1,0 +1,101 @@
+---
+title: "Add the Typed API Client"
+description: "A fetch client with structured errors, end-to-end route types from Hono, streaming and sane TanStack Query defaults."
+---
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-lib @tanstack/react-query
+```
+</Step>
+<Step>
+### Create a plain client
+```ts title="src/web/api.ts"
+import { createApiClient } from "@dapplelight/signet-lib/api"
+
+export const api = createApiClient({
+  baseUrl: "/api",
+  onAuthError: () => { window.location.href = "/login" },
+})
+
+const rows = await api.get<Transaction[]>("/transactions")
+```
+</Step>
+<Step>
+### Or type it from the server
+```ts title="src/server/app.ts"
+import { zValidator } from "@dapplelight/signet-server/http/validate"
+
+export const app = new Hono()
+  .post("/api/notes", zValidator("json", NoteInput), (c) => c.json(save(c.req.valid("json")), 201))
+export type AppType = typeof app
+```
+```ts title="src/web/api.ts"
+import { hc } from "hono/client"
+import { createRpcClient } from "@dapplelight/signet-lib/api"
+import type { AppType } from "../server/app"
+
+export const api = createRpcClient(hc<AppType>, {
+  baseUrl: "/",
+  timeoutMs: 10_000,
+  onAuthError: () => { window.location.href = "/login" },
+})
+
+const note = await (await api.api.notes.$post({ json: { title: "Hi" } })).json()
+```
+</Step>
+<Step>
+### Show field errors
+```ts title="src/web/note-form.tsx"
+import { ApiError } from "@dapplelight/signet-lib/api"
+
+try {
+  await api.api.notes.$post({ json })
+} catch (e) {
+  if (e instanceof ApiError && e.code === "VALIDATION_FAILED") setFieldErrors(e.details?.fieldErrors ?? {})
+}
+```
+</Step>
+<Step>
+### Map error codes to copy
+```ts title="src/web/error-copy.ts"
+import { DEFAULT_ERROR_COPY, errorCopy, type ErrorCode, type ErrorCopy } from "@dapplelight/signet-lib/api"
+
+export const COPY = {
+  ...DEFAULT_ERROR_COPY,
+  RATE_LIMITED: { title: "Easy there", detail: "Search again shortly.", action: "wait" },
+} satisfies Record<ErrorCode | AppErrorCode, ErrorCopy>
+
+const { title, detail } = errorCopy(err.code, COPY)
+```
+</Step>
+<Step>
+### Read a stream
+```ts title="src/web/chat-stream.ts"
+import { readSseJson } from "@dapplelight/signet-lib/api"
+
+const res = await api.api.chat.$post({ json: { messages } })
+for await (const chunk of readSseJson<UIMessageChunk>(res)) {
+  if (chunk.type === "text-delta") append(chunk.delta)
+}
+```
+</Step>
+<Step>
+### Set TanStack Query defaults
+```ts title="src/web/query.ts"
+import { QueryClient } from "@tanstack/react-query"
+import { queryDefaults, onAuthErrorRedirect } from "@dapplelight/signet-lib/api/query-client"
+
+export const client = new QueryClient({ defaultOptions: queryDefaults() })
+onAuthErrorRedirect(client, () => { window.location.href = "/login" })
+```
+</Step>
+</Steps>
+
+## Next
+<Cards>
+  <Card title="API client" href="/docs/packages/lib/api" description="Every option, timeouts and retries." />
+  <Card title="Add the error envelope" href="/docs/guides/add-error-envelope" description="The server half of the contract." />
+</Cards>

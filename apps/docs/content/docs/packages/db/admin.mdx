@@ -1,0 +1,112 @@
+---
+title: "Admin"
+description: "An admin API and admin tools generated from your schema, deny by default."
+---
+
+## Usage
+```ts
+import { adminTools, defineAdmin, roles } from "@dapplelight/signet-db/admin"
+import * as schema from "./schema"
+
+export const admin = defineAdmin(schema, {
+  authorize: roles(), // admin: all, staff: all but delete, readonly: list and get
+  tables: {
+    users: { search: ["name", "email"], readonly: ["email"], hidden: ["phone"] },
+    outbox: false, // leave a table out
+  },
+})
+
+const ctx = { actor: { type: "user", id: me.id }, role: me.role }
+const page = await admin.list(db, ctx, "users", {
+  filter: { plan: { eq: "pro" } },
+  sort: "createdAt",
+  limit: 20,
+})
+await admin.update(db, ctx, "users", page.rows[0].id, { name: "Asha Rao" })
+```
+
+The db needs an `auditLog()` table: writes go through `audited`.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `defineAdmin(schema, options)` | Build the admin API for a schema module or a table list |
+| `roles(map?)` | An `authorize` from `ctx.role`; unknown roles are denied |
+| `DEFAULT_ROLES` | `admin`, `staff`, `readonly` presets for `roles()` |
+| `ADMIN_OPS` | `list`, `get`, `create`, `update`, `delete`, `action` |
+| `adminTools(admin, options)` | MCP tools for one caller (`admin_schema`, per-table list, search, get, writes) |
+| `AdminError` | Error with an HTTP status and the Signet envelope code |
+| Types | `AdminOp`, `AdminContext`, `AdminCheck`, `Authorize`, `AdminAction`, `AdminTableConfig`, `AdminOptions`, `FilterOp`, `AdminFilter`, `ListQuery`, `ListResult`, `AdminColumn`, `AdminTableMeta`, `AdminMeta`, `AdminRequest`, `AdminResponse`, `Admin`, `AdminTool`, `Approve`, `AdminToolsOptions` |
+
+### defineAdmin(schema, options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `authorize` | `(ctx, check) => boolean \| Promise<boolean>` | required | Only `true` allows; anything else or a throw is `403` |
+| `tables` | `{ [sqlName]: config \| false }` | every table | Per-table config; `false` leaves it out |
+| `maxRows` | `number` | `100` | Most rows a list returns |
+| `tenant` | `boolean` | `false` | Require `ctx.orgId` on every call |
+
+Per-table config:
+
+| Key | Default | |
+| --- | --- | --- |
+| `list` | visible columns | Columns a list view shows |
+| `search` | visible text columns | Columns `q` searches |
+| `sort` | visible NOT NULL scalars | Columns a list may sort by |
+| `filter` | visible scalars | Columns a list may filter on |
+| `readonly` | none | Shown, never written |
+| `hidden` | none | Hidden on top of encrypted and secret-looking columns |
+| `reveal` | none | Default-hidden columns to show anyway |
+| `ops` | all | Ops the table allows before `authorize` |
+| `actions` | none | Per-row operations `{ description, input?, destructive?, run }` |
+
+The returned `admin` has `tables`, `meta(ctx)`, `list`, `get`, `create`, `update`, `delete`, `bulkDelete`, `action` and `handle(db, ctx, request)` for HTTP.
+
+Filter operators: `eq`, `ne`, `in`, `isNull`, `lt`, `lte`, `gt`, `gte`, `contains`, `startsWith`.
+
+### adminTools(admin, options)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `db` | `SignetDb` | required | Db for this request |
+| `ctx` | `AdminContext` | required | The caller |
+| `approve` | `Approve` | none | Gate for writes; without it no write tools exist |
+| `actor` | `Actor` | `{ type: "agent", id: ctx.actor.id }` | Recorded in the audit log |
+
+## Examples
+
+### Refund action with a custom role
+```ts
+import { DEFAULT_ROLES, defineAdmin, roles } from "@dapplelight/signet-db/admin"
+import { eq } from "drizzle-orm"
+import { z } from "zod"
+
+export const admin = defineAdmin(schema, {
+  authorize: roles({ ...DEFAULT_ROLES, support: ["list", "get", "update", "action"] }),
+  tables: {
+    orders: {
+      actions: {
+        refund: {
+          description: "Mark an order refunded",
+          destructive: true,
+          input: z.object({ reason: z.string() }),
+          run: async ({ row, input, ops }) => {
+            await ops.update(schema.orders, { status: "refunded", refundReason: input.reason }, eq(schema.orders.id, row.id as string))
+            return { refunded: true }
+          },
+        },
+      },
+    },
+  },
+})
+```
+
+### Admin tools for an MCP server
+```ts
+import { requireApproval } from "@dapplelight/signet-server/mcp"
+
+const tools = await adminTools(admin, {
+  db: dbFor(c),
+  ctx: await adminCtx(c),
+  approve: requireApproval,
+})
+```

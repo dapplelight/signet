@@ -1,0 +1,45 @@
+---
+title: "Sync"
+description: "Pure conflict rules for local-first sync: any arrival order ends in the same row."
+---
+
+## Usage
+```ts
+import { apply, conflictOf, deletedButEdited, tick, type Row } from "@dapplelight/signet-lib/sync"
+
+let clock = tick(null, Date.now(), "device-a")
+
+let row: Row = { id: "exp-1", fields: {}, stamps: {}, deleted: null }
+
+row = apply(row, { kind: "set", rowId: "exp-1", field: "note", value: "Taxi", base: null, hlc: clock }).row
+
+// "amount" is guarded: a person reconciles clashes instead of last-write-wins
+clock = tick(clock, Date.now(), "device-a")
+const out = apply(
+  row,
+  { kind: "set", rowId: "exp-1", field: "amount", value: 450, base: null, hlc: clock },
+  { guarded: ["amount"] },
+)
+out.conflict // null, or { rowId, field, shown, others }
+```
+
+No storage, no network. `apply` is order-independent and idempotent: a redelivered change changes nothing.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `apply(row, change, options?)` | Applies one change; returns `{ row, conflict }` |
+| `conflictOf(row, field)` | The open conflict on a guarded field, or `null` |
+| `deletedButEdited(row)` | True when a row was edited after being deleted |
+| `tick(last, now, node)` | Next hybrid logical clock stamp for a local event |
+| `receive(last, remote, now, node)` | Clock after hearing a remote stamp |
+| `compareHlc(a, b)` | Orders stamps: wall time, counter, then node id |
+| `Hlc`, `Value`, `Row`, `GuardedEdit`, `Conflict`, `Change`, `ApplyOptions` | Types |
+
+### Rules
+| Case | Result |
+| --- | --- |
+| Plain field clash | Later stamp wins, field by field |
+| Guarded field (`options.guarded`) | Every edit is kept; edits that did not see each other's value (`base`) come back as a `Conflict` |
+| Resolving a conflict | A `set` with `resolve` listing the values the person saw |
+| Edit after a delete | Row comes back, flagged by `deletedButEdited` |

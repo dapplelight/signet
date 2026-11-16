@@ -1,0 +1,58 @@
+---
+title: "Hyperswitch"
+description: "Hyperswitch orchestrator payments for its SDK, refunds, saved methods, payouts and subscriptions."
+---
+
+## Usage
+
+```ts
+import { hyperswitch } from "@dapplelight/signet-payments/hyperswitch"
+
+const hs = hyperswitch({
+  apiKey: env.HYPERSWITCH_API_KEY,
+  paymentResponseHashKey: env.HYPERSWITCH_HASH_KEY,
+  profileId: env.HYPERSWITCH_PROFILE_ID, // only for subscriptions
+  sandbox: true,
+})
+
+// A Payment. Pass clientSecret to the Hyperswitch SDK.
+const checkout = await hs.createCheckout({
+  amount: 1999,
+  currency: "USD",
+  idempotencyKey: "order-1042",
+  method: "applepay", // limits the payment to Apple Pay
+})
+
+// Webhook: X-Webhook-Signature-512, HMAC-SHA512 hex of the raw body
+app.post("/webhooks/hyperswitch", (c) => payments.handleWebhook("hyperswitch", c.req.raw))
+```
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `hyperswitch(config)` | A `PaymentGateway` named `hyperswitch`, header `api-key` |
+| `HyperswitchConfig` | Config type |
+
+### hyperswitch(config)
+
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `apiKey` | `string` | | Required |
+| `paymentResponseHashKey` | `string` | | The business profile's `payment_response_hash_key`, needed for `verifyWebhook` |
+| `profileId` | `string` | | Business profile id, sent as `X-Profile-Id`. Enables `subscriptions` |
+
+Plus the shared `sandbox` (`sandbox.hyperswitch.io`), `baseUrl`, `fetch`, `retries`, `retryDelayMs`.
+
+## Capabilities
+
+Methods: `card`, `upi`, `netbanking`, `wallet`, `applepay`, `googlepay`. Which actually work depends on the connectors enabled in your account. Features: capture, refunds, partial refunds, customers, saved methods, payouts, webhooks, and subscriptions when `profileId` is set. No settlements.
+
+## Quirks
+
+- **`method: "applepay"` or `"googlepay"`** sets `allowed_payment_method_types`. Your reference goes in `metadata.reference`.
+- **Refunds** send `refund_id` as `ref_` plus 26 hex characters of SHA-256 of the idempotency key, so a retry is rejected as a duplicate instead of repeated.
+- **Payouts** send `destination` as `payout_method_id` (a saved payout method). They are sent once and never retried: Hyperswitch has no payout idempotency key.
+- **Checkout has no gateway-side idempotency**, because Hyperswitch has no general header for it.
+- **Subscriptions** report no period end. Cancel with `atPeriodEnd: true` uses `end_of_term`, otherwise `immediately`.
+- **Webhook** dedupes on `event_id`.
