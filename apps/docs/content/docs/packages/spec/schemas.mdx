@@ -1,0 +1,21 @@
+---
+title: "Schemas"
+description: "The generated JSON files, as package exports."
+---
+
+## Usage
+
+```ts
+import codes from "@dapplelight/signet-spec/schemas/error-codes.json" with { type: "json" }
+
+codes.codes.NOT_FOUND // 404
+```
+
+The files are generated from `./error` by `bun run gen` in `packages/spec`, and the same bytes are served at `/spec/v1/`.
+
+## API
+
+| Import | What it is |
+| --- | --- |
+| `@dapplelight/signet-spec/schemas/error-envelope.schema.json` | JSON Schema 2020-12 for the error envelope |
+| `@dapplelight/signet-spec/schemas/error-codes.json` | `{ specVersion, codes }`: each code and its HTTP status |

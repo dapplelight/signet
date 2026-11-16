@@ -1,0 +1,60 @@
+{
+  "name": "@dapplelight/signet-spec",
+  "version": "0.1.0",
+  "license": "MIT",
+  "description": "Signet's wire contract as Zod: the error envelope and every error code with its HTTP status, plus versioned JSON Schema files.",
+  "keywords": [
+    "signet",
+    "spec",
+    "zod",
+    "json-schema",
+    "error-envelope"
+  ],
+  "homepage": "https://signet.dapplelight.in/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dapplelight/signet.git",
+    "directory": "packages/spec"
+  },
+  "bugs": {
+    "url": "https://github.com/dapplelight/signet/issues"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./error": {
+      "types": "./dist/error.d.ts",
+      "import": "./dist/error.js",
+      "default": "./dist/error.js"
+    },
+    "./schemas/*.json": "./schemas/*.json"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "bun test test/*.test.ts",
+    "gen": "bun run scripts/gen.ts",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "prepublishOnly": "bun run build"
+  },
+  "peerDependencies": {
+    "zod": ">=4.2.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "@types/node": "^26.6.2",
+    "typescript": "^7.0.2",
+    "zod": "^4.6.5"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "schemas"
+  ]
+}

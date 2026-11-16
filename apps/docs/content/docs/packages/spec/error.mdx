@@ -1,0 +1,29 @@
+---
+title: "Error"
+description: "Envelope schema, error-code table and their types."
+---
+
+## Usage
+
+```ts
+import { ERROR_CODE_STATUS, errorEnvelopeSchema, type ErrorCode } from "@dapplelight/signet-spec/error"
+
+const status = (code: ErrorCode) => ERROR_CODE_STATUS[code]
+
+errorEnvelopeSchema.parse({ success: false, error: "Not found", code: "NOT_FOUND" })
+status("NOT_FOUND") // 404
+```
+
+The envelope is `{ success: false, error, code?, details?, requestId? }`. `details` is `{ formErrors: string[], fieldErrors: Record<string, string[]> }`.
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `errorEnvelopeSchema` | Zod schema for the body of a failed response |
+| `ErrorEnvelope` | `z.infer` of the envelope schema |
+| `ERROR_CODE_STATUS` | Every code mapped to its default HTTP status, in `ERROR_CODES` order |
+| `ERROR_CODES` | The codes, as an array |
+| `ErrorCode` | Union of the codes |
+| `errorCodeSchema` | `z.enum` of the codes |
+| `SPEC_VERSION` | `"v1"`, the version written into the JSON files |

@@ -32,6 +32,7 @@ const ORDER = [
   "ui",
   "server",
   "ai",
+  "spec",
   "create-signet-app",
 ] as const
 
