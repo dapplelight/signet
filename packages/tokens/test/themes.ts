@@ -147,9 +147,10 @@ for (const [cls, prop] of [
   ok(`.${cls} density adapts per theme`, !!e && !!c && e !== c, `(${e} vs ${c})`)
 }
 
-// The finance overlay carries the finance taxonomy the base themes must not.
+// The finance overlay carries the money slots; category colours belong to apps.
 ok("finance overlay inherits editorial radius", /\.rounded-lg \{[^}]*0\.75rem/.test(css.finance))
-ok("finance overlay adds --cat-* tokens", /--color-cat-needs/.test(css.finance))
+ok("finance overlay adds the money slots", /--color-money-credit/.test(css.finance))
+ok("no product category tokens in any theme", !Object.values(css).some((c) => /--cat-/.test(c)))
 
 // Domain tokens must not leak into a theme that does not own them.
 ok(

@@ -146,7 +146,7 @@ try {
     .join("")
   ok(
     "bundle carries the finance tokens and the screens' classes",
-    css.includes("--cat-needs:#2563eb") && css.includes("data-slot"),
+    css.includes("--money-credit") && css.includes("data-slot"),
   )
 
   // `dev` is a Bun script (not `a & b`, which Windows shells lack): both the

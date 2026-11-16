@@ -22,7 +22,7 @@ export const DESKTOP_PKG = {
   },
   dependencies: {
     "@dapplelight/signet-lib": "^0.4.1",
-    "@dapplelight/signet-tokens": "^0.3.0",
+    "@dapplelight/signet-tokens": "^0.4.0",
     "@dapplelight/signet-ui": "^0.3.0",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-opener": "^2.0.0",
