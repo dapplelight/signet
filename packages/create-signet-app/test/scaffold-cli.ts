@@ -24,6 +24,19 @@ try {
   await $`bun run ${ROOT}/packages/create-signet-app/src/index.ts ${DIR} --template cli`
     .cwd("/tmp")
     .quiet()
+  for (const pm of ["npm", "pnpm"]) {
+    const dir = `${DIR}-${pm}`
+    rmSync(dir, { recursive: true, force: true })
+    await $`bun run ${ROOT}/packages/create-signet-app/src/index.ts ${dir} --template cli --pm ${pm}`
+      .cwd("/tmp")
+      .quiet()
+    const ci = readFileSync(join(dir, ".github/workflows/ci.yml"), "utf8")
+    rmSync(dir, { recursive: true, force: true })
+    ok(
+      `--pm ${pm}: no bun install left in ci.yml, setup-node in both jobs`,
+      !ci.includes("bun install") && ci.split("actions/setup-node@v4").length === 3,
+    )
+  }
   const pkgPath = join(DIR, "package.json")
   let pkg = readFileSync(pkgPath, "utf8")
   const json = JSON.parse(pkg)

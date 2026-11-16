@@ -73,12 +73,12 @@ function applyPm(ci: string, pm: Pm): string {
     "      - uses: oven-sh/setup-bun@v2",
   ].join("\n")
   return ci
-    .replace(/^ {6}- uses: oven-sh\/setup-bun@v2$/m, setup)
+    .replace(/^ {6}- uses: oven-sh\/setup-bun@v2$/gm, setup)
     .replace(
       /Commit bun\.lock: --frozen-lockfile fails/,
       `Commit ${p.lock}: a frozen install fails`,
     )
-    .replace("bun install --frozen-lockfile", p.ci)
+    .replaceAll("bun install --frozen-lockfile", p.ci)
     .replaceAll("bun run ", `${p.run} `)
     .replaceAll("bunx ", `${p.x} `)
 }
