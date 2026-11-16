@@ -31,6 +31,7 @@ import {
   toDesignTokens,
   toFigmaVariables,
 } from "./generated/theme.js"
+import { planPage } from "./plan.js"
 
 /** A deliberate failure: its code and message reach the client (see `mapError`). */
 export class SignetMcpError extends Error {
@@ -312,6 +313,24 @@ export function signetTools(options: ToolOptions = {}): McpTool[] {
             : "No component matches. Build one from signet-ui/behaviors and theme tokens, following the guide.",
         }
       },
+    }),
+
+    defineTool({
+      name: "plan_page",
+      description:
+        'Plan a whole page from words ("a pricing page with monthly and yearly plans"). Returns the block to add (with its signet add block command), the components it uses, server modules, the matching recipe, the data the page needs and the files to create with a one-line purpose each. No LLM call: the same description gives the same plan.',
+      annotations: { title: "Plan a page", ...READ },
+      input: z.object({
+        description: z
+          .string()
+          .min(2)
+          .describe("What the page is for, e.g. 'a pricing page with monthly and yearly plans'"),
+        target: z
+          .enum(["web", "api", "full"])
+          .default("web")
+          .describe("web: the page. api: its server side. full: both."),
+      }),
+      handler: ({ description, target }) => planPage(INDEX, description, target),
     }),
 
     defineTool({
@@ -610,4 +629,4 @@ export function signetPrompts(): McpPrompt[] {
 
 export const INSTRUCTIONS = `Signet is a TypeScript kit for web apps and their APIs: token-driven React components, CSS-variable themes, a Hono/Workers server kit, a client lib and structured AI calls. These tools answer from the Signet repo itself, indexed when this server was built.
 
-Start with search_docs when unsure. Before writing an import, confirm it with get_export. New app: scaffold_app (or scaffold_files without a shell). A feature: recipe. UI: list_components, get_component, compose_component for a need described in words. Themes: list_themes, get_theme, check_theme, build_theme (from a brand colour). Before finishing: check_app. Upgrading: migration. Docs are resources at signet://docs/<name> and through read_doc.`
+Start with search_docs when unsure. Before writing an import, confirm it with get_export. New app: scaffold_app (or scaffold_files without a shell). A feature: recipe. UI: list_components, get_component, compose_component for a need described in words. A whole page from words: plan_page. Themes: list_themes, get_theme, check_theme, build_theme (from a brand colour). Before finishing: check_app. Upgrading: migration. Docs are resources at signet://docs/<name> and through read_doc.`

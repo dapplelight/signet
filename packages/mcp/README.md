@@ -59,6 +59,7 @@ All read-only.
 | `get_export(path, symbol)` | The symbol's declaration signature, its JSDoc, its source file, and every other path that exports it |
 | `list_components()` | Each `@dapplelight/signet-ui` component, its import path and exports |
 | `get_component(name)` | Props (parameter list and `…Props` types), cva variants and defaults, a usage example, the contract variables its classes read |
+| `plan_page({ description, target? })` | Blocks, components, server modules, recipe, data and files to create for a page described in words |
 | `list_themes()` / `get_theme(name, include_css?)` | Shipped themes, how to import one, and the CSS to copy |
 | `list_tokens(kind?)` | The theme contract: 78 required and 16 optional variables, grouped |
 | `check_theme(css)` | Findings against `CONTRACT.md`: missing variables, optional slots not set in both modes, a repainted stock palette, `@source` in a theme, and WCAG contrast in light and dark |

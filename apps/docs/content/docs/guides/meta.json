@@ -46,6 +46,7 @@
     "add-ai-chat",
     "add-ai-extraction",
     "add-mcp-tools",
-    "mcp-by-default"
+    "mcp-by-default",
+    "build-a-page-with-an-agent"
   ]
 }

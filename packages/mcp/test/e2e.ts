@@ -111,6 +111,7 @@ const EXPECTED = [
   "list_components",
   "get_component",
   "compose_component",
+  "plan_page",
   "list_themes",
   "get_theme",
   "list_tokens",
@@ -246,6 +247,19 @@ try {
     "compose_component: no match still returns the guide",
     none.json?.matches?.length === 0 && !!none.json.guide,
   )
+
+  const pp = await call("plan_page", {
+    description: "a pricing page with monthly and yearly plans",
+  })
+  ok(
+    "plan_page: a pricing description returns the pricing block, its command and the plans recipe",
+    pp.json?.target === "web" &&
+      pp.json.recipe === "add-plans" &&
+      pp.json.blocks?.[0]?.command === "npx @dapplelight/signet-cli add block pricing",
+    pp.json,
+  )
+  const ppBad = await call("plan_page", { description: "a pricing page", target: "mobile" })
+  ok("plan_page: an unknown target is rejected", ppBad.isError || !!ppBad.r?.error, ppBad)
 
   const lt = await call("list_themes")
   ok(

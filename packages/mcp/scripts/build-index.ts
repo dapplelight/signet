@@ -20,6 +20,7 @@ import { execFileSync } from "node:child_process"
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
 import type {
+  BlockInfo,
   ComponentInfo,
   CvaInfo,
   Doc,
@@ -1498,6 +1499,16 @@ const recipes: Recipe[] = RECIPES.map(({ refs, ...r }) => ({
   })),
 }))
 
+// ---------------------------------------------------------------- blocks
+
+const blocks: BlockInfo[] = readdirSync(join(ROOT, "packages/ui/src/blocks"))
+  .filter((d) => existsSync(join(ROOT, "packages/ui/src/blocks", d, "block.json")))
+  .sort()
+  .map((d) => {
+    const b = JSON.parse(read(`packages/ui/src/blocks/${d}/block.json`)) as BlockInfo
+    return { name: b.name, description: b.description, files: b.files, deps: b.deps }
+  })
+
 // ---------------------------------------------------------------- scaffold
 
 const CSA = read("packages/create-signet-app/src/index.ts")
@@ -1598,6 +1609,7 @@ const index: SignetIndex = {
   tokens,
   contractCounts,
   recipes,
+  blocks,
   scaffold,
 }
 const banner =
