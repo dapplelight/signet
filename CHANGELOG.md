@@ -5,6 +5,12 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### ui: shortcuts in the command palette, and a phone sheet for CommandDialog
+
+- `ShortcutCommands` (from `shortcuts`): every described single-key shortcut becomes a palette item, one group per `meta.group`, with its keys shown; choosing one runs it. Drop it inside a `CommandList`. Sequences ("G then I") stay in the `?` overlay.
+- Shortcuts registered with `enabled: false` are no longer listed in the `?` overlay.
+- `CommandDialog` opens as a bottom sheet on phones (85% height, list fills it). Desktop is unchanged.
+
 ### create-signet-app: Signet's built-in component text goes through i18n
 
 The web template wraps the app in `SignetLabels` (`src/components/signet-labels.tsx`), which feeds ui's `LabelsProvider` from `t()`. Every word Signet's components say by themselves ("Close", "Search…", table headers, aria labels) is now in `src/locales/en.json` under `signet`, next to the app's own text. Needs `@dapplelight/signet-ui` ^0.3.2.
