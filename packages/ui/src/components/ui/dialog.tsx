@@ -1,6 +1,7 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 import { XIcon } from "lucide-react"
 import type * as React from "react"
+import { useLabels } from "../../lib/labels.js"
 import { cn } from "../../lib/utils.js"
 import { Button } from "./button.js"
 
@@ -41,6 +42,7 @@ function DialogContent({
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
 }) {
+  const l = useLabels()
   return (
     <DialogPortal>
       <DialogOverlay />
@@ -59,7 +61,7 @@ function DialogContent({
             render={<Button variant="ghost" className="absolute top-2 right-2" size="icon-sm" />}
           >
             <XIcon />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">{l.close}</span>
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Popup>
@@ -81,6 +83,7 @@ function DialogFooter({
 }: React.ComponentProps<"div"> & {
   showCloseButton?: boolean
 }) {
+  const l = useLabels()
   return (
     <div
       data-slot="dialog-footer"
@@ -92,7 +95,9 @@ function DialogFooter({
     >
       {children}
       {showCloseButton && (
-        <DialogPrimitive.Close render={<Button variant="outline" />}>Close</DialogPrimitive.Close>
+        <DialogPrimitive.Close render={<Button variant="outline" />}>
+          {l.close}
+        </DialogPrimitive.Close>
       )}
     </div>
   )

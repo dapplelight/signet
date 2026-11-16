@@ -1,5 +1,6 @@
 import type { ColumnDef } from "@tanstack/react-table"
 import { useMemo } from "react"
+import { useLabels } from "../../lib/labels.js"
 import { Badge } from "../ui/badge.js"
 import { Button } from "../ui/button.js"
 import { DataTable, type DataTableFeatures, TruncatedCell } from "../ui/data-table.js"
@@ -51,21 +52,22 @@ function JobRuns({
   emptyMessage = "No job runs",
   className,
 }: JobRunsProps) {
+  const l = useLabels()
   const columns = useMemo<ColumnDef<DataTableFeatures, JobRun, unknown>[]>(
     () => [
-      { accessorKey: "job", header: "Job", meta: { filter: "facet" } },
+      { accessorKey: "job", header: l.job, meta: { filter: "facet" } },
       {
         accessorKey: "state",
-        header: "Status",
+        header: l.status,
         meta: { filter: "facet" },
         cell: ({ row }) => (
           <Badge variant={stateVariant(row.original.state)}>{row.original.state}</Badge>
         ),
       },
-      { accessorKey: "attempt", header: "Attempts" },
+      { accessorKey: "attempt", header: l.attempts },
       {
         id: "progress",
-        header: "Progress",
+        header: l.progress,
         cell: ({ row }) => (
           <span className="tabular-nums text-text-muted">
             {progressText(row.original.progress)}
@@ -74,7 +76,7 @@ function JobRuns({
       },
       {
         id: "error",
-        header: "Error",
+        header: l.error,
         accessorFn: (r) => (r.error ? `${r.error.code}: ${r.error.message ?? ""}` : ""),
         cell: ({ row }) =>
           row.original.error ? (
@@ -86,7 +88,7 @@ function JobRuns({
       },
       {
         id: "actions",
-        header: () => <span className="sr-only">Actions</span>,
+        header: () => <span className="sr-only">{l.actions}</span>,
         cell: ({ row }) => {
           const run = row.original
           return (
@@ -95,20 +97,20 @@ function JobRuns({
                 <Button
                   size="xs"
                   variant="outline"
-                  aria-label={`Retry ${run.job} ${run.id}`}
+                  aria-label={l.retryItem(`${run.job} ${run.id}`)}
                   onClick={() => onRetry(run)}
                 >
-                  Retry
+                  {l.retry}
                 </Button>
               ) : null}
               {onCancel && !FINISHED.has(run.state) ? (
                 <Button
                   size="xs"
                   variant="ghost"
-                  aria-label={`Cancel ${run.job} ${run.id}`}
+                  aria-label={l.cancelItem(`${run.job} ${run.id}`)}
                   onClick={() => onCancel(run)}
                 >
-                  Cancel
+                  {l.cancel}
                 </Button>
               ) : null}
             </div>
@@ -116,7 +118,7 @@ function JobRuns({
         },
       },
     ],
-    [onRetry, onCancel],
+    [onRetry, onCancel, l],
   )
   return (
     <DataTable
