@@ -121,7 +121,7 @@
     },
     "packages/lib": {
       "name": "@dapplelight/signet-lib",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "devDependencies": {
         "@tanstack/react-form": "^1.33.5",
         "@tanstack/react-query": "^5.103.2",

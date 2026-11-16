@@ -14,6 +14,14 @@ export type StorageAdapter = {
   get(key: string): Promise<string | null>
   set(key: string, value: string): Promise<void>
   remove(key: string): Promise<void>
+  /**
+   * Call `cb` with the new value (null when removed) when `key` is changed from
+   * outside this adapter's own writes' caller: another extension page, another
+   * window or tab. Returns unsubscribe. Optional: absent where the backend
+   * cannot tell (memory, files). `createSession` uses it to follow a sign-in,
+   * sign-out or refresh made in another context.
+   */
+  watch?(key: string, cb: (value: string | null) => void): () => void
 }
 
 /** In-memory, per process. For tests, SSR and as a fallback. */
@@ -38,6 +46,8 @@ type WebStorageLike = {
   removeItem(key: string): void
 }
 
+type StorageEventLike = { key: string | null; newValue: string | null; storageArea?: unknown }
+
 /** `localStorage` by default, read when first used; pass `sessionStorage` or a stub instead. */
 export function webStorage(storage?: WebStorageLike): StorageAdapter {
   const s = () => storage ?? (globalThis as { localStorage?: WebStorageLike }).localStorage
@@ -56,6 +66,21 @@ export function webStorage(storage?: WebStorageLike): StorageAdapter {
     async remove(key) {
       need().removeItem(key)
     },
+    // The browser fires "storage" in the OTHER tabs of the origin, never the writer.
+    watch(key, cb) {
+      const g = globalThis as {
+        addEventListener?: (t: "storage", l: (e: StorageEventLike) => void) => void
+        removeEventListener?: (t: "storage", l: (e: StorageEventLike) => void) => void
+      }
+      if (!g.addEventListener) return () => {}
+      const listener = (e: StorageEventLike) => {
+        // key null: the whole area was cleared.
+        if ((e.key === key || e.key === null) && (!e.storageArea || e.storageArea === s()))
+          cb(e.key === null ? null : e.newValue)
+      }
+      g.addEventListener("storage", listener)
+      return () => g.removeEventListener?.("storage", listener)
+    },
   }
 }
 
@@ -64,6 +89,11 @@ export type ChromeStorageAreaLike = {
   get(keys: string): Promise<Record<string, unknown>>
   set(items: Record<string, unknown>): Promise<void>
   remove(keys: string): Promise<void>
+  /** `chrome.storage.local.onChanged`: the changes are `{ [key]: { newValue? } }`. */
+  onChanged?: {
+    addListener(l: (changes: Record<string, { newValue?: unknown }>) => void): void
+    removeListener(l: (changes: Record<string, { newValue?: unknown }>) => void): void
+  }
 }
 
 /**
@@ -92,6 +122,18 @@ export function chromeStorage(area?: ChromeStorageAreaLike): StorageAdapter {
     async remove(key) {
       await a().remove(key)
     },
+    // Fires in every extension context, the writer's too; createSession ignores the echo.
+    watch(key, cb) {
+      const changed = a().onChanged
+      if (!changed) return () => {}
+      const listener = (changes: Record<string, { newValue?: unknown }>) => {
+        if (!(key in changes)) return
+        const v = changes[key]?.newValue
+        cb(typeof v === "string" ? v : null)
+      }
+      changed.addListener(listener)
+      return () => changed.removeListener(listener)
+    },
   }
 }
 
@@ -101,6 +143,8 @@ export type TauriStoreLike = {
   set(key: string, value: unknown): Promise<void>
   delete(key: string): Promise<unknown>
   save?(): Promise<void>
+  /** plugin-store v2's `onKeyChange`: resolves to the unlisten function. */
+  onKeyChange?(key: string, cb: (value: unknown) => void): Promise<() => void> | (() => void)
 }
 
 /**
@@ -122,5 +166,22 @@ export function tauriStorage(store: TauriStoreLike): StorageAdapter {
       await store.delete(key)
       await store.save?.()
     },
+    // Only where the injected store has onKeyChange (plugin-store 2.x); else no watch.
+    watch: store.onKeyChange
+      ? (key, cb) => {
+          let off: (() => void) | undefined
+          let stopped = false
+          Promise.resolve(
+            store.onKeyChange?.(key, (v) => cb(typeof v === "string" ? v : null)),
+          ).then((u) => {
+            if (stopped) u?.()
+            else off = u
+          })
+          return () => {
+            stopped = true
+            off?.()
+          }
+        }
+      : undefined,
   }
 }

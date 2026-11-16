@@ -266,5 +266,33 @@ ok(
   fromTokenResponse({ access_token: "a", expires_in: 60 }, 1000).expiresAt === 61_000,
 )
 
+// --- a watching adapter: another context's sign-in, refresh and sign-out arrive ---
+{
+  const mem = memoryStorage()
+  const cbs: ((v: string | null) => void)[] = []
+  const watching = {
+    ...mem,
+    watch: (_k: string, cb: (v: string | null) => void) => (cbs.push(cb), () => {}),
+  }
+  const s1 = createSession({ storage: watching })
+  const seen: (string | null)[] = []
+  s1.subscribe((t) => seen.push(t?.accessToken ?? null))
+  await s1.get()
+  ok("watch: subscribing starts watching", cbs.length === 1, cbs.length)
+  cbs[0]?.(JSON.stringify({ accessToken: "from-worker" }))
+  ok(
+    "watch: another context's sign-in reaches get and subscribers",
+    (await s1.get())?.accessToken === "from-worker" && seen.join() === "from-worker",
+    seen,
+  )
+  await s1.set({ accessToken: "mine" })
+  cbs[0]?.(JSON.stringify({ accessToken: "mine" }))
+  ok("watch: the echo of our own write is ignored", seen.join() === "from-worker,mine", seen)
+  cbs[0]?.(null)
+  ok("watch: another context's sign-out", (await s1.get()) === null && seen.at(-1) === null)
+  cbs[0]?.("not json")
+  ok("watch: garbage reads as signed out", (await s1.token()) === null)
+}
+
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail) process.exit(1)

@@ -12,6 +12,7 @@
       "!packages/create-signet-app/template-api",
       "!packages/create-signet-app/template-full",
       "!packages/create-signet-app/template-cli",
+      "!packages/create-signet-app/template-extension",
       "!.claude",
       "!packages/mcp/src/generated"
     ]
