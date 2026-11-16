@@ -12,6 +12,14 @@
 body {
   background: var(--color-fd-background);
   color: var(--color-fd-foreground);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+code,
+kbd,
+pre {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
 }
 
 /* shadcn/Vercel look: pure white (near-black in dark), one surface, the
