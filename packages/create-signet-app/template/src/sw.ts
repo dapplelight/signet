@@ -34,9 +34,18 @@ self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(OFFLINE_CACHE).then((c) => c.add("/offline.html")))
 })
 
-// registerType "prompt": the page posts SKIP_WAITING when the person taps Reload.
+// registerType "prompt": the page posts SKIP_WAITING when the person taps Reload,
+// and SKIP_WAITING_IF_HIDDEN when a tab goes to the background. Activating
+// reloads every open tab, so the second applies only when no window is visible.
 self.addEventListener("message", (event) => {
-  if (event.data?.type === "SKIP_WAITING") self.skipWaiting()
+  const type = event.data?.type
+  if (type === "SKIP_WAITING") self.skipWaiting()
+  if (type === "SKIP_WAITING_IF_HIDDEN")
+    event.waitUntil(
+      self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((all) => {
+        if (all.every((c) => c.visibilityState === "hidden")) return self.skipWaiting()
+      }),
+    )
 })
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()))
 

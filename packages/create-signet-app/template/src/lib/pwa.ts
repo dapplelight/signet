@@ -1,8 +1,8 @@
 // Keeps the installed app on the latest deploy. An installed PWA that stays
 // open rarely re-checks its service worker (browsers do it on navigation), so:
 //  - check for an update when the app returns to the foreground, and every 30 min;
-//  - when one is waiting, show a "Reload" toast, and apply it by itself the next
-//    time the app is in the background, so nothing reloads under someone mid-task.
+//  - when one is waiting, show a "Reload" toast, and apply it by itself once every
+//    tab of the app is in the background, so nothing reloads under someone mid-task.
 
 import { registerSW } from "virtual:pwa-register"
 import { toast } from "sonner"
@@ -27,13 +27,10 @@ export function wireUpdateChecks(
   }
 }
 
-/** Run `apply` once, the first time the page is hidden (now, if it already is). */
-export function applyWhenHidden(apply: () => void, doc: Doc = document): () => void {
-  let done = false
+/** Run `apply` each time the page is hidden (now, if it already is). */
+export function whenHidden(apply: () => void, doc: Doc = document): () => void {
   const maybe = () => {
-    if (done || doc.visibilityState !== "hidden") return
-    done = true
-    apply()
+    if (doc.visibilityState === "hidden") apply()
   }
   maybe()
   doc.addEventListener("visibilitychange", maybe)
@@ -43,17 +40,19 @@ export function applyWhenHidden(apply: () => void, doc: Doc = document): () => v
 export function registerPwa(): void {
   // `bun run dev` has no service worker; only built and previewed apps do.
   if (!import.meta.env.PROD || !("serviceWorker" in navigator)) return
+  let reg: ServiceWorkerRegistration | undefined
   const update = registerSW({
     onRegisteredSW(_url, registration) {
+      reg = registration
       if (registration) wireUpdateChecks(registration)
     },
     onNeedRefresh() {
-      const reload = () => void update(true)
       toast("A new version is available.", {
         duration: Number.POSITIVE_INFINITY,
-        action: { label: "Reload", onClick: reload },
+        action: { label: "Reload", onClick: () => void update(true) },
       })
-      applyWhenHidden(reload)
+      // The worker applies it only if every tab is hidden; the last one to hide does it.
+      whenHidden(() => reg?.waiting?.postMessage({ type: "SKIP_WAITING_IF_HIDDEN" }))
     },
   })
 }
