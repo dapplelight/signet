@@ -3,6 +3,7 @@
 // suite; this one proves the published files load and work on Node too.
 // Build first: `bun run build`, then `node test/node-smoke.mjs`.
 
+import { execFileSync } from "node:child_process"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -127,6 +128,45 @@ console.log(`node ${process.version}`)
   await greet.enqueue({ who: "bg" })
   await new Promise((r) => setTimeout(r, 50))
   ok("inProcessJobs runs in the background", seen.includes("bg"))
+}
+
+// --- tracing: loads and serves with or without @opentelemetry/api ---
+{
+  const script = `
+    import { register } from "node:module"
+    if (process.argv[1] === "absent") {
+      register("data:text/javascript," + encodeURIComponent(
+        "export async function resolve(s, c, n) { if (s === '@opentelemetry/api') throw Object.assign(new Error('absent'), { code: 'ERR_MODULE_NOT_FOUND' }); return n(s, c) }"))
+    }
+    const { Hono } = await import("hono")
+    const { traceMiddleware, withSpan } = await import("@dapplelight/signet-server/observability/trace")
+    const { requestLog } = await import("@dapplelight/signet-server/observability/request-log")
+    const lines = []
+    const logger = Object.fromEntries(["trace", "debug", "info", "warn", "error", "fatal"].map((l) => [l, (m, f) => lines.push({ m, ...f })]))
+    const app = new Hono()
+    app.use("*", traceMiddleware({ serviceName: "api" }))
+    app.use("*", requestLog({ logger }))
+    app.get("/orders/:id", (c) => c.text("ok"))
+    const res = await app.request("/orders/ord_1042")
+    const span = await withSpan("x", {}, () => 1)
+    console.log(JSON.stringify({ status: res.status, route: lines[1]?.route, span }))
+  `
+  for (const mode of ["present", "absent"]) {
+    let out = ""
+    try {
+      out = execFileSync(process.execPath, ["--input-type=module", "-e", script, mode], {
+        cwd: new URL("..", import.meta.url).pathname,
+        encoding: "utf8",
+      })
+    } catch (e) {
+      out = String(e.stderr || e)
+    }
+    ok(
+      `trace + request-log load and serve with @opentelemetry/api ${mode}`,
+      out.trim().endsWith('{"status":200,"route":"/orders/:id","span":1}'),
+      out,
+    )
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

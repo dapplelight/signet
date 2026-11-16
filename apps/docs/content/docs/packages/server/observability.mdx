@@ -1,6 +1,6 @@
 ---
 title: "Observability"
-description: "Structured JSON logging with redaction, and Sentry reporting that runs on Workers."
+description: "Structured JSON logging with redaction, request tracing and logs, and Sentry reporting that runs on Workers."
 ---
 
 ## Usage
@@ -10,13 +10,17 @@ import { Hono } from "hono"
 import { errorHandler } from "@dapplelight/signet-server/http"
 import { requestId } from "@dapplelight/signet-server/middleware/request-id"
 import { createLogger, type Logger } from "@dapplelight/signet-server/observability/logger"
+import { requestLog } from "@dapplelight/signet-server/observability/request-log"
 import { createSentry } from "@dapplelight/signet-server/observability/sentry"
+import { traceMiddleware } from "@dapplelight/signet-server/observability/trace"
 
 export const log = createLogger({ level: "info", base: { service: "api" } })
 const sentry = createSentry({ dsn: env.SENTRY_DSN, enabled: env.APP_ENV === "production", environment: env.APP_ENV })
 
 const app = new Hono<{ Variables: { reqId: string; logger: Logger } }>()
 app.use("*", requestId({ childLogger: (id) => log.child({ reqId: id }) }))
+app.use("*", traceMiddleware({ serviceName: "api", skipPaths: ["/health"] }))
+app.use("*", requestLog({ logger: log, skipPaths: ["/health"], slowMs: 1000 }))
 app.onError(errorHandler({
   isProduction: () => env.APP_ENV === "production",
   onError: (err, meta) => sentry.captureException(err, meta), // the promise goes to waitUntil
@@ -32,7 +36,11 @@ app.get("/orders/:id", (c) => {
 {"level":"info","time":"2026-09-25T07:15:49.201Z","msg":"order fetched","service":"api","reqId":"9f3c...","orderId":"ord_1042"}
 ```
 
-Both take config and never read env.
+```json
+{"level":"info","time":"2026-09-25T07:15:49.230Z","msg":"request.completed","service":"api","method":"GET","route":"/orders/:id","reqId":"9f3c...","traceId":"4bf92f3577b34da6a3ce929d0e0e4736","status":200,"durationMs":29}
+```
+
+Both take config and never read env. Without an OpenTelemetry SDK registered, every call is a no-op. `@opentelemetry/api` is an optional peer dependency.
 
 ## API
 
@@ -53,10 +61,45 @@ Both take config and never read env.
 | `write` | `(line, level) => void` | `console.error`, `warn`, `log` by level | Workers Logs reads severity from the console method. |
 | `production` | `boolean` | `false` | Drop `stack` from errors. |
 | `messageKey` | `string` | `"msg"` | |
+| `mixin` | `() => Record<string, unknown>` | off | Called on every line. Its fields come after `base` and before the call's fields, and are redacted like any other. |
 
 Call shapes: `log.info({ ...fields }, "msg")`, `log.info("msg")`, `log.info("msg", { ...fields })`, `log.error(err, "msg")`. No `%s` interpolation.
 
 Secrets are redacted by default at any depth: password, passwd, token, secret, authorization, cookie and apiKey, ignoring case, `_` and `-`, and as a suffix (`accessToken` yes, `maxTokens` no). Strings are not scanned, so a secret inside `msg` goes out as written. Levels are live: `log.level = env.LOG_LEVEL`. A child follows its parent until given its own level. It never throws on data: cycles become `"[Circular]"`, bigints strings.
+
+### `observability/trace`
+
+| Export | What it does |
+| --- | --- |
+| `traceMiddleware(config)` | Hono middleware. One server span per request with `http.request.method`, `http.route` and `http.response.status_code`. |
+| `withSpan(name, attrs, fn)` | Runs `fn(span)` in a child span of the current one. A throw is recorded on the span and rethrown. |
+| `traceContext(c)` | `{ traceId, spanId }` for the request. Both are `undefined` when tracing is off and no valid `traceparent` came in. |
+| `TraceConfig`, `TraceIds`, `SpanHandle` | Types. |
+
+| `traceMiddleware` option | Type | Default | |
+| --- | --- | --- | --- |
+| `serviceName` | `string` | required | Set on each span as `service.name`. |
+| `tracerName` | `string` | `serviceName` | |
+| `skipPaths` | `string[]` | none | Exact paths that get no span, such as `/health`. |
+| `attributes` | `(c) => Record<string, string \| number \| boolean>` | none | Extra attributes per request. Nothing here is scrubbed. |
+
+The span is named `GET /orders/:id`. Status 5xx marks it as an error. Errors are recorded on the span and rethrown. An incoming W3C `traceparent` header continues the caller's trace. Spans and log lines carry method, route pattern and status. They never carry bodies, query strings or headers. `@opentelemetry/api` is an optional peer dependency, loaded on first use. Without an OpenTelemetry SDK registered, every call is a no-op. Signet adds no exporter. Needs `hono` 4.8 or later.
+
+### `observability/request-log`
+
+| Export | What it does |
+| --- | --- |
+| `requestLog(config)` | Hono middleware. Logs `request.started`, then `request.completed` or `request.failed`. |
+| `RequestLogConfig` | Type. |
+
+| `requestLog` option | Type | Default | |
+| --- | --- | --- | --- |
+| `logger` | `Logger` | required | Any object with `info`, `warn` and `error` taking `(msg, fields)`. |
+| `skipPaths` | `string[]` | none | Exact paths that are not logged. |
+| `slowMs` | `number` | off | A completed request at or over this gets `slow: true`. The message stays `request.completed`. |
+| `level` | `(status) => LevelName` | below 400 `info`, 4xx `warn`, 5xx `error` | Level of `request.completed`. `request.started` is `info`; `request.failed` is `error`. |
+
+Fields are `method`, `route` (the pattern, never the raw path), `status`, `durationMs` (an integer), `reqId` and `traceId`. `request.failed` adds `error`, the message only. `reqId` comes from `requestId`, `traceId` from `traceMiddleware` or the incoming `traceparent`. Mount it after both. The `slow` flag is Signet's; the Hono middleware it was modelled on has no slow field.
 
 ### `observability/sentry`
 
@@ -78,7 +121,7 @@ Secrets are redacted by default at any depth: password, passwd, token, secret, a
 | `includeStack` | `boolean` | `true` | |
 | `beforeSend` | `(event) => event \| null` | none | Last look; `null` drops it. Allowlist context here. |
 
-`captureException` resolves to whether Sentry accepted the event and never rejects. On Workers pass it to `ctx.waitUntil`, or return it from `errorHandler`'s `onError`. `scope` carries `tags`, `request` (`url`, `method`, `query_string`, `headers`; headers matching `key|token|secret|auth|cookie|session|password` are dropped) and `user`. Context values, tags and user values are not scrubbed: send only what you mean to.
+`captureException` resolves to whether Sentry accepted the event and never rejects. On Workers pass it to `ctx.waitUntil`, or return it from `errorHandler`'s `onError`. `scope` carries `tags`, `traceId` (sent as the `trace_id` tag), `request` (`url`, `method`, `query_string`, `headers`; headers matching `key|token|secret|auth|cookie|session|password` are dropped) and `user`. Context values, tags and user values are not scrubbed: send only what you mean to.
 
 ## Examples
 
@@ -105,3 +148,42 @@ app.onError((err, c) => {
   return c.json({ error: "Internal error" }, 500)
 })
 ```
+
+### Tracing on Workers
+
+Signet adds no exporter. The runtime or the app brings one, and the two options below differ only in who does.
+
+#### With @microlabs/otel-cf-workers
+
+The app installs [@microlabs/otel-cf-workers on npm](https://www.npmjs.com/package/@microlabs/otel-cf-workers) and `@opentelemetry/api`. The package registers the tracer provider and exports spans over OTLP; `traceMiddleware` and `withSpan` use it through `@opentelemetry/api`. Enable the `nodejs_compat` flag in `wrangler.jsonc`.
+
+```ts
+import { instrument, type ResolveConfigFn } from "@microlabs/otel-cf-workers"
+import { Hono } from "hono"
+import { traceMiddleware, withSpan } from "@dapplelight/signet-server/observability/trace"
+
+const app = new Hono<{ Bindings: { OTLP_URL: string; OTLP_AUTH: string } }>()
+app.use("*", traceMiddleware({ serviceName: "api" }))
+app.get("/orders/:id", (c) =>
+  withSpan("orders.load", { "orders.source": "kv" }, async () => c.json({ id: c.req.param("id") })),
+)
+
+const config: ResolveConfigFn = (env: { OTLP_URL: string; OTLP_AUTH: string }) => ({
+  exporter: { url: env.OTLP_URL, headers: { authorization: env.OTLP_AUTH } },
+  service: { name: "api" },
+})
+
+export default instrument(app, config)
+```
+
+#### With Cloudflare native tracing
+
+Turn tracing on in `wrangler.jsonc`. Cloudflare records the Worker's own spans and sends them to the destination set in the dashboard. No package is needed.
+
+```json
+{
+  "observability": { "enabled": true, "traces": { "enabled": true } }
+}
+```
+
+Signet's spans join those traces only when the runtime exposes an OpenTelemetry tracer provider to `@opentelemetry/api`. Otherwise `traceMiddleware` stays a no-op. `requestLog` still writes the `traceId` from the incoming `traceparent` header, so log lines match the trace.
