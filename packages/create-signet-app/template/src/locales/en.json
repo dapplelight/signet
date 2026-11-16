@@ -60,6 +60,11 @@
     "retry": "Retry",
     "cancel": "Cancel",
     "retryItem": "Retry {{value}}",
-    "cancelItem": "Cancel {{value}}"
+    "cancelItem": "Cancel {{value}}",
+    "submit": "Submit",
+    "addItem": "Add",
+    "removeItem": "Remove",
+    "chooseOption": "Choose…",
+    "skipToContent": "Skip to content"
   }
 }
