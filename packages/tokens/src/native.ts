@@ -39,8 +39,13 @@ export type NativeTokens = {
 export const NATIVE_THEMES = data as Record<ThemeName, NativeTokens>
 export const THEME_NAMES = Object.keys(data) as ThemeName[]
 
-/** One theme in one mode: `colors` for that mode plus the mode-free scales. */
-export function nativeTheme(name: ThemeName, mode: Mode = "light") {
+/**
+ * One theme in one mode: `colors` for that mode plus the mode-free scales.
+ * `mode` takes what React Native's `useColorScheme()` returns as is: anything
+ * but "dark" (null, undefined, "unspecified") is light.
+ */
+export function nativeTheme(name: ThemeName, scheme?: Mode | "unspecified" | null) {
+  const mode: Mode = scheme === "dark" ? "dark" : "light"
   const t = NATIVE_THEMES[name]
   if (!t) throw new Error(`Unknown theme "${name}". Use ${THEME_NAMES.join(", ")}.`)
   return { colors: t[mode], radius: t.radius, spacing: t.spacing, fontSize: t.fontSize }

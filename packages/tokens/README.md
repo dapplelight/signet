@@ -30,6 +30,32 @@ and a test checks it.
 `base.css` adds the body defaults, focus outline, the overlay animations
 (`tw-animate-css`) and a reduced-motion rule.
 
+## React Native and Expo
+
+`@dapplelight/signet-tokens/native` is the same themes as plain JS (hex or
+`rgba()` strings, numbers for radius, spacing and font size), with no React or
+React Native import. `nativeTheme` takes what `useColorScheme()` returns:
+
+```tsx
+import { useColorScheme, View, Text } from "react-native"
+import { nativeTheme } from "@dapplelight/signet-tokens/native"
+
+export function Card() {
+  const t = nativeTheme("editorial", useColorScheme()) // "light" | "dark" | null | "unspecified"
+  return (
+    <View style={{ backgroundColor: t.colors.card, borderRadius: t.radius.lg, padding: t.spacing * 4 }}>
+      <Text style={{ color: t.colors.cardForeground, fontSize: t.fontSize.base }}>Hello</Text>
+    </View>
+  )
+}
+```
+
+Colour names are the contract's, in camelCase (`--color-card-foreground` is
+`cardForeground`). `NATIVE_THEMES` holds every theme and mode at once, and
+`THEME_NAMES` lists them, for a theme picker. There is deliberately no
+`useNativeTheme` hook: it would pull `react-native` into this package. Wrap
+the call above in your own if you want one.
+
 ## Make your own theme
 
 From one brand colour:
