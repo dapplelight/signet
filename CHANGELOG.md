@@ -5,6 +5,16 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### ui: LabelsProvider, so apps can translate the words components say by themselves
+
+Text that Signet's components show without being passed it ("Close", "Something went wrong", "Search…", table headers, aria labels…) now comes from `useLabels()`, English by default. Wrap the app once to swap them with any i18n library:
+
+```tsx
+<LabelsProvider labels={{ close: t("close"), somethingWentWrong: t("error.title") }}>
+```
+
+Unset keys stay English, nested providers merge, and a component prop for the same text (for example `DataTable`'s `emptyMessage`) still wins. Nothing changes for apps that don't use it. Exports: `LabelsProvider`, `useLabels`, `defaultLabels`, `Labels`.
+
 ### lib: offline outbox, sync conflict rules, IndexedDB storage
 
 - `@dapplelight/signet-lib/offline`: `createOutbox<T>({ storage })` saves work done offline and `flush(send)` sends it on reconnect, keeping failures. Runs on any `StorageAdapter`. Where `navigator.locks` exists, tabs and the service worker sharing a key take turns, so an item is sent once per flush; `send` should still be safe to repeat for the same `id`.
