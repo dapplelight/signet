@@ -18,17 +18,20 @@ const keys = (e: unknown) => (e && typeof e === "object" ? Object.keys(e).sort()
 const stale: string[] = []
 for (const p of PKGS) {
   const { name, version, exports } = await Bun.file(`${ROOT}/packages/${p}/package.json`).json()
-  const res = await fetch(`https://registry.npmjs.org/${name}/${version}`, {
-    signal: AbortSignal.timeout(15_000),
-  }).catch(() => null)
-  if (res?.status === 404) continue // unreleased version: the bump already happened
-  if (!res?.ok) {
-    // An npm outage should not block every PR; the release re-checks anyway.
-    console.warn(
-      `skip ${name}@${version}: registry ${res ? `returned ${res.status}` : "unreachable"}`,
-    )
-    continue
+  // Three tries, then fail: skipping on an outage would let an unbumped
+  // export merge, and the release skips versions already on npm.
+  let res: Response | null = null
+  for (let i = 0; i < 3 && !(res?.ok || res?.status === 404); i++) {
+    if (i) await Bun.sleep(2000 * i)
+    res = await fetch(`https://registry.npmjs.org/${name}/${version}`, {
+      signal: AbortSignal.timeout(15_000),
+    }).catch(() => null)
   }
+  if (res?.status === 404) continue // unreleased version: the bump already happened
+  if (!res?.ok)
+    throw new Error(
+      `${name}@${version}: registry ${res ? `returned ${res.status}` : "unreachable"}; re-run the job`,
+    )
   const published = keys(((await res.json()) as { exports?: unknown }).exports)
   const local = keys(exports)
   const added = local.filter((k) => !published.includes(k))

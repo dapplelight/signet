@@ -191,7 +191,7 @@ const FULL_DEPS = {
   ...DEPS,
   ...API_DEPS,
   "@base-ui/react": "^1.3.0",
-  "@dapplelight/signet-db": "^0.1.0",
+  "@dapplelight/signet-db": "^0.2.0",
   "@dapplelight/signet-payments": "^0.1.0",
   "drizzle-orm": "^0.45.4",
   "input-otp": "^1.4.2",

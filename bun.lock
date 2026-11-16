@@ -94,7 +94,7 @@
     },
     "packages/db": {
       "name": "@dapplelight/signet-db",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "bin": {
         "signet-db-check": "./dist/migrations/cli.js",
       },
@@ -109,7 +109,7 @@
         "zod": "^4.6.5",
       },
       "peerDependencies": {
-        "@dapplelight/signet-lib": "^0.3.0 || ^0.4.0",
+        "@dapplelight/signet-lib": "^0.4.0",
         "drizzle-orm": "^0.45.0",
         "postgres": ">=3.4.0",
         "zod": ">=4.0.0",
@@ -198,7 +198,7 @@
       "name": "@dapplelight/signet-test",
       "version": "0.1.0",
       "devDependencies": {
-        "@dapplelight/signet-db": "^0.1.0",
+        "@dapplelight/signet-db": "^0.2.0",
         "@dapplelight/signet-payments": "^0.1.0",
         "@dapplelight/signet-server": "^0.5.0",
         "@dapplelight/signet-ui": "^0.3.0",
