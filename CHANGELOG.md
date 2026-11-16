@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### spec: OpenAPI document for the auth routes
+
+- New `@dapplelight/signet-spec/openapi/auth.openapi.json` (also served at `/spec/v1/auth.openapi.json`): OpenAPI 3.1 for `sessionRoutes` and `clientLoginRoutes`, including the PKCE, token, device-flow and revoke routes and their OAuth error shape. A test checks every response of the real routes against it.
+
 ### signet-ai: usage to spans and spend
 
 - New `./otel`: `otelUsage()` puts `gen_ai.*` token attributes, `signet.cost_usd`, `signet.cache_hit` and `signet.saved_usd` on the active OpenTelemetry span (the budget key only with `includeKey`). `onUsageAll(...hooks)` runs several `onUsage` hooks, each isolated. `spendUsage({ spend, subject })` records each call's cost per user or org in the spend ledger.
