@@ -54,6 +54,10 @@ export const defaultLabels = {
   cancel: "Cancel",
   retryItem: (what: string) => `Retry ${what}`,
   cancelItem: (what: string) => `Cancel ${what}`,
+  submit: "Submit",
+  addItem: "Add",
+  removeItem: "Remove",
+  chooseOption: "Choose…",
 }
 
 export type Labels = typeof defaultLabels
