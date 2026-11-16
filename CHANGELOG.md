@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### server: observability/health routes
+
+- New `./observability/health` with `healthRoutes({ checks, timeoutMs? })`, a Hono app for load balancer probes. `GET /live` always returns 200. `GET /ready` runs every check in parallel with a per-check timeout (default 2000 ms) and returns 503 when any check returns false, throws or times out. The body holds only `ok` and one boolean per check, never error text. Takes config and never reads env. Nothing existing changes.
+
 ### signet-cli: conformance command
 
 - New `signet conformance <baseUrl>` runs the Signet wire-contract cases against a live backend, prints one `pass` or `fail` line per case and exits 1 when any fails. Flags: `--auth-prefix`, `--ingest`, `--sessions`, `--json-path`, `--json`.

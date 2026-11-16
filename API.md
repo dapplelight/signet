@@ -199,6 +199,7 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/oauth-rs/jwks` | SUPPORTED_ALGS, createJwksCache, Jwk, SupportedAlg, JwksOptions, JwksCache | JWKS fetching, caching and rotation |
 | `@dapplelight/signet-server/oauth-rs/metadata` | protectedResourceMetadata, wwwAuthenticate, ProtectedResourceMetadata, MetadataOptions | Protected Resource Metadata — RFC 9728 |
 | `@dapplelight/signet-server/oauth-rs/verify` | TokenError, scopesOf, createTokenVerifier, Claims, VerifiedToken, VerifierOptions, … | OAuth 2.1 access token verification for a RESOURCE SERVER |
+| `@dapplelight/signet-server/observability/health` | healthRoutes, HealthConfig | Liveness and readiness routes for load balancers |
 | `@dapplelight/signet-server/observability/logger` | LEVELS, createLogger, redactFields, LevelName, LevelSetting, LogFields, … | Structured JSON logger with pino's call shape and redaction by default |
 | `@dapplelight/signet-server/observability/request-log` | requestLog, RequestLogConfig | One structured log line when a request starts and one when it ends: `request.started`, then `request.completed` or `request.failed` |
 | `@dapplelight/signet-server/observability/sentry` | redactSecrets, parseStack, createSentry, SentryConfig, StackFrame, SentryRequest, … | Sentry reporting over the Envelope HTTP API |
