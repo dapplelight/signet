@@ -5,6 +5,7 @@ import { RouterProvider } from "@tanstack/react-router"
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 import { Toaster } from "./components/toaster"
+import { registerPwa } from "./lib/pwa"
 import { createAppRouter } from "./router"
 import "./app.css"
 
@@ -20,6 +21,8 @@ const router = createAppRouter()
 onAuthErrorRedirect(queryClient, () => {
   window.location.assign(router.buildLocation({ to: "/login" }).href)
 })
+
+registerPwa()
 
 const rootElement = document.getElementById("root")
 if (!rootElement) throw new Error("Root element #root not found in index.html")

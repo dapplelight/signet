@@ -175,6 +175,14 @@ const DEPS = {
   "tailwind-merge": "^3.7.0",
 }
 
+// The web template's PWA: vite-plugin-pwa builds src/sw.ts with Workbox.
+const PWA_DEV_DEPS = {
+  "vite-plugin-pwa": "^1.3.0",
+  "workbox-precaching": "^7.4.0",
+  "workbox-routing": "^7.4.0",
+  "workbox-window": "^7.4.0",
+}
+
 const DEV_DEPS = {
   "@biomejs/biome": "^2.5.14",
   "@tailwindcss/vite": "^4.3.3",
@@ -499,7 +507,7 @@ async function main() {
         ? { ...API_DEV_DEPS, ...API_TARGETS[target].devDeps }
         : template === "full"
           ? FULL_DEV_DEPS
-          : DEV_DEPS,
+          : { ...DEV_DEPS, ...PWA_DEV_DEPS },
     ...(template === "api" && API_TARGETS[target].engines
       ? { engines: API_TARGETS[target].engines }
       : {}),

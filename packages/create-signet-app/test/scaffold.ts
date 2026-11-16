@@ -111,6 +111,16 @@ try {
   )
   await $`bun run build`.cwd(DIR).quiet()
   ok("builds", readdirSync(join(DIR, "dist")).includes("index.html"))
+  // PWA: the service worker, its manifest and the offline page ship in the build,
+  // and the worker never caches /api (precached files are the build's own).
+  const dist = readdirSync(join(DIR, "dist"))
+  ok(
+    "builds the PWA: sw.js, manifest, offline page",
+    ["sw.js", "manifest.webmanifest", "offline.html"].every((f) => dist.includes(f)),
+    dist.join(" "),
+  )
+  const sw = readFileSync(join(DIR, "dist/sw.js"), "utf8")
+  ok("service worker has the app name and no placeholder", sw.includes(NAME) && !anyPlaceholder(sw))
 
   // Static evidence that /login is a real route: the router plugin splits each
   // route into its own chunk, so the login page ships as one.
