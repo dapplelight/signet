@@ -10,5 +10,9 @@ Generated, versioned JSON files in `schemas/`:
 
 - `error-envelope.schema.json`
 - `error-codes.json`
+- `analytics-ingest-request.schema.json`
+- `analytics-ingest-response.schema.json`
+- `tracked-event.schema.json`
+- `webhook-delivery.schema.json`
 
 Docs: signet.dapplelight.in/docs/packages/spec

@@ -1,0 +1,32 @@
+---
+title: "Webhooks"
+description: "Delivery body, signed headers and outbox message."
+---
+
+## Usage
+
+```ts
+import { signWebhook } from "@dapplelight/signet-lib/webhooks"
+import { webhookHeadersSchema } from "@dapplelight/signet-spec/webhooks"
+
+const headers = await signWebhook({ secret, id: "evt_1", body })
+webhookHeadersSchema.parse(headers)
+```
+
+Body is `{ type, timestamp, data }`. `webhook-signature` is one or more space-separated `v1,<base64>` values. Receivers dedupe on `webhook-id`.
+
+Signing and verifying are in [Client Lib webhooks](/docs/packages/lib/webhooks). Endpoints, retries and the delivery log are in [Database webhooks](/docs/packages/db/webhooks).
+
+## API
+
+| Export | What it does |
+| --- | --- |
+| `webhookBodySchema` | Zod schema for the POST body: type, ISO timestamp, data |
+| `webhookHeadersSchema` | The three headers `signWebhook` returns |
+| `webhookOutboxMessageSchema` | The outbox message `{ id, topic, payload }` that queues a delivery |
+| `webhookDeliverySchema` | Headers, body and outbox message of one delivery |
+| `WebhookBody` | `z.infer` of the body schema |
+| `WebhookHeaders` | `z.infer` of the headers schema |
+| `WebhookOutboxMessage` | `z.infer` of the outbox schema |
+| `WebhookDelivery` | `z.infer` of the delivery schema |
+| `WEBHOOK_TOPIC` | `"signet.webhook"`, the outbox topic of deliveries |
