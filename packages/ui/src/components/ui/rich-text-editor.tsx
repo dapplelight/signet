@@ -554,6 +554,9 @@ export function RichTextEditor({
   const live = useRef({ onValueChange, onMentionSearch, suggestion, highlight, formats })
   live.current = { onValueChange, onMentionSearch, suggestion, highlight, formats }
   const applyRef = useRef<(f: RichTextFormat) => void>(() => undefined)
+  // Classes we added to the ProseMirror element, so a change removes only ours
+  // and keeps the ProseMirror / tiptap / focus classes it manages itself.
+  const appliedClasses = useRef<string[]>([])
 
   const editor = useEditor({
     editable: !disabled,
@@ -742,12 +745,18 @@ export function RichTextEditor({
     )
     set("data-placeholder", placeholder)
     set("data-empty", empty ? "true" : undefined)
-    dom.className = cn(
+    const next = cn(
       RICH_TEXT_CLASSES,
       "relative min-h-24 px-3 py-2 outline-none",
       "data-empty:before:pointer-events-none data-empty:before:absolute data-empty:before:text-text-muted data-empty:before:content-[attr(data-placeholder)]",
       classNames.content,
     )
+      .split(/\s+/)
+      .filter(Boolean)
+    const stale = appliedClasses.current.filter((c) => !next.includes(c))
+    if (stale.length) dom.classList.remove(...stale)
+    dom.classList.add(...next)
+    appliedClasses.current = next
   })
 
   // Toolbar: one tab stop, arrows move between buttons (WAI-ARIA toolbar).
