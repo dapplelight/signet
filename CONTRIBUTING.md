@@ -39,13 +39,14 @@ when any of them drifts from the source.
 
 ## Visual QA
 
-`bun run qa` builds the showcase, serves it on 127.0.0.1, and screenshots every QA item in each theme, mode and viewport. It also runs axe and records console errors and horizontal overflow. Output goes to `qa-out/<timestamp>/` (gitignored). Use `--quick` for editorial light only, and `--filter <id>` for matching items. Open `manifest.json` first: entries with violations, console errors or overflow need a look.
+`bun run qa` builds the showcase, serves it on 127.0.0.1, and screenshots every QA item in each theme, mode and viewport. It also runs axe and records console errors and horizontal overflow. Output goes to `qa-out/<timestamp>/` (gitignored). Use `--quick` for editorial light only, and `--filter <id>` for matching items. The run ends by writing `sheets/` (one contact-sheet PNG per item) and `report.md`. Read `report.md` first, then the sheets. [scripts/qa/REVIEW.md](scripts/qa/REVIEW.md) is the rubric for agent review.
 
 ```bash
 bun run qa                            # every item x theme x mode x viewport
 bun run qa --quick                    # editorial light only, both viewports
 bun run qa --filter button            # items whose id contains "button"
 bun run qa --out /tmp/qa --concurrency 8   # output directory, parallel pages (default 4)
+bun run scripts/qa/sheets.ts qa-out/<run>  # rewrite sheets/ and report.md for an existing run
 ```
 
 ## Add a theme

@@ -7,6 +7,7 @@ import { createRequire } from "node:module"
 import { join, relative, resolve, sep } from "node:path"
 import { QA_ITEMS, QA_MODES } from "../../apps/showcase/src/qa-items"
 import type { Browser } from "../../packages/test/node_modules/@playwright/test"
+import { writeSheets } from "./sheets"
 
 const ROOT = resolve(import.meta.dir, "../..")
 const SHOWCASE = join(ROOT, "apps/showcase")
@@ -217,6 +218,7 @@ async function main() {
   console.log(
     `${sum((e) => e.violations)} axe violations, ${sum((e) => e.consoleErrors.length)} console errors, ${sum((e) => +e.overflow)} overflow across ${entries.length} shots`,
   )
+  await writeSheets(runDir, relative(process.cwd(), runDir))
   if (entries.every((e) => e.error))
     fail(1, `QA failed: every shot errored (first: ${entries[0]?.error})`)
 }
