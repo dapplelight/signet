@@ -29,8 +29,9 @@ export type OtelUsageConfig = {
 let loading: Promise<OtelApiLike | null> | undefined
 /** The OpenTelemetry API, or null if it is not installed. Loaded once. */
 function loadApi(): Promise<OtelApiLike | null> {
-  // @ts-expect-error: optional peer, not installed here; its types are the structural `OtelApiLike`
-  loading ??= import("@opentelemetry/api").then(
+  // A variable specifier keeps tsc from resolving the optional peer, installed or not.
+  const id = "@opentelemetry/api"
+  loading ??= import(id).then(
     (m) => m as unknown as OtelApiLike,
     () => null,
   )
