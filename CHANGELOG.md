@@ -5,6 +5,11 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### spec: conformance cases and runner
+
+- New `conformance/cases.json` (also served at `/spec/v1/conformance-cases.json`): language-neutral request and expected-response cases for the error envelope, analytics ingest, client login and session routes.
+- New `./conformance` export: `runConformance({ baseUrl, authPrefix, ingestPath, jsonPath, fetch? })` runs them with `fetch` alone and returns `{ passed, failed, results }`.
+
 ### signet-db and signet-server: AI spend ledger and cost admin routes
 
 - signet-db `./ai-spend`: `createAiSpend` keeps an optional dated ledger. New `aiSpendLedger()` table (SQLite and Postgres) with one row per UTC day, model, scope and subject (`units`, `calls`, `cacheSavedUnits`), passed as `tables.aiSpendLedger`. `record(subject, units, at?, { model?, cacheSavedUnits? })` upserts the day rows, and `onUsage` keeps the report's `model` and `savedUsd`. New `series`, `byModel`, `topSpenders` and `prune`; `retentionDays` (default 400) prunes old rows. Raw user and org ids are never stored: the subject is `hashSubject(id)`, SHA-256 hex by default. Migration: create the new table only; past spend is not backfilled. The caps API is unchanged, and the ledger is off without the table.
