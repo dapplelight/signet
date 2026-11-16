@@ -187,8 +187,12 @@ export function indexedDbStorage(
 ): StorageAdapter {
   const { db: name = "signet", store = "kv" } = options
   let opened: Promise<IdbDbLike> | null = null
+  // Rejecting does not cancel a blocked open: the browser keeps it queued and runs every
+  // later open of this database behind it. Until it settles, fail fast instead of hanging.
+  let blockedError: Error | null = null
   const open = () => {
     if (opened) return opened
+    if (blockedError) return Promise.reject(blockedError)
     const attempt = (async () => {
       const idb = (options.indexedDB ?? (globalThis as { indexedDB?: unknown }).indexedDB) as
         | IdbLike
@@ -203,19 +207,23 @@ export function indexedDbStorage(
           }
           req.onsuccess = () => {
             // We already gave up on this open: do not leave its connection behind.
-            if (blocked) req.result.close()
-            else resolve(req.result)
+            if (blocked) {
+              blockedError = null
+              req.result.close()
+            } else resolve(req.result)
           }
-          req.onerror = () => reject(req.error)
+          req.onerror = () => {
+            if (blocked) blockedError = null
+            reject(req.error)
+          }
           // Another connection to this database stays open through our upgrade
           // (it ignores versionchange), so the open would wait on it forever.
           req.onblocked = () => {
             blocked = true
-            reject(
-              new Error(
-                `indexedDbStorage: another connection to "${name}" is blocking the upgrade; close it on versionchange`,
-              ),
+            blockedError = new Error(
+              `indexedDbStorage: another connection to "${name}" is blocking the upgrade; close it on versionchange`,
             )
+            reject(blockedError)
           }
         })
       let db = await at()

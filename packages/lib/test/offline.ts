@@ -82,7 +82,19 @@ const ok = (n: string, c: boolean, d: unknown = "") => {
 function fakeIndexedDB() {
   const dbs = new Map<string, { version: number; stores: Map<string, Map<string, unknown>> }>()
   // `blockUpgrade`: another connection ignores versionchange, so an upgrade fires onblocked and waits.
-  const ctl = { failCommit: false, blockUpgrade: false }
+  // Opens of one database run in order, so a blocked upgrade holds every later open until `unblock()`.
+  let chain: Promise<void> = Promise.resolve()
+  let release: (() => void) | null = null
+  const ctl = {
+    failCommit: false,
+    blockUpgrade: false,
+    /** The other connection closes: the blocked upgrade runs, then the queued opens. Resolves when all are done. */
+    unblock() {
+      ctl.blockUpgrade = false
+      release?.()
+      return chain
+    },
+  }
   const connect = (d: { version: number; stores: Map<string, Map<string, unknown>> }) => ({
     version: d.version,
     close() {},
@@ -147,12 +159,16 @@ function fakeIndexedDB() {
         onupgradeneeded: null as null | (() => void),
         onblocked: null as null | (() => void),
       }
-      queueMicrotask(() => {
+      chain = chain.then(async () => {
+        await Promise.resolve()
         let d = dbs.get(name)
         const upgrade = !d || (version !== undefined && version > d.version)
         if (d && upgrade && ctl.blockUpgrade) {
           r.onblocked?.()
-          return
+          await new Promise<void>((res) => {
+            release = res
+          })
+          d = dbs.get(name)
         }
         if (!d) {
           d = { version: version ?? 1, stores: new Map() }
@@ -188,8 +204,19 @@ function fakeIndexedDB() {
     err = e.message
   })
   ok("idb: a blocked upgrade rejects instead of hanging", err.includes("blocking the upgrade"), err)
-  fake.ctl.blockUpgrade = false
-  ok("idb: and a later call retries", (await s.get("k")) === null)
+  // The blocked open is still queued in the browser: a new open would wait behind it, so fail fast.
+  let again = "hung"
+  await Promise.race([
+    s.set("k", "v").catch((e: Error) => {
+      again = e.message
+    }),
+    new Promise((res) => setTimeout(res, 50)),
+  ])
+  ok("idb: while still blocked, later calls fail fast with the same error", again === err, again)
+  await fake.ctl.unblock()
+  ok("idb: once unblocked, a later call reopens", (await s.get("k")) === null)
+  await s.set("k", "v")
+  ok("idb: and works", (await s.get("k")) === "v")
 }
 {
   const fake = fakeIndexedDB()
