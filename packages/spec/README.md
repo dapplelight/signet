@@ -14,6 +14,7 @@ Generated, versioned JSON files in `schemas/`:
 - `analytics-ingest-response.schema.json`
 - `tracked-event.schema.json`
 - `webhook-delivery.schema.json`
+- `contract.json`: the theme contract's variable names, parsed from `packages/tokens/CONTRACT.md`. Names only; a DTCG export is a deliberate non-goal, since the contract has no values.
 
 OpenAPI documents in `openapi/`:
 
