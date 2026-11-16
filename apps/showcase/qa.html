@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Signet QA</title>
+    <script>
+      (() => { const q = new URLSearchParams(location.search).get("dark"); let t = null; try { t = localStorage.getItem("signet-theme") } catch {} const d = q !== null ? q === "1" : t === "dark" || ((!t || t === "system") && matchMedia("(prefers-color-scheme: dark)").matches); document.documentElement.classList.toggle("dark", d); document.documentElement.style.colorScheme = d ? "dark" : "light" })()
+    </script>
+    <style>
+      /* Screenshots must not catch a component mid-motion: Spinner, Skeleton and Progress sit in their first frame. */
+      *, *::before, *::after {
+        animation-duration: 0s !important;
+        animation-delay: 0s !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0s !important;
+        transition-delay: 0s !important;
+        caret-color: transparent !important;
+        scroll-behavior: auto !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/qa.tsx"></script>
+  </body>
+</html>

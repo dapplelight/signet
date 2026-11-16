@@ -15,7 +15,8 @@ for (const f of readdirSync(new URL("../../packages/tokens/src/themes/", import.
 
 // Every *.html here is a page that ships in the build: index.html plus one
 // demo per screens set (screens-user.html, ...). Adding a page needs only its
-// file; the showcase header links to each one.
+// file; the showcase header links to each one, except qa.html (the screenshot gallery for
+// machines, see src/qa.tsx), which still ships in the build.
 const pages = readdirSync(new URL("./", import.meta.url)).filter((f) => f.endsWith(".html"))
 
 export default defineConfig({
@@ -29,5 +30,9 @@ export default defineConfig({
       ),
     },
   },
-  define: { __SCREEN_PAGES__: JSON.stringify(pages.filter((f) => f !== "index.html").sort()) },
+  define: {
+    __SCREEN_PAGES__: JSON.stringify(
+      pages.filter((f) => f !== "index.html" && f !== "qa.html").sort(),
+    ),
+  },
 })

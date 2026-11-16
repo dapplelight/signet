@@ -8,6 +8,7 @@
     "prebuild": "bun run --cwd ../.. build:all",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
+    "test": "bun run test/qa-items.ts",
     "lint": "biome check .",
     "format": "biome check --write .",
     "pretypecheck": "bun run --cwd ../.. build:all",
