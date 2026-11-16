@@ -154,6 +154,7 @@ type IdbLike = {
     version?: number,
   ): IdbRequestLike<IdbDbLike> & {
     onupgradeneeded: (() => void) | null
+    onblocked: (() => void) | null
   }
 }
 type IdbDbLike = {
@@ -174,12 +175,6 @@ type IdbDbLike = {
   }
 }
 
-const idbDone = <T>(r: IdbRequestLike<T>) =>
-  new Promise<T>((resolve, reject) => {
-    r.onsuccess = () => resolve(r.result)
-    r.onerror = () => reject(r.error)
-  })
-
 /**
  * IndexedDB: larger than localStorage, and reachable from a service worker,
  * which localStorage is not. One object store of string values, opened on
@@ -193,18 +188,36 @@ export function indexedDbStorage(
   const { db: name = "signet", store = "kv" } = options
   let opened: Promise<IdbDbLike> | null = null
   const open = () => {
-    opened ??= (async () => {
+    if (opened) return opened
+    const attempt = (async () => {
       const idb = (options.indexedDB ?? (globalThis as { indexedDB?: unknown }).indexedDB) as
         | IdbLike
         | undefined
       if (!idb) throw new Error("indexedDbStorage: no indexedDB here")
-      const at = (version?: number) => {
-        const req = idb.open(name, version)
-        req.onupgradeneeded = () => {
-          if (!req.result.objectStoreNames.contains(store)) req.result.createObjectStore(store)
-        }
-        return idbDone(req)
-      }
+      const at = (version?: number) =>
+        new Promise<IdbDbLike>((resolve, reject) => {
+          const req = idb.open(name, version)
+          let blocked = false
+          req.onupgradeneeded = () => {
+            if (!req.result.objectStoreNames.contains(store)) req.result.createObjectStore(store)
+          }
+          req.onsuccess = () => {
+            // We already gave up on this open: do not leave its connection behind.
+            if (blocked) req.result.close()
+            else resolve(req.result)
+          }
+          req.onerror = () => reject(req.error)
+          // Another connection to this database stays open through our upgrade
+          // (it ignores versionchange), so the open would wait on it forever.
+          req.onblocked = () => {
+            blocked = true
+            reject(
+              new Error(
+                `indexedDbStorage: another connection to "${name}" is blocking the upgrade; close it on versionchange`,
+              ),
+            )
+          }
+        })
       let db = await at()
       // The database exists without our store (another store made it): bump the
       // version to add it. A loop, as another context may bump at the same time.
@@ -220,7 +233,12 @@ export function indexedDbStorage(
       }
       return db
     })()
-    return opened
+    opened = attempt
+    // A failed open is not kept, so a later call retries.
+    attempt.catch(() => {
+      if (opened === attempt) opened = null
+    })
+    return attempt
   }
   const run = async <T>(
     mode: "readonly" | "readwrite",

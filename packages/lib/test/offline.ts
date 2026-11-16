@@ -81,7 +81,8 @@ const ok = (n: string, c: boolean, d: unknown = "") => {
 // `ctl.failCommit` makes readwrite transactions abort at commit (a full disk) after their requests succeeded.
 function fakeIndexedDB() {
   const dbs = new Map<string, { version: number; stores: Map<string, Map<string, unknown>> }>()
-  const ctl = { failCommit: false }
+  // `blockUpgrade`: another connection ignores versionchange, so an upgrade fires onblocked and waits.
+  const ctl = { failCommit: false, blockUpgrade: false }
   const connect = (d: { version: number; stores: Map<string, Map<string, unknown>> }) => ({
     version: d.version,
     close() {},
@@ -144,10 +145,15 @@ function fakeIndexedDB() {
         onsuccess: null as null | (() => void),
         onerror: null,
         onupgradeneeded: null as null | (() => void),
+        onblocked: null as null | (() => void),
       }
       queueMicrotask(() => {
         let d = dbs.get(name)
         const upgrade = !d || (version !== undefined && version > d.version)
+        if (d && upgrade && ctl.blockUpgrade) {
+          r.onblocked?.()
+          return
+        }
         if (!d) {
           d = { version: version ?? 1, stores: new Map() }
           dbs.set(name, d)
@@ -171,6 +177,19 @@ function fakeIndexedDB() {
     "idb: a second store in an existing database is created",
     (await second.get("k")) === "2" && (await first.get("k")) === "1",
   )
+}
+{
+  const fake = fakeIndexedDB()
+  await indexedDbStorage({ indexedDB: fake, store: "other" }).set("k", "1")
+  const s = indexedDbStorage({ indexedDB: fake })
+  fake.ctl.blockUpgrade = true
+  let err = ""
+  await s.get("k").catch((e: Error) => {
+    err = e.message
+  })
+  ok("idb: a blocked upgrade rejects instead of hanging", err.includes("blocking the upgrade"), err)
+  fake.ctl.blockUpgrade = false
+  ok("idb: and a later call retries", (await s.get("k")) === null)
 }
 {
   const fake = fakeIndexedDB()
