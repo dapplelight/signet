@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-cli: signet check
+
+- New `signet check`: the verify loop for agent-written code. It runs `tsc --noEmit`, Biome and Signet's conventions (`env-module-scope`, `error-handler`, `raw-colour`), then the conformance suite with `--api <url>` and screenshots plus axe at 390 and 1280 px with `--pages <path...>`. It prints a summary or, with `--json`, a findings list (`file`, `line`, `rule`, `level`, `message`, `fix`) and exits 1 on any error.
+
 ### mcp: plan_page tool
 
 - New `plan_page({ description, target? })`: describe a page in words and get a file plan. It returns the block to add (with its `signet add block` command), the components it uses, server modules, the matching recipe, the data the page needs and the files to create, each with a one-line purpose. `target` is `web` (default), `api` or `full`. It ranks the blocks, recipes and server exports by words only: no LLM call, and the same description gives the same plan.
