@@ -1,17 +1,17 @@
 /**
- * Generates one docs section per package from its README, so every package
- * is on the site and the pages never drift from the repo. Output is
- * gitignored (content/docs/<package>/index.md and meta.json); hand-written
- * pages (component pages, guides) sit next to it and are kept.
+ * One page per package, generated from its package.json and its rows in
+ * API.md: an install command and a card per module. Not the README: READMEs
+ * are written for maintainers and agents, docs pages stay short and visual.
+ * Output is gitignored. Fails if a package has no page.
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
 const root = join(import.meta.dirname, "../../..")
-const out = join(import.meta.dirname, "../content/docs")
+const out = join(import.meta.dirname, "../content/docs/packages")
 
-/** Nav order: start with what a new app touches first. */
-export const PACKAGES = [
+/** Nav order: what a new app touches first. */
+const PACKAGES = [
   "create-signet-app",
   "ui",
   "tokens",
@@ -30,35 +30,61 @@ const found = readdirSync(join(root, "packages")).filter((p) =>
   existsSync(join(root, "packages", p, "package.json")),
 )
 const missing = found.filter((p) => !PACKAGES.includes(p))
-if (missing.length) throw new Error(`packages without a docs section: ${missing.join(", ")}`)
+if (missing.length) throw new Error(`packages without a docs page: ${missing.join(", ")}`)
 
-/* The folder's index.md is the section link itself, so it is not listed in pages. */
-
-/** CLIs run with npx; libraries install. */
-const install = (m: { name: string; bin?: unknown; exports?: unknown }) =>
-  m.bin && !m.exports ? `npx ${m.name}` : `npm i ${m.name}`
-
-for (const pkg of PACKAGES) {
-  const dir = join(root, "packages", pkg)
-  const manifest = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"))
-  let body = readFileSync(join(dir, "README.md"), "utf8")
-  const h1 = body.match(/^# (.+)\n/m)
-  if (h1) body = body.replace(h1[0], "")
-  const description = (manifest.description ?? "").replace(/"/g, '\\"')
-  const title = pkg === "create-signet-app" ? "create-signet-app" : pkg
-  mkdirSync(join(out, pkg), { recursive: true })
-  writeFileSync(
-    join(out, pkg, "index.md"),
-    `---\ntitle: "${title}"\ndescription: "${description}"\n---\n\n` +
-      `\`\`\`bash\n${install(manifest)}\n\`\`\`\n\n${body.trim()}\n`,
+/** `| \`@dapplelight/signet-lib/api\` | exports | What |` rows, per package. */
+function modules(name: string) {
+  const api = readFileSync(join(root, "API.md"), "utf8")
+  const section = api.split(/^## /m).find((s) => s.startsWith(`${name}\n`))
+  if (!section) return []
+  return [...section.matchAll(/^\| `([^`]+)` \| ([^|]*) \| (.*) \|$/gm)].map(
+    ([, path, exports, what]) => ({
+      path,
+      title: path === name ? "main" : path.slice(name.length + 1),
+      // "re-exports a, b, c" says nothing; show the first exports instead.
+      what: what.startsWith("re-exports")
+        ? exports
+            .split(", ")
+            .filter((e) => e !== "…")
+            .slice(0, 4)
+            .join(", ")
+        : short(what),
+    }),
   )
-  const meta = join(out, pkg, "meta.json")
-  const extra = existsSync(join(out, pkg, "components")) ? ["components"] : []
-  writeFileSync(meta, `${JSON.stringify({ title, pages: extra }, null, 2)}\n`)
 }
 
+/** First clause, at most ~10 words: a card caption, not a paragraph. */
+function short(text: string) {
+  const clause = text
+    .replace(/`/g, "")
+    .replace(/\s*\(.*?\)/g, "")
+    .split(/[:;.]\s|, plus | — /)[0]
+  const words = clause.split(/\s+/)
+  return words.length > 10 ? `${words.slice(0, 10).join(" ")}…` : clause
+}
+
+const esc = (s: string) => s.replace(/"/g, "&quot;").replace(/[{}<>]/g, "")
+
+rmSync(out, { recursive: true, force: true })
+mkdirSync(out, { recursive: true })
+for (const pkg of PACKAGES) {
+  const m = JSON.parse(readFileSync(join(root, "packages", pkg, "package.json"), "utf8"))
+  const cli = m.bin && !m.exports
+  const install = cli ? `npx ${m.name}` : `npm i ${m.name}`
+  const mods = modules(m.name)
+  const cards = mods.length
+    ? `## Modules\n\n<Cards>\n${mods
+        .map((x) => `  <Card title="${esc(x.title)}" description="${esc(x.what)}" />`)
+        .join("\n")}\n</Cards>\n`
+    : ""
+  writeFileSync(
+    join(out, `${pkg}.mdx`),
+    `---\ntitle: "${pkg}"\ndescription: "${esc(m.description ?? "")}"\n---\n\n` +
+      `\`\`\`bash\n${install}\n\`\`\`\n\n${cards}`,
+  )
+}
 writeFileSync(
   join(out, "meta.json"),
-  `${JSON.stringify({ title: "Signet", pages: ["index", "---Packages---", ...PACKAGES] }, null, 2)}\n`,
+  `${JSON.stringify({ title: "Packages", root: true, pages: PACKAGES }, null, 2)}\n`,
 )
-console.log(`docs: ${PACKAGES.length} package sections`)
+console.log(`docs: ${PACKAGES.length} package pages`)
