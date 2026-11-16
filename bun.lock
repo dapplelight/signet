@@ -183,7 +183,7 @@
     },
     "packages/mcp": {
       "name": "@dapplelight/signet-mcp",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "bin": {
         "signet-mcp": "./dist/bin.js",
       },
