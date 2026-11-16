@@ -261,6 +261,9 @@ Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"
 |---|---|---|
 | `@dapplelight/signet-ui` | — |  |
 | `@dapplelight/signet-ui/behaviors` | useShortcut, useShortcutLabel, useControllableState, matchScore |  |
+| `@dapplelight/signet-ui/blocks/analytics-dashboard` | DEFAULT_DASHBOARD_LABELS, DEFAULT_DASHBOARD_RANGES, AnalyticsDashboard, BlockState, DashboardLabels, AnalyticsDashboardProps |  |
+| `@dapplelight/signet-ui/blocks/list-detail` | DEFAULT_LIST_DETAIL_LABELS, DEFAULT_LIST_DETAIL_FILTERS, ListDetail, BlockState, ListDetailLabels, ListDetailProps |  |
+| `@dapplelight/signet-ui/blocks/settings` | SAMPLE_GENERAL, SAMPLE_NOTIFICATIONS, DEFAULT_SETTINGS_LABELS, Settings, BlockState, GeneralValues, … |  |
 | `@dapplelight/signet-ui/domain/amount` | — |  |
 | `@dapplelight/signet-ui/domain/csv-import` | autoMatch, validateRows, DEFAULT_CSV_IMPORT_LABELS, CsvImport, CsvField, CsvSchema, … |  |
 | `@dapplelight/signet-ui/domain/job-runs` | JobRun |  |

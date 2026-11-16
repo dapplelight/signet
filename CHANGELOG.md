@@ -5,6 +5,11 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-ui: page blocks
+
+- New `./blocks/analytics-dashboard`, `./blocks/list-detail` and `./blocks/settings`: whole pages built from signet-ui components, with `labels`, `classNames`, `data-block` / `data-slot` hooks and `ready` / `loading` / `error` states. Each folder has a `block.json` (name, description, files, deps).
+- `signet add block <name>` (signet-cli) copies a block and the components it uses into an app. The registry build fails when a `block.json` does not match what the block imports.
+
 ### spec: analytics ingest and webhook delivery schemas
 
 - New `./analytics`: `analyticsIngestRequestSchema`, `analyticsIngestResponseSchema`, `analyticsIngestErrorSchema` and `trackedEventSchema`, with the limits of the ingest route (50 events, 64-character names, 20 props, id pattern `^[A-Za-z0-9_.:-]{1,64}$`).
