@@ -1,8 +1,9 @@
 /**
  * Column helpers for SQLite and Cloudflare D1 tables: `id`, `timestamps`,
  * `softDelete`, `money`, `encrypted`, and the `auditLog`, `outbox`,
- * `idempotencyKeys`, `aiCache`, `webhookTables`, `entitlementTables`, `flagOverrides`, `growthTables`,
- * `orgTables`, `privacyTables`, `analyticsEvents`, `sequences`, `workflowTables`, `monetisationTables` and `collabTables` tables.
+ * `idempotencyKeys`, `aiCache`, `aiSpendCaps`, `webhookTables`, `entitlementTables`, `flagOverrides`, `growthTables`,
+ * `orgTables`, `privacyTables`, `analyticsEvents`, `sequences`, `workflowTables`, `monetisationTables`,
+ * `collabTables`, `funnelTables`, `experimentTables` and `statusTables` tables.
  */
 
 import { sql } from "drizzle-orm"
@@ -168,6 +169,26 @@ export const aiCache = (name = "ai_cache") =>
     /** The entry as JSON, or ciphertext when the db has a cipher. */
     entry: text("entry").notNull(),
     expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+  })
+
+/**
+ * AI spend caps for `createAiSpend` from `@dapplelight/signet-db/ai-spend`.
+ * Spend itself is counted in the `usageCounters` table of `entitlementTables()`.
+ */
+export const aiSpendCaps = (name = "ai_spend_caps") =>
+  sqliteTable(name, {
+    /** `${scope}:${subject}:${period}`. */
+    id: text("id").primaryKey(),
+    /** user | org | global */
+    scope: text("scope").notNull(),
+    /** A user or org id, or "*" for every one without its own cap (and for global). */
+    subject: text("subject").notNull(),
+    /** day | month (UTC) */
+    period: text("period").notNull(),
+    /** Cost units (1 = one millionth of a US dollar). Null is unlimited. */
+    units: integer("units"),
+    updatedBy: text("updated_by"),
+    updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
   })
 
 /** The idempotency key table for `createDb(..., { idempotency })`. */
@@ -621,7 +642,7 @@ export const collabTables = (prefix = "") => ({
  * `createCustomers` (`@dapplelight/signet-db/customers`): offering versions,
  * placements, anonymous identities, the customer timeline and Customer Center
  * requests. Destructure into the schema:
- * `export const { offerings, placements, customerIdentities, customerEvents, customerRequests } = monetisationTables()`.
+ * `export const { offerings, placements, customerIdentities, customerEvents, customerRequests, chartAudiences } = monetisationTables()`.
  */
 export const monetisationTables = (prefix = "") => ({
   offerings: sqliteTable(`${prefix}offerings`, {
@@ -629,7 +650,7 @@ export const monetisationTables = (prefix = "") => ({
     id: text("id").primaryKey(),
     key: text("key").notNull(),
     version: integer("version").notNull(),
-    /** [{ id, store, plan, interval?, price? }]: store and web products mapped to plans. */
+    /** [{ id, store, plan, interval?, price?, offers? }]: store and web products mapped to plans. */
     products: text("products", { mode: "json" }).notNull(),
     /** The remote paywall: copy, plans shown, highlighted plan, trial text. */
     paywall: text("paywall", { mode: "json" }),
@@ -664,7 +685,7 @@ export const monetisationTables = (prefix = "") => ({
       /** `${gateway}|${eventId}`: a notification is on the timeline once. */
       id: text("id").primaryKey(),
       subject: text("subject").notNull(),
-      /** purchase | renewal | refund | cancellation | uncancellation | billing_issue | grace_period | expiration | paused | dispute */
+      /** purchase | trial | renewal | refund | refund_request | cancellation | uncancellation | billing_issue | grace_period | expiration | paused | dispute | discount | promotional | impression */
       kind: text("kind").notNull(),
       gateway: text("gateway").notNull(),
       eventType: text("event_type").notNull(),
@@ -676,8 +697,15 @@ export const monetisationTables = (prefix = "") => ({
       /** App Store prices: indicative, not settled revenue. */
       approximate: integer("approximate", { mode: "boolean" }).notNull().default(false),
       occurredAt: ms("occurred_at").notNull(),
+      /** ISO 3166-1 alpha-2, when known: `record(e, { country })`, or the paywall impression's. */
+      country: text("country"),
+      /** The offering key, on paywall impressions. */
+      offering: text("offering"),
     },
-    (t) => [index(`${prefix}customer_events_subject`).on(t.subject, t.occurredAt)],
+    (t) => [
+      index(`${prefix}customer_events_subject`).on(t.subject, t.occurredAt),
+      index(`${prefix}customer_events_occurred`).on(t.occurredAt),
+    ],
   ),
   customerRequests: sqliteTable(
     `${prefix}customer_requests`,
@@ -699,4 +727,152 @@ export const monetisationTables = (prefix = "") => ({
     },
     (t) => [index(`${prefix}customer_requests_subject`).on(t.subject, t.kind)],
   ),
+  /** Saved chart filters ("audiences") for `createCharts`. */
+  chartAudiences: sqliteTable(`${prefix}chart_audiences`, {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    /** { store?, plan?, country?, offering? } */
+    filter: text("filter", { mode: "json" }).notNull(),
+    createdBy: text("created_by"),
+    createdAt: stamp("created_at"),
+  }),
+})
+
+/**
+ * The tables for `createFunnels` (`@dapplelight/signet-db/funnels`): one row
+ * per web checkout started from a funnel (who bought what, at what price,
+ * paid and redeemed), and how many times each discount code was used.
+ * Destructure into the schema: `export const { funnelSessions, discountUses } = funnelTables()`.
+ */
+export const funnelTables = (prefix = "") => ({
+  funnelSessions: sqliteTable(
+    `${prefix}funnel_sessions`,
+    {
+      /** `fs_` + a random UUID: the buyer's browser holds it to fetch the redemption link. */
+      id: text("id").primaryKey(),
+      funnel: text("funnel").notNull(),
+      /** The anonymous customer id (`customers.anonymousId()`) the purchase is granted to. */
+      subject: text("subject").notNull(),
+      orgId: text("org_id"),
+      /** The browser's analytics anonymous id, so the purchase joins the visit's step views. */
+      visitor: text("visitor"),
+      productId: text("product_id").notNull(),
+      plan: text("plan").notNull(),
+      /** month | year | once */
+      interval: text("interval").notNull(),
+      /** What was charged, after any discount, in minor units. */
+      amount: integer("amount").notNull(),
+      currency: text("currency").notNull(),
+      discountCode: text("discount_code"),
+      /** Minor units taken off by the discount. */
+      discountOff: integer("discount_off"),
+      /** { [questionId]: value | value[] } */
+      answers: text("answers", { mode: "json" }),
+      email: text("email"),
+      gateway: text("gateway"),
+      /** The checkout's id at the gateway (a PaymentIntent, an order). */
+      checkoutId: text("checkout_id"),
+      /** The captured payment's id, from the verified webhook. */
+      paymentId: text("payment_id"),
+      /** open | paid | redeemed | failed | refunded | expired (abandoned, discount use given back) */
+      status: text("status").notNull(),
+      redeemedBy: text("redeemed_by"),
+      createdAt: stamp("created_at"),
+      paidAt: ms("paid_at"),
+      redeemedAt: ms("redeemed_at"),
+    },
+    (t) => [index(`${prefix}funnel_sessions_checkout`).on(t.gateway, t.checkoutId)],
+  ),
+  discountUses: sqliteTable(`${prefix}discount_uses`, {
+    /** The discount code, upper case. */
+    code: text("code").primaryKey(),
+    used: integer("used").notNull().default(0),
+  }),
+})
+
+/**
+ * The tables for `createExperiments` from `@dapplelight/signet-db/experiments`:
+ * experiment definitions and one exposure row per subject. Destructure into
+ * the schema: `export const { experiments, experimentExposures } = experimentTables()`.
+ */
+export const experimentTables = (prefix = "") => ({
+  experiments: sqliteTable(`${prefix}experiments`, {
+    key: text("key").primaryKey(),
+    description: text("description"),
+    /** draft | running | stopped | rolled_out */
+    status: text("status").notNull(),
+    /** [{ key, weight, value? }]; the first is the control. */
+    variants: text("variants", { mode: "json" }).notNull(),
+    /** The analytics event name that counts as a conversion. */
+    goal: text("goal").notNull(),
+    /** A flag rule's `when`: who is in the experiment. Null is everyone. */
+    audience: text("audience", { mode: "json" }),
+    salt: text("salt").notNull(),
+    winner: text("winner"),
+    startedAt: ms("started_at"),
+    stoppedAt: ms("stopped_at"),
+    createdBy: text("created_by"),
+    updatedBy: text("updated_by"),
+    createdAt: stamp("created_at"),
+    updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
+  }),
+  experimentExposures: sqliteTable(
+    `${prefix}experiment_exposures`,
+    {
+      /** `${experiment}|${subject}`: a subject is exposed once. */
+      id: text("id").primaryKey(),
+      experiment: text("experiment").notNull(),
+      subject: text("subject").notNull(),
+      variant: text("variant").notNull(),
+      /** Epoch ms, compared with `analyticsEvents.ts`. */
+      exposedAt: integer("exposed_at").notNull(),
+    },
+    (t) => [index(`${prefix}experiment_exposures_variant`).on(t.experiment, t.variant)],
+  ),
+})
+
+/**
+ * The tables for `createStatus` from `@dapplelight/signet-db/status`: status
+ * page components, incidents, and the maintenance switch (one row). Destructure:
+ * `export const { statusComponents, statusIncidents, maintenance } = statusTables()`.
+ */
+export const statusTables = (prefix = "") => ({
+  statusComponents: sqliteTable(`${prefix}status_components`, {
+    key: text("key").primaryKey(),
+    name: text("name").notNull(),
+    description: text("description"),
+    /** operational | maintenance | degraded | partial_outage | major_outage */
+    status: text("status").notNull(),
+    position: integer("position").notNull().default(0),
+    updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
+  }),
+  statusIncidents: sqliteTable(
+    `${prefix}status_incidents`,
+    {
+      id: id(),
+      title: text("title").notNull(),
+      /** investigating | identified | monitoring | resolved */
+      status: text("status").notNull(),
+      /** minor | major | critical */
+      impact: text("impact").notNull(),
+      /** Component keys. */
+      components: text("components", { mode: "json" }).notNull(),
+      /** [{ at, status, message }], oldest first. */
+      updates: text("updates", { mode: "json" }).notNull(),
+      startedAt: stamp("started_at"),
+      resolvedAt: ms("resolved_at"),
+      updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
+    },
+    (t) => [index(`${prefix}status_incidents_started`).on(t.startedAt)],
+  ),
+  maintenance: sqliteTable(`${prefix}maintenance`, {
+    /** Always "current". */
+    id: text("id").primaryKey(),
+    on: integer("on", { mode: "boolean" }).notNull(),
+    message: text("message"),
+    /** When it should end; sent as Retry-After. */
+    until: ms("until"),
+    updatedBy: text("updated_by"),
+    updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
+  }),
 })

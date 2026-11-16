@@ -1123,3 +1123,53 @@ describe("restorePurchases", () => {
     expect(applied).toHaveLength(1)
   })
 })
+
+describe("appstore CONSUMPTION_REQUEST", () => {
+  test("the notification carries the transaction and Apple's reason", async () => {
+    const { g } = apple()
+    const e = await g.verifyWebhook(
+      notification("CONSUMPTION_REQUEST", undefined, txn(), {
+        consumptionRequestReason: "UNINTENDED_PURCHASE",
+      }),
+    )
+    expect(e).toMatchObject({ gatewayType: "CONSUMPTION_REQUEST", paymentId: "2000000002" })
+    expect((e.raw as any).payload.data.consumptionRequestReason).toBe("UNINTENDED_PURCHASE")
+  })
+
+  test("sendConsumptionInfo PUTs the v2 body; invalid bodies never reach Apple", async () => {
+    const { f, g } = apple({ "PUT /inApps/v2/transactions/consumption/2000000002": undefined })
+    await g.sendConsumptionInfo("2000000002", {
+      customerConsented: true,
+      deliveryStatus: "DELIVERED",
+      sampleContentProvided: true,
+      consumptionPercentage: 25000,
+      refundPreference: "DECLINE",
+    })
+    expect(f.calls).toHaveLength(1)
+    expect(f.calls[0]?.method).toBe("PUT")
+    expect(JSON.parse(f.calls[0]?.body ?? "{}")).toEqual({
+      customerConsented: true,
+      deliveryStatus: "DELIVERED",
+      sampleContentProvided: true,
+      consumptionPercentage: 25000,
+      refundPreference: "DECLINE",
+    })
+    const base = {
+      customerConsented: true,
+      deliveryStatus: "DELIVERED",
+      sampleContentProvided: false,
+    }
+    for (const bad of [
+      { ...base, customerConsented: false },
+      { ...base, deliveryStatus: "LOST" },
+      { ...base, consumptionPercentage: 100001 },
+      { ...base, consumptionPercentage: 1.5 },
+      { ...base, deliveryStatus: "UNDELIVERED_OTHER", consumptionPercentage: 10 },
+      { ...base, refundPreference: "GRANT_PRORATED", consumptionPercentage: 0 },
+      { ...base, refundPreference: "MAYBE" },
+      { customerConsented: true, deliveryStatus: "DELIVERED" },
+    ])
+      expect(await code(g.sendConsumptionInfo("2000000002", bad as never))).toBe("BAD_INPUT")
+    expect(f.calls).toHaveLength(1)
+  })
+})

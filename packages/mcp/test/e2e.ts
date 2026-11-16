@@ -450,6 +450,91 @@ try {
     mon.json?.id,
   )
 
+  const abuse = await call("recipe", {
+    task: "captcha and disposable email on sign up, ai spend cap",
+  })
+  ok(
+    "recipe: add-abuse-protection is cut from the server and db READMEs and covers captcha, disposable email and spend caps",
+    abuse.json?.id === "add-abuse-protection" &&
+      JSON.stringify(abuse.json.steps.map((st: any) => st.title)) ===
+        JSON.stringify(["Bot checks", "Disposable email", "AI spend caps", "AI spend routes"]) &&
+      ["requireCaptcha(", "blockDisposableEmail(", "createAiSpend(db", "requireAiSpend("].every(
+        (t) => JSON.stringify(abuse.json).includes(t),
+      ) &&
+      !abuse.json.install.includes("@dapplelight/signet-db"),
+    abuse.json?.id,
+  )
+
+  const exr = await call("recipe", {
+    task: "a/b test experiment with a status page and maintenance mode",
+  })
+  ok(
+    "recipe: add-experiments is cut from the db and server READMEs and covers experiments, status and maintenance",
+    exr.json?.id === "add-experiments" &&
+      JSON.stringify(exr.json.steps.map((st: any) => st.title)) ===
+        JSON.stringify([
+          "Experiments",
+          "Status page and maintenance",
+          "Experiment routes",
+          "Status page and maintenance mode",
+        ]) &&
+      [
+        "createExperiments(db",
+        "ex.results(",
+        "createStatus(db",
+        "maintenanceMode(",
+        "experimentAdminRoutes(",
+      ].every((t) => JSON.stringify(exr.json).includes(t)) &&
+      !exr.json.install.includes("@dapplelight/signet-db"),
+    exr.json?.id,
+  )
+
+  const chr = await call("recipe", { task: "subscription charts: mrr, churn, trial conversion" })
+  ok(
+    "recipe: add-subscription-charts covers charts, offers, promotional grants and CONSUMPTION_REQUEST",
+    chr.json?.id === "add-subscription-charts" &&
+      JSON.stringify(chr.json.steps.map((st: any) => st.title)) ===
+        JSON.stringify([
+          "Subscription charts",
+          "Offers",
+          "Promotional entitlements",
+          "Apple refund requests (CONSUMPTION_REQUEST)",
+          "Monetisation routes",
+        ]) &&
+      [
+        "createCharts(db",
+        "withOffers(",
+        "grantPromotional(",
+        "consumptionInfo(",
+        "/charts/csv",
+      ].every((t) => JSON.stringify(chr.json).includes(t)) &&
+      chr.json.verify.length === 4,
+    chr.json?.id,
+  )
+
+  const fun = await call("recipe", { task: "web-to-app funnel redemption link and discount code" })
+  ok(
+    "recipe: add-funnels is cut from the db and server READMEs and covers checkout, discounts, redemption, analytics and routes",
+    fun.json?.id === "add-funnels" &&
+      JSON.stringify(fun.json.steps.map((st: any) => st.title)) ===
+        JSON.stringify([
+          "Funnels and checkout",
+          "URL discounts",
+          "Redemption",
+          "Funnel analytics",
+          "Funnel routes",
+        ]) &&
+      [
+        "createFunnels(db",
+        "funnels.applyEvent(",
+        "funnels.redeem(",
+        "funnelRoutes(",
+        "payment_method_domains",
+      ].every((t) => JSON.stringify(fun.json).includes(t)) &&
+      !fun.json.install.includes("@dapplelight/signet-db"),
+    fun.json?.id,
+  )
+
   const wfr = await call("recipe", { task: "durable workflow with an approval step" })
   ok(
     "recipe: add-workflows is cut from the db and server READMEs and covers steps, runners and routes",

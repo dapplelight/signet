@@ -8,6 +8,7 @@
 import { type Context, Hono } from "hono"
 import { errorHandler } from "../src/http/errors"
 import {
+  type ChartStore,
   type CustomerStore,
   monetisationAdminRoutes,
   monetisationRoutes,
@@ -273,6 +274,199 @@ console.log("admin routes")
   ok("close a request", (await patch("r1", "done")).status === 200)
   ok("unknown status: 400", (await patch("r1", "closed")).status === 400)
   ok("unknown request: 404", (await patch("nope", "done")).status === 404)
+}
+
+console.log("charts, offers, impressions and promotional grants")
+{
+  const got: Record<string, unknown> = {}
+  const more: CustomerStore = {
+    ...customers,
+    async withOffers(subject, offering) {
+      got.withOffers = subject
+      return { ...(offering as object), offersFor: subject }
+    },
+    async logImpression(subject, input) {
+      got.impression = { subject, ...input }
+      return { logged: true }
+    },
+    async redeemOffer(_subject, _offering, offerId) {
+      return offerId === "trial7" ? { redeemed: true } : { redeemed: false, reason: "already_used" }
+    },
+    async grantPromotional(subject, input) {
+      if (input.plan === "gold") throw new FakeDbError("BAD_VALUE", "gold is not a plan.")
+      got.grant = { subject, ...input }
+      return { id: "g1", plan: input.plan }
+    },
+    async endPromotional(_subject, id) {
+      return id === "g1"
+    },
+  }
+  const charts: ChartStore = {
+    async metrics(q) {
+      got.query = q
+      if (q.audience === "nope") throw new FakeDbError("NOT_FOUND", "No audience nope.")
+      return { from: q.from, to: q.to, days: [] }
+    },
+    async csv(q) {
+      return `day\n${q.from}\n`
+    },
+    async audiences() {
+      return [{ id: "a1", name: "App Store" }]
+    },
+    async saveAudience(name, filter) {
+      return { id: "a2", name, filter }
+    },
+    async removeAudience(id) {
+      return id === "a1"
+    },
+  }
+  const app2 = new Hono()
+  app2.onError(errorHandler({ isProduction: () => true }))
+  app2.route("/billing", monetisationRoutes({ offerings, customers: more, subject: who }))
+  app2.route(
+    "/admin",
+    monetisationAdminRoutes({
+      customers: more,
+      charts,
+      authorize: (c) => c.req.header("x-role") === "admin",
+      actor: (c) => ({ type: "user", id: who(c) ?? "?" }),
+    }),
+  )
+  const r2 = (path: string, init: RequestInit & { user?: string; role?: string } = {}) =>
+    app2.request(path, {
+      ...init,
+      headers: {
+        "content-type": "application/json",
+        ...(init.user ? { "x-user": init.user } : {}),
+        ...(init.role ? { "x-role": init.role } : {}),
+      },
+    })
+  const p2 = (path: string, body: unknown, extra: { user?: string; role?: string } = {}) =>
+    r2(path, { method: "POST", body: JSON.stringify(body), ...extra })
+  const admin = { user: "a1", role: "admin" }
+
+  const anon = await (await r2("/billing/offerings/onboarding")).json()
+  ok("offers for a visitor with no subject", anon.offering.offersFor === null)
+  const mine = await (await r2("/billing/offerings/onboarding", { user: "u1" })).json()
+  ok("offers cut to the signed-in customer", mine.offering.offersFor === "u1")
+  ok(
+    "impression needs a subject",
+    (await p2("/billing/offerings/onboarding/impression", {})).status === 401,
+  )
+  const imp = await r2("/billing/offerings/onboarding/impression?country=in", {
+    method: "POST",
+    user: "u1",
+  })
+  ok(
+    "impression logs the served offering, version, placement and country",
+    imp.status === 204 &&
+      JSON.stringify(got.impression) ===
+        JSON.stringify({
+          subject: "u1",
+          offering: "default",
+          version: 2,
+          placement: "onboarding",
+          country: "IN",
+        }),
+    got.impression,
+  )
+  ok(
+    "impression for an unknown placement: 404",
+    (await r2("/billing/offerings/none/impression", { method: "POST", user: "u1" })).status === 404,
+  )
+  ok(
+    "redeem an offer",
+    (await p2("/billing/offerings/onboarding/redeem", { offerId: "trial7" }, { user: "u1" }))
+      .status === 200,
+  )
+  const refused = await p2(
+    "/billing/offerings/onboarding/redeem",
+    { offerId: "trial7x" },
+    { user: "u1" },
+  )
+  const rj = await refused.json()
+  ok(
+    "a used offer: 409 OFFER_REFUSED with the reason",
+    refused.status === 409 &&
+      rj.code === "OFFER_REFUSED" &&
+      rj.details.fieldErrors.offerId[0] === "already_used",
+  )
+
+  ok("charts are admin only", (await r2("/admin/charts", { user: "a1" })).status === 403)
+  const ch = await r2(
+    "/admin/charts?from=2026-03-01&to=2026-03-31&store=appstore&country=IN&offering=default&audience=a1",
+    admin,
+  )
+  ok(
+    "charts pass dates and filters through",
+    ch.status === 200 &&
+      JSON.stringify(got.query) ===
+        JSON.stringify({
+          from: "2026-03-01",
+          to: "2026-03-31",
+          store: "appstore",
+          country: "IN",
+          offering: "default",
+          audience: "a1",
+        }),
+    got.query,
+  )
+  ok("charts default to the last 30 days", (await r2("/admin/charts", admin)).status === 200)
+  ok("bad dates: 400", (await r2("/admin/charts?from=03/01/2026", admin)).status === 400)
+  ok("unknown audience: 404", (await r2("/admin/charts?audience=nope", admin)).status === 404)
+  const csv = await r2("/admin/charts/csv?from=2026-03-01&to=2026-03-02", admin)
+  ok(
+    "CSV export is an attachment",
+    csv.status === 200 &&
+      (csv.headers.get("content-type") ?? "").startsWith("text/csv") &&
+      (csv.headers.get("content-disposition") ?? "").includes(
+        "subscriptions-2026-03-01-2026-03-02.csv",
+      ) &&
+      (await csv.text()) === "day\n2026-03-01\n",
+  )
+  ok("list audiences", (await (await r2("/admin/audiences", admin)).json()).audiences.length === 1)
+  ok(
+    "save an audience: 201",
+    (await p2("/admin/audiences", { name: "IN", filter: { country: "IN" } }, admin)).status === 201,
+  )
+  ok(
+    "an audience needs a filter object",
+    (await p2("/admin/audiences", { name: "IN", filter: "IN" }, admin)).status === 400,
+  )
+  ok(
+    "delete an audience; unknown is 404",
+    (await r2("/admin/audiences/a1", { method: "DELETE", ...admin })).status === 200 &&
+      (await r2("/admin/audiences/zz", { method: "DELETE", ...admin })).status === 404,
+  )
+  const g = await p2(
+    "/admin/customers/u1/promotional",
+    { plan: "pro", days: 14, note: "Beta" },
+    admin,
+  )
+  ok(
+    "grant a promotional plan: 201",
+    g.status === 201 &&
+      JSON.stringify(got.grant) ===
+        JSON.stringify({ subject: "u1", plan: "pro", days: 14, note: "Beta" }),
+    got.grant,
+  )
+  ok(
+    "promotional: unknown plan is 400, bad days 400, no auth 403",
+    (await p2("/admin/customers/u1/promotional", { plan: "gold", days: 3 }, admin)).status ===
+      400 &&
+      (await p2("/admin/customers/u1/promotional", { plan: "pro", days: 1.5 }, admin)).status ===
+        400 &&
+      (await p2("/admin/customers/u1/promotional", { plan: "pro", days: 3 }, { user: "a1" }))
+        .status === 403,
+  )
+  ok(
+    "end a grant; an unknown one is 404",
+    (await r2("/admin/customers/u1/promotional/g1", { method: "DELETE", ...admin })).status ===
+      200 &&
+      (await r2("/admin/customers/u1/promotional/g9", { method: "DELETE", ...admin })).status ===
+        404,
+  )
+  ok("offer requests are listable", (await r2("/admin/requests?kind=offer", admin)).status === 200)
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)
