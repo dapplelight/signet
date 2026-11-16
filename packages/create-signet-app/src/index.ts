@@ -14,10 +14,11 @@ import { existsSync } from "node:fs"
 import { cp, mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises"
 import { basename, join, resolve } from "node:path"
 import { createInterface } from "node:readline/promises"
+import { appId, DESKTOP_PKG } from "./desktop.js"
 
 const THEMES = ["editorial", "cinematic", "finance"] as const
 type Theme = (typeof THEMES)[number]
-const TEMPLATES = ["web", "api", "full", "cli", "extension"] as const
+const TEMPLATES = ["web", "api", "full", "cli", "extension", "desktop"] as const
 type Template = (typeof TEMPLATES)[number]
 const TARGETS = ["cloudflare", "bun", "node", "vercel"] as const
 type Target = (typeof TARGETS)[number]
@@ -89,6 +90,7 @@ const TEMPLATE_DIRS: Record<Template, string> = {
   full: "template-full",
   cli: "template-cli",
   extension: "template-extension",
+  desktop: "template-desktop",
 }
 
 // The api template: a Hono Worker with Signet's request id, error envelope,
@@ -298,7 +300,7 @@ function parseArgs(argv: string[]) {
 create-signet-app <directory> [options]
 
 Options:
-  --template <kind>    web | api | full | cli | extension   (default: web)
+  --template <kind>    web | api | full | cli | extension | desktop   (default: web)
                        web: Vite + React + Signet UI
                        api: Hono Worker with the error envelope, request ids,
                             validation and Durable Object rate limiting
@@ -310,6 +312,8 @@ Options:
                        extension: Chrome MV3 extension: popup, options page and
                             service worker, signed in over PKCE with
                             chrome.identity (plain Vite, no extension plugin)
+                       desktop: Tauri v2 desktop + menu-bar app, browser sign-in
+                            (PKCE, loopback redirect), CI on macOS/Windows/Linux
   --target <runtime>   ${TARGETS.join(" | ")}   (default: cloudflare; api only)
                        cloudflare: Worker entry + wrangler.jsonc
                        bun: Bun.serve entry + Dockerfile
@@ -340,7 +344,10 @@ Examples:
 
   if (!name) throw new Error("Missing target directory.\nUsage: create-signet-app <directory>")
   if (target && template !== "api") throw new Error("--target applies to --template api only.")
-  if (mcp !== undefined && (template === "web" || template === "cli" || template === "extension"))
+  if (
+    mcp !== undefined &&
+    (template === "web" || template === "cli" || template === "extension" || template === "desktop")
+  )
     throw new Error("--mcp / --no-mcp apply to --template api and full only.")
   if (theme !== "editorial" && template === "api")
     throw new Error("--theme applies to --template web and full only.")
@@ -403,6 +410,7 @@ async function main() {
   const mcpFiles: Record<Template, string[]> = {
     web: [],
     extension: [],
+    desktop: [],
     api: ["src/app.ts", "src/env.ts"],
     full: ["api/app.ts", "api/env.ts"],
     cli: [],
@@ -433,6 +441,7 @@ async function main() {
 
   await substitute(dest, {
     __APP_NAME__: appName,
+    __APP_ID__: appId(appName),
     __THEME__: theme,
     __PM_INSTALL__: PM[pm].install,
     __PM_RUN__: PM[pm].run,
@@ -508,7 +517,7 @@ async function main() {
       : pkg
   await writeFile(
     join(dest, "package.json"),
-    `${JSON.stringify({ name: appName, private: true, version: "0.1.0", type: "module", ...final }, null, 2)}\n`,
+    `${JSON.stringify({ name: appName, private: true, version: "0.1.0", type: "module", ...(template === "desktop" ? DESKTOP_PKG : final) }, null, 2)}\n`,
   )
 
   const { install, run } = PM[pm]
@@ -539,8 +548,17 @@ async function main() {
 
   ${API_NEXT_STEPS[target]}
 `
-          : template === "full"
+          : template === "desktop"
             ? `
+  Created ${appName}, a Tauri desktop + menu-bar app with the ${theme} theme.
+
+  ${steps.replace(`${run} dev`, `${PM[pm].x} tauri dev`)}
+
+  Needs Rust and Tauri's system dependencies. README.md covers sign-in (register
+  the client on signet-server) and the identifier in src-tauri/tauri.conf.json.
+`
+            : template === "full"
+              ? `
   Created ${appName}: web app + API with the ${theme} theme${mcp ? ", MCP at /mcp" : ""}.
 
   ${steps}
@@ -550,7 +568,7 @@ async function main() {
   to see /admin. README.md walks through the first day. The API runs on Bun,
   whichever package manager installs it.
 `
-            : `
+              : `
   Created ${appName} with the ${theme} theme.
 
   ${steps}

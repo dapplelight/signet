@@ -32,11 +32,12 @@
     "template-api",
     "template-full",
     "template-cli",
-    "template-extension"
+    "template-extension",
+    "template-desktop"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "bun run test/scaffold.ts && bun run test/scaffold-api.ts && bun run test/scaffold-full.ts && bun run test/scaffold-cli.ts && bun run test/scaffold-extension.ts"
+    "test": "bun run test/scaffold.ts && bun run test/scaffold-api.ts && bun run test/scaffold-full.ts && bun run test/scaffold-cli.ts && bun run test/scaffold-extension.ts && bun run test/scaffold-desktop.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",
