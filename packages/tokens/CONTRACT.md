@@ -146,10 +146,9 @@ nothing undefined behind it, and the money slots stay out of the base themes.
 
 ## Not part of the contract
 
-Product-specific token sets live in the product, never here. `editorial.css` currently
-still carries app-a's `--color-cat-needs / -wants / -investments / -income / -transfer`
-— those are a finance taxonomy, not a design system. Strip them when app-a moves to
-`@dapplelight/signet-tokens`, or keep them in a `finance.css` that imports `editorial.css`.
+Product-specific token sets live in the product, never here. Budget or spend
+category colours (needs, wants, investments …) are business vocabulary: the app
+defines them in its own CSS. `finance.css` carries only the optional money slots.
 
 Tailwind's stock palettes (`--color-red-*`, `--color-green-*`, `--color-violet-*` …)
 are not the theme's either. A theme sets the semantic tokens (`--destructive`,
