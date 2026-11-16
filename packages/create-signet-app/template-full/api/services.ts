@@ -15,6 +15,7 @@ import {
   defineTemplates,
   kvNotifyStore,
 } from "@dapplelight/signet-server/notify/notifier"
+import type { LevelSetting } from "@dapplelight/signet-server/observability/logger"
 import { eq } from "drizzle-orm"
 import { z } from "zod"
 import type { Db } from "./db/index.ts"
@@ -94,6 +95,21 @@ export type Deps = {
   kv: KeyValue
   /** Sends one-time codes. Default: printed to the console, development only. */
   sms?: SmsSender
+  /** Request logs, spans and health routes. Absent: none of them, and no /health. */
+  observability?: ObservabilityConfig
+}
+
+export type ObservabilityConfig = {
+  /** Set on every log line and span as the service name. */
+  serviceName: string
+  /** Log level. Default "info". */
+  level?: LevelSetting
+  /**
+   * Fields added to every log line, e.g. the trace id of the active span:
+   * `() => ({ traceId: trace.getActiveSpan()?.spanContext().traceId })` with
+   * `trace` from `@opentelemetry/api`. Default: none.
+   */
+  mixin?: () => Record<string, unknown>
 }
 
 /** Everything the routes use, built once per process. */

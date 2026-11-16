@@ -9,7 +9,9 @@ import { openDb } from "./db/open.ts"
 import { env } from "./env.ts"
 
 const { db, query } = openDb(env.DATABASE_PATH)
-const app = createApp({ db, query, kv: sqlKv(db.orm) })
+// OBSERVABILITY=on adds request logs, spans and /health/live and /health/ready.
+const observability = env.OBSERVABILITY === "on" ? { serviceName: "__APP_NAME__" } : undefined
+const app = createApp({ db, query, kv: sqlKv(db.orm), observability })
 setInterval(() => pruneKv(db.orm), 60 * 60 * 1000)
 
 const DIST = join(import.meta.dirname, "../dist")
@@ -18,7 +20,11 @@ const server = Bun.serve({
   port: env.PORT,
   async fetch(req, srv) {
     const { pathname } = new URL(req.url)
-    if (pathname.startsWith("/api/") || pathname.startsWith("/mcp")) {
+    if (
+      pathname.startsWith("/api/") ||
+      pathname.startsWith("/mcp") ||
+      (observability && pathname.startsWith("/health/"))
+    ) {
       // Overwrite, never append: a client-set x-forwarded-for must not pick its
       // own rate-limit bucket. Behind a proxy of your own, pass the proxy's
       // header through instead and raise TRUST's hops in services.ts.
