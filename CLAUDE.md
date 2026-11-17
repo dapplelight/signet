@@ -5,7 +5,7 @@ Shared design system and backend kit.
 ## Layout
 ```
 packages/tokens             themes + CONTRACT.md (78 required + 16 optional vars)
-packages/ui                 40 token-driven React components
+packages/ui                 63 token-driven React components
 packages/lib                api client, format, analytics, form   (client)
 packages/server             auth, http, env, middleware, notify,
                             observability, analytics, oauth-rs     (server)

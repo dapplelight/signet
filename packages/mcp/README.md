@@ -12,10 +12,16 @@ calls and cannot fall behind the version it was built with.
 
 ## Install
 
+Published on npm as `@dapplelight/signet-mcp`. The server runs on Node 20+ or
+Bun; `bunx` needs Bun installed, `npx` needs only Node. Pick the runner you
+have; each client below shows both.
+
 Claude Code:
 
 ```bash
 claude mcp add signet -- bunx @dapplelight/signet-mcp
+# Node only:
+claude mcp add signet -- npx -y @dapplelight/signet-mcp
 ```
 
 Cursor, in `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global):
@@ -28,9 +34,7 @@ Cursor, in `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global):
 }
 ```
 
-Claude Desktop, in `claude_desktop_config.json` (Settings, Developer, Edit
-Config). Desktop does not always see a shell's `PATH`, so `npx` is the safer
-choice there:
+Node only, the same file with `npx`:
 
 ```json
 {
@@ -40,8 +44,21 @@ choice there:
 }
 ```
 
-It runs on Node 20+ or Bun. Its peers, `@modelcontextprotocol/server` and
-`zod`, are installed alongside it by npm and bun.
+Claude Desktop, in `claude_desktop_config.json` (Settings, Developer, Edit
+Config). Desktop does not always see a shell's `PATH`, so `npx` is the safer
+choice there (use `bunx` with `"args": ["@dapplelight/signet-mcp"]` if Bun is
+on the `PATH` Desktop sees):
+
+```json
+{
+  "mcpServers": {
+    "signet": { "command": "npx", "args": ["-y", "@dapplelight/signet-mcp"] }
+  }
+}
+```
+
+Its peers, `@modelcontextprotocol/server` and `zod`, are installed alongside it
+by npm and bun.
 
 ## Tools
 

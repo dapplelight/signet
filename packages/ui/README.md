@@ -2,7 +2,7 @@
 
 # @dapplelight/signet-ui
 
-52 React components on Tailwind v4, in the shadcn style, styled only through
+63 React components (57 in `components/ui`, 6 in `domain/`) on Tailwind v4, in the shadcn style, styled only through
 [Signet theme tokens](https://www.npmjs.com/package/@dapplelight/signet-tokens).
 Swap the theme file and every component changes; no component is edited.
 
@@ -15,8 +15,9 @@ https://signet.dapplelight.in/
 bun add @dapplelight/signet-ui @dapplelight/signet-tokens
 ```
 
+`src/app.css`:
+
 ```css
-/* app.css */
 @import "tailwindcss";
 @import "@dapplelight/signet-tokens/editorial.css";
 @import "@dapplelight/signet-tokens/base.css";
@@ -24,14 +25,49 @@ bun add @dapplelight/signet-ui @dapplelight/signet-tokens
 @source "../node_modules/@dapplelight/signet-ui/dist";
 ```
 
+The `@source` path is relative to the CSS file: `../node_modules` is right for
+`src/app.css` at the project root; adjust the `../` count if your CSS lives
+elsewhere (in a monorepo, point it at wherever `node_modules` is hoisted).
+
+`src/components/example.tsx`:
+
 ```tsx
 import { Button, DataTable, EmptyState } from "@dapplelight/signet-ui"
 // or one component at a time, to keep the module graph small:
 import { Button } from "@dapplelight/signet-ui/components/button"
 ```
 
-Peer dependencies: React 19, Base UI, Radix primitives, TanStack Table and a
-few more. recharts, TanStack Hotkeys and the Markdown stack are optional.
+### Peer dependencies
+
+Installed by you, not by Signet. With bun, `bun add <package>`; with npm,
+`npm i <package>`; with pnpm, `pnpm add <package>`. Versions are the
+`peerDependencies` ranges in `package.json`.
+
+Required:
+
+| Package | Range |
+|---|---|
+| `react`, `react-dom` | `>=19.0.0` |
+| `@dapplelight/signet-tokens` | `^0.3.0 \|\| ^0.4.0` |
+| `@base-ui/react` | `>=1.3.0` |
+| `@radix-ui/react-checkbox`, `-dropdown-menu`, `-popover`, `-tooltip` | `>=1.0.0` (`>=2.0.0` for dropdown-menu) |
+| `@tanstack/react-table` | `>=9.0.0` |
+| `class-variance-authority` | `>=0.0.0` |
+| `clsx` | `>=2.0.0` |
+| `tailwind-merge` | `>=3.0.0` |
+| `lucide-react` | `>=1.0.0` |
+| `input-otp` | `>=1.4.0` |
+| `react-day-picker` | `>=10.0.0` |
+
+Optional (`peerDependenciesMeta`), needed only for the component named:
+
+| Package | Range | Needed by |
+|---|---|---|
+| `recharts` | `>=3.8.0 <4` | `chart`, `screens/cost-dashboard`, `screens/subscription-charts` |
+| `@tanstack/react-hotkeys` | `>=0.12.0 <0.13.0` | `shortcuts` |
+| `react-markdown`, `remark-gfm`, `remark-parse`, `unified`, `github-slugger` | `>=10.0.0`, `>=4.0.0`, `>=11.0.0`, `>=11.0.0`, `>=2.0.0` | `markdown` |
+| `@tiptap/react`, `@tiptap/pm`, `@tiptap/starter-kit`, `@tiptap/extension-mention`, `@tiptap/extension-link` | `>=3.34.0 <4` | `rich-text-editor` |
+| `@autoform/react`, `@autoform/zod`, `@tanstack/react-form`, `zod` | `^5.0.0`, `^6.0.0`, `^1.0.0`, `^4.0.0` | `schema-form` |
 
 ## What is in it
 

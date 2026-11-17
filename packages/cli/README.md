@@ -131,6 +131,63 @@ are reported as `needs-merge` and left untouched; `signet diff` shows the
 upstream change to apply by hand. A dependency signet-ui added to an item is
 copied in on upgrade.
 
+## Check: the verify loop
+
+```bash
+signet check --api http://localhost:8787 --pages /dashboard
+```
+
+Run it from the app root, after you or an agent changed code. It runs five steps
+and prints one line for each: `typecheck` (`tsc --noEmit`), `lint` (Biome),
+`conventions`, `conformance` and `pages`. The last two are skipped unless you
+pass `--api` or `--pages`. It exits 1 when any finding is an error, otherwise 0,
+so it can gate CI.
+
+`conventions` reads your source for three rules: `env-module-scope` (server code
+reads `process.env` at import time), `error-handler` (a Hono app without
+Signet's `errorHandler`, a warning) and `raw-colour` (a hex, `rgb()` or stock
+Tailwind colour where a theme token belongs).
+
+`pages` opens each page at 390 and 1280 px, saves a screenshot to
+`.signet/check/` and runs axe; every violation is an error `axe/<id>`. It uses
+the app's own `@playwright/test` and `axe-core` (add both as dev dependencies,
+run `bunx playwright install chromium` once) and needs the dev server running.
+
+| Flag | What it does |
+|---|---|
+| `--api <url>` | Also run the conformance suite against this backend (takes the `conformance` flags) |
+| `--pages <path...>` | Screenshots and axe for these pages |
+| `--web <url>` | The dev server that serves `--pages` (default `http://localhost:5173`) |
+
+A tool that cannot run (no `tsc`, no browser, an API that is down) is reported
+as a finding, never a crash. With `--json` the output has the shape of the MCP
+`check_app` tool plus screenshot paths. Limits: `conventions` is three rules,
+not a full audit, and `typecheck` and `lint` are skipped when `tsconfig.json`
+or Biome is missing.
+
+## Conformance
+
+```bash
+signet conformance http://localhost:3000 --json-path /api/json
+```
+
+Runs the cases from signet-spec against a live backend: one line per case,
+`pass` or `fail` with the reason. Exits 1 when any case fails. It needs no
+registry or app directory.
+
+| Flag | What it does |
+|---|---|
+| `--auth-prefix <path>` | Where client-login routes are mounted (default `/api/auth`) |
+| `--ingest <path>` | The analytics ingest route (default `/api/analytics`) |
+| `--sessions <path>` | Where session routes are mounted (default `/api/sessions`) |
+| `--json-path <path>` | A route that parses a JSON body; without it `invalid-json-400` is reported as `not run` |
+
+## Theme
+
+`signet theme <hex> [--base editorial|cinematic|finance] [--out <file>]`
+generates a whole theme from one brand colour; `signet theme --help` lists the
+rest.
+
 ## Commands
 
 ```
@@ -138,6 +195,9 @@ signet add <name...>      [--force] [--dir <path>] [--alias <prefix>] [--no-inst
 signet upgrade [name...]  [--dry-run]
 signet diff <name>
 signet list
+signet theme <hex>        [--base <theme>] [--out <file>]
+signet conformance <url>  [--auth-prefix <path>] [--ingest <path>] [--sessions <path>] [--json-path <path>]
+signet check              [--api <url>] [--pages <path...>] [--web <url>]
 ```
 
 Every command takes `--cwd <app>` and `--json`.
