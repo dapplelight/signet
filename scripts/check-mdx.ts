@@ -40,7 +40,9 @@ function mask(src: string): string {
     }
     // ESM: `import { A } from "x"` / `export const x = ...`, possibly over several lines.
     if (esm > 0 || /^(import|export)\s/.test(line)) {
-      esm = Math.max(0, esm + (line.match(/\{/g)?.length ?? 0) - (line.match(/\}/g)?.length ?? 0))
+      // Braces inside string literals do not open or close a block.
+      const code = line.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, "")
+      esm = Math.max(0, esm + (code.match(/\{/g)?.length ?? 0) - (code.match(/\}/g)?.length ?? 0))
       return blank(line)
     }
     return line
@@ -63,7 +65,9 @@ export function checkMdx(src: string): Problem[] {
     if (c !== "<" && c !== "{") continue
     if (text[i - 1] === "\\") continue
     if (c === "{") {
-      if (/^\{\s*(\/\*|["'`])/.test(text.slice(i, i + 12))) continue
+      // A comment, or braces holding exactly one string literal, is valid MDX.
+      if (/^\{\s*(?:\/\*|"(?:[^"\\\n]|\\.)*"\s*\}|'(?:[^'\\\n]|\\.)*'\s*\})/.test(text.slice(i)))
+        continue
       const m = /^\{[^}\n]*\}?/.exec(text.slice(i))
       add(i, `bare \`${m?.[0]}\` is parsed as a JS expression. Wrap it in backticks: \`${m?.[0]}\``)
       continue

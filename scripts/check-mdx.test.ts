@@ -53,6 +53,15 @@ ok("frontmatter is skipped", lines('---\ntitle: "<reason> {total}"\n---\n\nbody\
 ok("import lines are skipped", lines('import { A, B } from "../x"\n\n<A />\n').length === 0)
 ok("a multi-line import is skipped", lines('import {\n  A,\n  B,\n} from "../x"\n').length === 0)
 ok("MDX comments and string expressions pass", lines('{/* note */}\n\na {" "} b\n').length === 0)
+ok(
+  "a { inside a string in an export line does not blank later prose",
+  lines('export const sep = "{"\n\nPass the <reason> here.\n').join() === "3",
+)
+ok('prose JSON {"ok": true} is flagged', lines('Reply with {"ok": true} on success.').length === 1)
+ok(
+  "a long string expression passes",
+  lines('a {"a string well over twelve characters long"} b').length === 0,
+)
 ok("backslash-escaped < and { pass", lines("a \\<reason> and \\{total}").length === 0)
 
 // Tag balance.
