@@ -1,0 +1,18 @@
+{
+  "id": "notifications-inbox",
+  "level": 3,
+  "title": "Notifications inbox with detail pane",
+  "describe": "an inbox with a list and a detail pane",
+  "prompt": "Build a notifications inbox at /.\n\nRequirements:\n- A heading \"Inbox\" and a list of five messages, hard-coded and all unread at first: \"Welcome aboard\", \"Quarterly report ready\", \"Password changed\", \"New comment on Roadmap\" and \"Invoice paid\". Each message is a button named by its title.\n- A line \"<n> unread\" counting unread messages (\"5 unread\" at first).\n- Choosing a message opens its detail beside or below the list: its title as a heading and a body. The body of \"Quarterly report ready\" is \"The report for Q3 is attached\". Opening a message marks it read.\n- A button \"Mark all as read\" that makes the count \"0 unread\".\n- Keep it all on the client; there is no server.",
+  "pages": ["/"],
+  "steps": [
+    { "do": "goto", "path": "/" },
+    { "do": "expectRole", "role": "heading", "name": "Inbox" },
+    { "do": "expectText", "text": "5 unread" },
+    { "do": "click", "role": "button", "name": "Quarterly report ready" },
+    { "do": "expectText", "text": "The report for Q3 is attached" },
+    { "do": "expectText", "text": "4 unread" },
+    { "do": "click", "role": "button", "name": "Mark all as read" },
+    { "do": "expectText", "text": "0 unread" }
+  ]
+}

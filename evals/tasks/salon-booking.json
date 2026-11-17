@@ -1,0 +1,23 @@
+{
+  "id": "salon-booking",
+  "level": 5,
+  "title": "Salon booking with services, slots and admin",
+  "describe": "a salon booking app with services, time slots and an admin page",
+  "prompt": "Build a booking app for a small salon, with no server.\n\nRequirements:\n- /: a heading \"Book a visit\" and three services, hard-coded: Haircut (45 min, $40), Colour (90 min, $120) and Beard trim (20 min, $20). Each has a button \"Book <service>\", for example \"Book Haircut\".\n- Choosing a service shows the time slots 10:00, 11:00 and 14:00 as buttons. Choosing a slot shows a field labelled \"Your name\" and a button \"Confirm booking\".\n- Confirming shows \"Booked: <service> at <time>\". A booked slot cannot be booked again for the same service: its button is disabled.\n- /admin: a heading \"Bookings\" and a table of bookings with name, service and time, each row with a button \"Cancel booking\". With no bookings it shows \"No bookings\".\n- Bookings are kept in the browser (local storage) so /admin sees what / saved.",
+  "pages": ["/", "/admin"],
+  "steps": [
+    { "do": "goto", "path": "/" },
+    { "do": "expectRole", "role": "heading", "name": "Book a visit" },
+    { "do": "click", "role": "button", "name": "Book Haircut" },
+    { "do": "click", "role": "button", "name": "10:00" },
+    { "do": "fill", "label": "Your name", "value": "Ada Test" },
+    { "do": "click", "role": "button", "name": "Confirm booking" },
+    { "do": "expectText", "text": "Booked: Haircut at 10:00" },
+    { "do": "goto", "path": "/admin" },
+    { "do": "expectRole", "role": "heading", "name": "Bookings" },
+    { "do": "expectText", "text": "Ada Test" },
+    { "do": "expectText", "text": "10:00" },
+    { "do": "click", "role": "button", "name": "Cancel booking" },
+    { "do": "expectText", "text": "No bookings" }
+  ]
+}

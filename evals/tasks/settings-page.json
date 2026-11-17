@@ -1,0 +1,17 @@
+{
+  "id": "settings-page",
+  "level": 1,
+  "title": "Settings page",
+  "describe": "a settings page",
+  "prompt": "Build a settings page at /.\n\nRequirements:\n- A heading \"Settings\".\n- A text field labelled \"Display name\" and a text field labelled \"Email\".\n- A switch labelled \"Email notifications\".\n- A button \"Save changes\". Pressing it shows the message \"Settings saved\".\n- Keep it all on the client; there is no server.",
+  "pages": ["/"],
+  "steps": [
+    { "do": "goto", "path": "/" },
+    { "do": "http", "path": "/", "status": 200 },
+    { "do": "expectRole", "role": "heading", "name": "Settings" },
+    { "do": "fill", "label": "Display name", "value": "Ada Test" },
+    { "do": "fill", "label": "Email", "value": "ada@example.test" },
+    { "do": "click", "role": "button", "name": "Save changes" },
+    { "do": "expectText", "text": "Settings saved" }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "expense-tracker",
+  "level": 3,
+  "title": "Expense tracker with running total",
+  "describe": "an expense tracker with a total",
+  "prompt": "Build an expense tracker at /.\n\nRequirements:\n- A heading \"Expenses\".\n- A field labelled \"Description\", a number field labelled \"Amount\" and a button \"Add expense\". Adding appends a row and clears both fields. An empty description or an amount that is not above zero shows the error \"Enter a description and an amount above zero\" and adds nothing.\n- Each row shows the description and the amount with two decimals, for example $4.50, and has a button \"Delete <description>\", for example \"Delete Coffee\".\n- A line \"Total: $<sum>\" with two decimals, \"Total: $0.00\" when empty.\n- Keep it all on the client; there is no server.",
+  "pages": ["/"],
+  "steps": [
+    { "do": "goto", "path": "/" },
+    { "do": "expectRole", "role": "heading", "name": "Expenses" },
+    { "do": "expectText", "text": "Total: $0.00" },
+    { "do": "click", "role": "button", "name": "Add expense" },
+    { "do": "expectText", "text": "Enter a description and an amount above zero" },
+    { "do": "fill", "label": "Description", "value": "Coffee" },
+    { "do": "fill", "label": "Amount", "value": "4.50" },
+    { "do": "click", "role": "button", "name": "Add expense" },
+    { "do": "fill", "label": "Description", "value": "Train" },
+    { "do": "fill", "label": "Amount", "value": "12" },
+    { "do": "click", "role": "button", "name": "Add expense" },
+    { "do": "expectText", "text": "Total: $16.50" },
+    { "do": "click", "role": "button", "name": "Delete Coffee" },
+    { "do": "expectText", "text": "Total: $12.00" }
+  ]
+}

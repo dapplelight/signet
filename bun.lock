@@ -106,6 +106,14 @@
         "ai",
       ],
     },
+    "evals": {
+      "name": "@dapplelight/signet-evals",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
+        "typescript": "^7.0.2",
+      },
+    },
     "packages/cli": {
       "name": "@dapplelight/signet-cli",
       "version": "0.1.0",
@@ -451,6 +459,8 @@
     "@dapplelight/signet-ai": ["@dapplelight/signet-ai@workspace:packages/ai"],
 
     "@dapplelight/signet-cli": ["@dapplelight/signet-cli@workspace:packages/cli"],
+
+    "@dapplelight/signet-evals": ["@dapplelight/signet-evals@workspace:evals"],
 
     "@dapplelight/signet-config": ["@dapplelight/signet-config@workspace:packages/config"],
 

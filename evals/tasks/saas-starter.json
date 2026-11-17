@@ -1,0 +1,25 @@
+{
+  "id": "saas-starter",
+  "level": 5,
+  "title": "SaaS starter with login, pricing and dashboard",
+  "describe": "a saas app with a login screen, a pricing page and a dashboard",
+  "prompt": "Build a small SaaS front end with three pages and no server.\n\nRequirements:\n- /pricing: a heading \"Pricing\" and plan cards Starter at $9 and Team at $29 per month. It is open to everyone.\n- /login: a heading \"Sign in\", fields labelled \"Email\" and \"Password\", and a button \"Sign in\". Any non-empty email and password signs in and goes to /dashboard. The session is kept in the browser (local storage) so a reload stays signed in.\n- /dashboard: a heading \"Dashboard\", three stat cards \"Active users\", \"Revenue\" and \"Open tickets\" with made-up numbers, and a button \"Sign out\". Signing out goes to /login.\n- Opening /dashboard while signed out shows the /login page.\n- Keep it all on the client; there is no server.",
+  "pages": ["/pricing", "/login", "/dashboard"],
+  "steps": [
+    { "do": "goto", "path": "/pricing" },
+    { "do": "expectRole", "role": "heading", "name": "Pricing" },
+    { "do": "expectText", "text": "Starter" },
+    { "do": "expectText", "text": "Team" },
+    { "do": "goto", "path": "/dashboard" },
+    { "do": "expectRole", "role": "heading", "name": "Sign in" },
+    { "do": "fill", "label": "Email", "value": "ada@example.test" },
+    { "do": "fill", "label": "Password", "value": "secret-pass" },
+    { "do": "click", "role": "button", "name": "Sign in" },
+    { "do": "expectRole", "role": "heading", "name": "Dashboard" },
+    { "do": "expectText", "text": "Active users" },
+    { "do": "expectText", "text": "Revenue" },
+    { "do": "expectText", "text": "Open tickets" },
+    { "do": "click", "role": "button", "name": "Sign out" },
+    { "do": "expectRole", "role": "heading", "name": "Sign in" }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "id": "support-desk",
+  "level": 4,
+  "title": "Support desk with search, detail and replies",
+  "describe": "a support desk with a ticket list, search and a detail view",
+  "prompt": "Build a support desk at /tickets.\n\nRequirements:\n- A heading \"Tickets\" and a list of four tickets, hard-coded, each a button named by its title: \"Cannot reset password\" (Open), \"Billing question\" (Open), \"Export is slow\" (Pending) and \"Feature request: dark charts\" (Resolved). The status shows next to each title.\n- A search field labelled \"Search tickets\" that filters the list by title as you type, ignoring case.\n- Choosing a ticket opens its detail: the title as a heading, the text \"Status: <status>\", and a conversation list.\n- A multi-line field labelled \"Reply\" and a button \"Send reply\". Sending appends the text to the conversation and clears the field.\n- A button \"Mark resolved\" that changes the status to Resolved, so the detail shows \"Status: Resolved\".\n- Keep it all on the client; there is no server.",
+  "pages": ["/tickets"],
+  "steps": [
+    { "do": "goto", "path": "/tickets" },
+    { "do": "expectRole", "role": "heading", "name": "Tickets" },
+    { "do": "fill", "label": "Search tickets", "value": "billing" },
+    { "do": "expectText", "text": "Billing question" },
+    { "do": "expectNoText", "text": "Cannot reset password" },
+    { "do": "click", "role": "button", "name": "Billing question" },
+    { "do": "expectText", "text": "Status: Open" },
+    { "do": "fill", "label": "Reply", "value": "We are looking into it" },
+    { "do": "click", "role": "button", "name": "Send reply" },
+    { "do": "expectText", "text": "We are looking into it" },
+    { "do": "click", "role": "button", "name": "Mark resolved" },
+    { "do": "expectText", "text": "Status: Resolved" }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "id": "todo-board",
+  "level": 2,
+  "title": "Task list with filters",
+  "describe": "a task list with active and done filters",
+  "prompt": "Build a task list at /.\n\nRequirements:\n- A heading \"Tasks\".\n- A text field labelled \"New task\" and a button \"Add task\". Adding appends the task to the list and clears the field.\n- Each task has a checkbox labelled \"Done: <task title>\", for example \"Done: Buy paper\".\n- Filter buttons \"All\", \"Active\" and \"Done\". \"Active\" hides done tasks and \"Done\" hides active ones.\n- A line \"<n> tasks left\" (\"1 task left\" for one) counting the tasks that are not done.\n- Keep it all on the client; there is no server.",
+  "pages": ["/"],
+  "steps": [
+    { "do": "goto", "path": "/" },
+    { "do": "fill", "label": "New task", "value": "Buy paper" },
+    { "do": "click", "role": "button", "name": "Add task" },
+    { "do": "fill", "label": "New task", "value": "Write report" },
+    { "do": "click", "role": "button", "name": "Add task" },
+    { "do": "expectText", "text": "Buy paper" },
+    { "do": "expectText", "text": "2 tasks left" },
+    { "do": "click", "role": "checkbox", "name": "Done: Buy paper" },
+    { "do": "click", "role": "button", "name": "Active" },
+    { "do": "expectNoText", "text": "Buy paper" },
+    { "do": "expectText", "text": "Write report" },
+    { "do": "expectText", "text": "1 task left" }
+  ]
+}

@@ -1,0 +1,79 @@
+---
+title: "Measure agent builds with evals"
+description: "Build the same apps with and without Signet and compare pass rate, cost and looks."
+---
+
+The evals harness gives a coding agent the same task three ways and scores what it builds. It lives in `evals/` at the repo root. It is a private workspace and is never published. Run it from a checkout of the Signet repo.
+
+## 1. What the arms are
+
+Each task runs in a fresh temporary app, once per arm.
+
+- **A** is plain Vite and React. The agent gets no Signet.
+- **B** is Signet, the MCP server and `llms.txt`.
+- **C** is B plus blocks, `plan_page`, `check` and `--describe`.
+
+Every arm gets the same model and the same task prompt. The tasks run from easy to hard, from a settings page to a SaaS with login, pricing and a dashboard. Each task has a hidden acceptance test that the agent never sees.
+
+## 2. Dry run
+
+Arms B and C start the MCP server from `packages/mcp/dist`, which is not in git. Build it first, or the run stops with an error naming the missing file.
+
+```bash
+bun install
+bun run build:all
+```
+
+A dry run checks every task and arm and does not call the agent. It costs nothing.
+
+```bash
+bun evals/run.ts --tasks all --arms A,B,C --dry-run
+```
+
+```text
+Dry run: 12 tasks, 3 arms valid. No agent called.
+```
+
+If a task or arm is wrong, the error names the task id and the field, and the command exits 1. CI runs only the dry run and the unit tests.
+
+## 3. Smoke run
+
+The smoke run is 4 tasks, 3 arms and 1 run each, so 12 builds.
+
+This calls Claude and costs money. Check the cost of a single run first. Cap the turns with `--max-turns`.
+
+```bash
+bun evals/run.ts --tasks settings-page,invoice-list,pricing-page,salon-booking --arms A,B,C --runs 1 --max-turns 40
+```
+
+It prints one line per run and ends with the report path.
+
+```text
+[3/12] salon-booking C run 1: pass, 41 turns, $1.12, 6m02s
+Report: evals/results/2026-01-15T09-30-00/report.md
+```
+
+Each run is scored on whether it builds and typechecks, whether the hidden test passes, how many `check` violations it has (arms B and C), its screenshots at 390 and 1440 px in light and dark, and its cost. A judge scores the screenshots against [`evals/rubric.md`](https://github.com/dapplelight/signet/blob/main/evals/rubric.md).
+
+## 4. Read report.md
+
+Results go to `evals/results/<date>T<time>/`, so a second eval on the same day never overwrites the first. Pass `--out <dir>` to choose the folder yourself. `results.json` has every run. `report.md` has these parts:
+
+- **By arm**: pass rates, check violations, visual score, turns, tokens, USD and wall time. Arm A shows "n/a" for check violations, because it has no Signet to check.
+- **By task**: the same numbers for each task, with links to the screenshots.
+- **C vs B vs A**: signed deltas, such as "+12 pts" or "−$0.40".
+- **Spot-check**: runs picked for a human to look at.
+
+A run that failed keeps its row, shows "failed: <reason>" and still counts in the totals.
+
+## 5. Spot-check by hand
+
+The judge is a model, so a human checks about 10% of the runs. Open the screenshots for each run in the Spot-check list. Score them with [`evals/rubric.md`](https://github.com/dapplelight/signet/blob/main/evals/rubric.md) and the severity words in [`scripts/qa/REVIEW.md`](https://github.com/dapplelight/signet/blob/main/scripts/qa/REVIEW.md). If you and the judge disagree, trust yourself and note it.
+
+## Next
+
+<Cards>
+  <Card title="Build a whole app with an agent" href="/docs/guides/build-a-whole-app-with-an-agent" description="Describe an app in one sentence and build it page by page." />
+  <Card title="Build a page with an agent" href="/docs/guides/build-a-page-with-an-agent" description="One page at a time with plan_page." />
+  <Card title="CLI" href="/docs/packages/cli#check" description="The check command and its flags." />
+</Cards>

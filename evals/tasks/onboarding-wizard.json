@@ -1,0 +1,23 @@
+{
+  "id": "onboarding-wizard",
+  "level": 3,
+  "title": "Three-step onboarding wizard",
+  "describe": "an onboarding flow with three steps",
+  "prompt": "Build an onboarding wizard at /onboarding with three steps.\n\nRequirements:\n- Step 1 has the heading \"Your details\", a field labelled \"Full name\" and a button \"Next\". Pressing Next with the name empty shows \"Full name is required\" and stays on the step.\n- Step 2 has the heading \"Pick a plan\" and two radio options, \"Starter\" and \"Team\", and a button \"Next\".\n- Step 3 has the heading \"Review\", shows the name and the chosen plan, and a button \"Finish\".\n- Finish shows \"You are all set\".\n- A text \"Step <n> of 3\" shows where the user is.\n- Keep it all on the client; there is no server.",
+  "pages": ["/onboarding"],
+  "steps": [
+    { "do": "goto", "path": "/onboarding" },
+    { "do": "expectText", "text": "Step 1 of 3" },
+    { "do": "click", "role": "button", "name": "Next" },
+    { "do": "expectText", "text": "Full name is required" },
+    { "do": "fill", "label": "Full name", "value": "Ada Test" },
+    { "do": "click", "role": "button", "name": "Next" },
+    { "do": "expectRole", "role": "heading", "name": "Pick a plan" },
+    { "do": "click", "role": "radio", "name": "Team" },
+    { "do": "click", "role": "button", "name": "Next" },
+    { "do": "expectRole", "role": "heading", "name": "Review" },
+    { "do": "expectText", "text": "Ada Test" },
+    { "do": "click", "role": "button", "name": "Finish" },
+    { "do": "expectText", "text": "You are all set" }
+  ]
+}
