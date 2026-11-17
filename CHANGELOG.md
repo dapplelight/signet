@@ -5,6 +5,18 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-ai: 0.5.0 publishes ./otel
+
+- `./otel` (AI usage to OpenTelemetry spans) was added without a version bump, so npm did not have it. 0.5.0 publishes it. No breaking change.
+
+### signet-server: 0.6.0 publishes the observability exports
+
+- `./http/observability`, `./observability/trace`, `./observability/request-log` and `./observability/health` were added without a version bump, so npm did not have them. 0.6.0 publishes them. No breaking change; `@dapplelight/signet-mcp` now depends on `^0.6.0`.
+
+### signet-ui: 0.4.0 publishes blocks and the cost dashboard
+
+- `./blocks/*` (nine page-level blocks, copied in with `signet add block <name>`) and `./screens/cost-dashboard` were added without a version bump, so npm did not have them. 0.4.0 publishes them. No breaking change.
+
 ### create-signet-app: --describe, a whole-app plan from one sentence
 
 - New `--describe "<sentence>"`: picks the template (`web`, `api` or `full`) and theme from the sentence, scaffolds, then writes `PLAN.md` (pages with their block commands, components, modules and data; data models; recipes; build order; the `signet check` to run after each page) and `AGENTS.md` (follow the plan one page at a time). No LLM call: the same sentence gives the same files. An explicit `--template` or `--theme` wins. Without `--describe` nothing changes.
