@@ -6,19 +6,40 @@
     "colorMeta": {
       "page": { "role": "neutral", "displayName": "Page White", "canonical": "#ffffff" },
       "page-dark": { "role": "neutral", "displayName": "Page Black", "canonical": "#0a0a0a" },
-      "ink": { "role": "primary", "displayName": "Ink", "canonical": "#0a0a0a", "tonalRamp": ["#0a0a0a", "#171717", "#262626", "#404040", "#737373", "#a3a3a3", "#e5e5e5", "#fafafa"] },
+      "ink": {
+        "role": "primary",
+        "displayName": "Ink",
+        "canonical": "#0a0a0a",
+        "tonalRamp": [
+          "#0a0a0a",
+          "#171717",
+          "#262626",
+          "#404040",
+          "#737373",
+          "#a3a3a3",
+          "#e5e5e5",
+          "#fafafa"
+        ]
+      },
       "muted-ink": { "role": "neutral", "displayName": "Muted Ink", "canonical": "#737373" },
       "hairline": { "role": "neutral", "displayName": "Hairline", "canonical": "#e5e5e5" },
       "wash": { "role": "neutral", "displayName": "Wash", "canonical": "#f5f5f5" }
     },
     "typographyMeta": {
       "display": { "displayName": "Display", "purpose": "The landing hero line only." },
-      "headline": { "displayName": "Headline", "purpose": "Section headings, written as plain statements." },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Section headings, written as plain statements."
+      },
       "code": { "displayName": "Code", "purpose": "Commands and code blocks only." }
     },
     "shadows": [],
     "motion": [
-      { "name": "state", "value": "150ms ease", "purpose": "Colour and opacity changes on hover and tab selection." }
+      {
+        "name": "state",
+        "value": "150ms ease",
+        "purpose": "Colour and opacity changes on hover and tab selection."
+      }
     ],
     "breakpoints": [
       { "name": "sm", "value": "640px" },
@@ -63,12 +84,32 @@
   "narrative": {
     "northStar": "The Category Standard",
     "overview": "The docs and landing page sit beside ui.shadcn.com and Vercel's docs: white or near-black, neutral greys, hairlines, Geist, and the product's own live components as the only colour.",
-    "keyCharacteristics": ["One surface, hairline separation", "Geist sans and mono", "Live Signet components as proof", "Left-aligned, short text"],
-    "rules": [
-      { "name": "The One Surface Rule", "body": "Containers separate by a 1px hairline, never by a different background or a shadow.", "section": "colors" },
-      { "name": "The Statement Rule", "body": "Section headings are plain sentences stating a fact, with no label above them.", "section": "typography" }
+    "keyCharacteristics": [
+      "One surface, hairline separation",
+      "Geist sans and mono",
+      "Live Signet components as proof",
+      "Left-aligned, short text"
     ],
-    "dos": ["Do render real components and commands", "Do keep the action order: scaffolder, MCP, docs, star"],
-    "donts": ["Don't add kickers or eyebrows", "Don't use gradient glow, glass, seals, fake chats or decorative serifs", "Don't use a grid of equal icon cards"]
+    "rules": [
+      {
+        "name": "The One Surface Rule",
+        "body": "Containers separate by a 1px hairline, never by a different background or a shadow.",
+        "section": "colors"
+      },
+      {
+        "name": "The Statement Rule",
+        "body": "Section headings are plain sentences stating a fact, with no label above them.",
+        "section": "typography"
+      }
+    ],
+    "dos": [
+      "Do render real components and commands",
+      "Do keep the action order: scaffolder, MCP, docs, star"
+    ],
+    "donts": [
+      "Don't add kickers or eyebrows",
+      "Don't use gradient glow, glass, seals, fake chats or decorative serifs",
+      "Don't use a grid of equal icon cards"
+    ]
   }
 }
