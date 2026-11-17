@@ -7,7 +7,7 @@ description: "Wire auth, a database, an admin API, payments or notifications int
 <Step>
 ### Add the module
 ```bash
-npx @dapplelight/signet-cli add auth payments
+bun path/to/signet/packages/cli/src/index.ts add auth payments
 ```
 </Step>
 <Step>
@@ -36,7 +36,7 @@ New keys also land in `.env.example`.
 <Step>
 ### Preview an upgrade
 ```bash
-npx @dapplelight/signet-cli upgrade --dry-run
+bun path/to/signet/packages/cli/src/index.ts upgrade --dry-run
 ```
 Upgrade merges upstream changes into your edited module files and runs the codemods your installed versions need.
 </Step>

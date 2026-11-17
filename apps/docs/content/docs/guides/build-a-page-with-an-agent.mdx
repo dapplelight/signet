@@ -26,7 +26,7 @@ Ask for the page in plain words.
   "blocks": [
     {
       "name": "analytics-dashboard",
-      "command": "npx @dapplelight/signet-cli add block analytics-dashboard"
+      "command": "npx @dapplelight/signet-cli add block analytics-dashboard" // not on npm yet: run it from source
     }
   ],
   "data": [
@@ -43,10 +43,10 @@ Use `target: "api"` for the server side and `target: "full"` for both. If nothin
 
 ## 3. Run the block commands
 
-Run each command in `blocks`.
+Run each command in `blocks`. The CLI is not on npm yet, so swap `npx @dapplelight/signet-cli` for the source form ([run from source](/docs/packages/cli#run-from-source-today)):
 
 ```bash
-npx @dapplelight/signet-cli add block analytics-dashboard
+bun path/to/signet/packages/cli/src/index.ts add block analytics-dashboard
 ```
 
 This copies the block and the components it uses into your app. The [Page Blocks guide](/docs/guides/blocks) lists what every block takes and how to restyle it.
@@ -84,12 +84,12 @@ Replace the sample data with your own, shaped like the plan's `data` lines. Here
 />
 ```
 
-## 5. Run check_app, then signet check
+## 5. Run check_app, then the CLI check
 
-Finish with `check_app` on the project and fix every error it reports. Then run `signet check` with the dev server up. It typechecks, lints, checks Signet's conventions and screenshots the page at 390 and 1280 px with axe.
+Finish with `check_app` on the project and fix every error it reports. Then run the CLI `check` command with the dev server up. It typechecks, lints, checks Signet's conventions and screenshots the page at 390 and 1280 px with axe.
 
 ```bash
-npx @dapplelight/signet-cli check --pages /dashboard
+bun path/to/signet/packages/cli/src/index.ts check --pages /dashboard
 ```
 
 Fix every finding, rerun until it exits 0. Each finding has a file, a line, a rule and a fix, so an agent can act on it. Add `--json` to hand it the list as one line of JSON. The [CLI page](/docs/packages/cli#check) lists the flags.

@@ -1,10 +1,13 @@
 ---
 title: "Test"
 description: "Fake providers with the real interfaces, Playwright theme checks, dev overlay and demo mode."
+maturity: "source-only"
 ---
 
-```bash
-bun add -d @dapplelight/signet-test
+Not on npm yet (`private` in its package.json). In a Signet workspace, depend on it as `workspace:*`:
+
+```json title="package.json"
+{ "devDependencies": { "@dapplelight/signet-test": "workspace:*" } }
 ```
 
 Every peer is optional. Install the one a subpath needs: `@dapplelight/signet-payments`, `@dapplelight/signet-server`, `ai`, `@playwright/test`, `react` and `@dapplelight/signet-ui`.

@@ -13,9 +13,9 @@ npm i @dapplelight/signet-tokens clsx tailwind-merge
 <Step>
 ### Copy the component
 ```bash
-npx @dapplelight/signet-cli add dialog
+bun path/to/signet/packages/cli/src/index.ts add dialog
 ```
-It copies `dialog` and what it imports into `src/components/signet/`.
+It copies `dialog` and what it imports into `src/components/signet/`. The CLI is not on npm yet: `path/to/signet` is your clone, see [Run from source](/docs/packages/cli#run-from-source-today).
 </Step>
 <Step>
 ### Import your copy
@@ -37,9 +37,9 @@ Commit `signet.json` and `.signet/`: upgrades merge against them.
 <Step>
 ### Upgrade later
 ```bash
-npx @dapplelight/signet-cli diff dialog
-npx @dapplelight/signet-cli upgrade --dry-run
-npx @dapplelight/signet-cli upgrade dialog
+bun path/to/signet/packages/cli/src/index.ts diff dialog
+bun path/to/signet/packages/cli/src/index.ts upgrade --dry-run
+bun path/to/signet/packages/cli/src/index.ts upgrade dialog
 ```
 Where you and signet-ui changed the same lines, the file keeps git conflict markers. Resolve them, then run lint, typecheck and tests.
 </Step>

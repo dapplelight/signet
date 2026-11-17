@@ -15,7 +15,7 @@ writeFileSync("src/brand.css", toCss(theme))
 console.log(theme.adjustments) // tokens moved to reach contrast
 ```
 
-Import `brand.css` in place of the base theme, before `base.css`. Or from the CLI: `signet theme "#e11d48" --base cinematic > src/brand.css`.
+Import `brand.css` in place of the base theme, before `base.css`. Or from the [CLI](/docs/packages/cli): `bun path/to/signet/packages/cli/src/index.ts theme "#e11d48" --base cinematic > src/brand.css`.
 
 Text tokens reach WCAG 4.5:1 on every surface they sit on; focus and chart colours 3:1. A pale brand comes back darker in light mode, with the change listed in `adjustments`. The result overrides colours only: radius, type, spacing and motion stay the base theme's.
 

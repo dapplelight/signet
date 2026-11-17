@@ -1,21 +1,31 @@
 ---
 title: "CLI"
 description: "Copy components and backend modules into your app as source, then merge upstream changes."
+maturity: "source-only"
 ---
 
+`@dapplelight/signet-cli` is not on npm (`npm view @dapplelight/signet-cli` is a 404). Run it from a clone of the repo.
+
+## Run from source (today)
+
 ```bash
-npx @dapplelight/signet-cli add dialog
+git clone https://github.com/dapplelight/signet.git
+cd signet
+bun install
+bun run --cwd packages/cli build   # writes dist/registry.json
+cd ../my-app                       # your app, next to the clone
+bun ../signet/packages/cli/src/index.ts add dialog
 ```
 
-The package is not on npm yet. In the Signet repo, run `bun packages/cli/src/index.ts <command> --cwd <app>` after `bun run build` in `packages/cli`.
+```text
+  Added utils, button, dialog (signet-ui 0.4.0).
+    wrote lib/utils.ts
+    wrote components/ui/button.tsx
+    wrote components/ui/dialog.tsx
+    wrote lib/labels.tsx
 
-## Quick start
-
-```bash
-signet add dialog          # copies dialog and what it imports into src/components/signet/
-signet add auth payments   # wires backend modules into an api-template app
-signet upgrade --dry-run   # preview upstream changes against your edits
-signet upgrade             # merge them
+  Install the npm packages these need:
+  bun add "clsx@>=2.0.0" "tailwind-merge@>=3.0.0" "@base-ui/react@>=1.3.0" "class-variance-authority@>=0.0.0" "lucide-react@>=1.0.0" "react@>=19.0.0"
 ```
 
 Then import from your copy:
@@ -24,11 +34,22 @@ Then import from your copy:
 import { Dialog } from "@/components/signet/components/ui/dialog"
 ```
 
+Elsewhere in these docs `path/to/signet` stands for your clone, so `bun path/to/signet/packages/cli/src/index.ts add dialog` is the same command. Below, `signet` is short for that command.
+
+## After 1.0
+
+Not available yet. Once the package is published:
+
+```bash
+npx @dapplelight/signet-cli add dialog   # not available yet
+signet add dialog                        # after installing it; not available yet
+```
+
 ## Commands
 
 | Command | What it does |
 | --- | --- |
-| `signet add <name...>` | Copy items and their dependencies into the app as source. |
+| `signet add <name...>` | Copy items and their dependencies into the app as source. `signet add auth payments` wires backend modules into an api-template app. |
 | `signet upgrade [name...]` | Merge upstream changes into added items (default: all), then run the codemods your installed Signet versions need. |
 | `signet diff <name>` | Show what changed upstream since you copied the item. |
 | `signet list` | Every item, with what is added, edited or out of date. |

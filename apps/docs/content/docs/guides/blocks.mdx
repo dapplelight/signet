@@ -6,7 +6,7 @@ description: "Whole pages you copy into your app and edit: dashboard, list-detai
 A block is a page-level layout built only from Signet components. You copy it into your app as source, then change the data, the text and the markup. Agents compose from blocks instead of inventing layouts.
 
 ```bash
-npx @dapplelight/signet-cli add block analytics-dashboard
+bun path/to/signet/packages/cli/src/index.ts add block analytics-dashboard
 ```
 
 ```text
@@ -16,7 +16,7 @@ Added utils, badge, card, ..., analytics-dashboard (signet-ui 0.3.5).
   ...
 ```
 
-The command copies the block and the components it uses into `src/components/signet/`, the same way `add dialog` does (see [Own a component's source](/docs/guides/add-component-source)). `signet upgrade` merges later changes into your copy. Run `signet add block` with no name to list the blocks.
+The command copies the block and the components it uses into `src/components/signet/`, the same way `add dialog` does (see [Own a component's source](/docs/guides/add-component-source)). The CLI's `upgrade` command merges later changes into your copy. Run `add block` with no name to list the blocks.
 
 Every block:
 

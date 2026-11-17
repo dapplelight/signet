@@ -49,7 +49,7 @@ Then tell the agent: "Follow PLAN.md."
 For each page, in build order, the agent runs the block command and wires the data.
 
 ```bash
-npx @dapplelight/signet-cli add block list-detail
+bun path/to/signet/packages/cli/src/index.ts add block list-detail
 ```
 
 Replace the sample data with your own, shaped like the page's data lines. Here that is `items` for the inbox, with an id, a title and a status.
@@ -68,7 +68,7 @@ Replace the sample data with your own, shaped like the page's data lines. Here t
 Start the dev server, then run the check from the plan with the page's path.
 
 ```bash
-npx @dapplelight/signet-cli check --pages /list-detail
+bun path/to/signet/packages/cli/src/index.ts check --pages /list-detail
 npm run test
 ```
 

@@ -3,6 +3,7 @@ import { createRelativeLink } from "fumadocs-ui/mdx"
 import { MessageSquare, SquarePen } from "lucide-react"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
+import { MaturityBadge } from "@/components/maturity-badge"
 import { getMDXComponents } from "@/components/mdx"
 import { PageActions } from "@/components/page-actions"
 import { SidebarButton } from "@/components/sidebar-button"
@@ -58,6 +59,7 @@ export default async function Page(props: PageProps<"/docs/[[...slug]]">) {
         <PageActions markdownUrl={markdownUrl} githubUrl={githubUrl} />
       </div>
       <DocsDescription className="mb-6 text-[1rem]">{page.data.description}</DocsDescription>
+      {page.data.maturity && <MaturityBadge level={page.data.maturity} />}
       <DocsBody>
         <MDX
           components={getMDXComponents({
