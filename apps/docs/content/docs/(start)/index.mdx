@@ -42,14 +42,44 @@ Signet is a design system and backend kit for React apps. Your app holds only it
 
 ## 60-second start
 
+<Tabs items={["npm", "pnpm", "bun"]}>
+<Tab value="npm">
+
 ```bash
-npx create-signet-app my-app --template full --theme finance
+npx create-signet-app@latest my-app --template full
+cd my-app
+npm install
+npm run dev
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm create signet-app my-app --template full
+cd my-app
+pnpm install
+pnpm run dev
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bunx create-signet-app my-app --template full
 cd my-app
 bun install
 bun run dev
 ```
 
-`--template` takes `web`, `api`, `full`, `cli`, `extension` or `desktop`. `--theme` takes `editorial`, `cinematic` or `finance`. `full` gives you a web app and an API with sign-in, billing, admin and privacy already wired.
+</Tab>
+</Tabs>
+
+Open `http://localhost:5173`. `full` is a web app and an API with sign-in, billing, admin and privacy already wired.
+
+<Cards>
+  <Card title="Next: Create your first app" href="/docs/create-your-first-app" description="Scaffold, run and make your first edit." />
+</Cards>
 
 ## For agents
 

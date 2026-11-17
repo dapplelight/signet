@@ -1,0 +1,159 @@
+---
+title: Installation
+description: Scaffold a new app, or add Signet to a React app you already have.
+---
+
+| Path | Use it when | Start |
+| --- | --- | --- |
+| Scaffold | New project | [Create your first app](/docs/create-your-first-app) |
+| Existing React app | You have Vite, React 19 and Tailwind v4 | Steps below |
+
+## Prerequisites
+
+| Need | Version | Why |
+| --- | --- | --- |
+| Node.js | 22+ | Signet's CI tests 22 and 24; `--target node` needs 22.18+ |
+| Bun | 1.3+ | `full` runs its API, tests and CI under Bun, whatever installs it |
+| React | 19+ | Peer of `signet-ui` |
+| Tailwind CSS | 4+ | The themes are Tailwind v4 CSS |
+
+## Add to an existing React app
+
+<Steps>
+<Step>
+
+### Install
+
+<Tabs items={["npm", "pnpm", "bun"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui @dapplelight/signet-tokens
+npm i @dapplelight/signet-lib
+npm i @base-ui/react class-variance-authority clsx
+npm i tailwind-merge lucide-react
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui @dapplelight/signet-tokens
+pnpm add @dapplelight/signet-lib
+pnpm add @base-ui/react class-variance-authority clsx
+pnpm add tailwind-merge lucide-react
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui @dapplelight/signet-tokens
+bun add @dapplelight/signet-lib
+bun add @base-ui/react class-variance-authority clsx
+bun add tailwind-merge lucide-react
+```
+
+</Tab>
+</Tabs>
+
+</Step>
+<Step>
+
+### Import the theme
+
+```css title="src/app.css"
+@import "tailwindcss";
+@import "@dapplelight/signet-tokens/editorial.css";
+@import "@dapplelight/signet-tokens/base.css";
+
+/* Tailwind does not scan node_modules, and
+   @dapplelight/signet-ui ships compiled JS whose class names
+   must be seen or every component renders unstyled. The theme
+   cannot declare this: a package does not know where it is
+   installed. Must come after the @import rules: CSS requires
+   imports first. */
+@source "../node_modules/@dapplelight/signet-ui/dist";
+```
+
+Other themes: [Themes](/docs/packages/tokens/themes). Your own: [Make a Theme](/docs/guides/add-theme).
+
+</Step>
+<Step>
+
+### Add the Tailwind plugin
+
+<Tabs items={["npm", "pnpm", "bun"]}>
+<Tab value="npm">
+
+```bash
+npm i -D tailwindcss @tailwindcss/vite
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add -D tailwindcss @tailwindcss/vite
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add -D tailwindcss @tailwindcss/vite
+```
+
+</Tab>
+</Tabs>
+
+```ts title="vite.config.ts"
+import tailwindcss from "@tailwindcss/vite"
+import react from "@vitejs/plugin-react"
+import { defineConfig } from "vite"
+
+export default defineConfig({ plugins: [react(), tailwindcss()] })
+```
+
+</Step>
+<Step>
+
+### Wrap the app in ThemeProvider
+
+```tsx title="src/main.tsx"
+import { ThemeProvider } from
+  "@dapplelight/signet-ui/components/theme-provider"
+import { StrictMode } from "react"
+import { createRoot } from "react-dom/client"
+import { App } from "./App"
+import "./app.css"
+
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <ThemeProvider>
+      <App />
+    </ThemeProvider>
+  </StrictMode>,
+)
+```
+
+</Step>
+<Step>
+
+### Render a Button
+
+```tsx title="src/App.tsx"
+import { Button } from "@dapplelight/signet-ui/components/button"
+
+export function App() {
+  return <Button>Hello Signet</Button>
+}
+```
+
+</Step>
+</Steps>
+
+<Cards>
+  <Card title="Button" href="/docs/components/button" description="Props, variants and examples." />
+  <Card title="Theme Provider" href="/docs/components/theme-provider" description="Light, dark and system themes." />
+</Cards>
