@@ -55,15 +55,16 @@ Publish output is deliberately **not** suppressed. bun asks for the one-time
 password on stdout, so hiding it leaves the release hanging on a prompt you
 cannot see — which is exactly what happened the first time.
 
-Pass `--otp` to skip the prompt entirely, which is easier when publishing five
-packages in a row.
+Pass `--otp` to skip the prompt entirely, which is easier when publishing
+several packages in a row.
 
 `bun publish` publishes the package in the current directory and has no
 `--workspaces` equivalent, and the repo root is `private: true` on purpose — the
 monorepo is not a package. Running `bun publish` at the root fails with
 "attempted to publish a private package". `bun run release` handles that by
-publishing each package itself, in dependency order (config, tokens, lib, ui,
-server, ai) so no consumer can hit a dependency that is not on the registry yet.
+publishing each package itself, in dependency order (the `ORDER` list in
+`scripts/release.ts`: config, tokens, lib, db, payments, ui, server, ai, spec,
+mcp, create-signet-app) so no consumer can hit a dependency that is not on the registry yet.
 
 It runs `verify:publish` first and refuses to continue if that fails. If a
 publish fails partway, it reports which packages are already live — those
@@ -90,21 +91,15 @@ extensionless imports and would have hidden the third bug.
 
 ## Consumers
 
-Every consuming repo and CI job needs an npm token, because the scope is
-private:
-
-```
-# .npmrc
-//registry.npmjs.org/:_authToken=${NPM_TOKEN}
-@signet:registry=https://registry.npmjs.org/
-```
-
-**Wrangler deploys need it too.** That is the cost of the private scope — it was
-chosen with that tradeoff understood.
+The packages are public, so a consuming repo or CI job needs no npm token and no
+`.npmrc`: `bun add @dapplelight/signet-ui` works on a machine with no npm login,
+and so do Wrangler deploys. The one unscoped package is `create-signet-app`.
+`@dapplelight/signet-cli` and `@dapplelight/signet-test` are `private` and are
+not published.
 
 ## Verified
 
-- All five publishable packages build (`tsc -p tsconfig.build.json`; tokens
+- Every publishable package builds (`tsc -p tsconfig.build.json`; tokens
   copies CSS).
 - Every path in every `publishConfig.exports` exists after a build — checked,
   not assumed. That check caught a `./themes/*` wildcard that resolved to
@@ -168,8 +163,8 @@ from CI like every other. No hand publish.
 
 Packages are versioned independently. `bun run release` skips any package whose
 version is already on npm, so bumping one package publishes one package.
-Bumping all five in lockstep republished unchanged code and made every release
-wait on npm to process five uploads.
+Bumping every package in lockstep republished unchanged code and made every
+release wait on npm to process every upload.
 
 - Bump a package when its published contents change.
 - Raise a dependent's range when it starts needing the new version — e.g. if
@@ -177,6 +172,12 @@ wait on npm to process five uploads.
   bump `ai`. Today's ranges (`ui` → `tokens`, `ai` → `lib`) are `^0.1.0`.
 - `create-signet-app` pins `lib`, `tokens` and `ui`; raise a pin when a scaffold
   needs the newer version.
+
+A new export or subpath needs the bump in the same PR that adds it. The docs
+and `API.md` are built from `main`, while users install the latest published
+version, so an export added without a bump is documented but not installable.
+`bun run scripts/check-bumps.ts` fails when a package's export paths differ from
+what npm has for the same version (it compares paths, not symbols inside one).
 
 ## After a release
 

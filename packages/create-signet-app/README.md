@@ -26,6 +26,36 @@ in `npm_config_user_agent`), else bun. With pnpm a `pnpm-workspace.yaml`
 approves esbuild's and workerd's build scripts, which pnpm 10+ otherwise refuses
 to install without. Tests stay on `bun test`, so CI sets up Bun too.
 
+## Which template
+
+`--template` defaults to `web`.
+
+| Template | Frontend | API | Database | Auth | MCP | Runs on |
+|---|---|---|---|---|---|---|
+| `web` | Vite + React + Signet UI, TanStack Router | none (a configured `createApiClient` for yours) | none | placeholder `/login` | no | any static host |
+| `api` | none | Hono with the error envelope and request ids | none (add with `signet add db`) | none (add with `signet add auth`) | `/mcp`, default on | `--target` cloudflare, bun, node or vercel |
+| `full` | the `web` app plus account, inbox, privacy, billing, admin | Hono on Bun, served with the built app | SQLite with migrations | phone codes, stored sessions, orgs | `/mcp`, default on | Bun (one process) |
+| `cli` | none | none | none | device-code login | no | one compiled Bun binary |
+| `extension` | Chrome MV3: popup, options, service worker | none | none | PKCE via `chrome.identity` | no | Chrome |
+| `desktop` | Tauri v2 window and menu-bar app | none | none | browser sign-in (PKCE, loopback) | no | macOS, Windows, Linux |
+
+## AI-assisted planning: `--describe`
+
+```bash
+bunx create-signet-app my-app --describe "a team inbox with settings and pricing"
+```
+
+One sentence picks the template (`web`, `api` or `full`) and theme, splits the
+sentence into pages, asks signet-mcp's `plan_page` about each, scaffolds the
+app, and writes `PLAN.md` (the pages, with blocks, components, data and files
+for each) and `AGENTS.md` (the instructions an agent working in the app
+should follow). It is deterministic and makes no LLM call: the same sentence
+always gives the same files. Keyword lists choose between Signet's own
+templates and themes; a sentence that names none gets `web` and `editorial`.
+
+An explicit `--template` or `--theme` wins over what the sentence implies.
+`--describe` applies to `web`, `api` and `full` only.
+
 ## `--template full`: web app + API in one project
 
 ```bash
@@ -64,9 +94,10 @@ same-origin. In dev, Vite proxies `/api` to it. What a fresh app has:
   `BILLING=fake` upgrades at once and is refused outside development; Razorpay
   webhooks go through signet-payments to `applyBillingEvent`), and admin
   (`/admin`, signet-db `defineAdmin` over the schema via `adminRoutes`, by
-  role). Billing and admin are interim pages marked `TODO(billing-screen)` /
-  `TODO(admin-screen)` until signet-ui's billing and admin screens are
-  published.
+  role). Both pages use signet-ui's published `BillingScreen` and admin
+  screens; nothing in them is a placeholder. What you still write is the
+  product: your plans and limits (`api/plans.ts`), and a real gateway in
+  place of `BILLING=fake`.
 - **Organisations.** Sign-up creates a personal org; an org switcher in the
   header; `/org` (settings: name, theme, brand colour) and
   `/org/members` (roles, remove, invite links) on signet-ui's org screens;
@@ -134,10 +165,20 @@ files are written:
 
 | `--target` | Entry | Config | Rate limit store |
 |---|---|---|---|
-| `cloudflare` (default) | `src/index.ts` (Worker) | `wrangler.jsonc` | `RateLimitCounter` Durable Object: exact |
-| `bun` | `src/server.ts` (`Bun.serve`) | `Dockerfile` | in-process: exact for one process |
-| `node` | `src/server.ts` (`node:http`) | `engines.node >= 22.18` | in-process: exact for one process |
-| `vercel` | `index.ts` (default export) | `vercel.json` (Hono preset) | in-process: per function instance |
+| `cloudflare` (default) | `src/index.ts` (Worker) | `wrangler.jsonc` | `RateLimitCounter` Durable Object: exact across all instances |
+| `bun` | `src/server.ts` (`Bun.serve`) | `Dockerfile` | in-process: exact for one process only |
+| `node` | `src/server.ts` (`node:http`) | `engines.node >= 22.18` | in-process: exact for one process only |
+| `vercel` | `index.ts` (default export) | `vercel.json` (Hono preset) | in-process: per function instance, so not exact |
+
+**Rate limits are not equivalent across targets.** An in-process store is safe
+for a single `bun` or `node` process. Run more than one instance (replicas,
+serverless, a load balancer) and each keeps its own count, so the real limit is
+the configured one times the number of instances. When the limit is an abuse or
+security control, use `cloudflare`, or pass a shared `store` (Redis; Vercel KV is
+[Upstash](https://vercel.com/docs/redis)) to `rateLimit`. Behind a proxy,
+the client IP is trusted only as far as you say: on `bun` and `node` set
+`TRUSTED_PROXY_HOPS` to the number of proxies in front, otherwise the socket
+address is used; on Vercel one forwarded hop is trusted.
 
 `node` runs `src/server.ts` as is through Node's type stripping (on by default
 from 22.18), so relative imports in the template carry `.ts`. It bridges
