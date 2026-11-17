@@ -85,6 +85,7 @@ export type SettingsLabels = typeof DEFAULT_SETTINGS_LABELS
 type Part = "general" | "notifications" | "danger"
 
 /** A save callback may reject, or resolve with messages to show under fields. */
+// biome-ignore lint/suspicious/noConfusingVoidType: lets a plain `async () => {}` callback type-check
 type Save<T> = (values: T) => void | Promise<void | Partial<Record<keyof T, string>>>
 
 export type SettingsProps = {

@@ -64,10 +64,12 @@ export function WebFunnelDemo() {
 
 export function FunnelQuestionDemo() {
   const [value, setValue] = useState<string | string[]>()
+  const question = page.funnel.questions?.[0]
+  if (!question) return null
   return (
     <FunnelQuestion
       className="w-full max-w-md"
-      question={page.funnel.questions![0]}
+      question={question}
       value={value}
       onAnswer={setValue}
     />

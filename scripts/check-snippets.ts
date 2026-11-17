@@ -193,7 +193,8 @@ export function checkSnippets(files: Source[]): Problem[] {
           })
       }
       for (const i of todo) {
-        if (bad.has(i)) parseError.set(i, bad.get(i)!)
+        const err = bad.get(i)
+        if (err) parseError.set(i, err)
         else chosen[i] = v
       }
     }
@@ -211,7 +212,8 @@ export function checkSnippets(files: Source[]): Problem[] {
       )
       p.blocks.forEach((b, n) => {
         if (!normal[n]) {
-          problems.push(parseError.get(first + n)!)
+          const err = parseError.get(first + n)
+          if (err) problems.push(err)
           return
         }
         const chain = b.title
@@ -222,7 +224,7 @@ export function checkSnippets(files: Source[]): Problem[] {
         const map: number[] = []
         const code: string[] = []
         for (const c of chain)
-          for (const [r, l] of normal[c]!.entries()) {
+          for (const [r, l] of (normal[c] ?? []).entries()) {
             code.push(l)
             map.push(p.blocks[c].start + r)
           }
@@ -249,8 +251,7 @@ export function checkSnippets(files: Source[]): Problem[] {
       )?.[1]
       if (missing) {
         const from = /\bfrom\s+["']([^"']+)["']/.exec(
-          out
-            .get(e.file)!
+          (out.get(e.file) ?? "")
             .split("\n")
             .slice(e.row - 1)
             .join("\n"),
