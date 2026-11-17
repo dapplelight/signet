@@ -19,7 +19,7 @@ export type Problem = { line: number; message: string }
 
 // Real ESM statement openers only, so prose like "export the usage with <reason>" is still checked.
 const ESM_START =
-  /^import(?:\s+type)?\s*(?:[{*"']|[\w$]+\s*(?:,|\s+from\b))|^export\s*[{*]|^export\s+(?:const|let|var|function|async|class|default|type|interface|enum)\b/
+  /^import(?:\s+type)?(?:\s*[{*"']|\s+[\w$]+\s*(?:,|\s+from\b))|^export\b\s*[{*]|^export\s+(?:const|let|var|function|async|class|default|type|interface|enum)\b/
 
 /** Blank out text that MDX does not parse, keeping every newline so line numbers hold. */
 function mask(src: string): string {

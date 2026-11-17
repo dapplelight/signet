@@ -62,6 +62,10 @@ ok(
   lines("export the usage with <reason> set\nimport the data into {total}\n").join() === "1,2",
 )
 ok(
+  "prose starting with a word that begins with import/export is still checked",
+  lines("important, set <reason>\nimports from {total}\nexports {total}\n").join() === "1,2,3",
+)
+ok(
   "default, namespace and type imports and exports are skipped",
   lines(
     'import Foo from "x"\nimport * as B from "y"\nimport type { T } from "z"\nimport "side"\nexport default Foo\nexport type X = { a: 1 }\nexport { Foo }\n',
