@@ -11,7 +11,7 @@ TypeScript kit for web apps and their APIs.
 
 Signet is a set of TypeScript packages for building web apps and their APIs:
 
-- **UI**: 41 React components on Tailwind v4, in the shadcn style (you read the
+- **UI**: 63 React components on Tailwind v4, in the shadcn style (you read the
   source, it is not a black box), plus hand-built extras such as a virtualised
   `data-table`, `combobox`, `stat-strip` and `responsive-sheet`.
 - **Tokens and themes**: every visual decision (colour, radius, type, shadow,
@@ -53,7 +53,7 @@ bun add @dapplelight/signet-ui @dapplelight/signet-tokens
 ```
 
 ```css
-/* app.css */
+/* src/app.css */
 @import "tailwindcss";
 @import "@dapplelight/signet-tokens/editorial.css";
 @import "@dapplelight/signet-tokens/base.css";
@@ -62,6 +62,7 @@ bun add @dapplelight/signet-ui @dapplelight/signet-tokens
 ```
 
 ```tsx
+// src/components/example.tsx
 import { Button, DataTable, EmptyState } from "@dapplelight/signet-ui"
 // or one component at a time, to keep the module graph small:
 import { Button } from "@dapplelight/signet-ui/components/button"
@@ -69,7 +70,8 @@ import { Button } from "@dapplelight/signet-ui/components/button"
 
 `@dapplelight/signet-ui` lists its peer dependencies (React 19, Base UI, Radix
 primitives, TanStack Table and a few more); recharts, TanStack Hotkeys and the
-Markdown stack are optional.
+Markdown stack are optional. The full table is in the
+[UI README](packages/ui/README.md#peer-dependencies).
 
 Run `bun run dev` in [apps/showcase](apps/showcase) to see the components under
 every theme, light and dark.
@@ -97,13 +99,21 @@ Every export path and symbol is listed on one page in [API.md](API.md).
 | Package | What it is |
 |---|---|
 | `@dapplelight/signet-tokens` | Themes (`editorial`, `cinematic`, `finance`) and base styles |
-| `@dapplelight/signet-ui` | 41 token-driven React components |
+| `@dapplelight/signet-ui` | 63 token-driven React components, plus 9 page blocks and 19 screen modules |
 | `@dapplelight/signet-lib` | Client: API client and error envelope, format, form, analytics, crypto |
 | `@dapplelight/signet-server` | Workers/Hono: auth, http, env, middleware, notify, MCP, OAuth resource server, observability |
 | `@dapplelight/signet-ai` | Structured LLM calls: budget, cache, failover, a classifier adapter |
+| `@dapplelight/signet-db` | Drizzle helpers: scoping, money, encrypted fields, audit log, admin, entitlements |
+| `@dapplelight/signet-payments` | Payment gateways (Razorpay, Stripe and more), webhooks, GST |
+| `@dapplelight/signet-spec` | The wire contract as schemas, OpenAPI helpers and the conformance cases |
 | `@dapplelight/signet-config` | Biome preset and tsconfig bases (`react`, `worker`) |
-| `create-signet-app` | Scaffolder for a web app or a Worker API |
-| `@dapplelight/signet-mcp` | MCP server: gives AI agents Signet's docs, exports, components, themes, checks and recipes (not on npm yet) |
+| `create-signet-app` | Scaffolder for a web app, a Worker API or both in one project |
+| `@dapplelight/signet-mcp` | MCP server: gives AI agents Signet's docs, exports, components, themes, checks and recipes |
+
+All of these are public on npm (`create-signet-app` unscoped, the rest under
+`@dapplelight`). Two workspace packages are not published: `@dapplelight/signet-cli`
+(`signet add`, `check`, `conformance`; run it from a clone, see its README) and
+`@dapplelight/signet-test` (internal test helpers).
 
 Each package has its own README with design notes.
 
@@ -124,7 +134,7 @@ package carries no domain vocabulary.
 Pre-1.0 (0.x versions, see [CHANGELOG.md](CHANGELOG.md)); expect minor
 versions to break things. Signet was extracted from 23 of the author's own
 apps and is used across them. The packages are published to npm under the
-`@nimit9` scope; [PUBLISHING.md](PUBLISHING.md) explains how releases work.
+`@dapplelight` scope (`create-signet-app` is unscoped); [PUBLISHING.md](PUBLISHING.md) explains how releases work.
 
 ## Contributing
 
