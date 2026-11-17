@@ -105,6 +105,8 @@ Only the `Authorization` header is advertised as a bearer method. The raw token 
 ### Require a scope on every request
 
 ```ts
+import { requireToken } from "@dapplelight/signet-server/oauth-rs/hono"
+
 app.use("/mcp/*", requireToken({ verifier, resourceMetadataUrl: META, scopes: ["orders:read"] }))
 ```
 

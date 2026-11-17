@@ -11,6 +11,7 @@ import { SchemaFormDemo, SchemaFormDefaultsDemo, SchemaFormServerErrorDemo } fro
 ```tsx
 import { z } from "zod"
 import { SchemaForm } from "@dapplelight/signet-ui/components/schema-form"
+import { save } from "./actions"
 
 const Expense = z.object({
   merchant: z.string().min(1),
@@ -65,9 +66,8 @@ npx @dapplelight/signet-cli add schema-form
 
 ```tsx
 import { SchemaForm } from "@dapplelight/signet-ui/components/schema-form"
-```
+import { Expense, save } from "./actions"
 
-```tsx
 <SchemaForm schema={Expense} onSubmit={(values) => save(values)} />
 ```
 
@@ -81,6 +81,10 @@ Needs the optional peers `@autoform/react`, `@autoform/zod`, `@tanstack/react-fo
   <SchemaFormDefaultsDemo />
 
 ```tsx
+import { z } from "zod"
+import { SchemaForm } from "@dapplelight/signet-ui/components/schema-form"
+import { sendInvite } from "./actions"
+
 const Invite = z.object({
   email: z.string().email(),
   role: z.enum(["admin", "member"]),
@@ -102,6 +106,10 @@ const Invite = z.object({
   <SchemaFormServerErrorDemo />
 
 ```tsx
+import { SchemaForm } from "@dapplelight/signet-ui/components/schema-form"
+import { Invite } from "@dapplelight/signet-db/growth"
+import { applyServerErrors } from "@dapplelight/signet-lib/form"
+
 <SchemaForm
   schema={Invite}
   submit="Send invite"

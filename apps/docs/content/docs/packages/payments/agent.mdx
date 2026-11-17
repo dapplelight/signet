@@ -63,6 +63,9 @@ const server = createMcpServer({ name: "billing", version: "1.0.0", tools })
 ### Let an operator agent look across all users
 
 ```ts
+import { paymentTools } from "@dapplelight/signet-payments/agent"
+import { approvalGate } from "@dapplelight/signet-server/mcp"
+
 const tools = paymentTools(payments, {
   allUsers: true,
   actor: { type: "agent", id: "support-bot" },

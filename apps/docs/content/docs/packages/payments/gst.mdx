@@ -12,6 +12,7 @@ import {
   invoiceNumber,
   renderGstInvoiceHtml,
 } from "@dapplelight/signet-payments/gst"
+import { nextSequence } from "@dapplelight/signet-db"
 
 const now = new Date()
 const fy = financialYear(now) // "2026-27", 1 April to 31 March IST

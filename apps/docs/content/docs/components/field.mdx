@@ -67,9 +67,9 @@ import {
   FieldError,
   FieldLabel,
 } from "@dapplelight/signet-ui/components/field"
-```
 
-```tsx
+const errors = [{ message: "Enter a full email address" }]
+
 <Field errors={errors}>
   <FieldLabel>Email</FieldLabel>
   <FieldControl type="email" />

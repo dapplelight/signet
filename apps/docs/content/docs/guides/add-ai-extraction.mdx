@@ -52,6 +52,8 @@ createExtractor({ providers, cache: kvCache(bindings.AI_CACHE), cacheTtlSeconds:
 ### Share the budget between isolates
 ```ts title="src/worker.ts"
 import { BudgetCounter, durableObjectBudgetStore } from "@dapplelight/signet-ai/budget-do"
+import { createBudgetLedger } from "@dapplelight/signet-ai/budget"
+
 export { BudgetCounter }
 
 const ledger = createBudgetLedger(5, 86_400, {

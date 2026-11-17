@@ -55,9 +55,7 @@ npx @dapplelight/signet-cli add search-input
 
 ```tsx
 import { SearchInput } from "@dapplelight/signet-ui/components/search-input"
-```
 
-```tsx
 <SearchInput placeholder="Search customers" aria-label="Search customers" />
 ```
 
@@ -69,6 +67,9 @@ import { SearchInput } from "@dapplelight/signet-ui/components/search-input"
   <SearchInputFilterDemo />
 
 ```tsx
+import { useState } from "react"
+import { SearchInput } from "@dapplelight/signet-ui/components/search-input"
+
 const customers = ["Acme Corp", "Globex", "Initech", "Umbrella Labs", "Hooli", "Stark Industries"]
 
 export function CustomerFilter() {
@@ -91,6 +92,8 @@ export function CustomerFilter() {
   <SearchInputWideDemo />
 
 ```tsx
+import { SearchInput } from "@dapplelight/signet-ui/components/search-input"
+
 <SearchInput
   containerClassName="w-full max-w-md"
   placeholder="Search invoices, orders and customers"
@@ -106,6 +109,8 @@ export function CustomerFilter() {
   <SearchInputDisabledDemo />
 
 ```tsx
+import { SearchInput } from "@dapplelight/signet-ui/components/search-input"
+
 <SearchInput disabled placeholder="Search is unavailable" aria-label="Search" />
 ```
 

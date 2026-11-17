@@ -40,6 +40,8 @@ const report = await bulkInsert(scoped(db, { userId }), contacts, rows, { key: "
 ## Examples
 ### Re-run the same file safely
 ```ts
+import { bulkInsert } from "@dapplelight/signet-db/import"
+
 await bulkInsert(ops, contacts, rows, { key: "email" })
 const again = await bulkInsert(ops, contacts, rows, { key: "email" })
 // again.inserted === 0, again.skipped === rows.length
@@ -48,6 +50,7 @@ const again = await bulkInsert(ops, contacts, rows, { key: "email" })
 ### Custom row schema
 ```ts
 import { z } from "zod"
+import { bulkInsert } from "@dapplelight/signet-db/import"
 
 await bulkInsert(ops, contacts, rows, {
   key: "email",

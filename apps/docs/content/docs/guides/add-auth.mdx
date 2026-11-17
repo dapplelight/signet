@@ -35,6 +35,8 @@ Store the output as the `PASSCODE_HASH` secret, never the passcode.
 ### Or use Better Auth for real accounts
 ```ts title="src/server/auth.ts"
 import { betterAuthDefaults, socialProviders } from "@dapplelight/signet-server/auth/better-auth"
+import { betterAuth } from "better-auth"
+import { drizzleAdapter } from "better-auth/adapters/drizzle"
 
 export const auth = betterAuth({
   ...betterAuthDefaults(env),

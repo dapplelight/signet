@@ -7,6 +7,8 @@ description: "Web checkout funnels that sell an offering, then unlock the purcha
 ```ts
 import { funnelTables } from "@dapplelight/signet-db/columns/sqlite"
 import { createFunnels } from "@dapplelight/signet-db/funnels"
+import { redemptionLink } from "@dapplelight/signet-server/http/funnels"
+import { createPayments } from "@dapplelight/signet-payments"
 
 const funnels = createFunnels(db, {
   tables: { ...funnelTables(), customerEvents },

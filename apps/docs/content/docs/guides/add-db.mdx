@@ -24,6 +24,7 @@ For SQLite on Bun use `@dapplelight/signet-db/sqlite`, for Postgres `@dappleligh
 ### Scope every query to the user
 ```ts title="src/server/orders.ts"
 import { scoped } from "@dapplelight/signet-db"
+import { desc, eq } from "drizzle-orm"
 
 const me = scoped(db, { userId: session.userId })
 await me.insert(orders, { item: "Dosa" })
@@ -36,6 +37,7 @@ Deletes set `deletedAt` unless you pass `{ hard: true }`.
 ### Store money and secrets
 ```ts title="src/db/schema.ts"
 import { money, encrypted, id } from "@dapplelight/signet-db/columns/sqlite"
+import { sqliteTable } from "drizzle-orm/sqlite-core"
 
 export const items = sqliteTable("items", { id: id(), ...money("price", { currency: "INR" }) })
 export const profiles = sqliteTable("profiles", { id: id(), userId: text("user_id").notNull(), pan: encrypted("pan") })

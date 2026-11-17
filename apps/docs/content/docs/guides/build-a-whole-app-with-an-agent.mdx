@@ -55,6 +55,8 @@ npx @dapplelight/signet-cli add block list-detail
 Replace the sample data with your own, shaped like the page's data lines. Here that is `items` for the inbox, with an id, a title and a status.
 
 ```tsx
+import { ListDetail } from "@dapplelight/signet-ui/blocks/list-detail"
+
 <ListDetail
   items={[
     { id: "1", title: "Projects", status: "open" },

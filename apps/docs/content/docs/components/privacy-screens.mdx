@@ -11,6 +11,7 @@ import { ConsentListDemo, DataRequestsDemo, PrivacySectionDemo } from "@/compone
 ```tsx
 import { useState } from "react"
 import { ConsentList, type ConsentRecord } from "@dapplelight/signet-ui/screens/privacy-screens"
+import { purposes } from "./consents"
 
 function ConsentListDemo() {
   const [consents, setConsents] = useState<ConsentRecord[]>([
@@ -81,6 +82,9 @@ import {
 Shapes match signet-db's privacy module (`Consent`, `DataRequest`); dates may be `Date` objects or JSON strings.
 
 ```tsx
+import { ConsentList } from "@dapplelight/signet-ui/screens/privacy-screens"
+import { purposes, consents, give, withdraw } from "./consents"
+
 <ConsentList purposes={purposes} consents={consents} onGive={give} onWithdraw={withdraw} />
 ```
 
@@ -96,6 +100,7 @@ Withdrawing is one switch, as easy as giving.
 ```tsx
 import { useState } from "react"
 import { ConsentList, type ConsentRecord } from "@dapplelight/signet-ui/screens/privacy-screens"
+import { purposes } from "./consents"
 
 function ConsentListDemo() {
   const [consents, setConsents] = useState<ConsentRecord[]>([

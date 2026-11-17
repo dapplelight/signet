@@ -190,6 +190,10 @@ const sender = smsSenderFor(msg91Sms({ authKey: env.MSG91_KEY }), {
 ### Send every notification as a job
 
 ```ts
+import { notifyJob } from "@dapplelight/signet-server/notify/notifier"
+import { z } from "zod"
+import { createJobs } from "@dapplelight/signet-server/jobs"
+
 const sendJob = notifyJob(notifier, z)
 const jobs = createJobs({ jobs: [sendJob], queue, store })
 // Now quiet hours delay a send instead of skipping it.

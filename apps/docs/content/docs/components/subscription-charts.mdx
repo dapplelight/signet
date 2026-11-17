@@ -77,6 +77,8 @@ import { SubscriptionCharts } from "@dapplelight/signet-ui/screens/subscription-
 `data` is signet-db's `charts.metrics(...)` result (or the JSON of `GET /charts`); filter changes go out through `onFilterChange`.
 
 ```tsx
+import { SubscriptionCharts } from "@dapplelight/signet-ui/screens/subscription-charts"
+
 <SubscriptionCharts data={data} filter={filter} onFilterChange={setFilter} />
 ```
 

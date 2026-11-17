@@ -12,6 +12,7 @@ import { ResponsiveSheetDemo, ResponsiveSheetEditDemo, ResponsiveSheetBreakpoint
 import { useState } from "react"
 import { Button } from "@dapplelight/signet-ui/components/button"
 import { ResponsiveSheet } from "@dapplelight/signet-ui/components/responsive-sheet"
+import { ExpenseForm } from "./expense-form"
 
 export function Demo() {
   const [open, setOpen] = useState(false)
@@ -70,10 +71,12 @@ npx @dapplelight/signet-cli add responsive-sheet
 ## Usage
 
 ```tsx
+import { useState } from "react"
 import { ResponsiveSheet } from "@dapplelight/signet-ui/components/responsive-sheet"
-```
+import { ExpenseForm } from "./expense-form"
 
-```tsx
+const [open, setOpen] = useState(false)
+
 {open && (
   <ResponsiveSheet title="Add expense" onClose={() => setOpen(false)}>
     <ExpenseForm />
@@ -91,6 +94,11 @@ It is always open. Mount it only while it should show, so the form inside starts
   <ResponsiveSheetEditDemo />
 
 ```tsx
+import { useState } from "react"
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { ResponsiveSheet } from "@dapplelight/signet-ui/components/responsive-sheet"
+import { OrderForm } from "./order-form"
+
 const [editing, setEditing] = useState<string | null>(null)
 
 <Button variant="ghost" size="sm" onClick={() => setEditing("ORD-2041")}>Edit</Button>
@@ -110,6 +118,12 @@ const [editing, setEditing] = useState<string | null>(null)
   <ResponsiveSheetBreakpointDemo />
 
 ```tsx
+import { useState } from "react"
+import { ResponsiveSheet } from "@dapplelight/signet-ui/components/responsive-sheet"
+import { InviteForm } from "./invite-form"
+
+const [open, setOpen] = useState(true)
+
 <ResponsiveSheet
   title="Invite teammate"
   desktopQuery="(min-width: 1024px)"

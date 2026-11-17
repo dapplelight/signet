@@ -188,6 +188,9 @@ An `isError` result is returned, not thrown. The client declares no capabilities
 ### Per-user tools
 
 ```ts
+import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
+import { requireToken } from "@dapplelight/signet-server/oauth-rs/hono"
+
 mountMcp(app, "/mcp", {
   name: "orders",
   version: "1.0.0",
@@ -201,6 +204,9 @@ mountMcp(app, "/mcp", {
 ```ts
 import { appTools, asTool } from "@dapplelight/signet-server/mcp"
 import { zValidator } from "@dapplelight/signet-server/http/validate"
+import { Hono } from "hono"
+import { z } from "zod"
+import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
 
 const app = new Hono()
   .get("/api/notes", zValidator("query", z.object({ q: z.string().optional() }).describe("Search my notes")), list)
@@ -215,6 +221,8 @@ mountMcp(app, "/mcp", { name: "notes", version: "1.0.0", tools: appTools(app) })
 ```ts
 import { approvalGate, appTools, kvApprovals } from "@dapplelight/signet-server/mcp"
 import { approvalRoutes } from "@dapplelight/signet-server/http/routes"
+import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
+import { requireStoredSession } from "@dapplelight/signet-server/auth/hono"
 
 const approvals = kvApprovals(kv, { ttlSeconds: 86_400, onEvent: (e) => audit.write(e) })
 
@@ -231,6 +239,9 @@ app.route("/api/approvals", approvalRoutes({ approvals, subject: (c) => c.get("s
 ```
 
 ```ts
+import { defineTool, requireApproval } from "@dapplelight/signet-server/mcp"
+import { z } from "zod"
+
 const refundTool = defineTool({
   name: "refund_order",
   description: "Refund an order.",
@@ -266,6 +277,7 @@ handler: async (input, ctx) => {
 
 ```ts
 import { definePrompt, defineResource } from "@dapplelight/signet-server/mcp"
+import { z } from "zod"
 
 const resources = [
   defineResource({ name: "plans", uri: "app://plans", read: () => listPlans() }),

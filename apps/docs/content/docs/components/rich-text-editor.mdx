@@ -67,9 +67,7 @@ import {
   RichTextContent,
   RichTextEditor,
 } from "@dapplelight/signet-ui/components/rich-text-editor"
-```
 
-```tsx
 <RichTextEditor value={note} onValueChange={setNote} aria-label="Account note" />
 ```
 
@@ -83,6 +81,8 @@ Needs the optional peers `@tiptap/react`, `@tiptap/pm`, `@tiptap/starter-kit`, `
   <RichTextEditorMentionsDemo />
 
 ```tsx
+import { RichTextEditor, RichTextPerson } from "@dapplelight/signet-ui/components/rich-text-editor"
+
 const team: RichTextPerson[] = [
   { id: "u_1", name: "Priya Shah" },
   { id: "u_2", name: "Marcus Lee" },
@@ -106,6 +106,8 @@ const team: RichTextPerson[] = [
   <RichTextEditorFormatsDemo />
 
 ```tsx
+import { RichTextEditor } from "@dapplelight/signet-ui/components/rich-text-editor"
+
 <RichTextEditor
   aria-label="Short reply"
   formats={["bold", "italic", "link"]}
@@ -121,6 +123,8 @@ const team: RichTextPerson[] = [
   <RichTextEditorPreviewDemo />
 
 ```tsx
+import { RichTextContent, RichTextEditor } from "@dapplelight/signet-ui/components/rich-text-editor"
+
 <RichTextEditor value={value} onValueChange={setValue} aria-label="Release notes" />
 
 <RichTextContent value={value} />
@@ -134,6 +138,8 @@ const team: RichTextPerson[] = [
   <RichTextEditorDisabledDemo />
 
 ```tsx
+import { RichTextEditor } from "@dapplelight/signet-ui/components/rich-text-editor"
+
 <RichTextEditor disabled aria-label="Archived note" defaultValue="This ticket is closed." />
 ```
 

@@ -34,6 +34,8 @@ await customers.logImpression(userId, { offering: "default", version: 3, country
 <Step>
 ### Serve and draw them
 ```ts title="server/app.ts"
+import { monetisationAdminRoutes } from "@dapplelight/signet-server/http/monetisation"
+
 app.route("/api/admin/billing", monetisationAdminRoutes({ offerings: off, customers, charts, authorize, actor }))
 ```
 ```tsx title="app/admin/revenue.tsx"
@@ -70,6 +72,8 @@ It lapses exactly at its expiry, with no job to run, and charts leave it out.
 <Step>
 ### Answer Apple refund requests
 ```ts title="server/customers.ts"
+import { createCustomers } from "@dapplelight/signet-db/customers"
+
 const customers = createCustomers(db, {
   tables,
   entitlements: ent,

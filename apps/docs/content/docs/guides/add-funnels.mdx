@@ -33,6 +33,8 @@ export const funnels = createFunnels(db, {
 <Step>
 ### Apply gateway events
 ```ts title="src/server/payments.ts"
+import { createPayments } from "@dapplelight/signet-payments"
+
 createPayments({
   ...gateways,
   onEvent: async (e) => {

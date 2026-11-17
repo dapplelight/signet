@@ -40,6 +40,7 @@ export const webhooks = createWebhooks(db, { endpoints: webhookEndpoints, delive
 ```
 ```ts title="server/app.ts"
 import { webhookRoutes } from "@dapplelight/signet-server/http/webhooks"
+import { requireStoredSession } from "@dapplelight/signet-server/auth/hono"
 
 app.use("/api/webhooks/*", requireStoredSession(sessionOpts))
 app.route("/api/webhooks", webhookRoutes({ webhooks, owner: (c) => c.get("session").payload.sub }))
@@ -80,6 +81,7 @@ app.post("/hooks/orders", async (c) => {
 ### Cache read endpoints
 ```ts title="server/app.ts"
 import { cachedResponse, httpCache } from "@dapplelight/signet-server/http/cache"
+import { requireStoredSession } from "@dapplelight/signet-server/auth/hono"
 
 app.get("/plans", httpCache({ maxAge: 300, staleWhileRevalidate: 60 }), listPlans)
 app.get("/me/orders", requireStoredSession(sessionOpts), httpCache({ private: true }), myOrders)

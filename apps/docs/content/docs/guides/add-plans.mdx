@@ -48,6 +48,8 @@ if (!spent.ok) return c.json({ error: "Out of credits" }, 402)
 <Step>
 ### Apply billing events
 ```ts title="server/payments.ts"
+import { createPayments } from "@dapplelight/signet-payments"
+
 const payments = createPayments({
   gateways,
   db: store,

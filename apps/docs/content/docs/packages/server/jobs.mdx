@@ -178,6 +178,9 @@ app.post("/api/jobs", (c) =>
 ### A durable approval step
 
 ```ts
+import { defineJob } from "@dapplelight/signet-server/jobs"
+import { z } from "zod"
+
 const refund = defineJob({
   name: "refund",
   input: z.object({ orderId: z.string(), amount: z.number() }),
@@ -204,6 +207,8 @@ const results = await jobs.runAll() // retries and sleeps included, on a virtual
 ### Enqueue in the same write as your data
 
 ```ts
+import { drainOutbox, enqueue } from "@dapplelight/signet-db"
+
 const m = jobs.outboxMessage(sendReceipt, { orderId })
 await db.batch([(tx) => tx.insert(orders).values(order), enqueue(db, m.topic, m.payload)])
 await drainOutbox(db, jobs.outboxQueue) // dedupes on the outbox row id

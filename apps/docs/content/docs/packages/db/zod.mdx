@@ -44,5 +44,7 @@ Rules the schema applies:
 ## Examples
 ### Let an import supply the id
 ```ts
+import { toZod } from "@dapplelight/signet-db/zod"
+
 const importInvoice = toZod(invoices, { mode: "insert", keep: ["id"] })
 ```

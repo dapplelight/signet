@@ -14,6 +14,11 @@ npm i @dapplelight/signet-ai zod ai @ai-sdk/react
 ### Stream from the server
 ```ts title="src/server/chat.ts"
 import { streamChat } from "@dapplelight/signet-ai/chat"
+import { requireAuth } from "@dapplelight/signet-server/auth/hono"
+import { app } from "../app"
+import { model } from "./model"
+import { tools } from "./tools"
+import { onUsage } from "./ai"
 
 app.post("/api/chat", requireAuth, async (c) => {
   const { messages } = await c.req.json()
@@ -39,6 +44,12 @@ const { messages, sendMessage, status, stop, usage } = useSignetChat({ api: "/ap
 ```ts title="src/server/orders-agent.ts"
 import { runTools } from "@dapplelight/signet-ai/chat"
 import { tool } from "ai"
+import { z } from "zod"
+import { model } from "./model"
+import { onUsage } from "./ai"
+
+const inputSchema = z.object({ id: z.string() })
+const execute = async ({ id }: { id: string }) => ({ id, status: "shipped" })
 
 const r = await runTools({
   model,
@@ -54,6 +65,8 @@ if (r.capped) { /* stopped at maxSteps while the model still wanted tools */ }
 ### Search your help pages
 ```ts title="src/server/help-search.ts"
 import { embedDocuments, searchDocuments } from "@dapplelight/signet-ai/ground"
+import { embeddingModel } from "./model"
+import { docs } from "./docs"
 
 const indexed = await embedDocuments(embeddingModel, docs)
 const hits = await searchDocuments(embeddingModel, "how long is delivery", indexed, { topK: 5, minScore: 0.3 })
@@ -63,16 +76,21 @@ const hits = await searchDocuments(embeddingModel, "how long is delivery", index
 ### Answer with citations
 ```ts title="src/server/help-answer.ts"
 import { groundedAnswer } from "@dapplelight/signet-ai/ground"
+import { model } from "./model"
+import { hits } from "./help-search"
 
-const r = await groundedAnswer({ model, question, documents: hits })
-if (!r.grounded) return "I couldn't find that in our help pages."
-// r.answer, r.citations: [{ id, quote }], r.rejected
+export async function answer(question: string) {
+  const r = await groundedAnswer({ model, question, documents: hits })
+  if (!r.grounded) return "I couldn't find that in our help pages."
+  // r.answer, r.citations: [{ id, quote }], r.rejected
+}
 ```
 </Step>
 <Step>
 ### Report cost
 ```ts title="src/server/ai.ts"
 import { analyticsUsage } from "@dapplelight/signet-ai"
+import { sink } from "./analytics"
 
 export const onUsage = analyticsUsage(sink) // one ai.usage event per call
 ```

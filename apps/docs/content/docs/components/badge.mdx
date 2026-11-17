@@ -55,9 +55,7 @@ npx @dapplelight/signet-cli add badge
 
 ```tsx
 import { Badge } from "@dapplelight/signet-ui/components/badge"
-```
 
-```tsx
 <Badge variant="secondary">Draft</Badge>
 ```
 
@@ -69,6 +67,8 @@ import { Badge } from "@dapplelight/signet-ui/components/badge"
   <BadgeVariantsDemo />
 
 ```tsx
+import { Badge } from "@dapplelight/signet-ui/components/badge"
+
 <Badge>Default</Badge>
 <Badge variant="secondary">Secondary</Badge>
 <Badge variant="destructive">Overdue</Badge>
@@ -85,6 +85,9 @@ import { Badge } from "@dapplelight/signet-ui/components/badge"
   <BadgeIconDemo />
 
 ```tsx
+import { Badge } from "@dapplelight/signet-ui/components/badge"
+import { CheckIcon } from "lucide-react"
+
 <Badge variant="secondary">
   <CheckIcon data-icon="inline-start" />
   Verified
@@ -99,6 +102,8 @@ import { Badge } from "@dapplelight/signet-ui/components/badge"
   <BadgeLinkDemo />
 
 ```tsx
+import { Badge } from "@dapplelight/signet-ui/components/badge"
+
 <Badge render={<a href="/invoices" />}>12 open invoices</Badge>
 ```
 

@@ -83,6 +83,8 @@ const hooks = await gw.renew(id, { fail: true }) // subscription goes past_due
 ### Retry after a timeout
 
 ```ts
+import { fakeGateway } from "@dapplelight/signet-test/payments"
+
 const gw = fakeGateway("razorpay")
 gw.fail("timeout", { on: "POST /v1/orders" })
 // the first checkout attempt times out after the server created the order;

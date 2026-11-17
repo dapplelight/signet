@@ -69,9 +69,8 @@ npx @dapplelight/signet-cli add auth-screens
 
 ```tsx
 import { AuthScreen, VerifyCodeScreen, SessionExpiredScreen } from "@dapplelight/signet-ui/screens/auth-screens"
-```
+import { sendCode, verify } from "./auth"
 
-```tsx
 <AuthScreen onRequestCode={sendCode} onVerify={verify} />
 ```
 

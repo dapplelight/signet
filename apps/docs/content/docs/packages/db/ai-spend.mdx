@@ -7,6 +7,7 @@ description: "Per-user, per-org and global AI spend caps per day and month, and 
 ```ts
 import { aiSpendCaps, entitlementTables } from "@dapplelight/signet-db/columns/sqlite"
 import { createAiSpend, spendKey } from "@dapplelight/signet-db/ai-spend"
+import { createExtractor } from "@dapplelight/signet-ai/extract"
 
 export const { usageCounters } = entitlementTables()
 export const spendCaps = aiSpendCaps()
@@ -89,6 +90,8 @@ Do not give an extractor both `ledger` and `onUsage`: spend would count twice.
 ### Daily spend for one org
 ```ts
 import { aiSpendLedger } from "@dapplelight/signet-db/columns/sqlite"
+import { createAiSpend, spendKey } from "@dapplelight/signet-db/ai-spend"
+import { streamChat } from "@dapplelight/signet-ai/chat"
 
 const spend = createAiSpend(db, {
   tables: { usageCounters, aiSpendCaps: spendCaps, aiSpendLedger: aiSpendLedger() },

@@ -4,13 +4,14 @@ description: "MRR, subscribers, churn and trials from the customer timeline."
 ---
 
 ## Usage
-```ts
+```ts title="src/charts.ts"
 import { chartsCsv, createCharts } from "@dapplelight/signet-db/charts"
 import { monetisationTables } from "@dapplelight/signet-db/columns/sqlite"
+import { db } from "./db"
 
 export const { offerings, customerEvents, chartAudiences } = monetisationTables()
 
-const charts = createCharts(db, {
+export const charts = createCharts(db, {
   tables: { customerEvents, chartAudiences, offerings },
   fx: { base: "USD", rates: { INR: 0.012, EUR: 1.08 } }, // optional: totals in one currency
 })
@@ -51,11 +52,19 @@ App Store amounts are list prices, so those results say `approximate: true`.
 
 ### Save an audience and export it
 ```ts
+import { charts } from "./charts"
+
+const actor = "staff_1"
+
 const india = await charts.saveAudience("India App Store", { store: "appstore", country: "IN" }, { actor })
 const csv = await charts.csv({ from: "2026-10-01", to: "2026-10-31", audience: india.id })
 ```
 
 ### Count paywall views
 ```ts
+import { customers } from "./customers"
+
+const userId = "u_1"
+
 await customers.logImpression(userId, { offering: "default", version: 3, country: "IN" })
 ```

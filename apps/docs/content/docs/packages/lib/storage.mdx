@@ -7,6 +7,8 @@ description: "One async key-value interface for strings, with an adapter per pla
 ```ts
 import { webStorage, chromeStorage, indexedDbStorage, memoryStorage } from "@dapplelight/signet-lib/storage"
 import { fileStorage } from "@dapplelight/signet-lib/storage/file"
+import { join } from "node:path"
+import { homedir } from "node:os"
 
 const storage = webStorage() // localStorage, looked up on first use
 

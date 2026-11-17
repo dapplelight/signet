@@ -24,6 +24,7 @@ export const { offerings, placements, customerIdentities, customerEvents, custom
 ### Publish an offering and point a placement at it
 ```ts title="server/monetisation.ts"
 import { createOfferings, plansFromProducts } from "@dapplelight/signet-db/offerings"
+import { createEntitlements } from "@dapplelight/signet-db/entitlements"
 
 const products = [
   { id: "pro.monthly", store: "appstore", plan: "pro", interval: "month" },
@@ -54,6 +55,8 @@ Each publish is an immutable version. Pin one with `version: 1` to roll back.
 ### Record customers and run the Customer Center
 ```ts title="server/monetisation.ts"
 import { createCustomers } from "@dapplelight/signet-db/customers"
+import { entitlementTables } from "@dapplelight/signet-db/columns/sqlite"
+import { createPayments } from "@dapplelight/signet-payments"
 
 export const customers = createCustomers(db, {
   tables: { ...entitlementTables, customerIdentities, customerEvents, customerRequests },

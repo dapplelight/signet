@@ -145,6 +145,8 @@ await roomPublisher(env.REALTIME).publish(orgId, "record:invoices:1042", "update
 
 ```ts
 import { REALTIME_TOPIC, realtimeOutbox } from "@dapplelight/signet-server/realtime"
+import { eq } from "drizzle-orm"
+import { drainOutbox, enqueue } from "@dapplelight/signet-db"
 
 await db.batch([
   (tx) => tx.update(invoices).set(patch).where(eq(invoices.id, id)),

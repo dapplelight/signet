@@ -15,6 +15,8 @@ npm i @dapplelight/signet-server zod
 ```ts title="server/jobs.ts"
 import { z } from "zod"
 import { defineJob, defineSchedule } from "@dapplelight/signet-server/jobs"
+import { mailer } from "./mailer"
+import { purgeExpiredSessions } from "./sessions"
 
 export const sendReceipt = defineJob({
   name: "send-receipt",
@@ -38,6 +40,8 @@ export const nightly = defineSchedule({ name: "nightly", cron: "30 2 * * *", job
 ```ts title="worker/index.ts"
 import { cloudflareKv } from "@dapplelight/signet-server/adapters/cloudflare"
 import { cloudflareConsumer, cloudflareScheduled, createJobs } from "@dapplelight/signet-server/jobs"
+import { app } from "../server/app"
+import type { Env } from "../server/env"
 import { cleanup, nightly, sendReceipt } from "../server/jobs"
 
 // wrangler: [[queues.producers]] binding = "JOBS"; [[queues.consumers]] queue = "jobs";
@@ -61,7 +65,16 @@ export default {
 <Step>
 ### Enqueue from a route
 ```ts title="server/routes/orders.ts"
-await sendReceipt.enqueue({ orderId }, { key: orderId }) // once per key
+import { Hono } from "hono"
+import { sendReceipt } from "../jobs"
+
+export const orders = new Hono()
+
+orders.post("/:orderId/receipt", async (c) => {
+  const orderId = c.req.param("orderId")
+  await sendReceipt.enqueue({ orderId }, { key: orderId }) // once per key
+  return c.body(null, 202)
+})
 ```
 </Step>
 <Step>
@@ -69,8 +82,10 @@ await sendReceipt.enqueue({ orderId }, { key: orderId }) // once per key
 ```ts title="server/main.ts"
 import { upstashKv } from "@dapplelight/signet-server/adapters/upstash"
 import { inProcessJobs, startScheduler } from "@dapplelight/signet-server/jobs"
+import { UPSTASH_TOKEN, UPSTASH_URL } from "./env"
+import { cleanup, nightly, sendReceipt } from "./jobs"
 
-const jobs = inProcessJobs({
+export const jobs = inProcessJobs({
   jobs: [sendReceipt, cleanup],
   schedules: [nightly],
   store: upstashKv({ url: UPSTASH_URL, token: UPSTASH_TOKEN }),
@@ -83,8 +98,12 @@ Pending runs die with the process. Use QStash for more than one container.
 <Step>
 ### Handle failures
 ```ts title="server/admin.ts"
-const dead = await jobs.listDead()
-await jobs.retryDead(dead[0].id)
+import { jobs } from "./main"
+
+export async function retryFirstDead() {
+  const dead = await jobs.listDead()
+  await jobs.retryDead(dead[0].id)
+}
 ```
 Delivery is at least once, so make `run` safe to repeat or key it.
 </Step>

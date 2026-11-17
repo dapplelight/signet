@@ -56,10 +56,11 @@ npx @dapplelight/signet-cli add emoji-picker
 ## Usage
 
 ```tsx
+import { useState } from "react"
 import { EmojiPicker } from "@dapplelight/signet-ui/components/emoji-picker"
-```
 
-```tsx
+const [icon, setIcon] = useState<string | null>("🎯")
+
 <EmojiPicker value={icon} onChange={setIcon} label="Goal icon" />
 ```
 

@@ -62,9 +62,10 @@ npx @dapplelight/signet-cli add abuse-screens
 
 ```tsx
 import { CaptchaWidget, AiSpendAdmin } from "@dapplelight/signet-ui/screens/abuse-screens"
-```
+import { useState } from "react"
 
-```tsx
+const [token, setToken] = useState<string | null>(null)
+
 <CaptchaWidget provider="turnstile" siteKey="0x4AAA..." onToken={setToken} />
 ```
 

@@ -10,6 +10,7 @@ import { WebFunnelDemo, FunnelQuestionDemo, FunnelRedemptionDemo, ExpressCheckou
 
 ```tsx
 import { WebFunnel } from "@dapplelight/signet-ui/screens/funnel-screens"
+import { page } from "./funnel"
 
 function WebFunnelDemo() {
   return (
@@ -73,6 +74,8 @@ import {
 Props are shaped like signet-server's funnel routes JSON; actions come out as callbacks, so any client fits.
 
 ```tsx
+import { ExpressCheckout, WebFunnel } from "@dapplelight/signet-ui/screens/funnel-screens"
+
 <WebFunnel page={page} onCheckout={startCheckout} renderCheckout={(r) => <ExpressCheckout {...r} />} />
 ```
 
@@ -85,6 +88,7 @@ Props are shaped like signet-server's funnel routes JSON; actions come out as ca
 
 ```tsx
 import { WebFunnel } from "@dapplelight/signet-ui/screens/funnel-screens"
+import { page } from "./funnel"
 
 function WebFunnelDemo() {
   return (

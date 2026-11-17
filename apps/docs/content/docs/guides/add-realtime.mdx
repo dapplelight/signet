@@ -57,6 +57,8 @@ app.get("/realtime", (c) => connectRoom(c.env.REALTIME, c.req.raw, { authenticat
 <Step>
 ### Publish when a record changes
 ```ts title="server/routes/docs.ts"
+import { eq } from "drizzle-orm"
+
 await db.update(docs).set(patch).where(eq(docs.id, id))
 hub.publish(orgId, `record:docs:${id}`, "updated", { id, by: userId, name: userName })
 ```

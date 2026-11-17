@@ -95,6 +95,7 @@ Stores that cannot presign (`fsBlobStore`, an R2 binding) throw `PRESIGN_UNSUPPO
 
 ```ts
 import { fsBlobStore } from "@dapplelight/signet-server/adapters/node"
+import { createUploads } from "@dapplelight/signet-server/storage"
 
 const uploads = createUploads({ store: fsBlobStore("/data/uploads"), maxBytes: 2_000_000, allowedTypes: ["application/pdf"] })
 

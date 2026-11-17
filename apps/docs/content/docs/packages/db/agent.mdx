@@ -47,6 +47,8 @@ Needs `zod`. Each table gets `<table>_list`, `<table>_get` and `<table>_search`.
 
 ### Let the agent edit, after a dry run
 ```ts
+import { agentTools } from "@dapplelight/signet-db/agent"
+
 const tools = agentTools(db, {
   tables: [orders],
   userId: session.userId,

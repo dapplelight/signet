@@ -6,6 +6,7 @@ description: "Fetch client, typed Hono RPC client, error classes, stream readers
 ## Usage
 ```ts
 import { createApiClient, qs, errorCopy, ApiError } from "@dapplelight/signet-lib/api"
+import { toast } from "@dapplelight/signet-ui/components/toast"
 
 const api = createApiClient({
   baseUrl: "/api",

@@ -35,6 +35,8 @@ GET routes are read tools. Every other method asks for approval first. Each call
 ```ts title="server/app.ts"
 import { approvalGate, kvApprovals } from "@dapplelight/signet-server/mcp"
 import { approvalRoutes } from "@dapplelight/signet-server/http/routes"
+import { requireStoredSession } from "@dapplelight/signet-server/auth/hono"
+import { paymentTools } from "@dapplelight/signet-payments/agent"
 
 const approvals = kvApprovals(kv, {
   ttlSeconds: 86_400,
@@ -58,6 +60,8 @@ The person approves or denies at `/api/approvals/:id/approve` or `/deny`. The ag
 <Step>
 ### Show different tools to different people
 ```ts title="server/app.ts"
+import { requireToken } from "@dapplelight/signet-server/oauth-rs/hono"
+
 mountMcp(app, "/mcp", {
   name: "notes",
   version: "1.0.0",

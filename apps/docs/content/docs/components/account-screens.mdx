@@ -66,9 +66,8 @@ npx @dapplelight/signet-cli add account-screens
 
 ```tsx
 import { ProfileCard, SessionsList, SessionItem, ApiKeysManager, ApiKeyReveal, AccountSection, AccountSectionHeader } from "@dapplelight/signet-ui/screens/account-screens"
-```
+import { sessions, revoke, revokeOthers } from "./sessions"
 
-```tsx
 <SessionsList sessions={sessions} onRevoke={revoke} onRevokeOthers={revokeOthers} />
 ```
 

@@ -10,6 +10,7 @@ import { ExperimentListDemo, ExperimentResultsDemo, ExperimentFormDemo, PricingE
 
 ```tsx
 import { ExperimentResults } from "@dapplelight/signet-ui/screens/experiment-screens"
+import { experiments, results } from "./experiments"
 
 function ExperimentResultsDemo() {
   return (
@@ -73,6 +74,9 @@ import {
 Data is shaped like signet-db's `createExperiments` results or the `experimentAdminRoutes` JSON; actions come out as callbacks that may be async. An action that throws or resolves `false` shows the failure message.
 
 ```tsx
+import { ExperimentResults } from "@dapplelight/signet-ui/screens/experiment-screens"
+import { experiment, results, stop } from "./experiments"
+
 <ExperimentResults experiment={experiment} results={results} onStop={stop} />
 ```
 
@@ -86,6 +90,7 @@ Data is shaped like signet-db's `createExperiments` results or the `experimentAd
 ```tsx
 import { useState } from "react"
 import { ExperimentList } from "@dapplelight/signet-ui/screens/experiment-screens"
+import { experiments } from "./experiments"
 
 function ExperimentListDemo() {
   const [selected, setSelected] = useState("onboarding-checklist")
@@ -109,6 +114,7 @@ function ExperimentListDemo() {
 
 ```tsx
 import { ExperimentResults } from "@dapplelight/signet-ui/screens/experiment-screens"
+import { experiments, results } from "./experiments"
 
 function ExperimentResultsDemo() {
   return (
@@ -132,6 +138,7 @@ function ExperimentResultsDemo() {
 
 ```tsx
 import { ExperimentForm } from "@dapplelight/signet-ui/screens/experiment-screens"
+import { experiments } from "./experiments"
 
 function ExperimentFormDemo() {
   return (
@@ -154,6 +161,7 @@ function ExperimentFormDemo() {
 
 ```tsx
 import { PricingExperimentResults, type PricingReadoutView } from "@dapplelight/signet-ui/screens/experiment-screens"
+import { experiments } from "./experiments"
 
 function PricingExperimentResultsDemo() {
   const readout: PricingReadoutView = {

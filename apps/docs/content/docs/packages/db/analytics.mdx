@@ -4,13 +4,17 @@ description: "Analytics events stored in your own database, with typed questions
 ---
 
 ## Usage
-```ts
+```ts title="src/analytics.ts"
 import { analyticsEvents } from "@dapplelight/signet-db/columns/sqlite" // or /columns/pg
 import { createAnalyticsStore } from "@dapplelight/signet-db/analytics"
+import { db } from "./db"
+import { privacy } from "./privacy"
 
 export const events = analyticsEvents() // add it to your migrations
 
-const store = createAnalyticsStore(db, { table: events, privacy })
+export const store = createAnalyticsStore(db, { table: events, privacy })
+
+const userId = "u_1"
 
 await store.write([{ name: "checkout_started", userId, props: { plan: "pro" } }])
 await store.count({ event: "checkout_started", where: { plan: "pro" } })
@@ -58,6 +62,8 @@ A filter is `{ event?, where?, from?, to? }`; `from` and `to` default to the las
 
 ### Signup funnel and weekly retention
 ```ts
+import { store } from "./analytics"
+
 const steps = await store.funnel({ steps: ["signup", "first_order", "second_order"], withinMs: 7 * 86_400_000 })
 // [{ event: "signup", count: 120, rate: 1 }, ...]
 
@@ -67,6 +73,7 @@ const cohorts = await store.retention({ startEvent: "signup", returnEvent: "orde
 ### Give an agent the numbers
 ```ts
 import { analyticsTools } from "@dapplelight/signet-db/analytics"
+import { store } from "./analytics"
 
 const tools = analyticsTools({ store }) // aggregates only; mount on a staff server
 ```

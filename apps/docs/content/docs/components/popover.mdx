@@ -79,9 +79,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@dapplelight/signet-ui/components/popover"
-```
+import { Button } from "@dapplelight/signet-ui/components/button"
 
-```tsx
 <Popover>
   <PopoverTrigger asChild>
     <Button variant="outline">Open</Button>
@@ -98,6 +97,9 @@ import {
   <PopoverAlignDemo />
 
 ```tsx
+import { Popover, PopoverContent, PopoverTrigger } from "@dapplelight/signet-ui/components/popover"
+import { Button } from "@dapplelight/signet-ui/components/button"
+
 {(["start", "center", "end"] as const).map((align) => (
   <Popover key={align}>
     <PopoverTrigger asChild>
@@ -118,6 +120,11 @@ import {
   <PopoverControlledDemo />
 
 ```tsx
+import { useState } from "react"
+import { Popover, PopoverContent, PopoverTrigger } from "@dapplelight/signet-ui/components/popover"
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { Input } from "@dapplelight/signet-ui/components/input"
+
 const [open, setOpen] = useState(false)
 
 <Popover open={open} onOpenChange={setOpen}>

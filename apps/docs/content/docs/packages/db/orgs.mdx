@@ -95,7 +95,7 @@ const org = (await orgs.byDomain(request.headers.get("host") ?? "")) ?? null
 
 ### Your own roles
 ```ts
-import { defineRoles, ORG_PERMISSIONS } from "@dapplelight/signet-db/orgs"
+import { createOrgs, defineRoles, ORG_PERMISSIONS } from "@dapplelight/signet-db/orgs"
 
 const roles = defineRoles({
   owner: ["*"],

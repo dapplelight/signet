@@ -123,9 +123,9 @@ npx @dapplelight/signet-cli add data-grid
 
 ```tsx
 import { DataGrid } from "@dapplelight/signet-ui/components/data-grid"
-```
+import { invoices } from "./invoices"
+import { save } from "./actions"
 
-```tsx
 <DataGrid
   aria-label="Invoices"
   columns={[{ id: "customer", header: "Customer" }]}
@@ -145,6 +145,7 @@ import { DataGrid } from "@dapplelight/signet-ui/components/data-grid"
 ```tsx
 import { useState } from "react"
 import { DataGrid } from "@dapplelight/signet-ui/components/data-grid"
+import { invoices, columns } from "./invoices"
 
 // uses the invoices and columns from the first example
 export function Demo() {
@@ -177,6 +178,7 @@ export function Demo() {
 ```tsx
 import { useState } from "react"
 import { DataGrid, type DataGridColumn } from "@dapplelight/signet-ui/components/data-grid"
+import { invoices, type Invoice } from "./invoices"
 
 // uses the invoices and columns from the first example
 export function Demo() {
@@ -223,6 +225,7 @@ export function Demo() {
 
 ```tsx
 import { DataGrid } from "@dapplelight/signet-ui/components/data-grid"
+import { invoices, columns } from "./invoices"
 
 // uses the invoices and columns from the first example
 export function Demo() {

@@ -72,6 +72,8 @@ Call `recipe` with the id from the plan. It returns the install line, the doc se
 Replace the sample data with your own, shaped like the plan's `data` lines. Here that is `stats` for "Projects" and "Active users", `series` for the chart and `rows` for recent activity.
 
 ```tsx
+import { AnalyticsDashboard } from "@dapplelight/signet-ui/blocks/analytics-dashboard"
+
 <AnalyticsDashboard
   data={{
     stats: [

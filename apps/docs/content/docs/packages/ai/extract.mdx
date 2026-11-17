@@ -67,6 +67,7 @@ A `fallback` never masks a budget refusal. Running out of money must be visible.
 `analyticsUsage` is exported from `@dapplelight/signet-ai`. It writes one event per report with `operation`, `provider`, `model`, `inputTokens`, `outputTokens`, `costUsd`, `durationMs` and the budget `key`; a cache hit adds `cacheHit: 1` and `savedUsd`. A sink that rejects is ignored, so analytics never fails a paid call.
 ```ts
 import { analyticsUsage } from "@dapplelight/signet-ai"
+import { createExtractor } from "@dapplelight/signet-ai/extract"
 
 const ai = createExtractor({ providers, onUsage: analyticsUsage(sink) })
 ```

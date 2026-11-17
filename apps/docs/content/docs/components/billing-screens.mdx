@@ -116,9 +116,8 @@ npx @dapplelight/signet-cli add billing-screens
 
 ```tsx
 import { BillingScreen, PlanPicker, CurrentPlanCard, UsageMeters, InvoiceList, WalletCard, Paywall, RestorePurchasesButton } from "@dapplelight/signet-ui/screens/billing-screens"
-```
+import { plans, subscription, usage, invoices, checkout } from "./billing"
 
-```tsx
 <BillingScreen plans={plans} subscription={subscription} usage={usage} invoices={invoices} onSubscribe={checkout} />
 ```
 

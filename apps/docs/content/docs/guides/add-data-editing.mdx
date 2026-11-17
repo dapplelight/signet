@@ -16,6 +16,7 @@ The Tiptap packages are only for the rich text editor.
 ### Import a CSV
 ```tsx title="src/web/customers-import.tsx"
 import { CsvImport } from "@dapplelight/signet-ui/domain/csv-import"
+import { z } from "zod"
 
 const schema = z.object({ name: z.string().min(1), email: z.email(), plan: z.enum(["free", "pro"]) })
 
@@ -30,6 +31,7 @@ const schema = z.object({ name: z.string().min(1), email: z.email(), plan: z.enu
 ### Insert the rows on the server
 ```ts title="src/server/customers.ts"
 import { bulkInsert } from "@dapplelight/signet-db/import"
+import { audited, scoped } from "@dapplelight/signet-db"
 
 app.post("/customers/import", async (c) => {
   const { rows } = await c.req.json()
@@ -74,6 +76,7 @@ import { RichTextEditor, RichTextContent } from "@dapplelight/signet-ui/componen
 ### Sanitise on save
 ```ts title="src/server/notes.ts"
 import { sanitizeMarkdown } from "@dapplelight/signet-server/http/sanitize"
+import { z } from "zod"
 
 const NoteInput = z.object({ body: z.string().max(20_000).transform(sanitizeMarkdown) })
 ```

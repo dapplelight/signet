@@ -88,6 +88,8 @@ Events apply once and out-of-order ones return `{ applied: false, reason: "stale
 
 ### Wire payments to entitlements
 ```ts
+import { createPayments } from "@dapplelight/signet-payments"
+
 const payments = createPayments({
   gateways,
   db: store,

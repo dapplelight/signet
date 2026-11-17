@@ -7,6 +7,7 @@ description: "Customer timeline across stores and web, identity merge and a Cust
 ```ts
 import { entitlementTables, monetisationTables } from "@dapplelight/signet-db/columns/sqlite"
 import { createCustomers } from "@dapplelight/signet-db/customers"
+import { createPayments } from "@dapplelight/signet-payments"
 
 export const { subjectPlans, entitlementOverrides } = entitlementTables()
 export const { customerIdentities, customerEvents, customerRequests } = monetisationTables()
@@ -91,6 +92,8 @@ if (!r.merged) return c.json({ error: r.reason }, 409)
 
 ### Customer Center
 ```ts
+import { createCustomers } from "@dapplelight/signet-db/customers"
+
 const customers = createCustomers(db, {
   tables, entitlements: ent,
   notify: (n) => notifier.notify(teamId, "customer.request", { kind: n.kind, text: n.text }),

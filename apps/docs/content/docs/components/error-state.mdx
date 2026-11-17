@@ -55,9 +55,8 @@ npx @dapplelight/signet-cli add error-state
 
 ```tsx
 import { ErrorState } from "@dapplelight/signet-ui/components/error-state"
-```
+import { refetch } from "./actions"
 
-```tsx
 <ErrorState message="Could not load invoices." onRetry={refetch} />
 ```
 

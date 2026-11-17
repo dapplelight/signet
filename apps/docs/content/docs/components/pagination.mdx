@@ -57,9 +57,7 @@ npx @dapplelight/signet-cli add pagination
 
 ```tsx
 import { Pagination } from "@dapplelight/signet-ui/components/pagination"
-```
 
-```tsx
 <Pagination page={page} totalPages={8} onPageChange={setPage} />
 ```
 
@@ -71,6 +69,9 @@ import { Pagination } from "@dapplelight/signet-ui/components/pagination"
   <PaginationListDemo />
 
 ```tsx
+import { useState } from "react"
+import { Pagination } from "@dapplelight/signet-ui/components/pagination"
+
 const invoices = Array.from({ length: 12 }, (_, i) => `INV-${1040 + i}`)
 
 export function InvoiceList() {
@@ -98,6 +99,8 @@ export function InvoiceList() {
   <PaginationSinglePageDemo />
 
 ```tsx
+import { Pagination } from "@dapplelight/signet-ui/components/pagination"
+
 // Renders nothing when totalPages is 1 or less.
 <Pagination page={1} totalPages={1} onPageChange={() => {}} />
 ```

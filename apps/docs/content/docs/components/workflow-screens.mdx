@@ -80,6 +80,8 @@ import {
 Data is shaped like signet-db's `wf.get(id)` and `wf.pendingApprovals(user)` (or the JSON from `workflowRoutes`); actions come out as callbacks.
 
 ```tsx
+import { WorkflowRunTimeline } from "@dapplelight/signet-ui/screens/workflow-screens"
+
 <WorkflowRunTimeline run={run} steps={steps} onCancel={cancel} />
 ```
 

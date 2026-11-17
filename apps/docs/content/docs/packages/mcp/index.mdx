@@ -135,6 +135,7 @@ Pass a signet-db instance and the tables an agent may reach (each needs a `userI
 import { agentTools } from "@dapplelight/signet-db/agent"
 import { signetMcpOptions } from "@dapplelight/signet-mcp"
 import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
+import { requireToken } from "@dapplelight/signet-server/oauth-rs/hono"
 
 mountMcp(app, "/mcp", {
   ...signetMcpOptions({ db: { db, agentTools, tables: [orders, notes] } }),

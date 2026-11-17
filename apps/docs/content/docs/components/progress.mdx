@@ -59,9 +59,7 @@ import {
   ProgressLabel,
   ProgressValue,
 } from "@dapplelight/signet-ui/components/progress"
-```
 
-```tsx
 <Progress value={64} aria-label="Storage used" />
 ```
 
@@ -75,6 +73,8 @@ Built on Base UI's Progress, so the root takes its props.
   <ProgressLabelledDemo />
 
 ```tsx
+import { Progress, ProgressLabel, ProgressValue } from "@dapplelight/signet-ui/components/progress"
+
 <Progress value={72}>
   <ProgressLabel>Storage used</ProgressLabel>
   <ProgressValue />
@@ -89,6 +89,10 @@ Built on Base UI's Progress, so the root takes its props.
   <ProgressControlledDemo />
 
 ```tsx
+import { useState } from "react"
+import { Progress, ProgressLabel, ProgressValue } from "@dapplelight/signet-ui/components/progress"
+import { Button } from "@dapplelight/signet-ui/components/button"
+
 const [value, setValue] = useState(30)
 
 <Progress value={value}>
@@ -106,6 +110,8 @@ const [value, setValue] = useState(30)
   <ProgressRangeDemo />
 
 ```tsx
+import { Progress, ProgressLabel, ProgressValue } from "@dapplelight/signet-ui/components/progress"
+
 <Progress value={3} min={0} max={5}>
   <ProgressLabel>Onboarding steps</ProgressLabel>
   <ProgressValue>{(_, value) => `${value} of 5`}</ProgressValue>
@@ -120,6 +126,8 @@ const [value, setValue] = useState(30)
   <ProgressIndeterminateDemo />
 
 ```tsx
+import { Progress, ProgressLabel } from "@dapplelight/signet-ui/components/progress"
+
 <Progress value={null} aria-label="Syncing">
   <ProgressLabel>Syncing orders</ProgressLabel>
 </Progress>

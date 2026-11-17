@@ -11,6 +11,7 @@ import { AvatarStackDemo, EditingBadgeDemo, TypingIndicatorDemo, RecordChangedBa
 
 ```tsx
 import { AvatarStack } from "@dapplelight/signet-ui/screens/realtime-screens"
+import { members } from "./presence"
 
 function AvatarStackDemo() {
   return <AvatarStack members={members} selfId="u1" max={4} />
@@ -66,6 +67,9 @@ import {
 Members are shaped like signet-server's presence (`useChannel(...).members`); `selfId` leaves you out.
 
 ```tsx
+import { AvatarStack } from "@dapplelight/signet-ui/screens/realtime-screens"
+import { members, me } from "./presence"
+
 <AvatarStack members={members} selfId={me.id} />
 ```
 
@@ -78,6 +82,7 @@ Members are shaped like signet-server's presence (`useChannel(...).members`); `s
 
 ```tsx
 import { AvatarStack } from "@dapplelight/signet-ui/screens/realtime-screens"
+import { members } from "./presence"
 
 function AvatarStackDemo() {
   return <AvatarStack members={members} selfId="u1" max={4} />
@@ -95,6 +100,7 @@ Renders nothing unless another member is editing.
 
 ```tsx
 import { EditingBadge } from "@dapplelight/signet-ui/screens/realtime-screens"
+import { members } from "./presence"
 
 function EditingBadgeDemo() {
   return <EditingBadge members={members} selfId="u1" field="amount" fieldLabel="the amount" />
@@ -110,6 +116,7 @@ function EditingBadgeDemo() {
 
 ```tsx
 import { TypingIndicator } from "@dapplelight/signet-ui/screens/realtime-screens"
+import { members } from "./presence"
 
 function TypingIndicatorDemo() {
   return <TypingIndicator members={members} selfId="u1" />

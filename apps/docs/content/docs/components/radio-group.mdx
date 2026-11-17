@@ -70,9 +70,7 @@ npx @dapplelight/signet-cli add radio-group
 
 ```tsx
 import { RadioGroup, RadioGroupItem } from "@dapplelight/signet-ui/components/radio-group"
-```
 
-```tsx
 <RadioGroup defaultValue="team" aria-label="Plan">
   <label className="flex items-center gap-2">
     <RadioGroupItem value="team" />
@@ -91,6 +89,9 @@ Built on UI SDK's radio: one tab stop, and arrow keys move and check.
   <RadioGroupControlledDemo />
 
 ```tsx
+import { useState } from "react"
+import { RadioGroup, RadioGroupItem } from "@dapplelight/signet-ui/components/radio-group"
+
 const [plan, setPlan] = useState("starter")
 
 <RadioGroup value={plan} onValueChange={(v) => setPlan(v ?? "")} aria-label="Plan">
@@ -111,6 +112,8 @@ const [plan, setPlan] = useState("starter")
   <RadioGroupDisabledDemo />
 
 ```tsx
+import { RadioGroup, RadioGroupItem } from "@dapplelight/signet-ui/components/radio-group"
+
 <RadioGroup defaultValue="card" aria-label="Payment method">
   <label className="flex items-center gap-2 text-sm">
     <RadioGroupItem value="card" /> Card
@@ -129,6 +132,10 @@ const [plan, setPlan] = useState("starter")
   <RadioGroupFormDemo />
 
 ```tsx
+import { Label } from "@dapplelight/signet-ui/components/label"
+import { RadioGroup, RadioGroupItem } from "@dapplelight/signet-ui/components/radio-group"
+import { onSubmit } from "./actions"
+
 <form onSubmit={onSubmit}>
   <Label id="radio-delivery">Delivery</Label>
   <RadioGroup name="delivery" defaultValue="standard" required aria-labelledby="radio-delivery">

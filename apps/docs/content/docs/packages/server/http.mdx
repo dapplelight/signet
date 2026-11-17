@@ -334,6 +334,7 @@ app.route("/admin", adminRoutes(admin, {
 
 ```ts
 import { requireAiSpend } from "@dapplelight/signet-server/http/ai-spend"
+import { currentTenant } from "@dapplelight/signet-server/http/orgs"
 
 app.use("/api/ai/*", requireAiSpend({
   spend,
@@ -345,6 +346,7 @@ app.use("/api/ai/*", requireAiSpend({
 
 ```ts
 import { sanitizeMarkdown } from "@dapplelight/signet-server/http/sanitize"
+import { z } from "zod"
 
 const NoteInput = z.object({ body: z.string().max(20_000).transform(sanitizeMarkdown) })
 ```

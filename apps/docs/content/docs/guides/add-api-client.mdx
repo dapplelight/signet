@@ -14,6 +14,7 @@ npm i @dapplelight/signet-lib @tanstack/react-query
 ### Create a plain client
 ```ts title="src/web/api.ts"
 import { createApiClient } from "@dapplelight/signet-lib/api"
+import { Transaction } from "@dapplelight/signet-payments"
 
 export const api = createApiClient({
   baseUrl: "/api",
@@ -27,6 +28,7 @@ const rows = await api.get<Transaction[]>("/transactions")
 ### Or type it from the server
 ```ts title="src/server/app.ts"
 import { zValidator } from "@dapplelight/signet-server/http/validate"
+import { Hono } from "hono"
 
 export const app = new Hono()
   .post("/api/notes", zValidator("json", NoteInput), (c) => c.json(save(c.req.valid("json")), 201))

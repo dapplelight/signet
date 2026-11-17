@@ -103,6 +103,7 @@ export const admin = defineAdmin(schema, {
 ### Admin tools for an MCP server
 ```ts
 import { requireApproval } from "@dapplelight/signet-server/mcp"
+import { adminTools } from "@dapplelight/signet-db/admin"
 
 const tools = await adminTools(admin, {
   db: dbFor(c),

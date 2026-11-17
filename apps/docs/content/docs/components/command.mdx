@@ -91,9 +91,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@dapplelight/signet-ui/components/command"
-```
 
-```tsx
 <Command onAction={(value) => run(value)}>
   <CommandInput placeholder="Search..." />
   <CommandList>
@@ -113,6 +111,9 @@ import {
   <CommandShortcutsDemo />
 
 ```tsx
+import { CommandItem, CommandShortcut } from "@dapplelight/signet-ui/components/command"
+import { UserIcon } from "lucide-react"
+
 <CommandItem value="profile" shortcut="mod+p">
   <UserIcon />Profile<CommandShortcut />
 </CommandItem>
@@ -126,6 +127,16 @@ import {
   <CommandDialogDemo />
 
 ```tsx
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@dapplelight/signet-ui/components/command"
+import { FileTextIcon, PlusIcon } from "lucide-react"
+
 const [open, setOpen] = React.useState(false)
 
 <CommandDialog open={open} onOpenChange={setOpen} onAction={(value) => run(value)}>

@@ -40,6 +40,8 @@ A bad body is a 400 with `details.fieldErrors`.
 ### Type the routes for a client
 ```ts title="src/app.ts"
 import { zValidator } from "@dapplelight/signet-server/http/validate"
+import { Hono } from "hono"
+import { z } from "zod"
 
 export const app = new Hono()
   .post("/api/notes", zValidator("json", NoteInput), (c) => c.json(save(c.req.valid("json")), 201))

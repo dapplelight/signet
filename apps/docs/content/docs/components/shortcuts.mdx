@@ -71,9 +71,7 @@ import {
   useListNavigation,
   useShortcutList,
 } from "@dapplelight/signet-ui/components/shortcuts"
-```
 
-```tsx
 // Register keys with TanStack Hotkeys and describe them in `meta`.
 useHotkey("Mod+K", openSearch, { meta: { name: "Search", group: "General" } })
 useHotkeySequence(["G", "I"], goInbox, { meta: { name: "Go to inbox" } })
@@ -92,6 +90,8 @@ Needs the optional peer `@tanstack/react-hotkeys`. Press `?` to open the overlay
   <ListNavigationDemo />
 
 ```tsx
+import { useListNavigation } from "@dapplelight/signet-ui/components/shortcuts"
+
 const orders = ["ORD-2041", "ORD-2042", "ORD-2043", "ORD-2044"]
 
 const { activeId } = useListNavigation({
@@ -115,6 +115,8 @@ const { activeId } = useListNavigation({
   <ShortcutsHelpKeyDemo />
 
 ```tsx
+import { ShortcutsHelp } from "@dapplelight/signet-ui/components/shortcuts"
+
 <ShortcutsHelp helpKey="/" title="Shortcuts" />
 ```
 
