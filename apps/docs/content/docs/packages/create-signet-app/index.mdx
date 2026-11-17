@@ -3,231 +3,52 @@ title: "Create Signet App"
 description: "Scaffold a Vite + React app, a Hono API, a CLI, an extension or a desktop app wired to Signet."
 ---
 
+<Tabs items={["npm", "pnpm", "bun"]}>
+<Tab value="npm">
+
 ```bash
-npx create-signet-app my-app
+npx create-signet-app@latest my-app --template full
+cd my-app
+npm install
+npm run dev
 ```
 
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm create signet-app my-app --template full
+cd my-app
+pnpm install
+pnpm run dev
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bunx create-signet-app my-app --template full
+cd my-app
+bun install
+bun run dev
+```
+
+</Tab>
+</Tabs>
+
+Open `http://localhost:5173`. `full` needs [Bun](https://bun.sh) 1.3+ installed, even when npm or pnpm installs it: `run dev` is a Bun script.
+
 <AgentPrompt title="Scaffold a Signet app">
-Create a new app with `npx create-signet-app my-app --template full --theme editorial`, then run `cd my-app && bun install && bun dev`. Use `--template api --target cloudflare` for a backend only, or `web` for a frontend only.
+Create a new app with `npx create-signet-app@latest my-app --template full`, then run `cd my-app`, `npm install` and `npm run dev`. Use `--template api --target cloudflare` for a backend only, or `web` for a frontend only.
 
 Add the Signet MCP server first so you can look up components, themes and conventions: `claude mcp add signet -- bunx @dapplelight/signet-mcp`.
 
 Build every screen from `@dapplelight/signet-ui` components and `@dapplelight/signet-tokens` themes, and use the generated typed API client in src/lib/api.ts. Do not hand-roll buttons, inputs or fetch wrappers. Run lint, typecheck and tests before you finish.
 </AgentPrompt>
 
-## Quick start
-
-```bash
-npx create-signet-app my-app --theme cinematic
-cd my-app && bun install && bun dev
-```
-
-Bun, npm and pnpm all work (`bunx`, `npm create signet-app my-app -- --template full --pm npm`).
-
-## Flags
-
-| Flag | Values | Default | |
-| --- | --- | --- | --- |
-| `<directory>` | path | required | Must not exist or be empty. |
-| `--template` | `web`, `api`, `full`, `cli`, `extension`, `desktop` | `web` | What to scaffold. |
-| `--theme`, `-t` | `editorial`, `cinematic`, `finance` | `editorial` | `web` and `full` only. |
-| `--target` | `cloudflare`, `bun`, `node`, `vercel` | `cloudflare` | `api` only. |
-| `--mcp`, `--no-mcp` | flag | asks on a terminal, else `--mcp` | `api` and `full` only. Serve routes to agents at `/mcp`. |
-| `--pm` | `bun`, `npm`, `pnpm` | the one that ran it, else `bun` | Sets the printed commands, the CI workflow and the full template's README. |
-| `--describe` | sentence | none | `web`, `api` and `full` only. Picks the template and theme, then writes `PLAN.md` and `AGENTS.md`. An explicit `--template` or `--theme` wins. |
-| `-h`, `--help` | | | Print usage. |
-
-## Templates
-
-| Template | You get |
-| --- | --- |
-| `web` | Vite + React 19 + Tailwind v4 + TanStack Router, `signet-ui`, `signet-tokens`, `signet-lib`. |
-| `api` | Hono API: request ids, error envelope, validation, rate limiting. Entry and config follow `--target`. |
-| `full` | `web` + `api` in one project: typed client, SQLite with migrations, phone sign-in, account, inbox, privacy, billing, admin, organisations. |
-| `cli` | Bun CLI compiled to one binary; device-code `login`, `logout`, `whoami`. |
-| `extension` | Chrome MV3 extension: popup, options page, service worker, PKCE sign-in with `chrome.identity`. |
-| `desktop` | Tauri v2 desktop and menu-bar app with browser sign-in (PKCE, loopback redirect); CI on macOS, Windows and Linux. |
-
-### API targets
-
-| `--target` | Entry | Config | Rate limit store |
-| --- | --- | --- | --- |
-| `cloudflare` | `src/index.ts` (Worker) | `wrangler.jsonc` | `RateLimitCounter` Durable Object: exact |
-| `bun` | `src/server.ts` (`Bun.serve`) | `Dockerfile` | in-process |
-| `node` | `src/server.ts` (`node:http`, Node 22.18+) | `engines.node` | in-process |
-| `vercel` | `index.ts` | `vercel.json` | per function instance |
-
-## What gets scaffolded
-
-<Tabs items={["web", "api", "full"]}>
-  <Tab value="web">
-<Files>
-  <Folder name="my-app" defaultOpen>
-    <Folder name=".github" defaultOpen>
-      <Folder name="workflows" defaultOpen>
-        <File name="ci.yml" />
-      </Folder>
-    </Folder>
-    <Folder name="public" />
-    <Folder name="src" defaultOpen>
-      <File name="app.css" />
-      <File name="main.tsx" />
-      <File name="router.ts" />
-      <File name="router.test.ts" />
-      <File name="routeTree.gen.ts" />
-      <Folder name="components" defaultOpen>
-        <File name="toaster.tsx" />
-      </Folder>
-      <Folder name="lib" defaultOpen>
-        <File name="api.ts" />
-      </Folder>
-      <Folder name="routes" defaultOpen>
-        <File name="__root.tsx" />
-        <File name="index.tsx" />
-        <File name="login.tsx" />
-      </Folder>
-    </Folder>
-    <File name="index.html" />
-    <File name="biome.json" />
-    <File name="tsconfig.json" />
-    <File name="tsconfig.app.json" />
-    <File name="tsconfig.node.json" />
-    <File name="vite.config.ts" />
-  </Folder>
-</Files>
-  </Tab>
-  <Tab value="api">
-<Files>
-  <Folder name="my-api" defaultOpen>
-    <Folder name=".github" defaultOpen>
-      <Folder name="workflows" defaultOpen>
-        <File name="ci.yml" />
-      </Folder>
-    </Folder>
-    <Folder name="src" defaultOpen>
-      <File name="app.ts" />
-      <File name="env.ts" />
-      <File name="index.ts" />
-    </Folder>
-    <Folder name="test" />
-    <File name="biome.json" />
-    <File name="tsconfig.json" />
-    <File name="wrangler.jsonc" />
-  </Folder>
-</Files>
-  </Tab>
-  <Tab value="full">
-<Files>
-  <Folder name="my-app" defaultOpen>
-    <Folder name=".github" defaultOpen>
-      <Folder name="workflows" defaultOpen>
-        <File name="ci.yml" />
-      </Folder>
-    </Folder>
-    <Folder name="api" defaultOpen>
-      <File name="app.ts" />
-      <File name="env.ts" />
-      <File name="plans.ts" />
-      <File name="server.ts" />
-      <File name="services.ts" />
-      <Folder name="db" />
-    </Folder>
-    <Folder name="drizzle" />
-    <Folder name="e2e" defaultOpen>
-      <File name="smoke.spec.ts" />
-    </Folder>
-    <Folder name="src" defaultOpen>
-      <File name="main.tsx" />
-      <Folder name="lib" defaultOpen>
-        <File name="api.ts" />
-      </Folder>
-      <Folder name="routes" />
-    </Folder>
-    <Folder name="test" defaultOpen>
-      <File name="api.test.ts" />
-    </Folder>
-    <File name="drizzle.config.ts" />
-    <File name="playwright.config.ts" />
-    <File name="vite.config.ts" />
-  </Folder>
-</Files>
-  </Tab>
-</Tabs>
-
-The generated env file gets fresh `SESSION_SECRET` and `OTP_SECRET` values in the `full` template. Templates ship `_gitignore` and `_github`, renamed to `.gitignore` and `.github` on scaffold.
-
-## Plan the whole app from one sentence
-
-```bash
-npx create-signet-app my-app --describe "a team inbox with settings and pricing"
-```
-
-`--describe` scaffolds as usual, then writes two files in the new app:
-
-- `PLAN.md`: the pages, each with its block command, components, server modules and data; the data models; the recipes to apply; the build order; and the check to run after each page.
-- `AGENTS.md`: tells a coding agent to follow `PLAN.md` one page at a time and not to move on until the check passes.
-
-It makes no LLM call. The template (`web`, `api` or `full`) and theme come from keywords in the sentence, each page comes from the `plan_page` tool of [signet-mcp](/docs/packages/mcp), and the same sentence always gives the same files. A sign-in or API word picks `full` (or `api` if no page matches); a finance or media word picks that theme, else `editorial`. `--template` and `--theme` always win, and `--describe` with `cli`, `extension` or `desktop` is an error. If nothing matches, the app is still scaffolded and `PLAN.md` lists words to try.
-
-A trimmed `PLAN.md`:
-
-````md
-# Plan: my-app
-
-> a team inbox with settings and pricing
-
-Template: web · Theme: editorial
-
-## Pages
-
-### 1. list-detail
-
-**Blocks**
-
-- `list-detail`: List with search and status filters, paging, and a detail pane that becomes a sheet on phones.
-
-```bash
-npx @dapplelight/signet-cli add block list-detail
-```
-
-**Data**
-
-- items: id, title, status and the fields the detail pane shows
-
-## Build order
-
-1. list-detail: run its block command, wire its data, then `npx @dapplelight/signet-cli check --pages /list-detail`.
-
-## After each page
-
-```bash
-npx @dapplelight/signet-cli check --pages /<page>
-npm run test
-```
-````
-
-The [Build a whole app with an agent](/docs/guides/build-a-whole-app-with-an-agent) guide walks through the whole flow.
-
-## Examples
-
-### A Bun API
-
-```bash
-npx create-signet-app my-api --template api --target bun --no-mcp
-```
-
-### Add MCP later
-
-If you chose `--no-mcp` and want it back:
-
-```bash
-bun add @modelcontextprotocol/server
-```
-
-```ts title="src/app.ts"
-import { appTools } from "@dapplelight/signet-server/mcp"
-import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
-
-// at the end of createApp, after the routes
-mountMcp(app, "/mcp", { name: "api", version: "0.0.0", tools: appTools(app) })
-```
+<Cards>
+  <Card title="Flags and templates" href="/docs/packages/create-signet-app/flags" description="Flags, templates and API targets." />
+  <Card title="Plan from a sentence" href="/docs/packages/create-signet-app/plan" description="--describe writes PLAN.md and AGENTS.md." />
+  <Card title="MCP" href="/docs/packages/create-signet-app/mcp" description="Serve routes to agents, or add it later." />
+  <Card title="Project structure" href="/docs/project-structure" description="What every folder is for." />
+</Cards>

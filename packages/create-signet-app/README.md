@@ -4,9 +4,17 @@ Scaffold a Vite + React 19 + TypeScript + Tailwind v4 app wired to
 `@dapplelight/signet-tokens`, `@dapplelight/signet-ui` and `@dapplelight/signet-lib`.
 
 ```bash
-bunx create-signet-app my-app --theme cinematic
-cd my-app && bun install && bun dev
+npx create-signet-app@latest my-app --template full
+cd my-app
+npm install
+npm run dev
 ```
+
+With pnpm: `pnpm create signet-app my-app --template full`. With bun:
+`bunx create-signet-app my-app --template full`. Then install and `run dev` with
+the same manager. Open `http://localhost:5173`. `full` needs
+[Bun](https://bun.sh) 1.3+ installed: `run dev` is a Bun script, whichever
+package manager installs the app.
 
 `--theme` takes `editorial`, `cinematic` or `finance` (editorial plus the
 spend-category and money tokens; default `editorial`).
@@ -21,9 +29,13 @@ to install without. Tests stay on `bun test`, so CI sets up Bun too.
 ## `--template full`: web app + API in one project
 
 ```bash
-bunx create-signet-app my-app --template full --theme finance
-cd my-app && bun install && bun run dev
+npx create-signet-app@latest my-app --template full
+cd my-app
+npm install
+npm run dev
 ```
+
+Add `--theme finance` (or `cinematic`) to pick a theme.
 
 One package, two halves: `src/` (the web template's Vite app) and `api/` (Hono
 on Bun), with `api/server.ts` serving the API under `/api` and the built app

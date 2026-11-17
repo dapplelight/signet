@@ -35,12 +35,15 @@ shadcn/ui directly.
 Needs [Bun](https://bun.sh) 1.3 or later.
 
 ```bash
-bunx create-signet-app my-app --theme cinematic
-cd my-app && bun install && bun dev
+npx create-signet-app@latest my-app --template full
+cd my-app
+npm install
+npm run dev
 ```
 
-`--theme` is `editorial` (default) or `cinematic`; `--template api` scaffolds a
-Hono Worker instead. Details in
+Open `http://localhost:5173`. `full` needs [Bun](https://bun.sh) 1.3+ installed:
+`run dev` is a Bun script, whichever package manager installs the app. `--theme` is `editorial` (default) or
+`cinematic`; `--template api` scaffolds a Hono Worker instead. Details in
 [packages/create-signet-app](packages/create-signet-app/README.md).
 
 To add Signet to an existing Vite + React + Tailwind v4 app:

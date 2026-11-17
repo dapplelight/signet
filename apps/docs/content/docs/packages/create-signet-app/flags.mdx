@@ -1,0 +1,45 @@
+---
+title: "Flags and templates"
+description: "Every create-signet-app flag, template and API target."
+---
+
+## Flags
+
+| Flag | Values | Default | |
+| --- | --- | --- | --- |
+| `<directory>` | path | required | Must not exist or be empty. |
+| `--template` | `web`, `api`, `full`, `cli`, `extension`, `desktop` | `web` | What to scaffold. |
+| `--theme`, `-t` | `editorial`, `cinematic`, `finance` | `editorial` | `web` and `full` only. |
+| `--target` | `cloudflare`, `bun`, `node`, `vercel` | `cloudflare` | `api` only. |
+| `--mcp`, `--no-mcp` | flag | asks on a terminal, else `--mcp` | `api` and `full` only. Serve routes to agents at `/mcp`. |
+| `--pm` | `bun`, `npm`, `pnpm` | the one that ran it, else `bun` | Sets the printed commands, the CI workflow and the full template's README. |
+| `--describe` | sentence | none | `web`, `api` and `full` only. Picks the template and theme, then writes `PLAN.md` and `AGENTS.md`. An explicit `--template` or `--theme` wins. |
+| `-h`, `--help` | | | Print usage. |
+
+## Templates
+
+| Template | You get |
+| --- | --- |
+| `web` | Vite + React 19 + Tailwind v4 + TanStack Router, `signet-ui`, `signet-tokens`, `signet-lib`. |
+| `api` | Hono API: request ids, error envelope, validation, rate limiting. Entry and config follow `--target`. |
+| `full` | `web` + `api` in one project: typed client, SQLite with migrations, phone sign-in, account, inbox, privacy, billing, admin, organisations. |
+| `cli` | Bun CLI compiled to one binary; device-code `login`, `logout`, `whoami`. |
+| `extension` | Chrome MV3 extension: popup, options page, service worker, PKCE sign-in with `chrome.identity`. |
+| `desktop` | Tauri v2 desktop and menu-bar app with browser sign-in (PKCE, loopback redirect); CI on macOS, Windows and Linux. |
+
+### API targets
+
+| `--target` | Entry | Config | Rate limit store |
+| --- | --- | --- | --- |
+| `cloudflare` | `src/index.ts` (Worker) | `wrangler.jsonc` | `RateLimitCounter` Durable Object: exact |
+| `bun` | `src/server.ts` (`Bun.serve`) | `Dockerfile` | in-process |
+| `node` | `src/server.ts` (`node:http`, Node 22.18+) | `engines.node` | in-process |
+| `vercel` | `index.ts` | `vercel.json` | per function instance |
+
+Folder layouts: [Project structure](/docs/project-structure).
+
+## Example: a Bun API
+
+```bash
+npx create-signet-app@latest my-api --template api --target bun --no-mcp
+```

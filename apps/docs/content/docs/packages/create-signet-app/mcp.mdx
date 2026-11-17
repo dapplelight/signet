@@ -1,0 +1,26 @@
+---
+title: "MCP"
+description: "Serve your API routes to agents at /mcp, or add it later."
+---
+
+`api` and `full` serve routes to agents at `/mcp`. Skip it with `--no-mcp`:
+
+```bash
+npx create-signet-app@latest my-api --template api --no-mcp
+```
+
+## Add MCP later
+
+If you chose `--no-mcp` and want it back:
+
+```bash
+bun add @modelcontextprotocol/server
+```
+
+```ts title="src/app.ts"
+import { appTools } from "@dapplelight/signet-server/mcp"
+import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
+
+// at the end of createApp, after the routes
+mountMcp(app, "/mcp", { name: "api", version: "0.0.0", tools: appTools(app) })
+```

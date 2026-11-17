@@ -1,0 +1,118 @@
+---
+title: Project structure
+description: What the templates give you, folder by folder.
+---
+
+<Tabs items={["full", "web", "api"]}>
+  <Tab value="full">
+<Files>
+  <Folder name="my-app" defaultOpen>
+    <Folder name=".github" defaultOpen>
+      <Folder name="workflows" defaultOpen>
+        <File name="ci.yml" />
+      </Folder>
+    </Folder>
+    <Folder name="api" defaultOpen>
+      <File name="app.ts" />
+      <File name="env.ts" />
+      <File name="plans.ts" />
+      <File name="server.ts" />
+      <File name="services.ts" />
+      <Folder name="db" />
+    </Folder>
+    <Folder name="drizzle" />
+    <Folder name="e2e" defaultOpen>
+      <File name="smoke.spec.ts" />
+    </Folder>
+    <Folder name="src" defaultOpen>
+      <File name="main.tsx" />
+      <Folder name="lib" defaultOpen>
+        <File name="api.ts" />
+      </Folder>
+      <Folder name="routes" />
+    </Folder>
+    <Folder name="test" defaultOpen>
+      <File name="api.test.ts" />
+    </Folder>
+    <File name="drizzle.config.ts" />
+    <File name="playwright.config.ts" />
+    <File name="vite.config.ts" />
+  </Folder>
+</Files>
+  </Tab>
+  <Tab value="web">
+<Files>
+  <Folder name="my-app" defaultOpen>
+    <Folder name=".github" defaultOpen>
+      <Folder name="workflows" defaultOpen>
+        <File name="ci.yml" />
+      </Folder>
+    </Folder>
+    <Folder name="public" />
+    <Folder name="src" defaultOpen>
+      <File name="app.css" />
+      <File name="main.tsx" />
+      <File name="router.ts" />
+      <File name="router.test.ts" />
+      <File name="routeTree.gen.ts" />
+      <Folder name="components" defaultOpen>
+        <File name="toaster.tsx" />
+      </Folder>
+      <Folder name="lib" defaultOpen>
+        <File name="api.ts" />
+      </Folder>
+      <Folder name="routes" defaultOpen>
+        <File name="__root.tsx" />
+        <File name="index.tsx" />
+        <File name="login.tsx" />
+      </Folder>
+    </Folder>
+    <File name="index.html" />
+    <File name="biome.json" />
+    <File name="tsconfig.json" />
+    <File name="tsconfig.app.json" />
+    <File name="tsconfig.node.json" />
+    <File name="vite.config.ts" />
+  </Folder>
+</Files>
+  </Tab>
+  <Tab value="api">
+<Files>
+  <Folder name="my-api" defaultOpen>
+    <Folder name=".github" defaultOpen>
+      <Folder name="workflows" defaultOpen>
+        <File name="ci.yml" />
+      </Folder>
+    </Folder>
+    <Folder name="src" defaultOpen>
+      <File name="app.ts" />
+      <File name="env.ts" />
+      <File name="index.ts" />
+    </Folder>
+    <Folder name="test" />
+    <File name="biome.json" />
+    <File name="tsconfig.json" />
+    <File name="wrangler.jsonc" />
+  </Folder>
+</Files>
+  </Tab>
+</Tabs>
+
+| Path | Purpose |
+| --- | --- |
+| `api/` | `full`: Hono API, env, plans, services, SQLite schema |
+| `api/app.ts` | `full`: every route, mounted under `/api` |
+| `drizzle/` | `full`: SQL migrations |
+| `src/` | The web app: Vite, React, TanStack Router |
+| `src/routes/` | One file per page |
+| `src/lib/api.ts` | The typed client for the API |
+| `test/`, `e2e/` | API tests and the Playwright smoke test |
+| `.github/workflows/` | CI: lint, typecheck, test |
+
+The generated env file gets fresh `SESSION_SECRET` and `OTP_SECRET` values in the `full` template. Templates ship `_gitignore` and `_github`, renamed to `.gitignore` and `.github` on scaffold.
+
+Other templates: [Flags and templates](/docs/packages/create-signet-app/flags).
+
+<Cards>
+  <Card title="Next: First component" href="/docs/first-component" description="Add a Badge to the home route." />
+</Cards>

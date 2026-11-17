@@ -1,1 +1,13 @@
-{ "title": "Get started", "root": true, "pages": ["index"] }
+{
+  "title": "Getting started",
+  "root": true,
+  "pages": [
+    "index",
+    "installation",
+    "create-your-first-app",
+    "project-structure",
+    "first-component",
+    "first-api-route",
+    "deploy"
+  ]
+}
