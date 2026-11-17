@@ -1,0 +1,19 @@
+{
+  "id": "contact-form",
+  "level": 2,
+  "title": "Contact form with validation",
+  "describe": "a contact form",
+  "prompt": "Build a contact page at /contact.\n\nRequirements:\n- A heading \"Contact us\".\n- Fields labelled \"Name\", \"Email\" and \"Message\" (the message is a multi-line field).\n- A button \"Send message\".\n- Pressing it with an empty Name shows the error \"Name is required\" and sends nothing.\n- With Name, a valid Email and Message filled in, pressing it shows \"Thanks, we will reply soon\".\n- Keep it all on the client; there is no server.",
+  "pages": ["/contact"],
+  "steps": [
+    { "do": "goto", "path": "/contact" },
+    { "do": "expectRole", "role": "heading", "name": "Contact us" },
+    { "do": "click", "role": "button", "name": "Send message" },
+    { "do": "expectText", "text": "Name is required" },
+    { "do": "fill", "label": "Name", "value": "Ada Test" },
+    { "do": "fill", "label": "Email", "value": "ada@example.test" },
+    { "do": "fill", "label": "Message", "value": "Hello there" },
+    { "do": "click", "role": "button", "name": "Send message" },
+    { "do": "expectText", "text": "Thanks, we will reply soon" }
+  ]
+}

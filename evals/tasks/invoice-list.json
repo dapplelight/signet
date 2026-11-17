@@ -1,0 +1,17 @@
+{
+  "id": "invoice-list",
+  "level": 2,
+  "title": "Invoice list with filter and CSV export",
+  "describe": "an invoice list with a status filter and csv export",
+  "prompt": "Build an invoice list at /.\n\nRequirements:\n- A heading \"Invoices\" and a table with the columns Number, Customer, Amount and Status.\n- Six invoices, hard-coded: INV-001 Northwind $120.00 Paid; INV-002 Contoso $80.00 Paid; INV-003 Fabrikam $450.00 Overdue; INV-004 Tailspin $60.00 Draft; INV-005 Litware $300.00 Paid; INV-006 Adatum $75.00 Overdue.\n- Filter buttons \"All\", \"Paid\", \"Overdue\" and \"Draft\". \"All\" is selected at first. Choosing one shows only invoices with that status.\n- A button \"Export CSV\" that downloads the invoices currently shown as invoices.csv, with the header line number,customer,amount,status.\n- Keep it all on the client; there is no server.",
+  "pages": ["/"],
+  "steps": [
+    { "do": "goto", "path": "/" },
+    { "do": "expectRole", "role": "heading", "name": "Invoices" },
+    { "do": "expectCount", "role": "row", "min": 7 },
+    { "do": "click", "role": "button", "name": "Overdue" },
+    { "do": "expectText", "text": "INV-003" },
+    { "do": "expectNoText", "text": "INV-001" },
+    { "do": "download", "role": "button", "name": "Export CSV", "contains": "INV-003" }
+  ]
+}

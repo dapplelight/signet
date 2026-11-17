@@ -1,0 +1,18 @@
+{
+  "id": "pricing-page",
+  "level": 1,
+  "title": "Pricing page",
+  "describe": "a pricing page",
+  "prompt": "Build a pricing page at /pricing.\n\nRequirements:\n- A heading \"Pricing\".\n- Three plan cards: Starter at $9 per month, Team at $29 per month and Business at $99 per month. Each card has a button \"Choose <plan name>\", for example \"Choose Team\".\n- A \"Monthly\" and a \"Yearly\" toggle button. Monthly is selected at first. Choosing \"Yearly\" shows the yearly price, which is ten times the monthly price: $90, $290 and $990 per year.\n- Keep it all on the client; there is no server.",
+  "pages": ["/pricing"],
+  "steps": [
+    { "do": "goto", "path": "/pricing" },
+    { "do": "http", "path": "/pricing", "status": 200 },
+    { "do": "expectRole", "role": "heading", "name": "Pricing" },
+    { "do": "expectText", "text": "$29" },
+    { "do": "expectRole", "role": "button", "name": "Choose Team" },
+    { "do": "click", "role": "button", "name": "Yearly" },
+    { "do": "expectText", "text": "$290" },
+    { "do": "expectText", "text": "$990" }
+  ]
+}

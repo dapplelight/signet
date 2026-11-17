@@ -1,0 +1,21 @@
+{
+  "id": "team-members",
+  "level": 3,
+  "title": "Team members table with invite and remove",
+  "describe": "a team members table with an invite dialog",
+  "prompt": "Build a team page at /team.\n\nRequirements:\n- A heading \"Team\" and a table with the columns Name, Email and Role.\n- Three members, hard-coded: Ada Reyes, ada@example.test, Admin; Bo Tran, bo@example.test, Member; Cy Okafor, cy@example.test, Member.\n- A button \"Invite member\" that opens a dialog with a field labelled \"Email\", a field labelled \"Role\" (Admin or Member) and a button \"Send invite\". Sending closes the dialog, adds a row with that email and the role, and shows the message \"Invite sent\".\n- Each row has a button \"Remove <name>\", for example \"Remove Bo Tran\". It asks for confirmation in a dialog with a button \"Confirm remove\". Confirming removes the row.\n- Keep it all on the client; there is no server.",
+  "pages": ["/team"],
+  "steps": [
+    { "do": "goto", "path": "/team" },
+    { "do": "expectRole", "role": "heading", "name": "Team" },
+    { "do": "expectCount", "role": "row", "min": 4 },
+    { "do": "click", "role": "button", "name": "Invite member" },
+    { "do": "fill", "label": "Email", "value": "new@example.test" },
+    { "do": "click", "role": "button", "name": "Send invite" },
+    { "do": "expectText", "text": "new@example.test" },
+    { "do": "expectText", "text": "Invite sent" },
+    { "do": "click", "role": "button", "name": "Remove Bo Tran" },
+    { "do": "click", "role": "button", "name": "Confirm remove" },
+    { "do": "expectNoText", "text": "Bo Tran" }
+  ]
+}

@@ -7,6 +7,7 @@ apps/*
 !apps/showcase/
 !apps/docs/
 qa-out/
+evals/results/*/runs/
 BACKLOG.md
 docs/audits/
 packages/mcp/src/generated/
