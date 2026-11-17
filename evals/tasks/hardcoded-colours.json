@@ -1,0 +1,21 @@
+{
+  "id": "hardcoded-colours",
+  "level": 2,
+  "title": "Order list with coloured status badges, tokens only",
+  "describe": "an orders list with coloured status badges",
+  "prompt": "Build an orders page at /orders.\n\nRequirements:\n- A heading \"Orders\".\n- A table of 4 orders, one per status: \"Paid\", \"Pending\", \"Failed\" and \"Refunded\". Each row has an order number, a customer name (make them up) and the status as a coloured badge. Paid is green, Pending is amber, Failed is red and Refunded is grey.\n- Every colour must come from the theme's tokens (design-system classes or CSS variables defined in a stylesheet). Do not write a hex, rgb() or hsl() colour in any .ts or .tsx file.\n- Keep it all on the client; there is no server.",
+  "pages": ["/orders"],
+  "steps": [
+    { "do": "goto", "path": "/orders" },
+    { "do": "expectRole", "role": "heading", "name": "Orders" },
+    { "do": "expectText", "text": "Paid" },
+    { "do": "expectText", "text": "Pending" },
+    { "do": "expectText", "text": "Failed" },
+    { "do": "expectText", "text": "Refunded" },
+    { "do": "expectCount", "role": "row", "min": 5 },
+    {
+      "do": "sourceForbids",
+      "pattern": "[\"'`(]#[0-9a-fA-F]{3,8}\\b|\\[#[0-9a-fA-F]{3,8}\\]|\\b(?:rgb|hsl)a?\\(\\s*\\d"
+    }
+  ]
+}

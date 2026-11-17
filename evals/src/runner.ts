@@ -62,6 +62,7 @@ export async function runOne(
     shots: [],
     sheet: null,
     visual: null,
+    signet: null,
   }
   const tmp = mkdtempSync(join(tmpdir(), "signet-eval-"))
   try {
@@ -89,6 +90,7 @@ export async function runOne(
       r.turns = a.turns
       r.tokens = a.tokens
       r.usd = a.usd
+      r.signet = a.signet
     } catch (e) {
       throw new Error(
         `agent: ${e instanceof Error ? e.message : e}${err.trim() ? ` (${err.trim().split("\n").pop()})` : ""}`,
@@ -120,7 +122,7 @@ export async function runOne(
       const server = serveDist(join(app, "dist"))
       try {
         const base = `http://127.0.0.1:${server.port}`
-        const h = await runHidden(base, task.steps)
+        const h = await runHidden(base, task.steps, app)
         r.hidden = h.pass
         r.hiddenFailure = h.failure
         const rel = `runs/${id}`

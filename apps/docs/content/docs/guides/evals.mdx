@@ -15,6 +15,8 @@ Each task runs in a fresh temporary app, once per arm.
 
 Every arm gets the same model and the same task prompt. The tasks run from easy to hard, from a settings page to a SaaS with login, pricing and a dashboard. Each task has a hidden acceptance test that the agent never sees.
 
+Three tasks come from failures real agents made: `hardcoded-colours` (hex colours in `.tsx` instead of tokens), `raw-fetch-errors` (a hand-rolled `fetch` that drops the server's error envelope) and `form-states` (a form without validation, sending or error states). Their hidden tests fail a run that scans `src/` and finds a hard-coded colour, or that answers `/api/...` with an error envelope or an HTML 502 and finds the page does not show the right message.
+
 ## 2. Dry run
 
 Arms B and C start the MCP server from `packages/mcp/dist`, which is not in git. Build it first, or the run stops with an error naming the missing file.
@@ -31,14 +33,14 @@ bun evals/run.ts --tasks all --arms A,B,C --dry-run
 ```
 
 ```text
-Dry run: 12 tasks, 3 arms valid. No agent called.
+Dry run: 15 tasks, 3 arms valid. 3 runs each, 19 rubric checks, up to 135 blind pairs. No agent called.
 ```
 
-If a task or arm is wrong, the error names the task id and the field, and the command exits 1. CI runs only the dry run and the unit tests.
+It checks every task (including the hidden-test steps), every arm and the rubric file, and shows how many runs and blind pairwise judgements a full eval would make. If something is wrong, the error names the task id and the field, and the command exits 1. CI runs only the dry run and the unit tests, never a real agent.
 
 ## 3. Smoke run
 
-The smoke run is 4 tasks, 3 arms and 1 run each, so 12 builds.
+By default each task and arm runs 3 times (`--runs 3`), because one run says little about an agent. The smoke run is 4 tasks, 3 arms and 1 run each, so 12 builds; pass `--runs 1` for it.
 
 This calls Claude and costs money. Check the cost of a single run first. Cap the turns with `--max-turns`.
 
@@ -46,23 +48,34 @@ This calls Claude and costs money. Check the cost of a single run first. Cap the
 bun evals/run.ts --tasks settings-page,invoice-list,pricing-page,salon-booking --arms A,B,C --runs 1 --max-turns 40
 ```
 
-It prints one line per run and ends with the report path.
+It prints one line per run and ends with the report path. A run of arm C that called no Signet tool or CLI says so at the end of its line.
 
 ```text
 [3/12] salon-booking C run 1: pass, 41 turns, $1.12, 6m02s
 Report: evals/results/2026-01-15T09-30-00/report.md
 ```
 
-Each run is scored on whether it builds and typechecks, whether the hidden test passes, how many `check` violations it has (arms B and C), its screenshots at 390 and 1440 px in light and dark, and its cost. A judge scores the screenshots against [`evals/rubric.md`](https://github.com/dapplelight/signet/blob/main/evals/rubric.md).
+Each run is scored on whether it builds and typechecks, whether the hidden test passes, how many `check` violations it has (arms B and C), its screenshots at 390 and 1440 px in light and dark, which Signet tools it called, and its cost.
+
+Two judges look at the screenshots, against [`evals/rubric.md`](https://github.com/dapplelight/signet/blob/main/evals/rubric.md):
+
+- **Yes/no checks.** The rubric is a tree of yes/no checks in six groups: layout, hierarchy, spacing, tokens-only colour, states (empty, loading, error) and responsive at 390 px. The score is the share of checks the judge answers yes, as a percentage.
+- **Blind pairwise.** After all runs, a second judge gets one screenshot from each of two arms for the same task and run (the first page at 1440, light). They are labelled X and Y in random order and nothing names the arm. It picks X, Y or a tie. Pairs are C vs B, B vs A and C vs A.
+
+The tool log comes from `claude -p --output-format json --verbose`, which prints every message. The harness counts Signet MCP tools by name (such as `plan_page` or `get_component`) and, from Bash commands, `signet check`, `add` and `--describe`.
 
 ## 4. Read report.md
 
 Results go to `evals/results/<date>T<time>/`, so a second eval on the same day never overwrites the first. Pass `--out <dir>` to choose the folder yourself. `results.json` has every run. `report.md` has these parts:
 
-- **By arm**: pass rates, check violations, visual score, turns, tokens, USD and wall time. Arm A shows "n/a" for check violations, because it has no Signet to check.
-- **By task**: the same numbers for each task, with links to the screenshots.
+- **By arm**: pass rates, pass@k, check violations, visual checks yes, turns, tokens, USD and wall time. Arm A shows "n/a" for check violations, because it has no Signet to check.
+- **By task**: for each task and arm, the result of every run, the hidden-test pass rate, pass@k, and mean with min–max (for example "77% (60%–90%)") for the visual checks, check violations and USD.
 - **C vs B vs A**: signed deltas, such as "+12 pts" or "−$0.40".
+- **Blind pairwise wins**: wins, losses, ties and the win rate of C vs B, B vs A and C vs A.
+- **Signet tool use**: per arm, how many runs called each Signet tool or CLI, and a flag listing any arm C run that called none. Such a run did not really use Signet, so read its numbers with that in mind.
 - **Spot-check**: runs picked for a human to look at.
+
+pass@k means at least one of the k runs of a task passed, where k is the runs per task and arm. In the By arm table it is the share of tasks where that holds.
 
 A run that failed keeps its row, shows "failed: <reason>" and still counts in the totals.
 

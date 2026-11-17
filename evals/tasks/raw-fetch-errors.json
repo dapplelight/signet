@@ -1,0 +1,46 @@
+{
+  "id": "raw-fetch-errors",
+  "level": 3,
+  "title": "Project list that shows the server's error",
+  "describe": "a project list loaded from an API that shows the server's error message",
+  "prompt": "Build a projects page at /projects that loads GET /api/projects (the server is not built; it is added later).\n\nThe API answers with a JSON list of {\"id\", \"name\"} when it works. When it fails it answers with a non-2xx status and, usually, a JSON body {\"error\": \"<message>\", \"code\": \"<code>\"}.\n\nRequirements:\n- A heading \"Projects\".\n- Each project's name in a list.\n- A button \"Retry\" that is always visible and loads the list again.\n- On a failure with a JSON body, show the body's \"error\" text in an alert.\n- On a failure whose body is not JSON (a proxy's HTML page, say), show \"Could not load projects\" and never show the body itself.",
+  "pages": ["/projects"],
+  "steps": [
+    {
+      "do": "mockApi",
+      "path": "/api/projects",
+      "status": 200,
+      "body": "[{\"id\":\"1\",\"name\":\"Apollo\"},{\"id\":\"2\",\"name\":\"Borealis\"}]"
+    },
+    { "do": "goto", "path": "/projects" },
+    { "do": "expectRole", "role": "heading", "name": "Projects" },
+    { "do": "expectText", "text": "Apollo" },
+    { "do": "expectText", "text": "Borealis" },
+    {
+      "do": "mockApi",
+      "path": "/api/projects",
+      "status": 429,
+      "body": "{\"error\":\"Too many requests, slow down\",\"code\":\"rate_limited\"}"
+    },
+    { "do": "click", "role": "button", "name": "Retry" },
+    { "do": "expectText", "text": "Too many requests, slow down" },
+    {
+      "do": "mockApi",
+      "path": "/api/projects",
+      "status": 502,
+      "type": "text/html",
+      "body": "<html><body>Bad gateway from the proxy</body></html>"
+    },
+    { "do": "click", "role": "button", "name": "Retry" },
+    { "do": "expectText", "text": "Could not load projects" },
+    { "do": "expectNoText", "text": "Bad gateway from the proxy" },
+    {
+      "do": "mockApi",
+      "path": "/api/projects",
+      "status": 200,
+      "body": "[{\"id\":\"3\",\"name\":\"Cascade\"}]"
+    },
+    { "do": "click", "role": "button", "name": "Retry" },
+    { "do": "expectText", "text": "Cascade" }
+  ]
+}

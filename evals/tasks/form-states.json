@@ -1,0 +1,30 @@
+{
+  "id": "form-states",
+  "level": 3,
+  "title": "Invite form with validation, sending, success and error",
+  "describe": "an invite-a-teammate form that validates, shows sending, success and server errors",
+  "prompt": "Build an invite page at /invite that posts to POST /api/invites (the server is not built; it is added later).\n\nRequirements:\n- A heading \"Invite a teammate\".\n- A field labelled \"Email\" and a button \"Send invite\".\n- Pressing it with an empty Email shows the error \"Email is required\" and sends nothing.\n- With an Email that is not an address (such as \"nope\") it shows \"Enter a valid email\" and sends nothing.\n- While the request is in flight the button reads \"Sending...\" and is disabled.\n- On a 2xx answer show \"Invite sent\".\n- On a non-2xx answer with a JSON body {\"error\": \"<message>\"} show that message in an alert. The Email field keeps its value after either answer.",
+  "pages": ["/invite"],
+  "steps": [
+    { "do": "goto", "path": "/invite" },
+    { "do": "expectRole", "role": "heading", "name": "Invite a teammate" },
+    { "do": "click", "role": "button", "name": "Send invite" },
+    { "do": "expectText", "text": "Email is required" },
+    { "do": "fill", "label": "Email", "value": "nope" },
+    { "do": "click", "role": "button", "name": "Send invite" },
+    { "do": "expectText", "text": "Enter a valid email" },
+    { "do": "mockApi", "path": "/api/invites", "status": 200, "body": "{}", "delayMs": 1500 },
+    { "do": "fill", "label": "Email", "value": "ada@example.test" },
+    { "do": "click", "role": "button", "name": "Send invite" },
+    { "do": "expectText", "text": "Sending" },
+    { "do": "expectText", "text": "Invite sent" },
+    {
+      "do": "mockApi",
+      "path": "/api/invites",
+      "status": 409,
+      "body": "{\"error\":\"Already invited\",\"code\":\"conflict\"}"
+    },
+    { "do": "click", "role": "button", "name": "Send invite" },
+    { "do": "expectText", "text": "Already invited" }
+  ]
+}

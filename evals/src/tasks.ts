@@ -16,6 +16,13 @@ export const STEPS: Record<string, { req: Record<string, Kind>; opt: Record<stri
   expectRole: { req: { role: "string", name: "string" }, opt: {} },
   expectCount: { req: { role: "string", min: "number" }, opt: {} },
   download: { req: { role: "string", name: "string", contains: "string" }, opt: {} },
+  // Answers requests to a path from now on, so a task can test how the app handles a server error.
+  mockApi: {
+    req: { path: "string", status: "number", body: "string" },
+    opt: { type: "string", delayMs: "number" },
+  },
+  // Fails when a regex matches a file under src/ (extensions default to tsx,jsx,ts,js).
+  sourceForbids: { req: { pattern: "string" }, opt: { ext: "string" } },
 }
 
 /** Every problem with a task, as "task <id>: <field>: <what is wrong>". */

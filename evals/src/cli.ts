@@ -1,11 +1,11 @@
 import { existsSync, mkdirSync } from "node:fs"
 import { join, relative, resolve } from "node:path"
 import { ARMS, MCP_BIN, validateArm } from "./arms"
-import { RUBRIC } from "./judge"
+import { armPairs, judgePair, loadChecks, pairJobs, validateRubric } from "./judge"
 import { renderReport, runLine } from "./report"
 import { runOne } from "./runner"
 import { byLevel, loadTasks } from "./tasks"
-import type { ArmId, Meta, RunResult } from "./types"
+import type { ArmId, Meta, Pair, RunResult } from "./types"
 
 export const USAGE =
   "Usage: bun evals/run.ts --tasks <ids|all> --arms A,B,C --runs N --max-turns N [--model <name>] [--judge-model <name>] [--out <dir>] [--dry-run]"
@@ -26,7 +26,7 @@ export function parseArgs(argv: string[]): Options {
   const o: Options = {
     tasks: "all",
     arms: ["A", "B", "C"],
-    runs: 1,
+    runs: 3,
     maxTurns: 40,
     model: "sonnet",
     judgeModel: "",
@@ -84,7 +84,7 @@ export function validate(o: Options): { errors: string[]; taskIds: string[] } {
   }
   if (o.arms.some((id) => ARMS[id as ArmId]?.mcp) && !existsSync(MCP_BIN))
     errors.push(`mcp: build: ${MCP_BIN} does not exist; run \`bun run build:all\` first`)
-  if (!existsSync(RUBRIC)) errors.push(`rubric: file: ${RUBRIC} does not exist`)
+  errors.push(...validateRubric())
   const ids = loaded.tasks
     .sort(byLevel)
     .map((t) => t.id)
@@ -109,7 +109,10 @@ export async function main(
     return 1
   }
   if (o.dryRun) {
-    log(`Dry run: ${taskIds.length} tasks, ${o.arms.length} arms valid. No agent called.`)
+    const pairs = taskIds.length * o.runs * armPairs(o.arms as ArmId[]).length
+    log(
+      `Dry run: ${taskIds.length} tasks, ${o.arms.length} arms valid. ${o.runs} runs each, ${loadChecks().length} rubric checks, up to ${pairs} blind pairs. No agent called.`,
+    )
     return 0
   }
 
@@ -132,12 +135,13 @@ export async function main(
   }
   const total = tasks.length * o.arms.length * o.runs
   const results: RunResult[] = []
+  const pairs: Pair[] = []
   const save = async () => {
     await Bun.write(
       join(resultsDir, "results.json"),
-      `${JSON.stringify({ ...meta, results }, null, 2)}\n`,
+      `${JSON.stringify({ ...meta, results, pairs }, null, 2)}\n`,
     )
-    await Bun.write(join(resultsDir, "report.md"), renderReport(meta, results))
+    await Bun.write(join(resultsDir, "report.md"), renderReport(meta, results, pairs))
   }
   for (const t of tasks)
     for (const arm of meta.arms)
@@ -152,6 +156,13 @@ export async function main(
         log(runLine(results.length, total, r))
         await save() // a crash later keeps everything finished so far
       }
+  // Blind pairwise judge, after all runs: same task and run number, two arms, random X/Y order.
+  for (const job of pairJobs(results, meta.arms)) {
+    const j = await judgePair(job, resultsDir, o.judgeModel)
+    if (j.pair) pairs.push(j.pair)
+    else log(`pairwise ${job.task} run ${job.run} ${job.a.arm}/${job.b.arm}: ${j.failure}`)
+    await save()
+  }
   await save()
   log(`Report: ${relative(process.cwd(), join(resultsDir, "report.md"))}`)
   return 0
