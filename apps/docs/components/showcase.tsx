@@ -60,7 +60,6 @@ export function Showcase() {
           <SignUpCardDemo />
         </Tile>
 
-
         <Tile links={["Card", "Avatar", "Badge"]} className="max-md:hidden">
           <Card>
             <CardHeader>
@@ -84,14 +83,12 @@ export function Showcase() {
             </CardContent>
           </Card>
         </Tile>
-
       </div>
 
       <div className="flex flex-col gap-4">
         <Tile links={["Card", "Badge", "Progress"]}>
           <RevenueCardDemo />
         </Tile>
-
 
         <Tile links={["Card", "Switch"]}>
           <Card>
@@ -113,7 +110,6 @@ export function Showcase() {
             </CardContent>
           </Card>
         </Tile>
-
       </div>
 
       <div className="hidden flex-col gap-4 lg:flex">
@@ -145,7 +141,6 @@ export function Showcase() {
             </CardContent>
           </Card>
         </Tile>
-
       </div>
     </div>
   )
