@@ -1,4 +1,5 @@
-import type { ArmId, Meta, RunResult } from "./types"
+import { armPairs } from "./judge"
+import type { ArmId, Meta, Pair, RunResult } from "./types"
 
 const MINUS = "−"
 const cell = (s: string) => s.replace(/\|/g, "\\|").replace(/\n/g, " ")
@@ -61,7 +62,7 @@ export function stats(rs: RunResult[]): Stats {
     hidden: rs.filter((r) => !r.failed && r.hidden).length,
     firstTry: rs.filter((r) => !r.failed && r.firstTry).length,
     violations: mean(nums(rs, (r) => r.violations)),
-    visual: mean(nums(rs, (r) => r.visual?.total)),
+    visual: mean(nums(rs, (r) => r.visual?.percent)),
     turns: mean(nums(rs, (r) => r.turns)),
     tokens: mean(nums(rs, (r) => r.tokens)),
     usd: mean(nums(rs, (r) => r.usd)),
@@ -83,6 +84,24 @@ export function sample(rs: RunResult[]): RunResult[] {
 
 const byArm = (rs: RunResult[], a: ArmId) => rs.filter((r) => r.arm === a)
 
+/** pass@k: at least one of the k runs passed. */
+export const passAtK = (rs: RunResult[]) => rs.some(passed)
+
+/** "mean (min–max)" of the numbers, or just the number when there is one, or n/a. */
+export function spread(xs: number[], fmt: (v: number) => string): string {
+  const m = mean(xs)
+  if (m === null) return NA
+  const lo = Math.min(...xs)
+  const hi = Math.max(...xs)
+  return lo === hi ? fmt(m) : `${fmt(m)} (${fmt(lo)}–${fmt(hi)})`
+}
+
+/** Tasks (among those the arm ran) where at least one run passed, as a rate. */
+function armPassAtK(rs: RunResult[]) {
+  const tasks = [...new Set(rs.map((r) => r.task))]
+  return rate(tasks.filter((t) => passAtK(rs.filter((r) => r.task === t))).length, tasks.length)
+}
+
 function armTable(arms: ArmId[], rs: RunResult[]) {
   const rows = arms.map((a) => {
     const s = stats(byArm(rs, a))
@@ -93,9 +112,10 @@ function armTable(arms: ArmId[], rs: RunResult[]) {
       rate(s.builds, s.n),
       rate(s.typechecks, s.n),
       rate(s.hidden, s.n),
+      armPassAtK(byArm(rs, a)),
       rate(s.firstTry, s.n),
       noCheck ? NA : orNa(s.violations, one),
-      orNa(s.visual, (v) => `${one(v)}/16`),
+      orNa(s.visual, (v) => `${Math.round(v)}%`),
       orNa(s.turns, one),
       orNa(s.tokens, fmtTokens),
       orNa(s.usd, fmtUsd),
@@ -109,9 +129,10 @@ function armTable(arms: ArmId[], rs: RunResult[]) {
       "Builds",
       "Typechecks",
       "Hidden test pass",
+      "pass@k",
       "First-try pass",
       "Check violations",
-      "Visual score",
+      "Visual checks yes",
       "Turns",
       "Tokens",
       "USD",
@@ -133,9 +154,21 @@ function taskTable(tasks: string[], arms: ArmId[], rs: RunResult[]) {
         a,
         mine.map((r) => `run ${r.run}: ${outcome(r)}`).join("; "),
         rate(s.hidden, s.n),
-        orNa(s.visual, (v) => `${one(v)}/16`),
-        a === "A" ? NA : orNa(s.violations, one),
-        orNa(s.usd, fmtUsd),
+        passAtK(mine) ? "yes" : "no",
+        spread(
+          nums(mine, (r) => r.visual?.percent),
+          (v) => `${Math.round(v)}%`,
+        ),
+        a === "A"
+          ? NA
+          : spread(
+              nums(mine, (r) => r.violations),
+              one,
+            ),
+        spread(
+          nums(mine, (r) => r.usd),
+          fmtUsd,
+        ),
       ])
     }
   return table(
@@ -144,9 +177,10 @@ function taskTable(tasks: string[], arms: ArmId[], rs: RunResult[]) {
       "Arm",
       "Result per run",
       "Hidden test pass",
-      "Visual score",
-      "Check violations",
-      "USD",
+      "pass@k",
+      "Visual checks yes, mean (min–max)",
+      "Check violations, mean (min–max)",
+      "USD, mean (min–max)",
     ],
     rows,
   )
@@ -172,7 +206,7 @@ function deltaTable(arms: ArmId[], rs: RunResult[]) {
       (d) => `${Math.round(Math.abs(d))} pts`,
       false,
     ],
-    ["Visual score (of 16)", (s) => s.visual, (d) => one(Math.abs(d)), false],
+    ["Visual checks yes", (s) => s.visual, (d) => `${Math.round(Math.abs(d))} pts`, false],
     ["Check violations", (s) => s.violations, (d) => one(Math.abs(d)), true],
     ["Turns", (s) => s.turns, (d) => one(Math.abs(d)), false],
     ["Tokens", (s) => s.tokens, fmtTokens, false],
@@ -191,6 +225,55 @@ function deltaTable(arms: ArmId[], rs: RunResult[]) {
     }),
   ])
   return table(["Metric", "B vs A", "C vs B", "C vs A"], rows)
+}
+
+/** Blind pairwise win rates. The first arm of each pair is the one the rate is for; ties count for neither. */
+function winTable(arms: ArmId[], pairs: Pair[]) {
+  const rows: string[][] = []
+  for (const [p, q] of armPairs(arms)) {
+    const mine = pairs.filter((x) => [x.x, x.y].includes(p) && [x.x, x.y].includes(q))
+    const wins = (a: ArmId) => mine.filter((x) => x.winner === a).length
+    rows.push([
+      `${p} vs ${q}`,
+      String(mine.length),
+      String(wins(p)),
+      String(wins(q)),
+      String(mine.filter((x) => x.winner === "tie").length),
+      rate(wins(p), mine.length),
+    ])
+  }
+  return table(
+    ["Pair", "Judged", "First arm wins", "Second arm wins", "Ties", "First arm win rate"],
+    rows,
+  )
+}
+
+/** Which Signet MCP tools and CLIs each arm's runs called, and the C runs that called none. */
+function toolTable(arms: ArmId[], rs: RunResult[]) {
+  const logged = (a: ArmId) => byArm(rs, a).filter((r) => r.signet)
+  const names = [...new Set(rs.flatMap((r) => Object.keys(r.signet ?? {})))].sort()
+  const rows = arms.map((a) => {
+    const ls = logged(a)
+    return [
+      a,
+      String(byArm(rs, a).length),
+      String(ls.length),
+      String(ls.filter((r) => !Object.keys(r.signet ?? {}).length).length),
+      ...names.map((n) => {
+        const users = ls.filter((r) => r.signet?.[n])
+        const calls = users.reduce((t, r) => t + (r.signet?.[n] ?? 0), 0)
+        return `${users.length}/${ls.length} runs, ${calls} calls`
+      }),
+    ]
+  })
+  const none = byArm(rs, "C").filter((r) => r.signet && !Object.keys(r.signet).length)
+  return [
+    table(["Arm", "Runs", "Runs with a tool log", "Runs with no Signet call", ...names], rows),
+    "",
+    none.length
+      ? `Flag: ${none.length} arm C run${none.length === 1 ? "" : "s"} called no Signet tool or CLI, so ${none.length === 1 ? "it was" : "they were"} not really arm C: ${none.map((r) => r.id).join(", ")}.`
+      : "No arm C run went without a Signet call.",
+  ].join("\n")
 }
 
 function spotCheck(rs: RunResult[]) {
@@ -212,7 +295,7 @@ function spotCheck(rs: RunResult[]) {
 }
 
 /** report.md for a finished eval. */
-export function renderReport(meta: Meta, rs: RunResult[]): string {
+export function renderReport(meta: Meta, rs: RunResult[], pairs: Pair[] = []): string {
   const head = [
     `# Eval results ${meta.date}`,
     "",
@@ -226,7 +309,7 @@ export function renderReport(meta: Meta, rs: RunResult[]): string {
     "",
     armTable(meta.arms, rs),
     "",
-    "Rates count every run, failed runs included. Check violations, visual score, turns, tokens, USD and wall time are averages per run. Hidden test pass is the hidden test on the finished app. First-try pass means the app built, typechecked and passed the hidden test after one agent session that ended on its own. Visual score is the judge's total for the rubric in evals/rubric.md; the judge's own cost is not counted.",
+    "Rates count every run, failed runs included. Check violations, visual checks, turns, tokens, USD and wall time are averages per run; the By task table adds the lowest and highest run. A run passes when it built, typechecked and passed the hidden test. pass@k means at least one of the k runs of a task passed (k is the runs per task and arm); in the By arm table it is the share of tasks where that holds. First-try pass means the app built, typechecked and passed the hidden test after one agent session that ended on its own. Visual checks yes is the share of the yes/no checks in evals/rubric.md the judge answered yes; the judge's own cost is not counted.",
     "",
     "## By task",
     "",
@@ -237,6 +320,20 @@ export function renderReport(meta: Meta, rs: RunResult[]): string {
     deltaTable(meta.arms, rs),
     "",
     "A positive number means the first arm of the pair scored higher. For USD, turns, tokens and wall time lower is better.",
+    "",
+    "## Blind pairwise wins",
+    "",
+    pairs.length
+      ? winTable(meta.arms, pairs)
+      : "No pairwise verdicts. They need two arms with a screenshot for the same task and run.",
+    "",
+    "A judge saw one screenshot from each of two arms for the same task and run, labelled X and Y in random order with no arm named, and picked one or called a tie. The win rate is the first arm's wins over all judged pairs.",
+    "",
+    "## Signet tool use",
+    "",
+    toolTable(meta.arms, rs),
+    "",
+    "Counts come from the tool calls in the agent's JSON output: Signet MCP tools by name, and `cli:check`, `cli:add` and `cli:describe` from Bash commands.",
     "",
     "## Spot-check",
     "",
@@ -252,5 +349,6 @@ export function runLine(i: number, total: number, r: RunResult): string {
   const what = r.failed ? `failed: ${r.failed}` : passed(r) ? "pass" : "fail"
   const cost =
     r.turns === null ? "" : `, ${r.turns} turns, ${fmtUsd(r.usd ?? 0)}, ${fmtTime(r.wallMs ?? 0)}`
-  return `[${i}/${total}] ${r.task} ${r.arm} run ${r.run}: ${what}${cost}`
+  const flag = r.arm === "C" && r.signet && !Object.keys(r.signet).length ? ", no Signet call" : ""
+  return `[${i}/${total}] ${r.task} ${r.arm} run ${r.run}: ${what}${cost}${flag}`
 }
