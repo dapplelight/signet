@@ -135,6 +135,9 @@
       "bin": {
         "create-signet-app": "./src/index.ts",
       },
+      "dependencies": {
+        "@dapplelight/signet-mcp": "^0.1.5",
+      },
       "devDependencies": {
         "@types/bun": "^1.4.2",
         "typescript": "^7.0.2",
