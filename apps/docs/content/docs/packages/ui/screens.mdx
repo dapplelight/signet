@@ -94,7 +94,7 @@ Needs the optional peer `recharts`, so it is never in the barrel.
 
 ### cost-dashboard
 
-AI cost for the admin: a spend-over-time chart with what the cache saved, spend by model, top spenders (subject hashes, exactly as the server gives them), and global cap usage bars. Needs the optional peer `recharts`, so it is never in the barrel. Money is millionths of a USD; anything above zero but under one cent shows "<$0.01". The caps bar is the primary colour under 80%, amber from 80%, red at 100% and over, and always shows its percent as text; a null cap reads "No cap".
+AI cost for the admin: a spend-over-time chart with what the cache saved, spend by model, top spenders (subject hashes, exactly as the server gives them), and global cap usage bars. Needs the optional peer `recharts`, so it is never in the barrel. Money is millionths of a USD; anything above zero but under one cent shows `<$0.01`. The caps bar is the primary colour under 80%, amber from 80%, red at 100% and over, and always shows its percent as text; a null cap reads "No cap".
 
 Feed it the JSON of signet-server's `observabilityAdminRoutes` (`series`, `models`, `top`) and, for the caps card, signet-db's `usage("global")`. Pass `fetcher(days)` and the screen loads, reloads on a new range and retries itself; or pass `data`, `loading`, `error`, `onRetry` and `onDaysChange` and own the state.
 
