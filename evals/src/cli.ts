@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync } from "node:fs"
 import { join, relative, resolve } from "node:path"
-import { ARMS, validateArm } from "./arms"
+import { ARMS, MCP_BIN, validateArm } from "./arms"
 import { RUBRIC } from "./judge"
 import { renderReport, runLine } from "./report"
 import { runOne } from "./runner"
@@ -82,6 +82,8 @@ export function validate(o: Options): { errors: string[]; taskIds: string[] } {
     const e = validateArm(ARMS[id as ArmId], id)
     if (e) errors.push(e)
   }
+  if (o.arms.some((id) => ARMS[id as ArmId]?.mcp) && !existsSync(MCP_BIN))
+    errors.push(`mcp: build: ${MCP_BIN} does not exist; run \`bun run build:all\` first`)
   if (!existsSync(RUBRIC)) errors.push(`rubric: file: ${RUBRIC} does not exist`)
   const ids = loaded.tasks
     .sort(byLevel)
@@ -111,8 +113,11 @@ export async function main(
     return 0
   }
 
-  const date = new Date().toISOString().slice(0, 10)
-  const resultsDir = resolve(o.out ?? join(import.meta.dir, "../results", date))
+  const now = new Date().toISOString()
+  const date = now.slice(0, 10)
+  // The time is in the folder name so a second eval the same day never overwrites the first.
+  const stamp = now.slice(0, 19).replace(/:/g, "-")
+  const resultsDir = resolve(o.out ?? join(import.meta.dir, "../results", stamp))
   mkdirSync(resultsDir, { recursive: true })
   const tasks = loadTasks()
     .tasks.filter((t) => taskIds.includes(t.id))

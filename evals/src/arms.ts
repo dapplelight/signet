@@ -3,6 +3,8 @@ import { dirname, join, resolve } from "node:path"
 import type { Arm, ArmId, Task } from "./types"
 
 export const ROOT = resolve(import.meta.dir, "../..")
+/** The built MCP server. dist is gitignored, so `bun run build:all` must have run. */
+export const MCP_BIN = join(ROOT, "packages/mcp/dist/bin.js")
 const LLMS_TXT = "https://signet.dapplelight.in/llms.txt"
 
 /** The same prompt goes to every arm. What differs is the folder, the tools and the notes the agent finds there. */
@@ -89,11 +91,7 @@ export function plainApp(): Record<string, string> {
 }
 
 const mcpConfig = () =>
-  `${JSON.stringify(
-    { mcpServers: { signet: { command: "bun", args: [join(ROOT, "packages/mcp/dist/bin.js")] } } },
-    null,
-    2,
-  )}\n`
+  `${JSON.stringify({ mcpServers: { signet: { command: "bun", args: [MCP_BIN] } } }, null, 2)}\n`
 
 /** Notes for arm B: the docs and the MCP lookups, nothing from the page-building loop. */
 export const notesB = `# Notes

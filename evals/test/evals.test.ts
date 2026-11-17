@@ -1,7 +1,8 @@
 // Run: bun test   (unit tests plus --dry-run; never calls an agent or a browser)
 import { expect, test } from "bun:test"
+import { existsSync } from "node:fs"
 import { agentArgs, parseAgent, promptFor } from "../src/agent"
-import { ARMS, plainApp, validateArm } from "../src/arms"
+import { ARMS, MCP_BIN, plainApp, validateArm } from "../src/arms"
 import { parseArgs, validate } from "../src/cli"
 import { judgePrompt, parseJudge } from "../src/judge"
 import { outcome, renderReport, runLine, sample } from "../src/report"
@@ -229,8 +230,16 @@ test("validate names an unknown task and an unknown arm", () => {
   ])
 })
 
-test("--dry-run validates 12 tasks and 3 arms and exits 0", () => {
+test("validate asks for build:all when an MCP arm has no dist, and not for arm A", () => {
+  const mcp = (arms: string) =>
+    validate(parseArgs(["--arms", arms])).errors.filter((e) => e.startsWith("mcp: build:"))
+  expect(mcp("A")).toEqual([])
+  expect(mcp("B,C")).toEqual(existsSync(MCP_BIN) ? [] : [expect.stringContaining("build:all")])
+})
+
+test("--dry-run validates 12 tasks and 3 arms and exits 0 (needs build:all)", () => {
   const r = run("--dry-run")
+  if (!existsSync(MCP_BIN)) return expect(r.exitCode).toBe(1)
   expect(r.stdout.toString().trim()).toBe("Dry run: 12 tasks, 3 arms valid. No agent called.")
   expect(r.exitCode).toBe(0)
 })

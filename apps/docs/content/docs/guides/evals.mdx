@@ -17,6 +17,13 @@ Every arm gets the same model and the same task prompt. The tasks run from easy 
 
 ## 2. Dry run
 
+Arms B and C start the MCP server from `packages/mcp/dist`, which is not in git. Build it first, or the run stops with an error naming the missing file.
+
+```bash
+bun install
+bun run build:all
+```
+
 A dry run checks every task and arm and does not call the agent. It costs nothing.
 
 ```bash
@@ -43,14 +50,14 @@ It prints one line per run and ends with the report path.
 
 ```text
 [3/12] salon-booking C run 1: pass, 41 turns, $1.12, 6m02s
-Report: evals/results/2026-01-15/report.md
+Report: evals/results/2026-01-15T09-30-00/report.md
 ```
 
 Each run is scored on whether it builds and typechecks, whether the hidden test passes, how many `check` violations it has (arms B and C), its screenshots at 390 and 1440 px in light and dark, and its cost. A judge scores the screenshots against [`evals/rubric.md`](https://github.com/dapplelight/signet/blob/main/evals/rubric.md).
 
 ## 4. Read report.md
 
-Results go to `evals/results/<date>/`. `results.json` has every run. `report.md` has these parts:
+Results go to `evals/results/<date>T<time>/`, so a second eval on the same day never overwrites the first. Pass `--out <dir>` to choose the folder yourself. `results.json` has every run. `report.md` has these parts:
 
 - **By arm**: pass rates, check violations, visual score, turns, tokens, USD and wall time. Arm A shows "n/a" for check violations, because it has no Signet to check.
 - **By task**: the same numbers for each task, with links to the screenshots.
