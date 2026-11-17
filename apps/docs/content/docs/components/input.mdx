@@ -3,7 +3,7 @@ title: "Input"
 description: "A text field."
 ---
 
-import { InputDemo, InputWithLabelDemo, InputFileDemo, InputDisabledDemo, InputInvalidDemo } from "@/components/demos/input"
+import { InputDemo, InputWithLabelDemo, InputFileDemo, InputDisabledDemo, InputInvalidDemo, SignUpCardDemo } from "@/components/demos/input"
 
 <Preview>
   <InputDemo />
@@ -133,13 +133,46 @@ export function Demo() {
 
 </Preview>
 
+## Composition
+
+<Preview>
+  <SignUpCardDemo />
+
+```tsx
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@dapplelight/signet-ui/components/card"
+import { Input } from "@dapplelight/signet-ui/components/input"
+import { Label } from "@dapplelight/signet-ui/components/label"
+
+export function SignUpCard() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Create your account</CardTitle>
+        <CardDescription>Sign in with a magic link. No password.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-2">
+        <Label htmlFor="email">Email</Label>
+        <Input id="email" type="email" placeholder="priya.raghunathan@example.com" />
+      </CardContent>
+      <CardFooter>
+        <Button className="w-full">Send magic link</Button>
+      </CardFooter>
+    </Card>
+  )
+}
+```
+
+</Preview>
+
 ## API Reference
 
 ### Input
 
-| Prop | Type | Default | Description |
-| --- | --- | --- | --- |
-| `type` | `string` | `"text"` | Any HTML input type. |
-| `className` | `string` | none | Merged last. |
+| Prop | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `type` | `string` | `"text"` | No | Any HTML input type. |
+| `aria-invalid` | `boolean` | — | No | Shows the error style. |
+| `className` | `string` | — | No | Merged last. |
 
-Plus every `<input>` prop. Set `aria-invalid` for the error style.
+Plus every native [`<input>`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input) attribute.

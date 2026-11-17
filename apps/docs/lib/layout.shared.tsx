@@ -15,8 +15,8 @@ export function baseOptions(): BaseLayoutProps {
     links: [
       { text: "Docs", url: "/docs" },
       { text: "Guides", url: "/docs/guides" },
-      { text: "Components", url: "/docs/components/button" },
-      { text: "Packages", url: "/docs/packages/create-signet-app" },
+      { text: "Components", url: "/docs/components" },
+      { text: "Packages", url: "/docs/packages" },
     ],
     githubUrl: `https://github.com/${gitConfig.user}/${gitConfig.repo}`,
   }
