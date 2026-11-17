@@ -41,6 +41,7 @@ export default {
 ### Read it in a handler
 ```ts title="src/server/db.ts"
 import { env } from "../env"
+import { connect } from "./connect"
 
 const db = connect(env.DATABASE_URL)
 ```

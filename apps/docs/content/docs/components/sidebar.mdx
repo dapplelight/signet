@@ -109,9 +109,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@dapplelight/signet-ui/components/sidebar"
-```
 
-```tsx
 <SidebarProvider>
   <Sidebar>
     <SidebarContent />
@@ -132,6 +130,8 @@ Press `Ctrl+B` or `Cmd+B` to toggle. The demos turn the shortcut off so it does 
   <SidebarOffcanvasDemo />
 
 ```tsx
+import { Sidebar } from "@dapplelight/signet-ui/components/sidebar"
+
 <Sidebar collapsible="offcanvas">
   {/* hidden entirely when collapsed */}
 </Sidebar>
@@ -145,6 +145,13 @@ Press `Ctrl+B` or `Cmd+B` to toggle. The demos turn the shortcut off so it does 
   <SidebarRightDemo />
 
 ```tsx
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarInset,
+  SidebarProvider,
+} from "@dapplelight/signet-ui/components/sidebar"
+
 <SidebarProvider>
   <SidebarInset>{/* page content */}</SidebarInset>
   <Sidebar side="right" aria-label="Details">

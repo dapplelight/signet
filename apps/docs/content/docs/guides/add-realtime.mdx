@@ -16,6 +16,7 @@ npm i @dapplelight/signet-server @dapplelight/signet-ui
 import { createRealtime, sessionAuth } from "@dapplelight/signet-server/realtime"
 import { verifySession } from "@dapplelight/signet-server/auth/session"
 import { grants } from "@dapplelight/signet-server/http/orgs"
+import { orgs, sessionOpts } from "./auth"
 
 export const hub = createRealtime({
   // Deny by default: without authorize, every join is refused.
@@ -34,21 +35,28 @@ export const authenticate = sessionAuth({
 ### Attach it to your runtime
 ```ts title="server/main.ts"
 import { bunRealtime } from "@dapplelight/signet-server/realtime/bun"
+import { serve } from "bun"
+import { app } from "./app"
 import { authenticate, hub } from "./realtime"
 
 const live = bunRealtime(hub, { authenticate })
-Bun.serve({
+serve({
   fetch: (req, srv) => (new URL(req.url).pathname === "/realtime" ? live.upgrade(req, srv) : app.fetch(req)),
   websocket: live.websocket,
 })
 ```
 ```ts title="server/main.node.ts"
 import { attachRealtime } from "@dapplelight/signet-server/realtime/node"
+import { server } from "./http"
+import { authenticate, hub } from "./realtime"
 
 attachRealtime(server, hub, { path: "/realtime", authenticate })
 ```
 ```ts title="worker/index.ts"
 import { connectRoom, realtimeRoom } from "@dapplelight/signet-server/realtime/cloudflare"
+import { app } from "../server/app"
+import { authorize } from "../server/authorize"
+import { authenticate } from "../server/realtime"
 
 export const RealtimeRoom = realtimeRoom({ authorize }) // bind as REALTIME
 app.get("/realtime", (c) => connectRoom(c.env.REALTIME, c.req.raw, { authenticate }))
@@ -57,19 +65,42 @@ app.get("/realtime", (c) => connectRoom(c.env.REALTIME, c.req.raw, { authenticat
 <Step>
 ### Publish when a record changes
 ```ts title="server/routes/docs.ts"
-await db.update(docs).set(patch).where(eq(docs.id, id))
-hub.publish(orgId, `record:docs:${id}`, "updated", { id, by: userId, name: userName })
+import { eq } from "drizzle-orm"
+import { db } from "../db"
+import { docs } from "../db/schema"
+import { hub } from "../realtime"
+
+export async function saveDoc(
+  { orgId, userId, userName }: { orgId: string; userId: string; userName: string },
+  id: string,
+  patch: Partial<typeof docs.$inferInsert>,
+) {
+  await db.update(docs).set(patch).where(eq(docs.id, id))
+  hub.publish(orgId, `record:docs:${id}`, "updated", { id, by: userId, name: userName })
+}
 ```
 </Step>
 <Step>
 ### Show presence in React
 ```tsx title="app/doc.tsx"
-import { AvatarStack, EditingBadge, RecordChangedBanner, TypingIndicator } from "@dapplelight/signet-ui/screens/realtime-screens"
-import { createRealtimeClient, useChannel, useRecordChanges } from "@dapplelight/signet-ui/hooks/use-channel"
+import {
+  AvatarStack,
+  EditingBadge,
+  RecordChangedBanner,
+  TypingIndicator,
+} from "@dapplelight/signet-ui/screens/realtime-screens"
+import {
+  createRealtimeClient,
+  useChannel,
+  useRecordChanges,
+} from "@dapplelight/signet-ui/hooks/use-channel"
+import { orgId } from "./session"
+import { useDoc } from "./use-doc"
 
 const live = createRealtimeClient({ url: `/realtime?org=${orgId}` })
 
 export function Doc({ id, me }: { id: string; me: string }) {
+  const { refetch } = useDoc(id)
   const ch = useChannel(live, `record:docs:${id}`)
   const { changed, change, dismiss } = useRecordChanges(live, `record:docs:${id}`, { selfId: me })
   return (

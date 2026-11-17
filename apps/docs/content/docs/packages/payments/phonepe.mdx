@@ -7,6 +7,9 @@ description: "PhonePe Standard Checkout v2 with OAuth, refunds and Autopay subsc
 
 ```ts
 import { phonepe } from "@dapplelight/signet-payments/phonepe"
+import { app } from "./app"
+import { env } from "./env"
+import { payments } from "./payments"
 
 const pp = phonepe({
   clientId: env.PHONEPE_CLIENT_ID,

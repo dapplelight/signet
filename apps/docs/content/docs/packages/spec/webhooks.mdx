@@ -9,6 +9,9 @@ description: "Delivery body, signed headers and outbox message."
 import { signWebhook } from "@dapplelight/signet-lib/webhooks"
 import { webhookHeadersSchema } from "@dapplelight/signet-spec/webhooks"
 
+const secret = "whsec_example"
+const body = JSON.stringify({ type: "invoice.paid", timestamp: 1_764_000_000, data: {} })
+
 const headers = await signWebhook({ secret, id: "evt_1", body })
 webhookHeadersSchema.parse(headers)
 ```

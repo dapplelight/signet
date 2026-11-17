@@ -13,6 +13,7 @@ import { createLogger, type Logger } from "@dapplelight/signet-server/observabil
 import { requestLog } from "@dapplelight/signet-server/observability/request-log"
 import { createSentry } from "@dapplelight/signet-server/observability/sentry"
 import { traceMiddleware } from "@dapplelight/signet-server/observability/trace"
+import { env } from "./env"
 
 export const log = createLogger({ level: "info", base: { service: "api" } })
 const sentry = createSentry({ dsn: env.SENTRY_DSN, enabled: env.APP_ENV === "production", environment: env.APP_ENV })
@@ -144,6 +145,8 @@ Fields are `method`, `route` (the pattern, never the raw path), `status`, `durat
 
 ```ts
 import { healthRoutes } from "@dapplelight/signet-server/observability/health"
+import { app } from "./app"
+import { pingDb, pingKv } from "./checks"
 
 app.route("/health", healthRoutes({ checks: { db: () => pingDb(), kv: () => pingKv() } }))
 ```
@@ -170,6 +173,8 @@ Read-only admin routes for AI cost over time, on signet-db's `createAiSpend` wit
 
 ```ts
 import { observabilityAdminRoutes } from "@dapplelight/signet-server/http/observability"
+import { app } from "./app"
+import { spend } from "./spend"
 
 app.route("/api/admin/observability", observabilityAdminRoutes({
   spend, // createAiSpend(db, { tables: { usageCounters, aiSpendCaps, aiSpendLedger } })
@@ -182,6 +187,8 @@ app.route("/api/admin/observability", observabilityAdminRoutes({
 ### Add your own redaction
 
 ```ts
+import { createLogger } from "@dapplelight/signet-server/observability/logger"
+
 const log = createLogger({ redact: ["email", "user.phone", "items.*.card"] })
 log.info({ user: { phone: "+919876543210" }, token: "abc" }, "signed in") // phone and token become "[redacted]"
 ```
@@ -190,6 +197,8 @@ log.info({ user: { phone: "+919876543210" }, token: "abc" }, "signed in") // pho
 
 ```ts
 import { redactFields } from "@dapplelight/signet-server/observability/logger"
+import { app } from "./app"
+import { sentry } from "./sentry"
 
 app.onError((err, c) => {
   c.executionCtx.waitUntil(

@@ -11,20 +11,32 @@ import { upstashKv, qstashQueue } from "@dapplelight/signet-server/adapters/upst
 import { fsBlobStore } from "@dapplelight/signet-server/adapters/node"
 import { memoryKv, waitUntilDefer, kvRateLimitStore } from "@dapplelight/signet-server/adapters"
 
-// Workers
-const kv = cloudflareKv(env.KV)
-const files = r2BlobStore(env.UPLOADS)
-const jobsQueue = cloudflareQueue(env.JOBS)
-const defer = waitUntilDefer(ctx)
+type Env = {
+  KV: KVNamespace
+  UPLOADS: R2Bucket
+  JOBS: Queue
+  UPSTASH_URL: string
+  UPSTASH_TOKEN: string
+}
 
-// Anywhere fetch runs
-const redis = upstashKv({ url: env.UPSTASH_URL, token: env.UPSTASH_TOKEN })
+export function adapters(env: Env, ctx: ExecutionContext) {
+  // Workers
+  const kv = cloudflareKv(env.KV)
+  const files = r2BlobStore(env.UPLOADS)
+  const jobsQueue = cloudflareQueue(env.JOBS)
+  const defer = waitUntilDefer(ctx)
 
-// Docker or a laptop
-const disk = fsBlobStore("/data/uploads")
+  // Anywhere fetch runs
+  const redis = upstashKv({ url: env.UPSTASH_URL, token: env.UPSTASH_TOKEN })
 
-// Exact shared rate limiting off Cloudflare
-const limits = kvRateLimitStore(redis)
+  // Docker or a laptop
+  const disk = fsBlobStore("/data/uploads")
+
+  // Exact shared rate limiting off Cloudflare
+  const limits = kvRateLimitStore(redis)
+
+  return { kv, files, jobsQueue, defer, redis, disk, limits, memoryKv }
+}
 ```
 
 Four interfaces: `KeyValue`, `Queue<T>`, `BlobStore` and `Defer`. No adapter adds a dependency, and each takes config as an argument, never from env at import.
@@ -114,8 +126,11 @@ Four interfaces: `KeyValue`, `Queue<T>`, `BlobStore` and `Defer`. No adapter add
 ### Exact rate limit on Upstash
 
 ```ts
+import { Hono } from "hono"
 import { rateLimit } from "@dapplelight/signet-server/middleware/rate-limit"
 import { upstashRateLimitStore } from "@dapplelight/signet-server/adapters/upstash"
+
+const app = new Hono<{ Bindings: { UPSTASH_URL: string; UPSTASH_TOKEN: string } }>()
 
 app.use("/api/*", rateLimit({
   store: (c) => upstashRateLimitStore({ url: c.env.UPSTASH_URL, token: c.env.UPSTASH_TOKEN }),
@@ -128,7 +143,13 @@ app.use("/api/*", rateLimit({
 ```ts
 import { waitUntil } from "@vercel/functions"
 import { vercelDefer } from "@dapplelight/signet-server/adapters/vercel"
+import { sendReceipt } from "./receipts"
 
 const defer = vercelDefer(waitUntil)
-defer(sendReceipt(order.id))
+
+export async function POST(request: Request) {
+  const order = (await request.json()) as { id: string }
+  defer(sendReceipt(order.id))
+  return new Response(null, { status: 202 })
+}
 ```

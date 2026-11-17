@@ -6,21 +6,24 @@ description: "Embeddings, in-memory similarity search and answers with verified 
 ## Usage
 ```ts
 import { embedDocuments, searchDocuments, groundedAnswer } from "@dapplelight/signet-ai/ground"
+import { embeddingModel, model } from "./ai"
 
-const indexed = await embedDocuments(embeddingModel, [
-  { id: "shipping", text: "Delivery takes 3 to 5 working days." },
-  { id: "returns", text: "Returns are free within 30 days." },
-])
-// store `indexed` anywhere: a JSON column, KV. Vectors are plain number arrays.
+export async function ask() {
+  const indexed = await embedDocuments(embeddingModel, [
+    { id: "shipping", text: "Delivery takes 3 to 5 working days." },
+    { id: "returns", text: "Returns are free within 30 days." },
+  ])
+  // store `indexed` anywhere: a JSON column, KV. Vectors are plain number arrays.
 
-const hits = await searchDocuments(embeddingModel, "how long is delivery", indexed, {
-  topK: 5,
-  minScore: 0.3,
-})
+  const hits = await searchDocuments(embeddingModel, "how long is delivery", indexed, {
+    topK: 5,
+    minScore: 0.3,
+  })
 
-const r = await groundedAnswer({ model, question: "How long is delivery?", documents: hits })
-if (!r.grounded) return "I couldn't find that in our help pages."
-// r.answer, r.citations: [{ id, quote }], r.rejected
+  const r = await groundedAnswer({ model, question: "How long is delivery?", documents: hits })
+  if (!r.grounded) return "I couldn't find that in our help pages."
+  // r.answer, r.citations: [{ id, quote }], r.rejected
+}
 ```
 
 Needs `ai` 7 or later.

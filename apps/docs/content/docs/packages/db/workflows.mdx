@@ -7,6 +7,12 @@ description: "Durable multi-step jobs on your own database: sleep, wait, approve
 ```ts
 import { workflowTables } from "@dapplelight/signet-db/columns/sqlite"
 import { createWorkflows, defineWorkflow } from "@dapplelight/signet-db/workflows"
+import { db } from "../db"
+import { loadOrder } from "../orders"
+import { psp } from "../psp"
+
+const userId = "u_1"
+const orderId = "ord_1"
 
 // schema.ts
 export const { workflowRuns, workflowSteps, workflowEvents } = workflowTables()
@@ -93,11 +99,25 @@ Rules for the function:
 ## Examples
 ### Approve from an HTTP route
 ```ts
-const decision = await wf.approve(runId, "approval", session.userId, "Looks right")
-if (!decision) return new Response("Already decided", { status: 409 })
+import { Hono } from "hono"
+import { wf } from "../workflows"
+
+const app = new Hono()
+
+app.post("/runs/:runId/approve", async (c) => {
+  const runId = c.req.param("runId")
+  const session = c.get("session")
+  const decision = await wf.approve(runId, "approval", session.userId, "Looks right")
+  if (!decision) return new Response("Already decided", { status: 409 })
+  return c.json({ ok: true })
+})
 ```
 
 ### Wake a run from a webhook
 ```ts
+import { wf } from "../workflows"
+
+const orderId = "ord_1"
+
 await wf.sendEvent(`survey:${orderId}`, { rating: 5 })
 ```

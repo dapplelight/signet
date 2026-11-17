@@ -15,6 +15,9 @@ This builds on [Add remote paywalls](/docs/guides/add-monetisation).
 ### Create the charts
 ```ts title="server/charts.ts"
 import { chartsCsv, createCharts } from "@dapplelight/signet-db/charts"
+import { actor } from "./auth"
+import { db } from "./db"
+import { chartAudiences, customerEvents, offerings } from "./db/schema"
 
 export const charts = createCharts(db, {
   tables: { customerEvents, chartAudiences, offerings },
@@ -28,12 +31,24 @@ await charts.csv({ from: "2026-10-01", to: "2026-10-31", audience: a.id })
 ```
 Log paywall views so conversion can be measured:
 ```ts title="server/routes/paywall.ts"
-await customers.logImpression(userId, { offering: "default", version: 3, country: "IN" })
+import { customers } from "../monetisation"
+
+export async function logPaywallView(userId: string) {
+  await customers.logImpression(userId, { offering: "default", version: 3, country: "IN" })
+}
 ```
 </Step>
 <Step>
 ### Serve and draw them
 ```ts title="server/app.ts"
+import { Hono } from "hono"
+import { monetisationAdminRoutes } from "@dapplelight/signet-server/http/monetisation"
+import { actor, authorize } from "./auth"
+import { charts } from "./charts"
+import { customers, off } from "./monetisation"
+
+const app = new Hono()
+
 app.route("/api/admin/billing", monetisationAdminRoutes({ offerings: off, customers, charts, authorize, actor }))
 ```
 ```tsx title="app/admin/revenue.tsx"
@@ -43,33 +58,49 @@ import { SubscriptionCharts } from "@dapplelight/signet-ui/screens/subscription-
 <Step>
 ### Publish a trial and a win-back offer
 ```ts title="server/monetisation.ts"
-await off.publish("default", {
-  products: [{
-    id: "pro.monthly", store: "appstore", plan: "pro", interval: "month",
-    offers: [
-      { id: "trial7", type: "free_trial", days: 7 },
-      { id: "winback50", type: "win_back", price: { amount: 249, currency: "USD" }, days: 30,
-        eligibility: { lapsedDays: 30 } },
-    ],
-  }],
-}, { actor })
+import { actor } from "./auth"
+import { customers, off } from "./monetisation"
 
-const offering = await customers.withOffers(userId, await off.current("onboarding", audience))
-await customers.redeemOffer(userId, offering, "winback50")
+export async function publishOffers(userId: string, audience: Record<string, string>) {
+  await off.publish("default", {
+    products: [{
+      id: "pro.monthly", store: "appstore", plan: "pro", interval: "month",
+      offers: [
+        { id: "trial7", type: "free_trial", days: 7 },
+        { id: "winback50", type: "win_back", price: { amount: 249, currency: "USD" }, days: 30,
+          eligibility: { lapsedDays: 30 } },
+      ],
+    }],
+  }, { actor })
+
+  const offering = await customers.withOffers(userId, await off.current("onboarding", audience))
+  await customers.redeemOffer(userId, offering, "winback50")
+}
 ```
 Each offer is once per customer. `redeemOffer` claims it before you apply it at checkout.
 </Step>
 <Step>
 ### Grant a promotional plan
 ```ts title="server/admin.ts"
-await customers.grantPromotional(userId, { plan: "pro", days: 30, note: "Beta tester" }, { actor })
-await customers.endPromotional(userId, grantId, { actor }) // early
+import { actor } from "./auth"
+import { customers } from "./monetisation"
+
+export async function grantBeta(userId: string, grantId: string) {
+  await customers.grantPromotional(userId, { plan: "pro", days: 30, note: "Beta tester" }, { actor })
+  await customers.endPromotional(userId, grantId, { actor }) // early
+}
 ```
 It lapses exactly at its expiry, with no job to run, and charts leave it out.
 </Step>
 <Step>
 ### Answer Apple refund requests
 ```ts title="server/customers.ts"
+import { createCustomers } from "@dapplelight/signet-db/customers"
+import { db } from "./db"
+import { tables } from "./db/schema"
+import { ent, privacy, store } from "./services"
+import { appstoreGateway } from "./gateways"
+
 const customers = createCustomers(db, {
   tables,
   entitlements: ent,

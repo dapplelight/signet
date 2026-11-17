@@ -149,6 +149,8 @@ app.use("/api/auth/login", rateLimit({
 
 ```ts
 import { maintenanceMode } from "@dapplelight/signet-server/middleware/maintenance"
+import { app } from "./app"
+import { status } from "./status"
 
 app.use("*", maintenanceMode({
   state: () => status.maintenance(),
@@ -160,6 +162,9 @@ app.use("*", maintenanceMode({
 ### Cookies across origins
 
 ```ts
+import { csrfMiddleware } from "@dapplelight/signet-server/middleware/csrf"
+import { app } from "./app"
+
 // A SameSite=None session cookie loses Lax's protection: add CSRF before routes that read it.
 app.use("/api/*", csrfMiddleware({ originEnvKeys: ["WEB_URL"] }))
 ```

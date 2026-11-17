@@ -15,6 +15,7 @@ npm i @dapplelight/signet-db drizzle-orm
 ```ts title="src/server/growth.ts"
 import { growthTables } from "@dapplelight/signet-db/columns/sqlite"
 import { createGrowth } from "@dapplelight/signet-db/growth"
+import { db } from "./db"
 
 export const { waitlist, invites, referralCodes, referrals, marks, feedback } = growthTables()
 
@@ -27,31 +28,43 @@ export const growth = createGrowth(db, {
 <Step>
 ### Run the waitlist and invites
 ```ts title="src/server/launch.ts"
-await growth.joinWaitlist(email, { source: "launch", referralCode })
-await growth.markInvited([email])
+import { growth } from "./growth"
 
-const { invite, token } = await growth.createInvite({ invitedBy: userId, scope: orgId, role: "member", email })
-const result = await growth.acceptInvite(token, { userId, email })
+export async function launch(email: string, userId: string, orgId: string, referralCode?: string) {
+  await growth.joinWaitlist(email, { source: "launch", referralCode })
+  await growth.markInvited([email])
+
+  const { invite, token } = await growth.createInvite({ invitedBy: userId, scope: orgId, role: "member", email })
+  const result = await growth.acceptInvite(token, { userId, email })
+}
 ```
 The token is returned once; only its hash is stored.
 </Step>
 <Step>
 ### Reward referrals once
 ```ts title="src/server/referrals.ts"
-const code = await growth.referralCode(userId)
-await growth.refer(code, newUserId)
+import { growth } from "./growth"
 
-const c = await growth.convertReferral(newUserId)
-if (c?.first) await growth.markRewarded(newUserId)
+export async function referNewUser(userId: string, newUserId: string) {
+  const code = await growth.referralCode(userId)
+  await growth.refer(code, newUserId)
+
+  const c = await growth.convertReferral(newUserId)
+  if (c?.first) await growth.markRewarded(newUserId)
+}
 ```
 </Step>
 <Step>
 ### Track onboarding, changelog and feedback
 ```ts title="src/server/onboarding.ts"
-await growth.completeStep(userId, "profile")
-const progress = await growth.onboarding(userId, ["profile", "invite", "first-project"])
-const unseen = await growth.unseenChangelog(userId, entries)
-await growth.sendFeedback({ subject: userId, kind: "bug", message, rating: 4, page: "/settings" })
+import { growth } from "./growth"
+
+export async function onboard(userId: string, entries: { date: Date }[], message: string) {
+  await growth.completeStep(userId, "profile")
+  const progress = await growth.onboarding(userId, ["profile", "invite", "first-project"])
+  const unseen = await growth.unseenChangelog(userId, entries)
+  await growth.sendFeedback({ subject: userId, kind: "bug", message, rating: 4, page: "/settings" })
+}
 ```
 </Step>
 </Steps>

@@ -16,14 +16,18 @@ npm i @dapplelight/signet-ai zod ai
 import { createExtractor, memoryCache, createBudgetLedger } from "@dapplelight/signet-ai"
 import { aiSdkProvider } from "@dapplelight/signet-ai/providers/ai-sdk"
 import { createWorkersAI } from "workers-ai-provider"
+import { bindings } from "./bindings"
+import { backupModel } from "./models"
 
 const workersAi = createWorkersAI({ binding: bindings.AI })
 
+const providers = [
+  aiSdkProvider({ name: "workers-ai", model: workersAi("@cf/meta/llama-3.3-70b-instruct-fp8-fast"), pricing: { perCallUsd: 0.0005 } }),
+  aiSdkProvider({ name: "backup", model: backupModel, pricing: { inputPerMTokens: 0.15, outputPerMTokens: 0.6 } }),
+]
+
 export const ai = createExtractor({
-  providers: [
-    aiSdkProvider({ name: "workers-ai", model: workersAi("@cf/meta/llama-3.3-70b-instruct-fp8-fast"), pricing: { perCallUsd: 0.0005 } }),
-    aiSdkProvider({ name: "backup", model: backupModel, pricing: { inputPerMTokens: 0.15, outputPerMTokens: 0.6 } }),
-  ],
+  providers,
   cache: memoryCache(),
   ledger: createBudgetLedger(5, 86_400),
 })
@@ -32,6 +36,9 @@ export const ai = createExtractor({
 <Step>
 ### Extract
 ```ts title="src/server/search.ts"
+import { ai } from "./ai"
+import { intentSchema } from "./schemas"
+
 const { value, meta } = await ai.extract({
   schema: intentSchema,
   input: "8000 se kam ka snowboard",
@@ -52,13 +59,20 @@ createExtractor({ providers, cache: kvCache(bindings.AI_CACHE), cacheTtlSeconds:
 ### Share the budget between isolates
 ```ts title="src/worker.ts"
 import { BudgetCounter, durableObjectBudgetStore } from "@dapplelight/signet-ai/budget-do"
+import { createBudgetLedger } from "@dapplelight/signet-ai/budget"
+import { ai } from "./server/ai"
+import { bindings } from "./server/bindings"
+
 export { BudgetCounter }
 
 const ledger = createBudgetLedger(5, 86_400, {
   store: durableObjectBudgetStore(bindings.AI_BUDGET),
   perKeyUsd: 0.5,
 })
-await ai.extract({ ...args, budget: { key: userId } })
+
+async function run(userId: string, args: Parameters<typeof ai.extract>[0]) {
+  await ai.extract({ ...args, budget: { key: userId } })
+}
 ```
 ```jsonc title="wrangler.jsonc"
 "durable_objects": { "bindings": [{ "name": "AI_BUDGET", "class_name": "BudgetCounter" }] },

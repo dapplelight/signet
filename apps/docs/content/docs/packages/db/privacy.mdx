@@ -7,6 +7,9 @@ description: "DPDP building blocks: consent records, withdrawal, data export and
 ```ts
 import { privacyTables } from "@dapplelight/signet-db/columns/sqlite"
 import { createPrivacy } from "@dapplelight/signet-db/privacy"
+import { db } from "./db"
+import { notes, users } from "./schema"
+import { staffId, userId } from "./session"
 
 // schema.ts
 export const { consents, dataRequests } = privacyTables()
@@ -69,10 +72,16 @@ Tools: `list_consents`, `list_data_requests`, `withdraw_consent`, `request_data_
 ## Examples
 ### Gate a marketing send on consent
 ```ts
+import { privacy } from "./privacy"
+import { sendNewsletter } from "./newsletter"
+import { user } from "./session"
+
 if (await privacy.has(user.id, "marketing-email")) await sendNewsletter(user.email)
 ```
 
 ### Overdue requests report
 ```ts
+import { privacy } from "./privacy"
+
 for (const r of await privacy.overdue()) console.log(r.id, r.kind, r.dueAt)
 ```

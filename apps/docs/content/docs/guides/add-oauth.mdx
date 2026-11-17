@@ -33,7 +33,11 @@ import {
   requireScopes,
   requireToken,
 } from "@dapplelight/signet-server/oauth-rs/hono"
+import { Hono } from "hono"
 import { META, RESOURCE, verifier } from "./oauth"
+import { createOrder } from "./orders"
+
+const app = new Hono()
 
 registerProtectedResourceMetadata(app, {
   resource: RESOURCE,

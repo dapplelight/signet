@@ -9,6 +9,7 @@ description: "Accept access tokens issued elsewhere: JWT verification, scopes an
 import { Hono } from "hono"
 import { createTokenVerifier } from "@dapplelight/signet-server/oauth-rs"
 import { registerProtectedResourceMetadata, requireScopes, requireToken } from "@dapplelight/signet-server/oauth-rs/hono"
+import { createOrder } from "./orders"
 
 const RESOURCE = "https://api.example.com"
 const META = `${RESOURCE}/.well-known/oauth-protected-resource`
@@ -105,18 +106,24 @@ Only the `Authorization` header is advertised as a bearer method. The raw token 
 ### Require a scope on every request
 
 ```ts
+import { requireToken } from "@dapplelight/signet-server/oauth-rs/hono"
+import { META, app, verifier } from "./app"
+
 app.use("/mcp/*", requireToken({ verifier, resourceMetadataUrl: META, scopes: ["orders:read"] }))
 ```
 
 ### Check a token yourself
 
 ```ts
-import { TokenError, createTokenVerifier } from "@dapplelight/signet-server/oauth-rs"
+import { TokenError } from "@dapplelight/signet-server/oauth-rs"
+import { verifier } from "./app"
 
-try {
-  const { claims, scopes } = await verifier.verify(bearer)
-  console.log(claims.sub, scopes)
-} catch (err) {
-  if (err instanceof TokenError) console.log(err.code, err.status)
+export async function check(bearer: string) {
+  try {
+    const { claims, scopes } = await verifier.verify(bearer)
+    console.log(claims.sub, scopes)
+  } catch (err) {
+    if (err instanceof TokenError) console.log(err.code, err.status)
+  }
 }
 ```

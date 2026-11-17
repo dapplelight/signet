@@ -15,6 +15,8 @@ npm i @dapplelight/signet-server @dapplelight/signet-ui
 ```ts title="server/uploads.ts"
 import { supabaseBlobStore } from "@dapplelight/signet-server/adapters/supabase"
 import { createUploads } from "@dapplelight/signet-server/storage"
+import type { Env } from "./env"
+import { makeThumbnail } from "./jobs"
 
 export const uploadsFor = (env: Env) =>
   createUploads({
@@ -28,13 +30,18 @@ export const uploadsFor = (env: Env) =>
 <Step>
 ### Issue a presigned URL and confirm
 ```ts title="server/routes/avatar.ts"
+import { app } from "../app"
+import { uploadsFor } from "../uploads"
+
 app.post("/api/avatar/presign", async (c) => {
+  const userId = c.get("session").sub
   const { name, type, size } = await c.req.json()
   const { url, key } = await uploadsFor(c.env).presignUpload({ userId }, { name, type, size })
   return c.json({ url, key })
 })
 
 app.post("/api/avatar/confirm", async (c) => {
+  const userId = c.get("session").sub
   const { key } = await c.req.json()
   await uploadsFor(c.env).confirmUpload({ userId }, key) // re-checks what arrived, deletes it if bad
   return c.body(null, 204)
@@ -51,7 +58,12 @@ Or by hand: `fetch(url, { method: "PUT", body: file, headers: { "Content-Type": 
 <Step>
 ### Stores that cannot presign
 ```ts title="server/routes/avatar.ts"
-const result = await uploads.acceptUpload({ userId }, c.req.raw) // streams, stops at maxBytes, sniffs magic bytes
+app.post("/api/avatar", async (c) => {
+  const userId = c.get("session").sub
+  const uploads = uploadsFor(c.env)
+  const result = await uploads.acceptUpload({ userId }, c.req.raw) // streams, stops at maxBytes, sniffs magic bytes
+  return c.json(result)
+})
 ```
 `fsBlobStore` and an R2 binding throw `PRESIGN_UNSUPPORTED`. `acceptUpload` also strips EXIF and GPS from images.
 </Step>

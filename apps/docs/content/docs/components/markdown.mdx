@@ -74,9 +74,8 @@ import {
   MarkdownToc,
   markdownToc,
 } from "@dapplelight/signet-ui/components/markdown"
-```
+import { job } from "./jobs"
 
-```tsx
 <Markdown>{job.description}</Markdown>
 ```
 
@@ -110,6 +109,8 @@ export function Release({ changelog }: { changelog: string }) {
   <MarkdownImagesDemo />
 
 ```tsx
+import { Markdown } from "@dapplelight/signet-ui/components/markdown"
+
 const source = "![Quarterly revenue chart](https://example.com/revenue.png)"
 
 // Off by default: shows the alt text, fetches nothing.
@@ -127,6 +128,8 @@ const source = "![Quarterly revenue chart](https://example.com/revenue.png)"
   <MarkdownNoAnchorsDemo />
 
 ```tsx
+import { Markdown } from "@dapplelight/signet-ui/components/markdown"
+
 <Markdown headingAnchors={false}>{"## Shipping policy\n\nOrders ship within 2 business days."}</Markdown>
 ```
 

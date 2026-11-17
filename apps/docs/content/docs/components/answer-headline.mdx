@@ -62,9 +62,7 @@ bun path/to/signet/packages/cli/src/index.ts add answer-headline
 
 ```tsx
 import { AnswerHeadline } from "@dapplelight/signet-ui/components/answer-headline"
-```
 
-```tsx
 <AnswerHeadline
   headline={{
     question: "Are we on track?",
@@ -82,6 +80,11 @@ import { AnswerHeadline } from "@dapplelight/signet-ui/components/answer-headlin
   <AnswerHeadlineWarnDemo />
 
 ```tsx
+import {
+  AnswerHeadline,
+  AnswerHeadlineData,
+} from "@dapplelight/signet-ui/components/answer-headline"
+
 const atRisk: AnswerHeadlineData = {
   question: "Can we cover payroll?",
   sentence: ["Cash covers payroll for ", { value: 5 }, " more weeks."],
@@ -100,6 +103,8 @@ const atRisk: AnswerHeadlineData = {
   <AnswerHeadlineNeutralDemo />
 
 ```tsx
+import { AnswerHeadline } from "@dapplelight/signet-ui/components/answer-headline"
+
 <AnswerHeadline
   headline={{
     question: "How many people signed up this week?",
@@ -117,6 +122,9 @@ const atRisk: AnswerHeadlineData = {
   <AnswerHeadlineRenderValueDemo />
 
 ```tsx
+import { AnswerHeadline } from "@dapplelight/signet-ui/components/answer-headline"
+import { onTrack } from "./headlines"
+
 <AnswerHeadline
   headline={onTrack}
   renderValue={(n) => `$${n.toLocaleString()}`}
@@ -131,6 +139,10 @@ const atRisk: AnswerHeadlineData = {
   <AnswerHeadlineChildrenDemo />
 
 ```tsx
+import { AnswerHeadline } from "@dapplelight/signet-ui/components/answer-headline"
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { plain } from "./headlines"
+
 <AnswerHeadline headline={plain}>
   <div className="flex gap-2">
     <Button size="sm" variant="outline">Week</Button>

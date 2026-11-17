@@ -18,6 +18,11 @@ import { collabTables } from "@dapplelight/signet-db/columns/sqlite"
 export const { comments, recordVersions } = collabTables()
 ```
 ```ts title="src/server/db.ts"
+import { createDb } from "@dapplelight/signet-db/d1"
+import { recordVersions, tasks } from "../db/schema"
+import { audit } from "./audit"
+import { bindings } from "./env"
+
 export const db = createDb(bindings.DB, { audit, versions: { table: recordVersions, track: [tasks] } })
 ```
 Each tracked table needs an `orgId` column.
@@ -27,6 +32,11 @@ Each tracked table needs an `orgId` column.
 ```ts title="src/server/collab.ts"
 import { createCollab } from "@dapplelight/signet-db/collab"
 import { notifyMentions } from "@dapplelight/signet-server/http/collab"
+import { comments, tasks } from "../db/schema"
+import { db } from "./db"
+import { notifier } from "./notifier"
+import { orgs } from "./orgs"
+import { namesById } from "./people"
 
 export const collab = createCollab(db, {
   tables: { comments },
@@ -42,6 +52,12 @@ export const collab = createCollab(db, {
 ```ts title="src/app.ts"
 import { collabRoutes, mentionTemplates } from "@dapplelight/signet-server/http/collab"
 import { tenant } from "@dapplelight/signet-server/http/orgs"
+import { Hono } from "hono"
+import { collab } from "./server/collab"
+import { orgs } from "./server/orgs"
+import { appTemplates } from "./server/templates"
+
+const app = new Hono()
 
 const templates = { ...appTemplates, ...mentionTemplates({ url: (m) => `https://app.example.com/${m.table}/${m.rowId}` }) }
 
@@ -53,13 +69,17 @@ Pass `templates` to `createNotifier`.
 <Step>
 ### Use it from code
 ```ts title="src/server/tasks.ts"
-const who = { orgId, userId }
-const ref = { table: "tasks", id: taskId }
+import { collab } from "./collab"
 
-await collab.addComment(who, ref, { body: "Ready? @[Asha Rao](user:u_1)" })
-await collab.timeline(who, ref, { limit: 20 })
-await collab.restore(who, ref, 2)
-await collab.undo(who, ref, { expected: 5 })
+export async function review(orgId: string, userId: string, taskId: string) {
+  const who = { orgId, userId }
+  const ref = { table: "tasks", id: taskId }
+
+  await collab.addComment(who, ref, { body: "Ready? @[Asha Rao](user:u_1)" })
+  await collab.timeline(who, ref, { limit: 20 })
+  await collab.restore(who, ref, 2)
+  await collab.undo(who, ref, { expected: 5 })
+}
 ```
 </Step>
 <Step>

@@ -7,8 +7,13 @@ description: "Verify and track Google Play purchases and subscriptions from your
 
 ```ts
 import { googleplay } from "@dapplelight/signet-payments/googleplay"
+import { createPayments } from "@dapplelight/signet-payments"
+import { app } from "./app"
+import { db } from "./db"
+import { env } from "./env"
+import sa from "./play-service-account.json"
 
-const play = googleplay({
+export const play = googleplay({
   packageName: "com.example.notes",
   serviceAccount: { client_email: sa.client_email, private_key: sa.private_key }, // from the service account JSON key
   pubsub: {
@@ -17,11 +22,14 @@ const play = googleplay({
   },
 })
 
-const payments = createPayments({ gateways: [play], db })
+export const payments = createPayments({ gateways: [play], db })
 
 // The app sends the order id after a purchase.
-await payments.verifyPurchase({ gateway: "googleplay", id: orderId, userId })
-await payments.gateway("googleplay").getSubscription(purchaseToken)
+app.post("/purchases", async (c) => {
+  const { orderId, purchaseToken, userId } = await c.req.json()
+  await payments.verifyPurchase({ gateway: "googleplay", id: orderId, userId })
+  return c.json(await payments.gateway("googleplay").getSubscription(purchaseToken))
+})
 
 // Real-time Developer Notifications, as a Pub/Sub push with authentication on
 app.post("/webhooks/googleplay", (c) => payments.handleWebhook("googleplay", c.req.raw))
@@ -62,12 +70,16 @@ Plus the shared `baseUrl`, `fetch`, `retries`, `retryDelayMs`.
 ## Restore purchases
 
 ```ts
-const { restored, refused } = await payments.restorePurchases({
-  userId,
-  purchases: [
-    { gateway: "googleplay", purchaseToken, type: "subscription" }, // or "product"
-  ],
-})
+import { payments } from "./payments"
+
+export const restore = (userId: string, purchaseToken: string) =>
+  payments.restorePurchases({
+    userId,
+    purchases: [
+      { gateway: "googleplay", purchaseToken, type: "subscription" }, // or "product"
+    ],
+  })
+// resolves to { restored, refused }
 ```
 
 A subscription with no paid order yet is `refused` with `NOT_FOUND`. One that is another user's is `BAD_INPUT`.
@@ -87,6 +99,10 @@ A subscription with no paid order yet is `refused` with `NOT_FOUND`. One that is
 ### Acknowledge a one-time purchase after verifying it
 
 ```ts
-const p = await payments.verifyPurchase({ gateway: "googleplay", id: orderId, userId })
-await play.acknowledgeProduct(p.productId as string, p.orderId as string) // orderId is the purchase token
+import { play, payments } from "./payments"
+
+export async function acknowledge(orderId: string, userId: string) {
+  const p = await payments.verifyPurchase({ gateway: "googleplay", id: orderId, userId })
+  await play.acknowledgeProduct(p.productId as string, p.orderId as string) // orderId is the purchase token
+}
 ```

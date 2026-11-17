@@ -79,9 +79,8 @@ import {
   RatioText,
   usePrivacyMask,
 } from "@dapplelight/signet-ui/components/privacy-mask"
-```
+import { YourScreen } from "./your-screen"
 
-```tsx
 <PrivacyMaskProvider>
   <MaskToggle />
   <YourScreen />
@@ -98,6 +97,14 @@ This is a display preference, not a security boundary: the data is still in memo
   <PrivacyMaskRatiosDemo />
 
 ```tsx
+import {
+  MaskToggle,
+  PrivacyMaskProvider,
+  RatioFill,
+  RatioProgress,
+  RatioText,
+} from "@dapplelight/signet-ui/components/privacy-mask"
+
 <PrivacyMaskProvider defaultMasked>
   <MaskToggle />
   <RatioText>92% of the travel budget used</RatioText>
@@ -116,6 +123,11 @@ This is a display preference, not a security boundary: the data is still in memo
   <PrivacyMaskControlledDemo />
 
 ```tsx
+import { useState } from "react"
+import { PrivacyMaskProvider } from "@dapplelight/signet-ui/components/privacy-mask"
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { Balance } from "./balance"
+
 const [masked, setMasked] = useState(false)
 
 <PrivacyMaskProvider masked={masked} onMaskedChange={setMasked}>
@@ -134,6 +146,8 @@ const [masked, setMasked] = useState(false)
   <MaskToggleLabelsDemo />
 
 ```tsx
+import { MaskToggle } from "@dapplelight/signet-ui/components/privacy-mask"
+
 <MaskToggle hideLabel="Hide revenue" showLabel="Show revenue" shortcut="H" />
 ```
 

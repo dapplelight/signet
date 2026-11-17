@@ -7,6 +7,9 @@ description: "Lemon Squeezy variant checkouts at a custom price, order refunds a
 
 ```ts
 import { lemonsqueezy } from "@dapplelight/signet-payments/lemonsqueezy"
+import { app } from "./app"
+import { env } from "./env"
+import { payments } from "./payments"
 
 const ls = lemonsqueezy({
   apiKey: env.LEMONSQUEEZY_API_KEY,

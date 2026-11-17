@@ -8,6 +8,15 @@ description: "Comments, @mentions, activity timeline and version history for org
 import { collabTables } from "@dapplelight/signet-db/columns/sqlite" // or /columns/pg
 import { createCollab } from "@dapplelight/signet-db/collab"
 import { createDb } from "@dapplelight/signet-db/d1"
+import { audit, tasks } from "../schema"
+import { env } from "../env"
+import { namesById } from "../people"
+import { notifier } from "../notify"
+import { orgs } from "../orgs"
+
+const orgId = "org_1"
+const userId = "u_1"
+const taskId = "t_1"
 
 export const { comments, recordVersions } = collabTables()
 
@@ -76,6 +85,11 @@ Restore and undo need `<record>:write` (for example `tasks:write`). Editing is t
 
 ### Show a record's history
 ```ts
+import { collab } from "../collab"
+
+const who = { orgId: "org_1", userId: "u_1" }
+const ref = { table: "tasks", id: "t_1" }
+
 const { items, nextCursor } = await collab.timeline(who, ref, { limit: 20 })
 // items[0].summary → "Asha changed status to Done"
 const versions = await collab.versions(who, ref)
@@ -85,6 +99,10 @@ const { changes } = await collab.diff(who, ref, 2, 5) // [{ field, from, to }]
 ### Mention someone from a picker
 ```ts
 import { mentionToken } from "@dapplelight/signet-db/collab"
+import { collab } from "../collab"
+
+const who = { orgId: "org_1", userId: "u_1" }
+const ref = { table: "tasks", id: "t_1" }
 
 const [asha] = await collab.mentionable(who, "as")
 await collab.addComment(who, ref, { body: `${mentionToken(asha.id, asha.name)} can you review?` })

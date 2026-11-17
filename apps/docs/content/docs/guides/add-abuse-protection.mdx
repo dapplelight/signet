@@ -26,8 +26,11 @@ export const bots = requireCaptcha({ verifier: captcha, trust: "cloudflare" })
 <Step>
 ### Block disposable email
 ```ts title="src/app.ts"
+import { Hono } from "hono"
 import { blockDisposableEmail } from "@dapplelight/signet-server/abuse/email"
 import { bots } from "./server/abuse"
+
+const app = new Hono()
 
 app.use("/api/auth/sign-up/*", bots)
 app.use("/api/auth/forget-password", bots)
@@ -46,6 +49,7 @@ Send the token it hands you as the `x-captcha-token` header or a `captchaToken` 
 ```ts title="src/server/ai-spend.ts"
 import { aiSpendCaps, entitlementTables } from "@dapplelight/signet-db/columns/sqlite"
 import { createAiSpend } from "@dapplelight/signet-db/ai-spend"
+import { db } from "./db"
 
 export const { usageCounters } = entitlementTables()
 export const spendCaps = aiSpendCaps()
@@ -62,6 +66,9 @@ Cost units are millionths of a US dollar.
 ```ts title="src/app.ts"
 import { aiSpendAdminRoutes, requireAiSpend } from "@dapplelight/signet-server/http/ai-spend"
 import { spend } from "./server/ai-spend"
+import { currentTenant } from "@dapplelight/signet-server/http/orgs"
+
+const me = (c) => c.get("session").userId
 
 app.use("/api/ai/*", requireAiSpend({ spend, subject: (c) => ({ userId: me(c), orgId: currentTenant(c).id }) }))
 app.route("/api/admin/ai-spend", aiSpendAdminRoutes({
@@ -76,9 +83,14 @@ app.route("/api/admin/ai-spend", aiSpendAdminRoutes({
 ```ts title="src/server/ai.ts"
 import { createExtractor } from "@dapplelight/signet-ai"
 import { spendKey } from "@dapplelight/signet-db/ai-spend"
+import { spend } from "./ai-spend"
+import { providers } from "./providers"
 
 const extractor = createExtractor({ providers, ledger: spend.ledger })
-await extractor.extract({ ...args, budget: { key: spendKey({ userId, orgId }) } })
+
+export async function extractFor(args: Parameters<typeof extractor.extract>[0], userId: string, orgId: string) {
+  return extractor.extract({ ...args, budget: { key: spendKey({ userId, orgId }) } })
+}
 ```
 For `streamChat`, pass `onUsage: spend.onUsage` instead, never both.
 </Step>

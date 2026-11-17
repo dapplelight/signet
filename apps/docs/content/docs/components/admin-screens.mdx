@@ -56,10 +56,18 @@ bun path/to/signet/packages/cli/src/index.ts add admin-screens
 ## Usage
 
 ```tsx
-import { AdminScreen, AdminPanel, AdminNav, AdminMain, AdminHeader, AdminToolbar, AdminTable, AdminPager } from "@dapplelight/signet-ui/screens/admin-screens"
-```
+import {
+  AdminHeader,
+  AdminMain,
+  AdminNav,
+  AdminPager,
+  AdminPanel,
+  AdminScreen,
+  AdminTable,
+  AdminToolbar,
+  createAdminApi,
+} from "@dapplelight/signet-ui/screens/admin-screens"
 
-```tsx
 <AdminScreen api={createAdminApi({ baseUrl: "/admin" })} />
 ```
 

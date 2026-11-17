@@ -15,7 +15,7 @@ await storage.get("theme")   // "dark"; null when missing
 await storage.remove("theme")
 
 // Node or Bun CLI: a JSON file, owner-only (0600), written through a temp file and rename
-const cliStorage = fileStorage(join(homedir(), ".config", "team-cli", "auth.json"))
+const cliStorage = fileStorage(`${process.env.HOME}/.config/team-cli/auth.json`)
 ```
 
 Nothing touches a platform global at import time, so it loads in a service worker, a webview or a CLI.

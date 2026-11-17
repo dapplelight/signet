@@ -60,9 +60,7 @@ bun path/to/signet/packages/cli/src/index.ts add avatar
 
 ```tsx
 import { Avatar, AvatarFallback, AvatarImage } from "@dapplelight/signet-ui/components/avatar"
-```
 
-```tsx
 <Avatar>
   <AvatarImage src="/avatar.png" alt="Priya Nair" />
   <AvatarFallback>PN</AvatarFallback>
@@ -77,6 +75,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@dapplelight/signet-ui/comp
   <AvatarSizesDemo />
 
 ```tsx
+import { Avatar, AvatarFallback } from "@dapplelight/signet-ui/components/avatar"
+
 <Avatar size="sm"><AvatarFallback>PN</AvatarFallback></Avatar>
 <Avatar><AvatarFallback>PN</AvatarFallback></Avatar>
 <Avatar size="lg"><AvatarFallback>PN</AvatarFallback></Avatar>
@@ -90,7 +90,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@dapplelight/signet-ui/comp
   <AvatarInitialsDemo />
 
 ```tsx
-import { initials } from "@dapplelight/signet-ui/components/avatar"
+import { Avatar, AvatarFallback, initials } from "@dapplelight/signet-ui/components/avatar"
 
 {["Priya Nair", "Marcus Chen", "Sofia Alvarez"].map((name) => (
   <Avatar key={name}>
@@ -107,6 +107,9 @@ import { initials } from "@dapplelight/signet-ui/components/avatar"
   <AvatarGroupDemo />
 
 ```tsx
+import { Avatar, AvatarFallback } from "@dapplelight/signet-ui/components/avatar"
+import { team, initials } from "./team"
+
 <div className="flex -space-x-2">
   {team.map((name) => (
     <Avatar key={name} className="ring-2 ring-bg-surface">

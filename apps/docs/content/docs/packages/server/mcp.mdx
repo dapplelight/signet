@@ -12,6 +12,9 @@ import { ApiException } from "@dapplelight/signet-server/http"
 import { defineTool } from "@dapplelight/signet-server/mcp"
 import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
 import { registerProtectedResourceMetadata, requireToken } from "@dapplelight/signet-server/oauth-rs/hono"
+import { ordersFor } from "./orders"
+import { sentry } from "./sentry"
+import { verifier } from "./verifier"
 
 const RESOURCE = "https://api.example.com/mcp"
 const META = "https://api.example.com/.well-known/oauth-protected-resource"
@@ -188,6 +191,13 @@ An `isError` result is returned, not thrown. The client declares no capabilities
 ### Per-user tools
 
 ```ts
+import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
+import { requireToken } from "@dapplelight/signet-server/oauth-rs/hono"
+import { app } from "./app"
+import { META, verifier } from "./verifier"
+import { admin, base } from "./tools"
+import { isAdmin } from "./roles"
+
 mountMcp(app, "/mcp", {
   name: "orders",
   version: "1.0.0",
@@ -201,6 +211,10 @@ mountMcp(app, "/mcp", {
 ```ts
 import { appTools, asTool } from "@dapplelight/signet-server/mcp"
 import { zValidator } from "@dapplelight/signet-server/http/validate"
+import { Hono } from "hono"
+import { z } from "zod"
+import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
+import { Event, Note, hook, list, save } from "./notes"
 
 const app = new Hono()
   .get("/api/notes", zValidator("query", z.object({ q: z.string().optional() }).describe("Search my notes")), list)
@@ -215,6 +229,13 @@ mountMcp(app, "/mcp", { name: "notes", version: "1.0.0", tools: appTools(app) })
 ```ts
 import { approvalGate, appTools, kvApprovals } from "@dapplelight/signet-server/mcp"
 import { approvalRoutes } from "@dapplelight/signet-server/http/routes"
+import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
+import { requireStoredSession } from "@dapplelight/signet-server/auth/hono"
+import { app } from "./app"
+import { audit } from "./audit"
+import { kv } from "./kv"
+import { refundTool } from "./refund-tool"
+import { sessions } from "./sessions"
 
 const approvals = kvApprovals(kv, { ttlSeconds: 86_400, onEvent: (e) => audit.write(e) })
 
@@ -231,6 +252,10 @@ app.route("/api/approvals", approvalRoutes({ approvals, subject: (c) => c.get("s
 ```
 
 ```ts
+import { defineTool, requireApproval } from "@dapplelight/signet-server/mcp"
+import { z } from "zod"
+import { refund } from "./orders"
+
 const refundTool = defineTool({
   name: "refund_order",
   description: "Refund an order.",
@@ -249,6 +274,7 @@ const refundTool = defineTool({
 
 ```ts
 import { confirm, isConfirmPending, progress } from "@dapplelight/signet-server/mcp"
+import { deleteInvoice } from "./invoices"
 
 handler: async (input, ctx) => {
   const ok = await confirm(ctx, { message: `Delete ${input.count} invoices?`, args: input })
@@ -266,6 +292,8 @@ handler: async (input, ctx) => {
 
 ```ts
 import { definePrompt, defineResource } from "@dapplelight/signet-server/mcp"
+import { z } from "zod"
+import { getInvoice, listPlans } from "./billing"
 
 const resources = [
   defineResource({ name: "plans", uri: "app://plans", read: () => listPlans() }),
@@ -290,6 +318,7 @@ const prompts = [
 ```ts
 import { serveStdio } from "@modelcontextprotocol/server/stdio"
 import { createMcpServer } from "@dapplelight/signet-server/mcp"
+import { tools } from "./tools"
 
 serveStdio(() => createMcpServer({ name: "orders", version: "1.0.0", tools }))
 ```
@@ -298,6 +327,7 @@ serveStdio(() => createMcpServer({ name: "orders", version: "1.0.0", tools }))
 
 ```ts
 import { createMcpClient } from "@dapplelight/signet-server/mcp/client"
+import { getToken } from "./auth"
 
 const remote = createMcpClient({ url: "https://tools.example.com/mcp", token: () => getToken() })
 const r = await remote.callTool<{ total: number }>("get_report", { month: "2026-10" })

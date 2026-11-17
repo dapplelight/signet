@@ -22,6 +22,8 @@ export const { workflowRuns, workflowSteps, workflowEvents } = workflowTables()
 ### Define a workflow
 ```ts title="server/workflows.ts"
 import { defineWorkflow } from "@dapplelight/signet-db/workflows"
+import { psp } from "./psp"
+import { loadRequest } from "./requests"
 
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
@@ -42,7 +44,14 @@ Every tick replays from the top. Finished steps return their stored result, so s
 ### Create the engine
 ```ts title="server/workflows.ts"
 import { createWorkflows } from "@dapplelight/signet-db/workflows"
+import { kvApprovals } from "@dapplelight/signet-server/mcp"
+import { db } from "./db"
 import { workflowEvents, workflowRuns, workflowSteps } from "./db/schema"
+import type { Env } from "./env"
+import { kv } from "./kv"
+import { notifier } from "./notifier"
+
+const approvals = kvApprovals(kv)
 
 export const makeWf = (env: Env) =>
   createWorkflows(db(env), {
@@ -56,14 +65,32 @@ export const makeWf = (env: Env) =>
 <Step>
 ### Start, approve, wake
 ```ts title="server/routes/payouts.ts"
-const run = await wf.start(payout, { requestId }, { createdBy: userId })
-await wf.approve(run.id, "approval", managerId)
-await wf.sendEvent(`settled:${requestId}`, receipt)
+import { Hono } from "hono"
+import type { Env } from "../env"
+import { makeWf, payout } from "../workflows"
+
+export const payouts = new Hono<{ Bindings: Env }>()
+
+payouts.post("/:requestId", async (c) => {
+  const wf = makeWf(c.env)
+  const { requestId } = c.req.param()
+  const { managerId, receipt } = await c.req.json()
+  const userId = c.get("session").payload.sub
+
+  const run = await wf.start(payout, { requestId }, { createdBy: userId })
+  await wf.approve(run.id, "approval", managerId)
+  await wf.sendEvent(`settled:${requestId}`, receipt)
+  return c.json({ id: run.id })
+})
 ```
 </Step>
 <Step>
 ### Run the ticks
 ```ts title="worker/index.ts"
+import { app } from "../server/app"
+import type { Env } from "../server/env"
+import { makeWf } from "../server/workflows"
+
 export default {
   fetch: app.fetch,
   scheduled: (_e: ScheduledEvent, env: Env, ctx: ExecutionContext) => {
@@ -77,6 +104,14 @@ On Bun or Node use `wf.poll({ intervalMs: 1000, signal })`. Nothing runs until s
 ### Expose it over HTTP
 ```ts title="server/app.ts"
 import { workflowRoutes } from "@dapplelight/signet-server/http/workflows"
+import { requireStoredSession } from "@dapplelight/signet-server/auth/hono"
+import { Hono } from "hono"
+import { env } from "./env"
+import { sessionOpts } from "./session"
+import { makeWf } from "./workflows"
+
+export const app = new Hono()
+const wf = makeWf(env)
 
 app.use("/api/workflows/*", requireStoredSession(sessionOpts))
 app.route("/api/workflows", workflowRoutes({

@@ -10,6 +10,9 @@ import { createRealtime, sessionAuth } from "@dapplelight/signet-server/realtime
 import { bunRealtime } from "@dapplelight/signet-server/realtime/bun"
 import { verifySession } from "@dapplelight/signet-server/auth/session"
 import { grants } from "@dapplelight/signet-server/http/orgs"
+import { serve } from "bun"
+import { app } from "./app"
+import { orgs, sessionOpts } from "./auth"
 
 const hub = createRealtime({
   // Deny by default: without authorize, every join is refused.
@@ -23,13 +26,15 @@ const authenticate = sessionAuth({
 })
 
 const live = bunRealtime(hub, { authenticate })
-Bun.serve({
+serve({
   fetch: (req, srv) => (new URL(req.url).pathname === "/realtime" ? live.upgrade(req, srv) : app.fetch(req)),
   websocket: live.websocket,
 })
 
 // After a write:
-await hub.publish(orgId, "record:invoices:1042", "updated", { id: "1042", by: userId })
+export async function afterWrite(orgId: string, userId: string) {
+  await hub.publish(orgId, "record:invoices:1042", "updated", { id: "1042", by: userId })
+}
 ```
 
 The org comes from `authenticate`, never the client. Channels live under it: two orgs' `record:invoices:1042` are different channels. The React side is signet-ui's `use-channel` hook.
@@ -120,6 +125,7 @@ A small RFC 6455 server with no dependency: text frames, fragmentation, ping and
 
 ```ts
 import { attachRealtime } from "@dapplelight/signet-server/realtime/node"
+import { authenticate, hub, server } from "./realtime"
 
 attachRealtime(server, hub, { path: "/realtime", authenticate })
 ```
@@ -127,12 +133,22 @@ attachRealtime(server, hub, { path: "/realtime", authenticate })
 ### Cloudflare, one Durable Object per org
 
 ```ts
-import { connectRoom, realtimeRoom, roomPublisher } from "@dapplelight/signet-server/realtime/cloudflare"
+import {
+  connectRoom,
+  type RealtimeNamespace,
+  realtimeRoom,
+  roomPublisher,
+} from "@dapplelight/signet-server/realtime/cloudflare"
+import { app } from "./app"
+import { authenticate } from "./auth"
 
 export const RealtimeRoom = realtimeRoom({ authorize: (who, channel) => channel.startsWith("record:") })
 
 app.get("/realtime", (c) => connectRoom(c.env.REALTIME, c.req.raw, { authenticate }))
-await roomPublisher(env.REALTIME).publish(orgId, "record:invoices:1042", "updated", { id: "1042" })
+
+export async function afterWrite(env: { REALTIME: RealtimeNamespace }, orgId: string) {
+  await roomPublisher(env.REALTIME).publish(orgId, "record:invoices:1042", "updated", { id: "1042" })
+}
 ```
 
 ```jsonc
@@ -145,17 +161,29 @@ await roomPublisher(env.REALTIME).publish(orgId, "record:invoices:1042", "update
 
 ```ts
 import { REALTIME_TOPIC, realtimeOutbox } from "@dapplelight/signet-server/realtime"
+import { eq } from "drizzle-orm"
+import { drainOutbox, enqueue } from "@dapplelight/signet-db"
+import { db } from "./db"
+import { hub } from "./realtime"
+import { queue } from "./queue"
+import { invoices } from "./schema"
 
-await db.batch([
-  (tx) => tx.update(invoices).set(patch).where(eq(invoices.id, id)),
-  enqueue(db, REALTIME_TOPIC, { orgId, channel: `record:invoices:${id}`, event: "updated", data: { id, by: userId } }),
-])
-const live = realtimeOutbox(hub) // or realtimeOutbox(roomPublisher(env.REALTIME))
-await drainOutbox(db, { send: (m) => (m.topic === REALTIME_TOPIC ? live.send(m) : queue.send(m)) })
+export async function updateInvoice(orgId: string, userId: string, id: string, patch: { status: string }) {
+  await db.batch([
+    (tx) => tx.update(invoices).set(patch).where(eq(invoices.id, id)),
+    enqueue(db, REALTIME_TOPIC, { orgId, channel: `record:invoices:${id}`, event: "updated", data: { id, by: userId } }),
+  ])
+  const live = realtimeOutbox(hub) // or realtimeOutbox(roomPublisher(env.REALTIME))
+  await drainOutbox(db, { send: (m) => (m.topic === REALTIME_TOPIC ? live.send(m) : queue.send(m)) })
+}
 ```
 
 ### Remove a member's sockets
 
 ```ts
-hub.disconnect(orgId, userId) // omit userId to close every connection in the org
+import { hub } from "./realtime"
+
+export function removeMember(orgId: string, userId: string) {
+  hub.disconnect(orgId, userId) // omit userId to close every connection in the org
+}
 ```

@@ -8,6 +8,12 @@ description: "Outbound signed webhooks with retries, a delivery log and SSRF pro
 import { outbox, webhookTables } from "@dapplelight/signet-db/columns/sqlite"
 import { drainOutbox } from "@dapplelight/signet-db"
 import { createWebhooks, WEBHOOK_TOPIC } from "@dapplelight/signet-db/webhooks"
+import { db } from "../db"
+import { orders } from "../schema"
+import { queue } from "../queue"
+
+const orgId = "org_1"
+const order = { id: "ord_1", total: 4200 }
 
 // schema.ts: the two webhook tables and the outbox they queue through
 export const { webhookEndpoints, webhookDeliveries } = webhookTables()
@@ -80,13 +86,18 @@ Delivery statuses: `pending`, `retrying`, `delivered`, `failed`, `skipped`.
 
 ## Examples
 ### Show a customer their delivery log
-```ts
+```ts title="deliveries.ts"
+import { webhooks } from "../webhooks"
+
+const orgId = "org_1"
+
 const failed = await webhooks.deliveries(orgId, { status: "failed", limit: 20 })
 for (const d of failed) console.log(d.type, d.responseStatus, d.error)
 ```
 
 ### Turn a failing endpoint back on and resend
-```ts
+```ts title="deliveries.ts"
+const [endpoint] = await webhooks.list(orgId)
 await webhooks.update(orgId, endpoint.id, { enabled: true })
 await webhooks.redeliver(orgId, failed[0].id)
 ```

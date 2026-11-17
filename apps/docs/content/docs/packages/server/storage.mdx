@@ -9,6 +9,11 @@ description: "Checked uploads over any blob store: presigned or streamed, with q
 import { createUploads } from "@dapplelight/signet-server/storage"
 import { s3BlobStore } from "@dapplelight/signet-server/adapters/s3"
 import { memoryKv } from "@dapplelight/signet-server/adapters"
+import { env } from "./env"
+import { makeThumbnail } from "./jobs"
+
+const kv = memoryKv()
+const userId = "user_42"
 
 const uploads = createUploads({
   store: s3BlobStore({
@@ -95,6 +100,8 @@ Stores that cannot presign (`fsBlobStore`, an R2 binding) throw `PRESIGN_UNSUPPO
 
 ```ts
 import { fsBlobStore } from "@dapplelight/signet-server/adapters/node"
+import { createUploads } from "@dapplelight/signet-server/storage"
+import { app } from "./app"
 
 const uploads = createUploads({ store: fsBlobStore("/data/uploads"), maxBytes: 2_000_000, allowedTypes: ["application/pdf"] })
 
@@ -108,6 +115,7 @@ app.put("/api/documents", async (c) => {
 
 ```ts
 import { UploadError } from "@dapplelight/signet-server/storage"
+import { app } from "./app"
 
 app.onError((err, c) => {
   if (err instanceof UploadError) return c.json({ success: false, error: err.message, code: err.code }, err.status)
@@ -120,6 +128,7 @@ app.onError((err, c) => {
 ```ts
 import { defineSchedule } from "@dapplelight/signet-server/jobs"
 import { abandonedUploadsJob } from "@dapplelight/signet-server/storage"
+import { uploads } from "./uploads"
 
 const cleanup = abandonedUploadsJob(uploads)
 const hourly = defineSchedule({ name: "uploads-cleanup", cron: "17 * * * *", job: cleanup })
@@ -129,8 +138,11 @@ const hourly = defineSchedule({ name: "uploads-cleanup", cron: "17 * * * *", job
 ### Resize on Workers
 
 ```ts
-import { cloudflareImagesResizer, createUploads } from "@dapplelight/signet-server/storage"
+import { type ImagesBindingLike, cloudflareImagesResizer, createUploads } from "@dapplelight/signet-server/storage"
+import { allowedTypes, maxBytes, store } from "./upload-config"
 
-const uploads = createUploads({ store, maxBytes, allowedTypes, resizer: cloudflareImagesResizer(env.IMAGES) })
-await uploads.resize({ userId }, key, { width: 256 }) // call from a job enqueued in afterUpload
+export async function thumbnail(env: { IMAGES: ImagesBindingLike }, userId: string, key: string) {
+  const uploads = createUploads({ store, maxBytes, allowedTypes, resizer: cloudflareImagesResizer(env.IMAGES) })
+  await uploads.resize({ userId }, key, { width: 256 }) // call from a job enqueued in afterUpload
+}
 ```

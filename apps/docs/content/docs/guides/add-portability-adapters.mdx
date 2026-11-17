@@ -29,6 +29,7 @@ import { qstashQueue, upstashKv } from "@dapplelight/signet-server/adapters/upst
 import { s3BlobStore } from "@dapplelight/signet-server/adapters/s3"
 import { vercelDefer } from "@dapplelight/signet-server/adapters/vercel"
 import { waitUntil } from "@vercel/functions"
+import type { Env } from "./env"
 
 export const makeKv = (env: Env) => upstashKv({ url: env.UPSTASH_URL, token: env.UPSTASH_TOKEN })
 export const makeQueue = (env: Env) =>
@@ -41,6 +42,9 @@ export const defer = vercelDefer(waitUntil)
 ```ts title="server/app.ts"
 import { rateLimit } from "@dapplelight/signet-server/middleware/rate-limit"
 import { upstashRateLimitStore } from "@dapplelight/signet-server/adapters/upstash"
+import { Hono } from "hono"
+
+const app = new Hono()
 
 app.use("/api/*", rateLimit({
   max: 100,

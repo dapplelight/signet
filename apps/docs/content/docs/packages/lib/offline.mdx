@@ -7,6 +7,8 @@ description: "An outbox that saves work done offline and sends it when you are b
 ```ts
 import { createOutbox } from "@dapplelight/signet-lib/offline"
 import { indexedDbStorage } from "@dapplelight/signet-lib/storage"
+import { api } from "./api"
+import type { NewExpense } from "./types"
 
 const outbox = createOutbox<NewExpense>({ storage: indexedDbStorage() })
 

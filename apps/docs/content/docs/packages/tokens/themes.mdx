@@ -64,6 +64,9 @@ Every theme defines the same variables, listed in `CONTRACT.md` in the package: 
 `data-density` scales `--spacing` for everything inside. Values: `compact` (0.8), `comfortable` (1), `spacious` (1.25).
 
 ```tsx
+import { InvoiceTable } from "./invoice-table"
+import { invoices } from "./invoices"
+
 <main data-density="compact">
   <InvoiceTable rows={invoices} />
 </main>

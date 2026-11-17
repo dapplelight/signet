@@ -8,6 +8,10 @@ description: "Typed, validated model output with retry, failover, cache and budg
 import { z } from "zod"
 import { createExtractor } from "@dapplelight/signet-ai/extract"
 import { aiSdkProvider } from "@dapplelight/signet-ai/providers/ai-sdk"
+import { primaryModel, backupModel } from "./models"
+import { log } from "./log"
+import { emailBody } from "./mail"
+import { user } from "./session"
 
 const ai = createExtractor({
   providers: [
@@ -67,6 +71,9 @@ A `fallback` never masks a budget refusal. Running out of money must be visible.
 `analyticsUsage` is exported from `@dapplelight/signet-ai`. It writes one event per report with `operation`, `provider`, `model`, `inputTokens`, `outputTokens`, `costUsd`, `durationMs` and the budget `key`; a cache hit adds `cacheHit: 1` and `savedUsd`. A sink that rejects is ignored, so analytics never fails a paid call.
 ```ts
 import { analyticsUsage } from "@dapplelight/signet-ai"
+import { createExtractor } from "@dapplelight/signet-ai/extract"
+import { providers } from "./ai"
+import { sink } from "./analytics"
 
 const ai = createExtractor({ providers, onUsage: analyticsUsage(sink) })
 ```

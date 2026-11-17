@@ -48,5 +48,7 @@ const model = fakeModel({ vendor: "Acme Supplies", total: 1250 })
 ### Reply based on the prompt
 
 ```ts
+import { fakeModel } from "@dapplelight/signet-test/ai"
+
 const model = fakeModel((prompt) => (prompt.includes("refund") ? "Refund approved" : "Thanks"))
 ```

@@ -68,10 +68,12 @@ const css = toCss(
 ```ts
 import { buildTheme, toFigmaVariables } from "@dapplelight/signet-tokens/theme"
 
-const body = toFigmaVariables(buildTheme({ brand: "#2563eb" }))
-await fetch(`https://api.figma.com/v1/files/${fileKey}/variables`, {
-  method: "POST",
-  headers: { "X-Figma-Token": figmaToken },
-  body: JSON.stringify(body),
-})
+export async function pushTokens(fileKey: string, figmaToken: string) {
+  const body = toFigmaVariables(buildTheme({ brand: "#2563eb" }))
+  await fetch(`https://api.figma.com/v1/files/${fileKey}/variables`, {
+    method: "POST",
+    headers: { "X-Figma-Token": figmaToken },
+    body: JSON.stringify(body),
+  })
+}
 ```

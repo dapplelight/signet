@@ -6,6 +6,8 @@ description: "Batched client event tracking that is safe to call and honours opt
 ## Usage
 ```ts
 import { beaconTransport, createAnalytics } from "@dapplelight/signet-lib/analytics"
+import { api } from "./api"
+import { user } from "./session"
 
 export const analytics = createAnalytics({
   transport: beaconTransport("/api/analytics"),

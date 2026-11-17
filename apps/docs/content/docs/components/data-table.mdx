@@ -107,9 +107,8 @@ bun path/to/signet/packages/cli/src/index.ts add data-table
 
 ```tsx
 import { DataTable } from "@dapplelight/signet-ui/components/data-table"
-```
+import { columns, invoices } from "./invoices"
 
-```tsx
 <DataTable columns={columns} data={invoices} getRowId={(row) => row.id} sortable />
 ```
 
@@ -122,6 +121,7 @@ import { DataTable } from "@dapplelight/signet-ui/components/data-table"
 
 ```tsx
 import { DataTable } from "@dapplelight/signet-ui/components/data-table"
+import { columns, invoices } from "./invoices"
 
 // uses the invoices and columns from the first example
 export function Demo() {
@@ -143,6 +143,7 @@ export function Demo() {
 ```tsx
 import { Button } from "@dapplelight/signet-ui/components/button"
 import { DataTable } from "@dapplelight/signet-ui/components/data-table"
+import { columns, invoices } from "./invoices"
 
 // uses the invoices and columns from the first example
 export function Demo() {
@@ -173,6 +174,7 @@ export function Demo() {
 
 ```tsx
 import { DataTable } from "@dapplelight/signet-ui/components/data-table"
+import { columns, invoices } from "./invoices"
 
 // uses the invoices and columns from the first example
 export function Demo() {
@@ -202,6 +204,7 @@ export function Demo() {
 ```tsx
 import { useState } from "react"
 import { DataTable } from "@dapplelight/signet-ui/components/data-table"
+import { columns, invoices, type Invoice } from "./invoices"
 
 // uses the invoices and columns from the first example
 export function Demo() {
@@ -232,6 +235,7 @@ export function Demo() {
 
 ```tsx
 import { DataTable } from "@dapplelight/signet-ui/components/data-table"
+import { columns } from "./invoices"
 
 // uses the invoices and columns from the first example
 export function Demo() {

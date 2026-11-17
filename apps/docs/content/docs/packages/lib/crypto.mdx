@@ -6,6 +6,9 @@ description: "Fail-closed field decryption: a field that does not decrypt become
 ## Usage
 ```ts
 import { decryptFields } from "@dapplelight/signet-lib/crypto"
+import { myCipher } from "./cipher"
+
+const response = await fetch("/api/transactions").then((r) => r.json())
 
 const { data, undecrypted } = await decryptFields(
   response, // { transactions: [{ description, merchant: { name } }] }

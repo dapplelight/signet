@@ -7,6 +7,8 @@ description: "An admin API and admin tools generated from your schema, deny by d
 ```ts
 import { adminTools, defineAdmin, roles } from "@dapplelight/signet-db/admin"
 import * as schema from "./schema"
+import { db } from "./db"
+import { me } from "./session"
 
 export const admin = defineAdmin(schema, {
   authorize: roles(), // admin: all, staff: all but delete, readonly: list and get
@@ -79,6 +81,7 @@ Filter operators: `eq`, `ne`, `in`, `isNull`, `lt`, `lte`, `gt`, `gte`, `contain
 import { DEFAULT_ROLES, defineAdmin, roles } from "@dapplelight/signet-db/admin"
 import { eq } from "drizzle-orm"
 import { z } from "zod"
+import * as schema from "./schema"
 
 export const admin = defineAdmin(schema, {
   authorize: roles({ ...DEFAULT_ROLES, support: ["list", "get", "update", "action"] }),
@@ -103,10 +106,16 @@ export const admin = defineAdmin(schema, {
 ### Admin tools for an MCP server
 ```ts
 import { requireApproval } from "@dapplelight/signet-server/mcp"
+import { adminTools } from "@dapplelight/signet-db/admin"
+import { app } from "./app"
+import { admin } from "./admin"
+import { adminCtx, dbFor } from "./context"
 
-const tools = await adminTools(admin, {
-  db: dbFor(c),
-  ctx: await adminCtx(c),
-  approve: requireApproval,
+app.post("/mcp", async (c) => {
+  const tools = await adminTools(admin, {
+    db: dbFor(c),
+    ctx: await adminCtx(c),
+    approve: requireApproval,
+  })
 })
 ```

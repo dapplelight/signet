@@ -81,9 +81,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@dapplelight/signet-ui/components/select"
-```
 
-```tsx
 <Select>
   <SelectTrigger className="w-48">
     <SelectValue placeholder="Currency" />
@@ -104,6 +102,17 @@ Built on Base UI's Select.
   <SelectGroupsDemo />
 
 ```tsx
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "@dapplelight/signet-ui/components/select"
+
 <Select>
   <SelectTrigger className="w-56" aria-label="Region">
     <SelectValue placeholder="Choose a region" />
@@ -132,6 +141,15 @@ Built on Base UI's Select.
   <SelectControlledDemo />
 
 ```tsx
+import { useState } from "react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@dapplelight/signet-ui/components/select"
+
 const [status, setStatus] = useState<string | null>("pending")
 
 <Select value={status} onValueChange={setStatus}>
@@ -154,6 +172,14 @@ const [status, setStatus] = useState<string | null>("pending")
   <SelectSmallDemo />
 
 ```tsx
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@dapplelight/signet-ui/components/select"
+
 <Select defaultValue="30">
   <SelectTrigger size="sm" className="w-36" aria-label="Range">
     <SelectValue />
@@ -173,6 +199,14 @@ const [status, setStatus] = useState<string | null>("pending")
   <SelectDisabledDemo />
 
 ```tsx
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@dapplelight/signet-ui/components/select"
+
 <Select disabled defaultValue="usd">
   <SelectTrigger className="w-40" aria-label="Currency">
     <SelectValue />

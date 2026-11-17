@@ -62,9 +62,7 @@ bun path/to/signet/packages/cli/src/index.ts add alert
 
 ```tsx
 import { Alert, AlertDescription, AlertTitle } from "@dapplelight/signet-ui/components/alert"
-```
 
-```tsx
 <Alert>
   <AlertTitle>Heads up</AlertTitle>
   <AlertDescription>Something worth reading.</AlertDescription>
@@ -79,6 +77,9 @@ import { Alert, AlertDescription, AlertTitle } from "@dapplelight/signet-ui/comp
   <AlertDestructiveDemo />
 
 ```tsx
+import { Alert, AlertDescription, AlertTitle } from "@dapplelight/signet-ui/components/alert"
+import { CircleAlertIcon } from "lucide-react"
+
 <Alert variant="destructive">
   <CircleAlertIcon className="size-4" />
   <AlertTitle>Payment failed</AlertTitle>
@@ -94,6 +95,9 @@ import { Alert, AlertDescription, AlertTitle } from "@dapplelight/signet-ui/comp
   <AlertWarningDemo />
 
 ```tsx
+import { Alert, AlertDescription, AlertTitle } from "@dapplelight/signet-ui/components/alert"
+import { AlertTriangleIcon } from "lucide-react"
+
 <Alert variant="warning">
   <AlertTriangleIcon className="size-4" />
   <AlertTitle>Usage at 92%</AlertTitle>
@@ -109,6 +113,8 @@ import { Alert, AlertDescription, AlertTitle } from "@dapplelight/signet-ui/comp
   <AlertNoIconDemo />
 
 ```tsx
+import { Alert, AlertDescription, AlertTitle } from "@dapplelight/signet-ui/components/alert"
+
 <Alert>
   <AlertTitle>Scheduled maintenance</AlertTitle>
   <AlertDescription>Reports will be unavailable on Sunday from 02:00 to 03:00 UTC.</AlertDescription>

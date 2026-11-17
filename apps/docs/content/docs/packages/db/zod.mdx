@@ -6,12 +6,15 @@ description: "Zod schemas generated from a table's columns, for request bodies a
 ## Usage
 ```ts
 import { toZod } from "@dapplelight/signet-db/zod"
+import { app } from "./app"
 import { invoices } from "./schema"
 
 const createInvoice = toZod(invoices, { mode: "insert" })
 const patchInvoice = toZod(invoices, { mode: "update" })
 
-const body = createInvoice.parse(await request.json())
+app.post("/invoices", async (c) => {
+  const body = createInvoice.parse(await c.req.json())
+})
 ```
 
 ## API
@@ -44,5 +47,8 @@ Rules the schema applies:
 ## Examples
 ### Let an import supply the id
 ```ts
+import { toZod } from "@dapplelight/signet-db/zod"
+import { invoices } from "./schema"
+
 const importInvoice = toZod(invoices, { mode: "insert", keep: ["id"] })
 ```

@@ -15,7 +15,9 @@ npm i @dapplelight/signet-payments @dapplelight/signet-db drizzle-orm
 ```ts title="src/server/upi.ts"
 import { upiIntent } from "@dapplelight/signet-payments/upi"
 
-const link = upiIntent({ pa: "shop@okbank", pn: "Corner Shop", amount: 49_900, tr: orderId, note: "Order 42" })
+export function payLink(orderId: string) {
+  return upiIntent({ pa: "shop@okbank", pn: "Corner Shop", amount: 49_900, tr: orderId, note: "Order 42" })
+}
 ```
 Use it as an `href` on mobile or render it as a QR code yourself. Confirm payment through your gateway, not the link.
 </Step>
@@ -32,18 +34,26 @@ export { sequences }
 ```ts title="src/server/invoices.ts"
 import { financialYear, gstInvoice, invoiceNumber, renderGstInvoiceHtml } from "@dapplelight/signet-payments/gst"
 import { nextSequence } from "@dapplelight/signet-db"
+import * as schema from "../db/schema"
+import { db } from "./db"
 
-const fy = financialYear(now)
-const seq = await nextSequence(db, schema.sequences, `invoice:INV:${fy}`)
-const inv = gstInvoice({
-  number: invoiceNumber({ prefix: "INV", fy, seq }),
-  date: now,
-  supplier: { name, address, gstin },
-  recipient: { name, address, gstin },
-  placeOfSupply: "29",
-  lines: [{ description: "Plan, 1 year", hsn: "998314", quantity: 1, unit: "OTH", unitPrice: 99_900, rate: 18 }],
-})
-const html = renderGstInvoiceHtml(inv)
+const name = "Acme Software Pvt Ltd"
+const address = "12 MG Road, Bengaluru"
+const gstin = "29ABCDE1234F1Z5"
+
+export async function issueInvoice(now: Date) {
+  const fy = financialYear(now)
+  const seq = await nextSequence(db, schema.sequences, `invoice:INV:${fy}`)
+  const inv = gstInvoice({
+    number: invoiceNumber({ prefix: "INV", fy, seq }),
+    date: now,
+    supplier: { name, address, gstin },
+    recipient: { name, address, gstin },
+    placeOfSupply: "29",
+    lines: [{ description: "Plan, 1 year", hsn: "998314", quantity: 1, unit: "OTH", unitPrice: 99_900, rate: 18 }],
+  })
+  return renderGstInvoiceHtml(inv)
+}
 ```
 `inv.taxType` is `intra` for CGST and SGST, or `inter` for IGST. Amounts are in paise.
 </Step>
@@ -52,6 +62,8 @@ const html = renderGstInvoiceHtml(inv)
 ```ts title="src/server/privacy.ts"
 import { privacyTables } from "@dapplelight/signet-db/columns/sqlite"
 import { createPrivacy } from "@dapplelight/signet-db/privacy"
+import { notes, tags, users } from "../db/schema"
+import { db } from "./db"
 
 export const { consents, dataRequests } = privacyTables()
 
@@ -65,11 +77,15 @@ export const privacy = createPrivacy(db, {
 <Step>
 ### Use it
 ```ts title="src/server/privacy-routes.ts"
-await privacy.give(userId, "marketing-email", { noticeVersion: "2026-11-01", source: "signup" })
-await privacy.withdraw(userId, "marketing-email")
+import { privacy } from "./privacy"
 
-const req = await privacy.requestErasure(userId)
-await privacy.fulfil(req.id, { actor: { type: "user", id: staffId } })
+export async function consentAndErase(userId: string, staffId: string) {
+  await privacy.give(userId, "marketing-email", { noticeVersion: "2026-11-01", source: "signup" })
+  await privacy.withdraw(userId, "marketing-email")
+
+  const req = await privacy.requestErasure(userId)
+  await privacy.fulfil(req.id, { actor: { type: "user", id: staffId } })
+}
 ```
 Fulfilling an erasure deletes the rows in `userTables`. This is record-keeping, not legal advice.
 </Step>

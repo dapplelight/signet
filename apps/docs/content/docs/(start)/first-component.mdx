@@ -18,9 +18,18 @@ import { Badge } from "@dapplelight/signet-ui/components/badge"
 ### Use it
 
 ```tsx title="src/routes/_app/index.tsx"
-<CardTitle>
-  Hello <Badge>{me?.plan ?? "free"}</Badge>
-</CardTitle>
+import { CardTitle } from "@dapplelight/signet-ui/components/card"
+import { useQuery } from "@tanstack/react-query"
+import { meQuery } from "../../lib/api"
+
+function Home() {
+  const me = useQuery(meQuery).data
+  return (
+    <CardTitle>
+      Hello <Badge>{me?.plan ?? "free"}</Badge>
+    </CardTitle>
+  )
+}
 ```
 
 The page reloads with a badge in the title.
@@ -31,6 +40,8 @@ The page reloads with a badge in the title.
 ### Try a variant
 
 ```tsx
+import { Badge } from "@dapplelight/signet-ui/components/badge"
+
 <Badge variant="outline">Beta</Badge>
 ```
 

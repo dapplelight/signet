@@ -7,6 +7,9 @@ description: "Razorpay Orders, saved methods, subscriptions, RazorpayX payouts a
 
 ```ts
 import { razorpay } from "@dapplelight/signet-payments/razorpay"
+import { app } from "./app"
+import { env } from "./env"
+import { payments } from "./payments"
 
 const rzp = razorpay({
   keyId: env.RAZORPAY_KEY_ID,

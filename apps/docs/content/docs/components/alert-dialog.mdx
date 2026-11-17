@@ -92,9 +92,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@dapplelight/signet-ui/components/alert-dialog"
-```
+import { Button } from "@dapplelight/signet-ui/components/button"
 
-```tsx
 <AlertDialog>
   <AlertDialogTrigger render={<Button />}>Open</AlertDialogTrigger>
   <AlertDialogContent>
@@ -118,8 +117,22 @@ import {
   <AlertDialogControlledDemo />
 
 ```tsx
-const [open, setOpen] = React.useState(false)
-const [status, setStatus] = React.useState("Subscription active")
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@dapplelight/signet-ui/components/alert-dialog"
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { useState } from "react"
+
+const [open, setOpen] = useState(false)
+const [status, setStatus] = useState("Subscription active")
 
 <AlertDialog
   open={open}
@@ -150,6 +163,9 @@ const [status, setStatus] = React.useState("Subscription active")
   <AlertDialogAsyncDemo />
 
 ```tsx
+import { AlertDialogAction } from "@dapplelight/signet-ui/components/alert-dialog"
+import { refundOrders } from "./actions"
+
 <AlertDialogAction
   action={async () => {
     await refundOrders()

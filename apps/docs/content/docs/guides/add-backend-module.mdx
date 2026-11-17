@@ -15,6 +15,11 @@ bun path/to/signet/packages/cli/src/index.ts add auth payments
 ```ts title="src/app.ts"
 import { authRoutes } from "./server/auth.ts"
 import { paymentsRoutes } from "./server/payments.ts"
+import { getRuntimeEnv } from "@dapplelight/signet-server/env"
+import { errorHandler } from "@dapplelight/signet-server/http"
+import { Hono } from "hono"
+
+const isProduction = () => getRuntimeEnv().NODE_ENV === "production"
 
 export const app = new Hono()
   .route("/api/sessions", authRoutes())
@@ -26,6 +31,8 @@ Each module adds an import and one `.route(...)` line before `.onError(`.
 <Step>
 ### Fill in the keys
 ```ts title="src/env.ts"
+import { z } from "zod"
+
 export const envSchema = z.object({
   SESSION_SECRET: z.string().min(32),
   STRIPE_SECRET_KEY: z.string().min(1),

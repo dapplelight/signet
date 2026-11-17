@@ -14,6 +14,9 @@ npm i @dapplelight/signet-server hono
 ### Limit the API
 ```ts title="server/app.ts"
 import { rateLimit } from "@dapplelight/signet-server/middleware/rate-limit"
+import { Hono } from "hono"
+
+const app = new Hono()
 
 app.use("/api/*", rateLimit({ max: 100, windowSeconds: 60, trust: "cloudflare" }))
 ```

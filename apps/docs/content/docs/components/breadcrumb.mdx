@@ -80,9 +80,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@dapplelight/signet-ui/components/breadcrumb"
-```
 
-```tsx
 <Breadcrumb>
   <BreadcrumbList>
     <BreadcrumbItem><BreadcrumbLink href="/">Home</BreadcrumbLink></BreadcrumbItem>
@@ -100,6 +98,9 @@ import {
   <BreadcrumbSeparatorDemo />
 
 ```tsx
+import { BreadcrumbSeparator } from "@dapplelight/signet-ui/components/breadcrumb"
+import { SlashIcon } from "lucide-react"
+
 <BreadcrumbSeparator><SlashIcon /></BreadcrumbSeparator>
 ```
 
@@ -111,6 +112,8 @@ import {
   <BreadcrumbEllipsisDemo />
 
 ```tsx
+import { BreadcrumbEllipsis, BreadcrumbItem } from "@dapplelight/signet-ui/components/breadcrumb"
+
 <BreadcrumbItem><BreadcrumbEllipsis label="Show hidden pages" /></BreadcrumbItem>
 ```
 

@@ -7,6 +7,17 @@ description: "Web checkout funnels that sell an offering, then unlock the purcha
 ```ts
 import { funnelTables } from "@dapplelight/signet-db/columns/sqlite"
 import { createFunnels } from "@dapplelight/signet-db/funnels"
+import { redemptionLink } from "@dapplelight/signet-server/http/funnels"
+import { createPayments } from "@dapplelight/signet-payments"
+import { db } from "../db"
+import { customerEvents } from "../schema"
+import { customers } from "../customers"
+import { entitlements } from "../entitlements"
+import { offerings } from "../offerings"
+import { gateways, payments, store } from "../payments"
+import { sink } from "../analytics"
+import { sendMail } from "../mail"
+import { opts } from "../redemption"
 
 const funnels = createFunnels(db, {
   tables: { ...funnelTables(), customerEvents },
@@ -75,25 +86,41 @@ A different captured amount is `amount_mismatch` and grants nothing. `redeem` re
 
 ### Start a checkout from a URL discount
 ```ts
-const { session, checkout } = await funnels.start("spring", {
-  productId: "price_pro_m",
-  answers: { goal: "sleep" },
-  code: new URL(req.url).searchParams.get("code") ?? undefined,
-  email,
-  visitor: anonymousId,
-})
-return Response.redirect(checkout.url as string)
+import { funnels } from "../funnels"
+
+export async function POST(req: Request) {
+  const { email, anonymousId } = await req.json()
+  const { session, checkout } = await funnels.start("spring", {
+    productId: "price_pro_m",
+    answers: { goal: "sleep" },
+    code: new URL(req.url).searchParams.get("code") ?? undefined,
+    email,
+    visitor: anonymousId,
+  })
+  return Response.redirect(checkout.url as string)
+}
 ```
 
 ### Redeem after sign-in
 ```ts
-const r = await funnels.redeem(sessionId, userId, { orgId })
-if (!r.redeemed) return c.json({ error: r.reason }, 409)
+import { Hono } from "hono"
+import { funnels } from "../funnels"
+
+const app = new Hono()
+
+app.post("/redeem", async (c) => {
+  const { sessionId, userId, orgId } = await c.req.json()
+  const r = await funnels.redeem(sessionId, userId, { orgId })
+  if (!r.redeemed) return c.json({ error: r.reason }, 409)
+  return c.json({ ok: true })
+})
 ```
 
 ### Drop-off by step
 ```ts
 import { funnelSteps } from "@dapplelight/signet-db/funnels"
+import { analytics } from "../analytics"
+import { def } from "../funnels"
 
 await analytics.funnel({ steps: funnelSteps(def) })
 ```

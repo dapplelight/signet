@@ -59,9 +59,7 @@ import {
   metricSentence,
   metricTrend,
 } from "@dapplelight/signet-ui/components/metric-headline"
-```
 
-```tsx
 <MetricHeadline label="Signups" result={{ current: 1240, previous: 1050 }} />
 ```
 
@@ -73,6 +71,8 @@ import {
   <MetricHeadlineDownDemo />
 
 ```tsx
+import { MetricHeadline } from "@dapplelight/signet-ui/components/metric-headline"
+
 <MetricHeadline label="Revenue" period="this month" result={{ current: 38200, previous: 41500 }} />
 
 <MetricHeadline
@@ -91,6 +91,8 @@ import {
   <MetricHeadlineStatesDemo />
 
 ```tsx
+import { MetricHeadline } from "@dapplelight/signet-ui/components/metric-headline"
+
 <MetricHeadline label="Active users" result={{ current: 820, previous: 818 }} />
 <MetricHeadline label="New trials" result={{ current: 64, previous: null }} />
 ```
@@ -103,6 +105,9 @@ import {
   <MetricHeadlineCopyDemo />
 
 ```tsx
+import { MetricHeadline } from "@dapplelight/signet-ui/components/metric-headline"
+import { Button } from "@dapplelight/signet-ui/components/button"
+
 <MetricHeadline
   label="Orders"
   period="today"
@@ -122,6 +127,9 @@ import {
   <MetricHeadlineMaskedDemo />
 
 ```tsx
+import { MaskToggle, PrivacyMaskProvider } from "@dapplelight/signet-ui/components/privacy-mask"
+import { MetricHeadline } from "@dapplelight/signet-ui/components/metric-headline"
+
 <PrivacyMaskProvider>
   <MaskToggle />
   <MetricHeadline label="Revenue" period="this month" result={{ current: 38200, previous: 31000 }} />

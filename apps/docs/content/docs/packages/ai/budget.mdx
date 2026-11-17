@@ -6,6 +6,11 @@ description: "A rolling-window spend ledger that fails closed, with per-key caps
 ## Usage
 ```ts
 import { createBudgetLedger, kvBudgetStore, createExtractor } from "@dapplelight/signet-ai"
+import { env } from "./env"
+import { providers, schema, instructions } from "./ai"
+
+const input = "Invoice total: 120"
+const user = { id: "user_1" }
 
 // Build where env exists (a request handler), not at module scope.
 const ledger = createBudgetLedger(5, 86_400, {

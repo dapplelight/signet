@@ -15,6 +15,9 @@ npm i @dapplelight/signet-server hono
 ```ts title="src/app.ts"
 import { corsMiddleware } from "@dapplelight/signet-server/middleware/cors"
 import { csrfMiddleware } from "@dapplelight/signet-server/middleware/csrf"
+import { Hono } from "hono"
+
+const app = new Hono()
 
 app.use("*", corsMiddleware({ originEnvKeys: ["WEB_URL", "ADMIN_URL"] }))
 app.use("/api/*", csrfMiddleware({ originEnvKeys: ["WEB_URL", "ADMIN_URL"] }))
@@ -23,7 +26,12 @@ app.use("/api/*", csrfMiddleware({ originEnvKeys: ["WEB_URL", "ADMIN_URL"] }))
 <Step>
 ### Set the cookie that needs it
 ```ts title="src/server/session.ts"
-const opts = { cookieName: "app_session", secret: c.env.SESSION_SECRET, sameSite: "none" as const }
+import { app } from "../app"
+
+app.get("/api/me", (c) => {
+  const opts = { cookieName: "app_session", secret: c.env.SESSION_SECRET, sameSite: "none" as const }
+  return c.json({ cookie: opts.cookieName })
+})
 ```
 `sameSite: "lax"` already blocks cross-site posts. You need the middleware when the frontend and API are on different origins.
 </Step>

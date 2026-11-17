@@ -6,14 +6,17 @@ description: "AiError and the error codes, handled like any other API failure."
 ## Usage
 ```ts
 import { AiError, BUDGET_EXCEEDED, ALL_PROVIDERS_FAILED } from "@dapplelight/signet-ai/errors"
+import { ai, schema, instructions } from "./ai"
 
-try {
-  await ai.extract({ schema, input, instructions })
-} catch (err) {
-  if (err instanceof AiError && err.code === BUDGET_EXCEEDED) {
-    return Response.json({ error: "Daily AI limit reached" }, { status: err.status }) // 429
+export async function summarize(input: string) {
+  try {
+    await ai.extract({ schema, input, instructions })
+  } catch (err) {
+    if (err instanceof AiError && err.code === BUDGET_EXCEEDED) {
+      return Response.json({ error: "Daily AI limit reached" }, { status: err.status }) // 429
+    }
+    throw err
   }
-  throw err
 }
 ```
 

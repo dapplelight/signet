@@ -15,6 +15,7 @@ npm i @dapplelight/signet-db drizzle-orm
 ```ts title="server/entitlements.ts"
 import { entitlementTables } from "@dapplelight/signet-db/columns/sqlite" // or /columns/pg
 import { createEntitlements, definePlans } from "@dapplelight/signet-db/entitlements"
+import { db } from "./db"
 
 export const { subjectPlans, entitlementOverrides, usageCounters } = entitlementTables()
 
@@ -38,31 +39,50 @@ The db needs an audit table: every write goes through `audited`.
 <Step>
 ### Check and spend
 ```ts title="server/routes/export.ts"
-if (!(await ent.can(orgId, "sso"))) return c.json({ error: "Upgrade to use SSO" }, 403)
+import { app } from "../app"
+import { ent } from "../entitlements"
 
-const spent = await ent.consume(orgId, "aiCredits", 5) // { ok, used, limit, remaining, period }
-if (!spent.ok) return c.json({ error: "Out of credits" }, 402)
+app.post("/api/export", async (c) => {
+  const orgId = c.get("orgId")
+
+  if (!(await ent.can(orgId, "sso"))) return c.json({ error: "Upgrade to use SSO" }, 403)
+
+  const spent = await ent.consume(orgId, "aiCredits", 5) // { ok, used, limit, remaining, period }
+  if (!spent.ok) return c.json({ error: "Out of credits" }, 402)
+  return c.json({ ok: true })
+})
 ```
 `consume` is one conditional update, so concurrent requests cannot overspend.
 </Step>
 <Step>
 ### Apply billing events
 ```ts title="server/payments.ts"
+import { createPayments } from "@dapplelight/signet-payments"
+import { ent } from "./entitlements"
+import { gateways, store } from "./gateways"
+
 const payments = createPayments({
   gateways,
   db: store,
   onEvent: (event) => ent.applyBillingEvent(event),
 })
+
 // At checkout, link the subscription to the subject on its first event:
-await ent.applyBillingEvent(event, { subject: orgId })
+export async function link(event: Parameters<typeof ent.applyBillingEvent>[0], orgId: string) {
+  await ent.applyBillingEvent(event, { subject: orgId })
+}
 ```
 </Step>
 <Step>
 ### Grant and override by hand
 ```ts title="server/admin.ts"
-const actor = { type: "user", id: adminId } as const
-await ent.setPlan(orgId, "pro", { actor })
-await ent.grant(orgId, "audit", { actor, expiresAt: trialEnd })
+import { ent } from "./entitlements"
+
+export async function upgrade(orgId: string, adminId: string, trialEnd: Date) {
+  const actor = { type: "user", id: adminId } as const
+  await ent.setPlan(orgId, "pro", { actor })
+  await ent.grant(orgId, "audit", { actor, expiresAt: trialEnd })
+}
 ```
 </Step>
 <Step>
@@ -71,6 +91,7 @@ await ent.grant(orgId, "audit", { actor, expiresAt: trialEnd })
 import { createFlags, defineFlags } from "@dapplelight/signet-db/flags"
 import { ent } from "./entitlements"
 import { flagOverrides } from "./db/schema"
+import { db } from "./db"
 
 const flags = defineFlags({
   newEditor: {
@@ -85,7 +106,9 @@ const flags = defineFlags({
 
 export const ff = createFlags(db, flags, { table: flagOverrides, entitlements: ent })
 
-await ff.get("newEditor", { id: userId, attributes: { country } }) // { value, reason: "rule", rule: 1 }
+export async function newEditorFor(userId: string, country: string) {
+  return await ff.get("newEditor", { id: userId, attributes: { country } }) // { value, reason: "rule", rule: 1 }
+}
 ```
 First match wins: the subject's override, the everyone override, the rules in order, the rollout, the default.
 </Step>

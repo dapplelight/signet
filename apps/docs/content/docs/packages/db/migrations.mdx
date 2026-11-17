@@ -17,6 +17,7 @@ signet-db-check $(git diff --name-only --diff-filter=A origin/main -- 'drizzle/*
 From code:
 ```ts
 import { checkMigrationSql, formatIssues } from "@dapplelight/signet-db/migrations"
+import { sql } from "drizzle-orm"
 
 const issues = checkMigrationSql(sql, "drizzle/0007_add_status.sql")
 if (issues.length) console.error(formatIssues(issues))

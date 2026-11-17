@@ -13,8 +13,13 @@ npm i @dapplelight/signet-server @dapplelight/signet-lib hono zod
 <Step>
 ### Serve OpenAPI from your validators
 ```ts title="server/app.ts"
+import { Hono } from "hono"
 import { apiDoc, serveOpenApi } from "@dapplelight/signet-server/http/openapi"
 import { zValidator } from "@dapplelight/signet-server/http/validate"
+import { create, get, health, sync } from "./notes"
+import { Id, Note, NoteInput } from "./schemas"
+
+const app = new Hono()
 
 app.get("/notes/:id", apiDoc({ summary: "Get a note", tags: ["Notes"], response: Note }), zValidator("param", Id), get)
 app.post("/notes", apiDoc({ responses: { 201: { description: "Created", schema: Note } } }), zValidator("json", NoteInput), create)
@@ -33,6 +38,7 @@ serveOpenApi(app, {
 ```ts title="server/db/webhooks.ts"
 import { webhookTables } from "@dapplelight/signet-db/columns/sqlite" // or /columns/pg
 import { createWebhooks } from "@dapplelight/signet-db/webhooks"
+import { db } from "./index"
 
 export const { webhookEndpoints, webhookDeliveries } = webhookTables()
 
@@ -40,6 +46,9 @@ export const webhooks = createWebhooks(db, { endpoints: webhookEndpoints, delive
 ```
 ```ts title="server/app.ts"
 import { webhookRoutes } from "@dapplelight/signet-server/http/webhooks"
+import { requireStoredSession } from "@dapplelight/signet-server/auth/hono"
+import { webhooks } from "./db/webhooks"
+import { sessionOpts } from "./session"
 
 app.use("/api/webhooks/*", requireStoredSession(sessionOpts))
 app.route("/api/webhooks", webhookRoutes({ webhooks, owner: (c) => c.get("session").payload.sub }))
@@ -48,10 +57,16 @@ app.route("/api/webhooks", webhookRoutes({ webhooks, owner: (c) => c.get("sessio
 <Step>
 ### Queue an event with the change that caused it
 ```ts title="server/routes/orders.ts"
-await db.batch([
-  (tx) => tx.insert(orders).values(order),
-  ...(await webhooks.statements({ owner: orgId, type: "order.created", data: order })),
-])
+import { db } from "../db"
+import { orders } from "../db/schema"
+import { webhooks } from "../db/webhooks"
+
+export async function createOrder(orgId: string, order: typeof orders.$inferInsert) {
+  await db.batch([
+    (tx) => tx.insert(orders).values(order),
+    ...(await webhooks.statements({ owner: orgId, type: "order.created", data: order })),
+  ])
+}
 ```
 </Step>
 <Step>
@@ -59,6 +74,9 @@ await db.batch([
 ```ts title="worker/index.ts"
 import { drainOutbox } from "@dapplelight/signet-db"
 import { WEBHOOK_TOPIC } from "@dapplelight/signet-db/webhooks"
+import { db } from "../server/db"
+import { webhooks } from "../server/db/webhooks"
+import { queue } from "./queue"
 
 await drainOutbox(db, { send: (m) => (m.topic === WEBHOOK_TOPIC ? webhooks.send(m) : queue.send(m)) })
 ```
@@ -66,7 +84,11 @@ await drainOutbox(db, { send: (m) => (m.topic === WEBHOOK_TOPIC ? webhooks.send(
 <Step>
 ### Verify on the receiving side
 ```ts title="receiver/hooks.ts"
+import { Hono } from "hono"
 import { verifyWebhook } from "@dapplelight/signet-lib/webhooks"
+import { WEBHOOK_SECRET } from "./env"
+
+const app = new Hono()
 
 app.post("/hooks/orders", async (c) => {
   const body = await c.req.text() // the raw text: re-serialised JSON does not verify
@@ -80,6 +102,9 @@ app.post("/hooks/orders", async (c) => {
 ### Cache read endpoints
 ```ts title="server/app.ts"
 import { cachedResponse, httpCache } from "@dapplelight/signet-server/http/cache"
+import { requireStoredSession } from "@dapplelight/signet-server/auth/hono"
+import { buildStats, listPlans, myOrders, orgId } from "./handlers"
+import { kv } from "./kv"
 
 app.get("/plans", httpCache({ maxAge: 300, staleWhileRevalidate: 60 }), listPlans)
 app.get("/me/orders", requireStoredSession(sessionOpts), httpCache({ private: true }), myOrders)

@@ -64,9 +64,10 @@ bun path/to/signet/packages/cli/src/index.ts add calendar
 
 ```tsx
 import { Calendar } from "@dapplelight/signet-ui/components/calendar"
-```
+import { useState } from "react"
 
-```tsx
+const [date, setDate] = useState<Date | undefined>(new Date(2026, 10, 17))
+
 <Calendar mode="single" selected={date} onSelect={setDate} />
 ```
 
@@ -78,7 +79,11 @@ import { Calendar } from "@dapplelight/signet-ui/components/calendar"
   <CalendarRangeDemo />
 
 ```tsx
-const [range, setRange] = React.useState<DateRange | undefined>({
+import { DateRange } from "@dapplelight/signet-lib/search"
+import { Calendar } from "@dapplelight/signet-ui/components/calendar"
+import { useState } from "react"
+
+const [range, setRange] = useState<DateRange | undefined>({
   from: new Date(2026, 10, 10),
   to: new Date(2026, 10, 18),
 })
@@ -94,6 +99,11 @@ const [range, setRange] = React.useState<DateRange | undefined>({
   <CalendarDropdownDemo />
 
 ```tsx
+import { Calendar } from "@dapplelight/signet-ui/components/calendar"
+import { useState } from "react"
+
+const [date, setDate] = useState<Date | undefined>(new Date(2026, 10, 17))
+
 <Calendar
   mode="single"
   selected={date}
@@ -112,6 +122,11 @@ const [range, setRange] = React.useState<DateRange | undefined>({
   <CalendarDisabledDemo />
 
 ```tsx
+import { Calendar } from "@dapplelight/signet-ui/components/calendar"
+import { useState } from "react"
+
+const [date, setDate] = useState<Date | undefined>(new Date(2026, 10, 17))
+
 <Calendar
   mode="single"
   selected={date}

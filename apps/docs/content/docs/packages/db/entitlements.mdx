@@ -7,6 +7,9 @@ description: "Plans, features, usage limits and billing events, for users or org
 ```ts
 import { entitlementTables } from "@dapplelight/signet-db/columns/sqlite" // or /columns/pg
 import { createEntitlements, definePlans } from "@dapplelight/signet-db/entitlements"
+import { db } from "../db"
+
+const orgId = "org_1"
 
 export const { subjectPlans, entitlementOverrides, usageCounters } = entitlementTables()
 
@@ -88,6 +91,13 @@ Events apply once and out-of-order ones return `{ applied: false, reason: "stale
 
 ### Wire payments to entitlements
 ```ts
+import { createPayments } from "@dapplelight/signet-payments"
+import type { BillingEvent } from "@dapplelight/signet-db/entitlements"
+import { ent } from "../entitlements"
+import { gateways, store } from "../payments"
+
+const orgId = "org_1"
+
 const payments = createPayments({
   gateways,
   db: store,
@@ -95,11 +105,19 @@ const payments = createPayments({
 })
 
 // At checkout, link the subscription to its subject on the first event:
-await ent.applyBillingEvent(event, { subject: orgId })
+async function link(event: BillingEvent) {
+  await ent.applyBillingEvent(event, { subject: orgId })
+}
 ```
 
 ### Restore purchases
 ```ts
+import { ent } from "../entitlements"
+import { payments } from "../payments"
+
+const userId = "u_1"
+const purchases: unknown[] = []
+
 const { restored } = await payments.restorePurchases({ userId, purchases })
 for (const r of restored)
   if (r.subscription) await ent.applySubscription(r.subscription, { subject: userId })
@@ -108,6 +126,10 @@ for (const r of restored)
 ### Read-only tools for a support agent
 ```ts
 import { entitlementTools } from "@dapplelight/signet-db/entitlements"
+import { ent } from "../entitlements"
+import { ff } from "../flags"
+
+const orgId = "org_1"
 
 const tools = entitlementTools({ entitlements: ent, flags: ff, subject: orgId })
 // get_plan, check_entitlement, usage, list_flags

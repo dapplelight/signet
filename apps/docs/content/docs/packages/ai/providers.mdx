@@ -8,6 +8,8 @@ description: "Vercel AI SDK and Workers AI adapters for the extractor."
 import { createWorkersAI } from "workers-ai-provider"
 import { createExtractor } from "@dapplelight/signet-ai"
 import { aiSdkProvider, workersAiProvider } from "@dapplelight/signet-ai/providers/ai-sdk"
+import { env } from "./env"
+import { backupModel } from "./models"
 
 const workersAi = createWorkersAI({ binding: env.AI })
 

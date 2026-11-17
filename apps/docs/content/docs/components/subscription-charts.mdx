@@ -11,6 +11,7 @@ import { SubscriptionChartsDemo, SubscriptionChartsEmptyDemo } from "@/component
 ```tsx
 import { useState } from "react"
 import { SubscriptionCharts, type ChartFilterView } from "@dapplelight/signet-ui/screens/subscription-charts"
+import { data } from "./charts"
 
 function SubscriptionChartsDemo() {
   const [filter, setFilter] = useState<ChartFilterView>({ from: data.from, to: data.to })
@@ -77,6 +78,12 @@ import { SubscriptionCharts } from "@dapplelight/signet-ui/screens/subscription-
 `data` is signet-db's `charts.metrics(...)` result (or the JSON of `GET /charts`); filter changes go out through `onFilterChange`.
 
 ```tsx
+import { useState } from "react"
+import { SubscriptionCharts, type ChartFilterView } from "@dapplelight/signet-ui/screens/subscription-charts"
+import { data } from "./charts"
+
+const [filter, setFilter] = useState<ChartFilterView>({ from: data.from, to: data.to })
+
 <SubscriptionCharts data={data} filter={filter} onFilterChange={setFilter} />
 ```
 
@@ -92,6 +99,7 @@ Change the dates or a filter to see `onFilterChange` fire. In an app you refetch
 ```tsx
 import { useState } from "react"
 import { SubscriptionCharts, type ChartFilterView } from "@dapplelight/signet-ui/screens/subscription-charts"
+import { data } from "./charts"
 
 function SubscriptionChartsDemo() {
   const [filter, setFilter] = useState<ChartFilterView>({ from: data.from, to: data.to })

@@ -246,6 +246,8 @@ Revokes go through `requireApproval`. No tool returns a secret, hash or code.
 ```ts
 import { verifyPasscode } from "@dapplelight/signet-server/auth/passcode"
 import { issueSession, sessionCookie } from "@dapplelight/signet-server/auth/session"
+import { app } from "./app"
+import { env } from "./env"
 
 const opts = { cookieName: "rsvp_session", secret: env.SESSION_SECRET, sameSite: "none" as const }
 
@@ -262,7 +264,10 @@ app.post("/api/unlock", async (c) => {
 ```ts
 import { createApiKey, kvApiKeyStore } from "@dapplelight/signet-server/auth/api-keys"
 import { requireApiKey } from "@dapplelight/signet-server/auth/hono"
+import { app } from "./app"
+import { kv } from "./kv"
 
+const user = { id: "user_123" }
 const keys = kvApiKeyStore(kv)
 const { token, key } = await createApiKey(keys, {
   sub: user.id, name: "CI", prefix: "app", scopes: ["read"], expiresInSeconds: 90 * 86400,
@@ -277,6 +282,10 @@ app.use("/api/export/*", requireApiKey({ store: keys, prefix: "app", scopes: ["r
 ```ts
 import { devSmsSender, requestPhoneOtp, verifyPhoneOtp } from "@dapplelight/signet-server/auth/otp"
 import { upstashRateLimitStore } from "@dapplelight/signet-server/adapters/upstash"
+import { clientIp } from "@dapplelight/signet-server/middleware/rate-limit"
+import { app } from "./app"
+import { env } from "./env"
+import { kv } from "./kv"
 
 const otp = {
   kv,
@@ -284,15 +293,28 @@ const otp = {
   sender: devSmsSender({ appEnv: env.APP_ENV }), // a real SMS provider in production
   rateLimit: upstashRateLimitStore({ url: env.UPSTASH_URL, token: env.UPSTASH_TOKEN }),
 }
-await requestPhoneOtp(otp, { phone: body.phone, ip })
-const checked = await verifyPhoneOtp(otp, { phone: body.phone, code: body.code, ip })
-if (checked.ok) {
-  // sign in checked.phone with startSession
-}
+
+app.post("/api/phone/request", async (c) => {
+  const body = await c.req.json()
+  const ip = clientIp(c, "cloudflare")
+  return c.json(await requestPhoneOtp(otp, { phone: body.phone, ip }))
+})
+
+app.post("/api/phone/verify", async (c) => {
+  const body = await c.req.json()
+  const ip = clientIp(c, "cloudflare")
+  const checked = await verifyPhoneOtp(otp, { phone: body.phone, code: body.code, ip })
+  if (checked.ok) {
+    // sign in checked.phone with startSession
+  }
+  return c.json(checked)
+})
 ```
 
 ### Rotate the signing key without signing anyone out
 
 ```ts
+import { env } from "./env"
+
 const opts = { cookieName: "app_session", secret: env.SESSION_SECRET, previousSecrets: [env.SESSION_SECRET_OLD] }
 ```

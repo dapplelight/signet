@@ -280,7 +280,17 @@ Web-to-app funnels: questions, paywall, checkout, then redemption.
 ### Account page
 
 ```tsx
-import { ApiKeysManager, ProfileCard, SessionsList } from "@dapplelight/signet-ui/screens/account-screens"
+import {
+  ApiKeysManager,
+  ProfileCard,
+  SessionsList,
+  type ApiKeyRow,
+  type Profile,
+  type SessionRow,
+} from "@dapplelight/signet-ui/screens/account-screens"
+import { api } from "./api"
+
+type AccountData = { me: Profile; sessions: SessionRow[]; keys: ApiKeyRow[] }
 
 export function AccountPage({ me, sessions, keys }: AccountData) {
   return (
@@ -304,7 +314,16 @@ export function AccountPage({ me, sessions, keys }: AccountData) {
 ### Billing page
 
 ```tsx
-import { BillingScreen, plansFromEntitlements } from "@dapplelight/signet-ui/screens/billing-screens"
+import {
+  BillingScreen,
+  plansFromEntitlements,
+  type BillingInvoice,
+  type BillingSubscription,
+  type BillingUsage,
+} from "@dapplelight/signet-ui/screens/billing-screens"
+import { openCustomerPortal, startCheckout } from "./billing"
+
+type BillingData = { subscription: BillingSubscription; usage: BillingUsage[]; invoices: BillingInvoice[] }
 
 export function Billing({ subscription, usage, invoices }: BillingData) {
   return (
@@ -342,7 +361,15 @@ export function Admin() {
 ### Notification inbox and preferences
 
 ```tsx
-import { NotificationInbox, NotificationPreferences } from "@dapplelight/signet-ui/screens/notification-screens"
+import {
+  NotificationInbox,
+  NotificationPreferences,
+  type ChannelPrefs,
+  type InboxEntry,
+} from "@dapplelight/signet-ui/screens/notification-screens"
+import { api } from "./api"
+
+type NotificationData = { items: InboxEntry[]; prefs: ChannelPrefs }
 
 export function Notifications({ items, prefs }: NotificationData) {
   return (

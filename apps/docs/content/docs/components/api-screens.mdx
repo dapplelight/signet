@@ -96,9 +96,8 @@ bun path/to/signet/packages/cli/src/index.ts add api-screens
 
 ```tsx
 import { ApiReference, WebhookDeliveryLog } from "@dapplelight/signet-ui/screens/api-screens"
-```
+import { spec } from "./spec"
 
-```tsx
 <ApiReference spec={spec} />
 ```
 
@@ -168,6 +167,7 @@ export function ApiReferenceDemo() {
 ```tsx
 import { WebhookDeliveryLog, type WebhookStatusFilter } from "@dapplelight/signet-ui/screens/api-screens"
 import { useState } from "react"
+import { deliveries } from "./deliveries"
 
 export function WebhookDeliveryLogDemo() {
   const [status, setStatus] = useState<WebhookStatusFilter>("all")

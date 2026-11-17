@@ -90,9 +90,8 @@ bun path/to/signet/packages/cli/src/index.ts add job-runs
 
 ```tsx
 import { JobRuns, type JobRun } from "@dapplelight/signet-ui/domain/job-runs"
-```
+import { cancel, retry, runs } from "./jobs"
 
-```tsx
 <JobRuns runs={runs} onRetry={retry} onCancel={cancel} />
 ```
 

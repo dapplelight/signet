@@ -7,6 +7,9 @@ description: "PayPal Orders v2, authorize and capture, refunds, subscriptions an
 
 ```ts
 import { paypal, paypalValue } from "@dapplelight/signet-payments/paypal"
+import { app } from "./app"
+import { env } from "./env"
+import { payments } from "./payments"
 
 const pal = paypal({
   clientId: env.PAYPAL_CLIENT_ID,

@@ -17,6 +17,7 @@ Keep one copy of zod at 4.2 or later in the tree (`npm ls zod`).
 import { z } from "zod"
 import { ApiException } from "@dapplelight/signet-server/http"
 import { defineTool } from "@dapplelight/signet-server/mcp"
+import { ordersFor } from "../orders"
 
 export const tools = [
   defineTool({
@@ -39,8 +40,12 @@ export const tools = [
 ```ts title="server/app.ts"
 import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
 import { registerProtectedResourceMetadata, requireToken } from "@dapplelight/signet-server/oauth-rs/hono"
+import { Hono } from "hono"
 import { META, RESOURCE, verifier } from "./oauth"
 import { tools } from "./mcp/tools"
+import { sentry } from "./sentry"
+
+const app = new Hono()
 
 registerProtectedResourceMetadata(app, {
   resource: RESOURCE,

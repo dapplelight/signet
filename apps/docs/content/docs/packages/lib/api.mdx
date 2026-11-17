@@ -6,6 +6,8 @@ description: "Fetch client, typed Hono RPC client, error classes, stream readers
 ## Usage
 ```ts
 import { createApiClient, qs, errorCopy, ApiError } from "@dapplelight/signet-lib/api"
+import { toast } from "@dapplelight/signet-ui/components/toast"
+import type { Order } from "./types"
 
 const api = createApiClient({
   baseUrl: "/api",
@@ -85,16 +87,19 @@ onAuthErrorRedirect(queryClient, () => location.assign("/login"))
 ```ts
 import { readSseJson } from "@dapplelight/signet-lib/api"
 
-const res = await fetch("/api/chat", { method: "POST", body: JSON.stringify({ messages }) })
-for await (const chunk of readSseJson<{ type: string; delta?: string }>(res)) {
-  if (chunk.type === "text-delta") append(chunk.delta ?? "")
+async function chat(messages: unknown[], append: (text: string) => void) {
+  const res = await fetch("/api/chat", { method: "POST", body: JSON.stringify({ messages }) })
+  for await (const chunk of readSseJson<{ type: string; delta?: string }>(res)) {
+    if (chunk.type === "text-delta") append(chunk.delta ?? "")
+  }
 }
 ```
 
 ### Override copy for one code
 ```ts
-import { DEFAULT_ERROR_COPY, errorCopy } from "@dapplelight/signet-lib/api"
+import { DEFAULT_ERROR_COPY, errorCopy, type ApiError } from "@dapplelight/signet-lib/api"
 
 const copy = { ...DEFAULT_ERROR_COPY, RATE_LIMITED: { title: "Easy there", detail: "Search again shortly.", action: "wait" as const } }
-errorCopy(err.code, copy)
+
+const copyFor = (err: ApiError) => errorCopy(err.code, copy)
 ```

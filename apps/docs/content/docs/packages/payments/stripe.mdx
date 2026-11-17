@@ -7,6 +7,9 @@ description: "Stripe PaymentIntents for Elements, subscriptions, payouts and bal
 
 ```ts
 import { STRIPE_API_VERSION, stripe } from "@dapplelight/signet-payments/stripe"
+import { app } from "./app"
+import { env } from "./env"
+import { payments } from "./payments"
 
 const s = stripe({
   secretKey: env.STRIPE_SECRET_KEY,

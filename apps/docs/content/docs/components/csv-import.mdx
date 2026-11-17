@@ -88,9 +88,8 @@ bun path/to/signet/packages/cli/src/index.ts add csv-import
 
 ```tsx
 import { CsvImport, type CsvField } from "@dapplelight/signet-ui/domain/csv-import"
-```
+import { fields, save } from "./contacts"
 
-```tsx
 <CsvImport fields={fields} onImport={(rows) => save(rows)} />
 ```
 

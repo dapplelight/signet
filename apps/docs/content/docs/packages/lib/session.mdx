@@ -9,6 +9,8 @@ import { createApiClient } from "@dapplelight/signet-lib/api"
 import { createSession, fromTokenResponse, tokenEndpointRefresh } from "@dapplelight/signet-lib/session"
 import { chromeStorage } from "@dapplelight/signet-lib/storage"
 
+const API = "https://api.example.com"
+
 const session = createSession({
   storage: chromeStorage(),
   refresh: tokenEndpointRefresh(`${API}/auth/token`, "team-extension"),
@@ -22,8 +24,11 @@ const api = createApiClient({
 })
 
 // after sign-in
+const res = await fetch(`${API}/auth/login`, { method: "POST" })
 await session.set(fromTokenResponse(await res.json()))
-session.subscribe((tokens) => setSignedIn(tokens !== null))
+
+const watchSignedIn = (setSignedIn: (signedIn: boolean) => void) =>
+  session.subscribe((tokens) => setSignedIn(tokens !== null))
 ```
 
 For an extension, a desktop app, a CLI or React Native. The server half is the `client-login` routes in the Server package.

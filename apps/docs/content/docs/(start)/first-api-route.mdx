@@ -11,6 +11,10 @@ description: Add a Hono route and call it with the typed client.
 Chain it next to `/api/health`. Chaining is what types the client.
 
 ```ts title="api/app.ts"
+import { Hono } from "hono"
+
+const base = new Hono()
+
 const app = base
   .get("/api/health", (c) => c.json({ ok: true }))
   .get("/api/hello", (c) => c.json({ message: "Hello" }))

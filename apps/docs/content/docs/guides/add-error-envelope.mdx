@@ -13,11 +13,16 @@ npm i @dapplelight/signet-server @dapplelight/signet-lib hono zod
 <Step>
 ### Install the handler
 ```ts title="src/app.ts"
+import { getRuntimeEnv } from "@dapplelight/signet-server/env"
 import { errorHandler } from "@dapplelight/signet-server/http"
+import { Hono } from "hono"
+import { sentry } from "./server/sentry"
+
+const app = new Hono()
 
 app.onError(errorHandler({
   isProduction: () => getRuntimeEnv().NODE_ENV === "production",
-  onError: (err, meta) => captureException(err, meta),
+  onError: (err, meta) => sentry.captureException(err, meta),
 }))
 ```
 `isProduction` is a function so it is read per request.
@@ -27,6 +32,11 @@ app.onError(errorHandler({
 ```ts title="src/server/things.ts"
 import { ApiException } from "@dapplelight/signet-server/http"
 import { parseBody } from "@dapplelight/signet-server/http/validate"
+import { z } from "zod"
+import { app } from "../app"
+import { allowed, create } from "./store"
+
+const thingSchema = z.object({ name: z.string() })
 
 app.post("/things", async (c) => {
   const body = await parseBody(c, thingSchema)
@@ -40,6 +50,9 @@ A bad body is a 400 with `details.fieldErrors`.
 ### Type the routes for a client
 ```ts title="src/app.ts"
 import { zValidator } from "@dapplelight/signet-server/http/validate"
+import { Hono } from "hono"
+import { z } from "zod"
+import { NoteInput, save, get } from "./server/notes"
 
 export const app = new Hono()
   .post("/api/notes", zValidator("json", NoteInput), (c) => c.json(save(c.req.valid("json")), 201))
@@ -51,9 +64,17 @@ export type AppType = typeof app
 ### Read it in the browser
 ```ts title="src/web/note-form.tsx"
 import { ApiError } from "@dapplelight/signet-lib/api"
+import { api } from "./api"
 
-catch (e) {
-  if (e instanceof ApiError && e.code === "VALIDATION_FAILED") setFieldErrors(e.details?.fieldErrors ?? {})
+export async function submit(
+  json: { title: string },
+  setFieldErrors: (errors: Record<string, string[]>) => void,
+) {
+  try {
+    await api.api.notes.$post({ json })
+  } catch (e) {
+    if (e instanceof ApiError && e.code === "VALIDATION_FAILED") setFieldErrors(e.details?.fieldErrors ?? {})
+  }
 }
 ```
 Branch on `code`, never on the message.
