@@ -5,6 +5,12 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### create-signet-app: --describe, a whole-app plan from one sentence
+
+- New `--describe "<sentence>"`: picks the template (`web`, `api` or `full`) and theme from the sentence, scaffolds, then writes `PLAN.md` (pages with their block commands, components, modules and data; data models; recipes; build order; the `signet check` to run after each page) and `AGENTS.md` (follow the plan one page at a time). No LLM call: the same sentence gives the same files. An explicit `--template` or `--theme` wins. Without `--describe` nothing changes.
+- create-signet-app now depends on `@dapplelight/signet-mcp`, for `plan_page` and the blocks index.
+- signet-mcp: no longer private, and exports `./plan` (`planPage`) and `./generated` (`INDEX`).
+
 ### signet-cli: signet check
 
 - New `signet check`: the verify loop for agent-written code. It runs `tsc --noEmit`, Biome and Signet's conventions (`env-module-scope`, `error-handler`, `raw-colour`), then the conformance suite with `--api <url>` and screenshots plus axe at 390 and 1280 px with `--pages <path...>`. It prints a summary or, with `--json`, a findings list (`file`, `line`, `rule`, `level`, `message`, `fix`) and exits 1 on any error.
