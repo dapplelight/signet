@@ -3,6 +3,8 @@ title: "Button"
 description: "Displays a button or a component that looks like a button."
 ---
 
+import { SignUpCardDemo } from "@/components/demos/input"
+
 <Preview>
   <Button>Button</Button>
   <Button variant="outline">Outline</Button>
@@ -177,12 +179,44 @@ import { Button } from "@dapplelight/signet-ui/components/button"
 
 </Preview>
 
+## Composition
+
+<Preview>
+  <SignUpCardDemo />
+
+```tsx
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@dapplelight/signet-ui/components/card"
+import { Input } from "@dapplelight/signet-ui/components/input"
+import { Label } from "@dapplelight/signet-ui/components/label"
+
+export function SignUpCard() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Create your account</CardTitle>
+        <CardDescription>Sign in with a magic link. No password.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-2">
+        <Label htmlFor="email">Email</Label>
+        <Input id="email" type="email" placeholder="priya.raghunathan@example.com" />
+      </CardContent>
+      <CardFooter>
+        <Button className="w-full">Send magic link</Button>
+      </CardFooter>
+    </Card>
+  )
+}
+```
+
+</Preview>
+
 ## API Reference
 
-| Prop | Type | Default |
-| --- | --- | --- |
-| `variant` | `default` `outline` `secondary` `ghost` `destructive` `link` | `default` |
-| `size` | `default` `xs` `sm` `lg` `touch` `icon` `icon-xs` `icon-sm` `icon-lg` `icon-touch` | `default` |
-| `className` | `string` | merged last |
+| Prop | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `variant` | `"default" \| "outline" \| "secondary" \| "ghost" \| "destructive" \| "link"` | `"default"` | No | Colour and emphasis. |
+| `size` | `"default" \| "xs" \| "sm" \| "lg" \| "touch" \| "icon" \| "icon-xs" \| "icon-sm" \| "icon-lg" \| "icon-touch"` | `"default"` | No | Height and padding. `touch` sizes are 44px for phones. Icon-only sizes need `aria-label`. |
+| `className` | `string` | — | No | Merged last. |
 
-Plus every `<button>` prop. `touch` sizes are 44px for phones. Icon-only sizes need `aria-label`.
+Plus every native [`<button>`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/button) attribute.

@@ -3,6 +3,8 @@ title: "Add Sign-In"
 description: "A passcode gate or a full Better Auth user system, with CSRF protection in front of the cookie."
 ---
 
+Sign in, call a protected route, sign out. The API is a Hono app on Cloudflare Workers.
+
 <Steps>
 <Step>
 ### Install
@@ -11,23 +13,111 @@ npm i @dapplelight/signet-server hono
 ```
 </Step>
 <Step>
-### Gate a site with a passcode
-```ts title="src/server/gate.ts"
+### Sign in
+```ts title="src/server/session.ts"
+import type { SessionOptions } from "@dapplelight/signet-server/auth/session"
+
+export type AuthEnv = { SESSION_SECRET: string; PASSCODE_HASH: string; WEB_URL: string }
+
+// Built per request: Workers hand you env in the handler, not at import.
+export const sessionOptions = (env: AuthEnv): SessionOptions => ({
+  cookieName: "app_session",
+  secret: env.SESSION_SECRET,
+  sameSite: "none",
+})
+```
+```ts title="src/server/routes/auth.ts"
 import { verifyPasscode } from "@dapplelight/signet-server/auth/passcode"
 import { issueSession, sessionCookie } from "@dapplelight/signet-server/auth/session"
 import { Hono } from "hono"
+import { type AuthEnv, sessionOptions } from "../session"
 
-const app = new Hono()
+export const auth = new Hono<{ Bindings: AuthEnv }>()
 
-app.post("/gate", async (c) => {
-  const body = await c.req.json()
-  const opts = { cookieName: "rsvp_session", secret: c.env.SESSION_SECRET, sameSite: "none" as const }
-
-  if (!(await verifyPasscode(body.passcode, c.env.PASSCODE_HASH))) return c.json({ error: "Wrong passcode" }, 401)
-  c.header("Set-Cookie", sessionCookie(await issueSession(opts), opts))
+auth.post("/sign-in", async (c) => {
+  const { passcode } = await c.req.json()
+  if (!(await verifyPasscode(passcode, c.env.PASSCODE_HASH))) return c.json({ error: "Wrong passcode" }, 401)
+  const opts = sessionOptions(c.env)
+  c.header("Set-Cookie", sessionCookie(await issueSession(opts, "guest"), opts))
   return c.json({ ok: true })
 })
 ```
+The second argument of `issueSession` is the subject: a user id once you have accounts.
+</Step>
+<Step>
+### Protect a route
+```ts title="src/server/routes/me.ts"
+import { requireSession } from "@dapplelight/signet-server/auth/hono"
+import type { SessionPayload } from "@dapplelight/signet-server/auth/session"
+import { Hono } from "hono"
+import { type AuthEnv, sessionOptions } from "../session"
+
+export const me = new Hono<{ Bindings: AuthEnv; Variables: { session: SessionPayload } }>()
+
+me.use((c, next) => requireSession(sessionOptions(c.env))(c, next))
+me.get("/me", (c) => c.json({ userId: c.get("session").sub }))
+```
+```bash
+curl -c jar -H 'content-type: application/json' -d '{"passcode":"open-sesame"}' localhost:8787/api/sign-in
+curl -b jar localhost:8787/api/me
+# {"userId":"guest"}
+curl localhost:8787/api/me
+# 401 {"success":false,"error":"Unauthorized","code":"UNAUTHORIZED"}
+```
+</Step>
+<Step>
+### Sign out
+```ts title="src/server/routes/auth.ts"
+import { clearCookie } from "@dapplelight/signet-server/auth/session"
+
+auth.post("/sign-out", (c) => {
+  c.header("Set-Cookie", clearCookie(sessionOptions(c.env)))
+  return c.json({ ok: true })
+})
+```
+The cookie is stateless, so this signs out one browser. For a device list and sign-out everywhere, use [stored sessions](/docs/packages/server/auth).
+</Step>
+<Step>
+### Cookies and CSRF
+```ts title="src/app.ts"
+import { initRuntimeEnv } from "@dapplelight/signet-server/env"
+import { errorHandler } from "@dapplelight/signet-server/http"
+import { csrfMiddleware } from "@dapplelight/signet-server/middleware/csrf"
+import { Hono } from "hono"
+import { auth } from "./server/routes/auth"
+import { me } from "./server/routes/me"
+
+const app = new Hono()
+
+app.use((c, next) => (initRuntimeEnv(c.env as Record<string, unknown>), next()))
+app.use("/api/*", csrfMiddleware({ originEnvKeys: ["WEB_URL"] }))
+app.route("/api", auth)
+app.route("/api", me)
+app.onError(errorHandler({ isProduction: true }))
+
+export default app
+```
+The cookie is `HttpOnly; Secure; SameSite=None`, so a web app on another origin can send it with `fetch(url, { credentials: "include" })`. `SameSite=None` also lets other sites send it, so mount `csrfMiddleware` before any route that reads the cookie. Web app and API on one origin? Use `sameSite: "lax"`.
+</Step>
+<Step>
+### Secrets
+<Tabs items={["Local", "Production"]}>
+<Tab value="Local">
+```bash title=".dev.vars"
+SESSION_SECRET=local-only-secret-at-least-32-characters
+PASSCODE_HASH=<output of scripts/hash-passcode.ts>
+WEB_URL=http://localhost:5173
+```
+`wrangler dev` reads `.dev.vars`. Keep it out of git.
+</Tab>
+<Tab value="Production">
+```bash
+openssl rand -base64 32 | npx wrangler secret put SESSION_SECRET
+bun scripts/hash-passcode.ts 'the-real-passcode' | npx wrangler secret put PASSCODE_HASH
+```
+Put `WEB_URL` under `vars` in `wrangler.jsonc`. Use a different `SESSION_SECRET` in every environment.
+</Tab>
+</Tabs>
 </Step>
 <Step>
 ### Hash the passcode offline
@@ -57,18 +147,6 @@ export const auth = betterAuth({
   ),
 })
 ```
-</Step>
-<Step>
-### Turn on CSRF
-```ts title="src/app.ts"
-import { csrfMiddleware } from "@dapplelight/signet-server/middleware/csrf"
-import { Hono } from "hono"
-
-const app = new Hono()
-
-app.use("/api/*", csrfMiddleware({ originEnvKeys: ["WEB_URL", "ADMIN_URL"] }))
-```
-Required once the cookie is `sameSite: "none"`. Mount it before any route that reads the cookie.
 </Step>
 </Steps>
 

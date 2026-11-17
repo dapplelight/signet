@@ -3,74 +3,155 @@ title: "Add a Database"
 description: "A scoped, soft-deleting, optionally encrypted database layer on D1, SQLite or Postgres, with money, an outbox and idempotent writes."
 ---
 
+An `orders` table on Cloudflare D1, from schema to a signed-in user's CRUD API.
+
 <Steps>
 <Step>
 ### Install
 ```bash
-npm i @dapplelight/signet-db drizzle-orm zod
+npm i @dapplelight/signet-db @dapplelight/signet-server drizzle-orm hono zod
+npm i -D drizzle-kit wrangler
 ```
+</Step>
+<Step>
+### Schema
+```ts title="src/db/schema.ts"
+import { id, softDelete, timestamps } from "@dapplelight/signet-db/columns/sqlite"
+import { sqliteTable, text } from "drizzle-orm/sqlite-core"
+
+export const orders = sqliteTable("orders", {
+  id: id(),
+  userId: text("user_id").notNull(),
+  item: text("item").notNull(),
+  ...timestamps(),
+  ...softDelete(),
+})
+```
+`userId` is what scoping filters on. `softDelete()` adds `deletedAt`.
+</Step>
+<Step>
+### Migration
+```jsonc title="wrangler.jsonc"
+{ "d1_databases": [{ "binding": "DB", "database_name": "app-db", "database_id": "<id>", "migrations_dir": "drizzle" }] }
+```
+```bash
+npx drizzle-kit generate --dialect sqlite --schema src/db/schema.ts
+npx signet-db-check
+npx wrangler d1 migrations apply app-db --local
+```
+`signet-db-check` fails on SQL that loses data or breaks running code. Drop `--local` to apply to production.
 </Step>
 <Step>
 ### Connect
 ```ts title="src/server/db.ts"
 import { createDb } from "@dapplelight/signet-db/d1"
-import * as schema from "./schema"
+import * as schema from "../db/schema"
 
-export const dbFor = (bindings: { DB: D1Database }) => createDb(bindings.DB, { schema })
+export const dbFor = (env: { DB: D1Database }) => createDb(env.DB, { schema })
 ```
 For SQLite on Bun use `@dapplelight/signet-db/sqlite`, for Postgres `@dapplelight/signet-db/postgres`.
 </Step>
 <Step>
-### Scope every query to the user
+### Scoped query
 ```ts title="src/server/orders.ts"
 import { scoped } from "@dapplelight/signet-db"
-import { desc, eq } from "drizzle-orm"
+import { desc } from "drizzle-orm"
 import { orders } from "../db/schema"
-import { db } from "./db"
-import { session } from "./session"
+import { dbFor } from "./db"
 
-const id = "ord_1"
-const me = scoped(db, { userId: session.userId })
-await me.insert(orders, { item: "Dosa" })
-await me.select(orders, eq(orders.item, "Dosa"), { orderBy: desc(orders.createdAt), limit: 20 })
-await me.delete(orders, eq(orders.id, id))
+export async function orderDosa(env: { DB: D1Database }, userId: string) {
+  const me = scoped(dbFor(env), { userId })
+  await me.insert(orders, { item: "Dosa" }) // sets userId
+  return me.select(orders, undefined, { orderBy: desc(orders.createdAt), limit: 20 })
+}
 ```
-Deletes set `deletedAt` unless you pass `{ hard: true }`.
+Every select, update and delete adds `user_id = ?` and skips deleted rows. Another user's order is never returned, changed or deleted. Deletes set `deletedAt` unless you pass `{ hard: true }`.
+</Step>
+<Step>
+### CRUD route
+```ts title="src/server/routes/orders.ts"
+import { type Ops, scoped } from "@dapplelight/signet-db"
+import { requireSession } from "@dapplelight/signet-server/auth/hono"
+import type { SessionPayload } from "@dapplelight/signet-server/auth/session"
+import { ApiException, parseBody } from "@dapplelight/signet-server/http"
+import { eq } from "drizzle-orm"
+import { Hono } from "hono"
+import { z } from "zod"
+import { orders } from "../../db/schema"
+import { dbFor } from "../db"
+import { type AuthEnv, sessionOptions } from "../session"
+
+type Env = { Bindings: AuthEnv & { DB: D1Database }; Variables: { session: SessionPayload; orders: Ops } }
+const Order = z.object({ item: z.string().min(1).max(100) })
+
+export const ordersApi = new Hono<Env>()
+  .use((c, next) => requireSession(sessionOptions(c.env))(c, next))
+  .use((c, next) => (c.set("orders", scoped(dbFor(c.env), { userId: c.get("session").sub ?? "" })), next()))
+  .get("/orders", async (c) => c.json(await c.var.orders.select(orders)))
+  .post("/orders", async (c) => {
+    const [order] = await c.var.orders.insert(orders, await parseBody(c, Order))
+    return c.json(order, 201)
+  })
+  .patch("/orders/:id", async (c) => {
+    const [order] = await c.var.orders.update(orders, await parseBody(c, Order), eq(orders.id, c.req.param("id")))
+    if (!order) throw new ApiException(404, "Order not found", "NOT_FOUND")
+    return c.json(order)
+  })
+  .delete("/orders/:id", async (c) => {
+    const [order] = await c.var.orders.delete(orders, eq(orders.id, c.req.param("id")))
+    if (!order) throw new ApiException(404, "Order not found", "NOT_FOUND")
+    return c.body(null, 204)
+  })
+```
+`requireSession` and `sessionOptions` come from [Add sign-in](/docs/guides/add-auth). Mount it with `app.route("/api", ordersApi)`.
+</Step>
+<Step>
+### Try it
+```bash
+curl -b jar -H 'content-type: application/json' -d '{"item":"Dosa"}' localhost:8787/api/orders
+```
+```json
+{
+  "id": "01M7M9GKK4RQDH4HVD6RQJ6Y2W",
+  "userId": "guest",
+  "item": "Dosa",
+  "createdAt": "2026-11-17T08:30:00.000Z",
+  "updatedAt": "2026-11-17T08:30:00.000Z",
+  "deletedAt": null
+}
+```
+`-d '{"item":""}'` returns a 400 with `fieldErrors.item`.
 </Step>
 <Step>
 ### Store money and secrets
 ```ts title="src/db/schema.ts"
-import { money, encrypted, id } from "@dapplelight/signet-db/columns/sqlite"
-import { sqliteTable, text } from "drizzle-orm/sqlite-core"
+import { encrypted, money } from "@dapplelight/signet-db/columns/sqlite"
 
 export const items = sqliteTable("items", { id: id(), ...money("price", { currency: "INR" }) })
 export const profiles = sqliteTable("profiles", { id: id(), userId: text("user_id").notNull(), pan: encrypted("pan") })
 ```
 ```ts title="src/server/db.ts"
 import { createCipher } from "@dapplelight/signet-db"
-import { bindings } from "./env"
 
-const cipher = createCipher({ keys: { k1: bindings.FIELD_KEY }, current: "k1" })
-export const db = createDb(bindings.DB, { schema, cipher })
+export const dbWithCipher = (env: { DB: D1Database; FIELD_KEY: string }) =>
+  createDb(env.DB, { schema, cipher: createCipher({ keys: { k1: env.FIELD_KEY }, current: "k1" }) })
 ```
 </Step>
 <Step>
 ### Make writes safe to retry
-```ts title="src/server/orders.ts"
-import { withIdempotency, enqueue, drainOutbox } from "@dapplelight/signet-db"
-import { app } from "./app"
-import { queue } from "./queue"
+```ts title="src/server/routes/orders.ts"
+import { drainOutbox, enqueue, newId, withIdempotency } from "@dapplelight/signet-db"
+import { queue } from "../queue"
 
-app.post("/orders", async (c) => {
-  const body = await c.req.json()
-  const { userId } = session
-  const order = await withIdempotency(db, c.req.header("idempotency-key") ?? "", userId, () =>
-    scoped(db, { userId }).insert(orders, body),
-  )
-  await db.batch([
-    (tx) => tx.insert(orders).values(order),
-    enqueue(db, "order.created", { orderId: order.id }),
-  ])
+ordersApi.post("/orders/checkout", async (c) => {
+  const db = dbFor(c.env)
+  const body = await parseBody(c, Order)
+  const userId = c.var.orders.userId
+  const order = await withIdempotency(db, c.req.header("idempotency-key") ?? "", userId, async () => {
+    const row = { id: newId(), userId, ...body }
+    await db.batch([(tx) => tx.insert(orders).values(row), enqueue(db, "order.created", { orderId: row.id })])
+    return row
+  })
   await drainOutbox(db, queue, { batch: 50 })
   return c.json(order, 201)
 })

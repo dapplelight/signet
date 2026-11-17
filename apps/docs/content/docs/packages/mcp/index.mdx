@@ -40,6 +40,45 @@ Desktop does not always see a shell's `PATH`, so use `npx`.
   </Tab>
 </Tabs>
 
+## First use
+
+Add the server with the Claude Code or Cursor tab above, open your app, and ask:
+
+```text
+Add a pricing page with monthly and yearly plans. Use Signet.
+```
+
+The agent calls four tools. Outputs are trimmed.
+
+```json title="search_docs"
+{ "query": "pricing plans", "limit": 3 }
+→ { "hits": [
+  { "kind": "export", "title": "Pricing (function)", "ref": "@dapplelight/signet-ui/blocks/pricing" },
+  { "kind": "doc", "title": "@dapplelight/signet-db › Pricing experiments", "ref": "signet://docs/db#pricing-experiments" }
+] }
+```
+
+```json title="plan_page"
+{ "description": "a pricing page with monthly and yearly plans", "target": "web" }
+→ { "recipe": "add-plans",
+  "blocks": [{ "name": "pricing", "command": "npx @dapplelight/signet-cli add block pricing" }],
+  "files": [{ "path": "src/routes/pricing.tsx" }, { "path": "src/components/signet/blocks/pricing/index.tsx" }] }
+```
+
+```json title="compose_component"
+{ "need": "segmented pill choice: monthly or yearly", "limit": 1 }
+→ { "matches": [
+  { "name": "pill-group", "importPath": "@dapplelight/signet-ui/components/pill-group", "parts": ["PillGroup", "PillOption"] }
+] }
+```
+
+```json title="check_app"
+{ "path": "." }
+→ { "ok": true, "errors": 0, "warnings": 0, "findings": [] }
+```
+
+Result: `src/routes/pricing.tsx` renders the pricing block with a monthly/yearly `PillGroup`, and `check_app` passes.
+
 ## Tools
 
 All read-only.

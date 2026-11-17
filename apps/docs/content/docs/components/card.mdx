@@ -3,7 +3,7 @@ title: "Card"
 description: "Displays a card with header, content and footer."
 ---
 
-import { CardDemo, CardWithActionDemo, CardWithFooterDemo, CardSmallDemo } from "@/components/demos/card"
+import { CardDemo, CardWithActionDemo, CardWithFooterDemo, CardSmallDemo, RevenueCardDemo } from "@/components/demos/card"
 
 <Preview>
   <CardDemo />
@@ -179,29 +179,54 @@ import {
 
 </Preview>
 
+## Composition
+
+<Preview>
+  <RevenueCardDemo />
+
+```tsx
+import { Badge } from "@dapplelight/signet-ui/components/badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@dapplelight/signet-ui/components/card"
+import { Progress } from "@dapplelight/signet-ui/components/progress"
+
+export function RevenueCard() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Monthly revenue</CardTitle>
+        <CardDescription>October 2026</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        <div className="text-3xl font-semibold tracking-tight">₹4,82,15,300</div>
+        <div className="flex gap-2">
+          <Badge>+12.4%</Badge>
+          <Badge variant="outline">1,284 subscriptions</Badge>
+        </div>
+        <Progress value={72} />
+        <p className="text-sm text-text-muted">72% of the quarterly target</p>
+      </CardContent>
+    </Card>
+  )
+}
+```
+
+</Preview>
+
 ## API Reference
 
 ### Card
 
-| Prop | Type | Default | Description |
-| --- | --- | --- | --- |
-| `size` | `default` \| `sm` | `default` | `sm` tightens the padding and gaps. |
-| `className` | `string` | - | Merged last. |
+| Prop | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `size` | `"default" \| "sm"` | `"default"` | No | `sm` tightens the padding and gaps. |
+| `className` | `string` | — | No | Merged last. A first-child `img` runs edge to edge. |
 
-Renders a `div`. A first-child `img` runs edge to edge.
+Plus every native [`<div>`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/div) attribute.
 
-### CardHeader, CardTitle, CardDescription, CardContent, CardFooter
+### CardHeader, CardTitle, CardDescription, CardAction, CardContent, CardFooter
 
-| Prop | Type | Default | Description |
-| --- | --- | --- | --- |
-| `className` | `string` | - | Merged last. |
+| Prop | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `className` | `string` | — | No | Merged last. |
 
-Each renders a `div` and takes every `div` prop. `CardFooter` has a top border and a tinted background.
-
-### CardAction
-
-| Prop | Type | Default | Description |
-| --- | --- | --- | --- |
-| `className` | `string` | - | Merged last. |
-
-Sits at the top right of `CardHeader`, spanning the title and description rows.
+Plus every native [`<div>`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/div) attribute. `CardAction` sits at the top right of `CardHeader`. `CardFooter` has a top border and a tinted background.
