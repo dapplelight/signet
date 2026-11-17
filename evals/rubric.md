@@ -1,29 +1,57 @@
 # Eval visual rubric
 
-How the judge scores the screenshots of one eval run. It uses the same dimensions as `scripts/qa/REVIEW.md`, scored instead of listed. The judge reads the run's PNGs with the Read tool.
+How the judge checks the screenshots of one eval run. It is a tree of yes/no checks, not a score out of a scale. The judge reads the run's PNGs with the Read tool. The checks cover the same ground as `scripts/qa/REVIEW.md`.
 
 ## Tiles
 
-Each run has one tile per page, per width (390 and 1440) and per mode (light and dark). The label on a tile reads `<page> · <mode> · <width>`. A tile that says "No shot: ..." failed to capture. Score it as a miss on every dimension it hides and cite it as a finding. A page that does not build has no tiles at all, and scores 0.
+Each run has one tile per page, per width (390 and 1440) and per mode (light and dark). The label on a tile reads `<page> · <mode> · <width>`. A tile that says "No shot: ..." failed to capture. Answer no to every check it hides and cite it as a finding. A page that does not build has no tiles at all, and has no visual result.
 
-## Dimensions
+## How to answer
 
-Score each dimension from 0 to 2. The total is out of 16.
+Answer every check below with yes or no, and nothing in between. Answer yes only when no tile shows the defect. When the page has nothing the check could apply to (for example no list that could be empty), answer yes.
 
-- 0: a clear defect that most people would hit, on any tile.
-- 1: a visible defect on some tiles only, or one with a workaround.
-- 2: no defect on any tile.
+The result is the share of checks answered yes, as a percentage. A check is never weighted.
 
-| Dimension | What to look for |
-| --- | --- |
-| overflow | Anything wider than the viewport, a horizontal scrollbar, content cut off at the page edge. |
-| clipped-text | Text cut off by its container, truncated without reason, or drawn over other content. |
-| contrast | Text or icons hard to read against their background, in either mode. |
-| tokens | Colours, radii and type that look hard-coded, or that do not follow one consistent style across the page. |
-| dark-mode | Light surfaces left in dark mode, dark text on a dark page, borders or shadows that vanish or glare. A page with no dark mode at all scores 0. |
-| tap-targets | Interactive elements smaller than about 44 px on the 390 tiles, or packed so close that a thumb would hit the neighbour. |
-| states | Empty, loading, error and selected states that are blank, broken, missing their message or unlike the rest of the page. |
-| spacing | Padding, gaps or alignment that are uneven, or differ between light and dark or between widths without a reason. |
+The check lines are the only list the harness reads: one line per check, written as a dash, the id in backticks, a colon and the question.
+
+## Checks
+
+### layout
+
+- `layout.no-overflow`: Is every tile free of content wider than the viewport and of a horizontal scrollbar?
+- `layout.no-clipping`: Is all text fully visible, never cut off by its container or drawn over other content?
+- `layout.aligned`: Do the page's blocks line up on one consistent left edge or grid?
+- `layout.uses-width`: At 1440, does the content use the width sensibly, neither stretched edge to edge nor lost in empty space?
+
+### hierarchy
+
+- `hierarchy.heading`: Is there one clear page heading that is visibly the largest text?
+- `hierarchy.primary-action`: Is the main action visibly stronger than the secondary ones?
+- `hierarchy.readable-type`: Do the type sizes step up in a clear order, with body text easy to read?
+
+### spacing
+
+- `spacing.even-gaps`: Are the gaps between similar items equal?
+- `spacing.padding`: Do cards, panels and buttons have comfortable, consistent inner padding?
+- `spacing.stable`: Is the spacing the same in light and dark, and does it change between widths only for a reason?
+
+### tokens
+
+- `tokens.one-palette`: Do all colours, radii and type look like one theme, with no stray hard-coded colour?
+- `tokens.dark-mode`: In dark mode do surfaces, text and borders all switch, with no light surface left behind?
+- `tokens.contrast`: Is text and every icon easy to read against its background in both modes?
+
+### states
+
+- `states.empty`: Is every list or table that could be empty given a visible empty message, or is there none?
+- `states.loading`: Is every area that loads data given a visible loading placeholder, or is there none?
+- `states.error`: Is every form or request that can fail given a visible, worded error, or is there none?
+
+### responsive
+
+- `responsive.stacks`: At 390, does the layout fit one readable column?
+- `responsive.tap-targets`: At 390, are buttons, links and inputs at least about 44 px high and not packed against each other?
+- `responsive.text-fits`: At 390, does all text wrap inside the screen, with no word broken or cut?
 
 ## Severity
 
@@ -34,19 +62,23 @@ Use the axe words, the same as `scripts/qa/REVIEW.md`:
 - **moderate**: a visible defect with a workaround, or in one mode only.
 - **minor**: polish (a few pixels of spacing, a slightly off alignment).
 
-A dimension with a critical or serious finding scores 0. One with only moderate findings scores 1. One with only minor findings, or none, scores 2.
+Severity only labels a finding. Every check you answer no to needs one finding.
 
 ## Answer
 
-The judge answers with one JSON object and nothing else:
+The judge answers with one JSON object and nothing else. `checks` has every id above, each true (yes) or false (no):
 
 ```json
 {
-  "scores": { "overflow": 2, "clipped-text": 2, "contrast": 1, "tokens": 2, "dark-mode": 0, "tap-targets": 1, "states": 2, "spacing": 2 },
+  "checks": { "layout.no-overflow": true, "tokens.dark-mode": false },
   "findings": [
-    { "dimension": "dark-mode", "severity": "serious", "tile": "/ · dark · 390", "note": "The cards stay white on a dark page." }
+    { "dimension": "tokens", "severity": "serious", "tile": "/ · dark · 390", "note": "The cards stay white on a dark page." }
   ]
 }
 ```
 
-Every finding cites the tile it comes from, by the label on the tile. If a run has no findings, `findings` is an empty list.
+`dimension` is the group name (layout, hierarchy, spacing, tokens, states or responsive). Every finding cites the tile it comes from, by the label on the tile. If a run has no findings, `findings` is an empty list.
+
+## Pairwise judge
+
+A second judge sees one screenshot from each of two arms for the same task, the first page at 1440 in light mode. The two are labelled X and Y, in random order, with nothing that names the arm. It answers `{"pick":"X"}`, `{"pick":"Y"}` or `{"pick":"tie"}`. The report shows win rates for C vs B, B vs A and C vs A.

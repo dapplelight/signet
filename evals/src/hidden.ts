@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from "node:fs"
+import { join } from "node:path"
 import { chromium } from "./browser"
 import type { Step } from "./types"
 
@@ -24,15 +26,51 @@ type Page = {
     createReadStream(): Promise<NodeJS.ReadableStream | null>
     path(): Promise<string | null>
   }>
+  route(
+    url: string,
+    handler: (route: {
+      fulfill(o: { status: number; contentType: string; body: string }): Promise<void>
+    }) => Promise<void>,
+  ): Promise<void>
   setDefaultTimeout(ms: number): void
+}
+
+/** Source files under <app>/src with one of the comma-separated extensions, as [path, text]. */
+function sourceFiles(app: string, ext: string): [string, string][] {
+  const want = ext.split(",").map((e) => `.${e.trim()}`)
+  const dir = join(app, "src")
+  return readdirSync(dir, { recursive: true, encoding: "utf8" })
+    .filter((f) => want.some((e) => f.endsWith(e)))
+    .map((f): [string, string] => [f, readFileSync(join(dir, f), "utf8")])
 }
 
 const str = (s: Step, k: string) => String(s[k])
 
 /** Runs one step against the page. Throws with what went wrong. */
-async function run(page: Page, base: string, s: Step) {
+async function run(page: Page, base: string, app: string, s: Step) {
   const t = { timeout: STEP_MS }
   switch (s.do) {
+    case "mockApi": {
+      // Answers every request to this path from now on; a later mockApi for the same path replaces it.
+      const delay = typeof s.delayMs === "number" ? s.delayMs : 0
+      await page.route(`**${str(s, "path")}`, async (route) => {
+        if (delay) await Bun.sleep(delay)
+        await route.fulfill({
+          status: Number(s.status),
+          contentType: typeof s.type === "string" ? s.type : "application/json",
+          body: str(s, "body"),
+        })
+      })
+      return
+    }
+    case "sourceForbids": {
+      const rx = new RegExp(str(s, "pattern"))
+      const hit = sourceFiles(app, typeof s.ext === "string" ? s.ext : "tsx,jsx,ts,js")
+        .map(([f, text]) => [f, rx.exec(text)?.[0]] as const)
+        .find(([, m]) => m)
+      if (hit) throw new Error(`src/${hit[0]} contains "${hit[1]}", which the task forbids`)
+      return
+    }
     case "goto":
       await page.goto(base + str(s, "path"), t)
       return
@@ -100,8 +138,8 @@ async function run(page: Page, base: string, s: Step) {
 
 export type HiddenResult = { pass: boolean; failure?: string }
 
-/** Plays the hidden test in a fresh browser context against the app at `base`. */
-export async function runHidden(base: string, steps: Step[]): Promise<HiddenResult> {
+/** Plays the hidden test in a fresh browser context against the app at `base`. `app` is the app folder, for source checks. */
+export async function runHidden(base: string, steps: Step[], app: string): Promise<HiddenResult> {
   const browser = await chromium().launch()
   try {
     const context = await browser.newContext({
@@ -112,7 +150,7 @@ export async function runHidden(base: string, steps: Step[]): Promise<HiddenResu
     page.setDefaultTimeout(STEP_MS)
     for (const [i, s] of steps.entries())
       try {
-        await run(page, base, s)
+        await run(page, base, app, s)
       } catch (e) {
         const why = e instanceof Error ? (e.message.split("\n")[0] ?? "error") : String(e)
         return { pass: false, failure: `step ${i + 1} (${s.do}): ${why}` }

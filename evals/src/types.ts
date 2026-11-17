@@ -38,8 +38,10 @@ export type Shot = {
 }
 
 export type Visual = {
-  total: number
-  scores: Record<string, number>
+  /** Yes/no checks by id ("layout.no-overflow"), true = yes. */
+  checks: Record<string, boolean>
+  /** Share of checks answered yes, 0 to 100. */
+  percent: number
   findings: { dimension: string; severity: string; tile: string; note: string }[]
 }
 
@@ -66,6 +68,18 @@ export type RunResult = {
   sheet: string | null
   visual: Visual | null
   visualFailure?: string
+  /** Signet MCP tools and CLIs the agent called, name to count ("plan_page", "cli:check"). Null when the output had no tool log. */
+  signet: Record<string, number> | null
+}
+
+/** One blind pairwise verdict for the same task and run number, two arms. */
+export type Pair = {
+  task: string
+  run: number
+  /** The arms shown as X and Y, in the random order the judge saw them. */
+  x: ArmId
+  y: ArmId
+  winner: ArmId | "tie"
 }
 
 export type Meta = {
