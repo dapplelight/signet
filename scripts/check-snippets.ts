@@ -102,6 +102,13 @@ const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "")
  * (exports point at dist/, which CI has not built yet), so a name or subpath that does not exist fails.
  */
 function workspacePaths(): Record<string, string[]> {
+  // mcp's src/generated/ is gitignored and only written by its `gen` script.
+  if (!existsSync(join(ROOT, "packages/mcp/src/generated/index.ts")))
+    Bun.spawnSync(["bun", "run", "gen"], {
+      cwd: join(ROOT, "packages/mcp"),
+      stdout: "inherit",
+      stderr: "inherit",
+    })
   const paths: Record<string, string[]> = {}
   for (const d of readdirSync(join(ROOT, "packages"))) {
     let pkg: { name?: string; exports?: Record<string, unknown> }

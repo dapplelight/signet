@@ -230,7 +230,7 @@ writeFileSync(
       root: true,
       pages: [
         "index",
-        "---Components---",
+        "---Primitives---",
         ...group("ui"),
         "---Domain---",
         ...group("domain"),
