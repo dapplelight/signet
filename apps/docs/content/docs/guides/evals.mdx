@@ -9,7 +9,7 @@ The evals harness gives a coding agent the same task three ways and scores what 
 
 Each task runs in a fresh temporary app, once per arm.
 
-- **A** is plain Vite and React. The agent gets no Signet.
+- **A** is Vite, React and Tailwind v4, with shadcn/ui allowed: the usual stack without Signet. The agent gets no Signet.
 - **B** is Signet, the MCP server and `llms.txt`.
 - **C** is B plus blocks, `plan_page`, `check` and `--describe`.
 
@@ -60,7 +60,7 @@ Each run is scored on whether it builds and typechecks, whether the hidden test 
 Two judges look at the screenshots, against [`evals/rubric.md`](https://github.com/dapplelight/signet/blob/main/evals/rubric.md):
 
 - **Yes/no checks.** The rubric is a tree of yes/no checks in six groups: layout, hierarchy, spacing, tokens-only colour, states (empty, loading, error) and responsive at 390 px. The score is the share of checks the judge answers yes, as a percentage.
-- **Blind pairwise.** After all runs, a second judge gets one screenshot from each of two arms for the same task and run (the first page at 1440, light). They are labelled X and Y in random order and nothing names the arm. It picks X, Y or a tie. Pairs are C vs B, B vs A and C vs A.
+- **Blind pairwise.** After all runs, a second judge gets one screenshot from each of two arms for the same task and run (the first page at 1440, light). They are labelled X and Y in random order and nothing names the arm. It picks X, Y or a tie. Each pair is judged twice with the order swapped, and an arm wins only when both answers agree; a split counts as a tie, because judges favour whichever image comes first. Pairs are C vs B, B vs A and C vs A.
 
 The tool log comes from `claude -p --output-format json --verbose`, which prints every message. The harness counts Signet MCP tools by name (such as `plan_page` or `get_component`) and, from Bash commands, `signet check`, `add` and `--describe`.
 

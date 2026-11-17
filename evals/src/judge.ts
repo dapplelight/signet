@@ -185,7 +185,7 @@ export const pickWinner = (pick: "X" | "Y" | "tie", x: ArmId, y: ArmId): ArmId |
 
 /**
  * Judges one pair blind: the two PNGs are copied to X.png and Y.png in a fresh folder (the file
- * names and paths hold no arm), and which arm is X comes from `rng`. Returns null when the judge fails.
+ * names and paths hold no arm), and which arm is X comes from `rng`. Each pair is asked in both orders. Returns null when the judge fails.
  */
 export async function judgePair(
   job: PairJob,
@@ -199,16 +199,20 @@ export async function judgePair(
     const from = (r: RunResult) => join(resultsDir, (pairShot(r) as Shot).path as string)
     copyFileSync(from(x), join(dir, "X.png"))
     copyFileSync(from(y), join(dir, "Y.png"))
-    const pick = parsePick(
-      await ask(pairPrompt(job.task, join(dir, "X.png"), join(dir, "Y.png")), model, 6, dir),
-    )
+    const judge = async (first: string, second: string) =>
+      parsePick(await ask(pairPrompt(job.task, join(dir, first), join(dir, second)), model, 6, dir))
+    // Judges favour the first image when two look alike, so ask in both orders and count a
+    // win only when both agree; a split is a tie.
+    const pick = await judge("X.png", "Y.png")
+    const swapped = await judge("Y.png", "X.png")
+    const back = swapped === "X" ? "Y" : swapped === "Y" ? "X" : "tie"
     return {
       pair: {
         task: job.task,
         run: job.run,
         x: x.arm,
         y: y.arm,
-        winner: pickWinner(pick, x.arm, y.arm),
+        winner: pick === back ? pickWinner(pick, x.arm, y.arm) : "tie",
       },
     }
   } catch (e) {
