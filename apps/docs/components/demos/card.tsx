@@ -1,4 +1,5 @@
 "use client"
+import { Badge } from "@dapplelight/signet-ui/components/badge"
 import { Button } from "@dapplelight/signet-ui/components/button"
 import {
   Card,
@@ -9,6 +10,28 @@ import {
   CardHeader,
   CardTitle,
 } from "@dapplelight/signet-ui/components/card"
+import { Progress } from "@dapplelight/signet-ui/components/progress"
+
+/** The homepage "Monthly revenue" tile, also the Card composition. */
+export function RevenueCardDemo() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Monthly revenue</CardTitle>
+        <CardDescription>October 2026</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        <div className="text-3xl font-semibold tracking-tight">₹4,82,15,300</div>
+        <div className="flex gap-2">
+          <Badge>+12.4%</Badge>
+          <Badge variant="outline">1,284 subscriptions</Badge>
+        </div>
+        <Progress value={72} />
+        <p className="text-sm text-text-muted">72% of the quarterly target</p>
+      </CardContent>
+    </Card>
+  )
+}
 
 export function CardDemo() {
   return (

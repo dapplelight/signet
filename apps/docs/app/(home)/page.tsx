@@ -21,7 +21,7 @@ export default function HomePage() {
             Get started
           </Link>
           <Link
-            href="/docs/components/button"
+            href="/docs/components"
             className="rounded-lg border border-fd-border px-4 py-2 text-sm font-medium hover:bg-fd-accent"
           >
             Browse components

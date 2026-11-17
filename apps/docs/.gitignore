@@ -28,5 +28,6 @@ next-env.d.ts
 /content/docs/packages/meta.json
 /content/docs/packages/*/meta.json
 /content/docs/components/meta.json
+/content/docs/components/index.mdx
 /components/demos.generated.tsx
 /.wrangler/

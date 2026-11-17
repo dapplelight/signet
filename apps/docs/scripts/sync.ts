@@ -97,7 +97,7 @@ if (gaps.length && !process.env.DOCS_ALLOW_GAPS)
   throw new Error(`package docs missing (${gaps.length}): ${gaps.join(", ")}`)
 writeFileSync(
   join(out, "meta.json"),
-  `${JSON.stringify({ title: "Packages", root: true, pages: GROUPS.flatMap(([g, items]) => [`---${g}---`, ...items.map(([p]) => p)]) }, null, 2)}\n`,
+  `${JSON.stringify({ title: "Packages", root: true, pages: ["index", ...GROUPS.flatMap(([g, items]) => [`---${g}---`, ...items.map(([p]) => p)])] }, null, 2)}\n`,
 )
 console.log(`docs: ${PACKAGES.length} package pages`)
 
@@ -229,6 +229,7 @@ writeFileSync(
       title: "Components",
       root: true,
       pages: [
+        "index",
         "---Components---",
         ...group("ui"),
         "---Domain---",
@@ -244,6 +245,30 @@ writeFileSync(
 const missingPages = comps.filter((c) => !existsSync(join(compDir, `${page(c)}.mdx`)))
 if (missingPages.length)
   throw new Error(`components without a page: ${missingPages.map((c) => c.name).join(", ")}`)
+
+// The /docs/components grid: one card per page, title and description from
+// its frontmatter, alphabetical. Generated so a new component is never missing.
+const front = (src: string, key: string) => new RegExp(`^${key}: "(.*)"$`, "m").exec(src)?.[1] ?? ""
+const cards = comps
+  .map((c) => {
+    const src = readFileSync(join(compDir, `${page(c)}.mdx`), "utf8")
+    const description = front(src, "description")
+    return {
+      href: `/docs/components/${page(c)}`,
+      title: front(src, "title"),
+      description: kind(c) === "domain" ? `Domain: ${description}` : description,
+    }
+  })
+  .sort((a, b) => a.title.localeCompare(b.title))
+writeFileSync(
+  join(compDir, "index.mdx"),
+  `---\ntitle: "Components"\ndescription: "Themed, accessible React components, domain blocks and screens from signet-ui."\n---\n\n${MARK}\n\n<Cards>\n${cards
+    .map(
+      (c) =>
+        `  <Card title="${esc(c.title)}" href="${c.href}" description="${esc(c.description)}" />`,
+    )
+    .join("\n")}\n</Cards>\n`,
+)
 console.log(
   `docs: ${comps.length} component pages (${comps.filter(live).length} with a live preview)`,
 )

@@ -2,6 +2,22 @@
 import { Alert, AlertDescription, AlertTitle } from "@dapplelight/signet-ui/components/alert"
 import { AlertTriangleIcon, CircleAlertIcon, InfoIcon } from "lucide-react"
 
+/** The homepage alerts tile ("Card declined"), also the Alert composition. */
+export function AlertStackDemo() {
+  return (
+    <div className="grid gap-4">
+      <Alert>
+        <AlertTitle>Deploy succeeded</AlertTitle>
+        <AlertDescription>production · 41s · commit 9f3c2e1</AlertDescription>
+      </Alert>
+      <Alert variant="destructive">
+        <AlertTitle>Card declined</AlertTitle>
+        <AlertDescription>Ask the customer for another payment method.</AlertDescription>
+      </Alert>
+    </div>
+  )
+}
+
 export function AlertDemo() {
   return (
     <Alert className="max-w-md">
