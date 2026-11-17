@@ -1,0 +1,14 @@
+---
+title: "generated"
+description: "INDEX: the index the MCP server answers from, exported for tools that build on it."
+---
+
+`INDEX` is the index of docs, exports, components, blocks, recipes and themes that the MCP tools read. It is built from the repo when the package is built and ships inside the package, so reading it makes no network calls.
+
+```ts
+import { INDEX } from "@dapplelight/signet-mcp/generated"
+
+INDEX.blocks.map((b) => b.name)
+```
+
+Pass it to `planPage` from [`plan`](/docs/packages/mcp/plan). Its shape is `SignetIndex`, and it changes with every release: read it, do not depend on a field staying put.

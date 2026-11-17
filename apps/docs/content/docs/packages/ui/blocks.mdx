@@ -1,0 +1,51 @@
+---
+title: "Blocks"
+description: "Whole-page starting points: dashboard, auth, pricing, settings and more, meant to be copied in and edited."
+---
+
+## Usage
+
+A block is a full page built from Signet components. Copy it into your app and edit it:
+
+```bash
+signet add block pricing
+```
+
+You can also import one directly while you prototype:
+
+```tsx
+import { Pricing } from "@dapplelight/signet-ui/blocks/pricing"
+
+export function Plans() {
+  return (
+    <Pricing
+      plans={[
+        { id: "free", name: "Free", price: { month: 0 }, features: ["1 project"] },
+        { id: "pro", name: "Pro", price: { month: 1200, year: 12000 }, features: ["Unlimited projects"], highlighted: true },
+      ]}
+      currency="USD"
+      onSelect={(plan, interval) => startCheckout(plan.id, interval)}
+    />
+  )
+}
+```
+
+Like screens, a block is data in, callbacks out: no fetch or router inside. Prices are minor units. Every block takes a `state` of `ready`, `loading` or `error`, and exports `DEFAULT_*_LABELS` to reword its strings through a `labels` prop.
+
+## API
+
+Each block is its own path, `@dapplelight/signet-ui/blocks/<name>`.
+
+| Block | What it is |
+| --- | --- |
+| `analytics-dashboard` | Metric tiles, a chart and a recent-activity table with a range picker. |
+| `auth-page` | Sign in or sign up with one-time code and provider buttons. |
+| `checkout-summary` | Order lines, discount, tax and total with a pay button. |
+| `empty-page` | A page-sized empty state with one action. |
+| `error-page` | A 404 or 500 page. |
+| `list-detail` | A filterable list with a detail pane. |
+| `onboarding` | Step-by-step welcome flow. |
+| `pricing` | Plan cards with a monthly and yearly toggle. |
+| `settings` | General settings, notification toggles and a danger zone. |
+
+The `screens/cost-dashboard` screen, which shows AI spend, is under [Screens](/docs/packages/ui/screens).

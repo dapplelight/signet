@@ -1,0 +1,25 @@
+---
+title: "plan"
+description: "planPage: a page described in words to a file plan, without running the MCP server."
+---
+
+The same function behind the `plan_page` tool. It ranks the blocks, components, server modules and recipes in the built index against your words and returns a plan. No LLM call: the same description always gives the same plan.
+
+```ts
+import { INDEX } from "@dapplelight/signet-mcp/generated"
+import { planPage } from "@dapplelight/signet-mcp/plan"
+
+const plan = planPage(INDEX, "pricing page with monthly and yearly plans", "web")
+plan.blocks // [{ name: "pricing", why, command: "signet add block pricing" }]
+plan.files // [{ path, purpose }, ...]
+```
+
+`create-signet-app --describe` uses it to write `PLAN.md`.
+
+## API
+
+| Export | What it is |
+| --- | --- |
+| `planPage(index, description, target)` | Returns a `PagePlan`. `target` is a `PlanTarget`. |
+| `PlanTarget` | `"web"`, `"api"` or `"full"`. `web` plans a page, `api` plans the route behind it, `full` plans both. |
+| `PagePlan` | `{ target, recipe, blocks, components, modules, data, files, next, hint? }`. `blocks` carry the `signet add block` command, `data` says what the page must be given, `hint` appears when nothing matched well. |
