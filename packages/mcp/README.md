@@ -10,10 +10,6 @@ Everything it answers comes from an index built from this repo when the
 package is built, and that index ships inside the package. It makes no network
 calls and cannot fall behind the version it was built with.
 
-> Not on npm yet (`"private": true`). Until it is published, point your client
-> at a clone: `node /path/to/signet/packages/mcp/dist/bin.js` after
-> `bun install && bun run build:all` in the repo.
-
 ## Install
 
 Claude Code:

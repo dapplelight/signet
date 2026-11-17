@@ -22,7 +22,8 @@ import { $ } from "bun"
 
 // config, tokens and lib depend on nothing local; ui needs tokens; ai needs lib.
 // config is first: it is files only, and consumers install it before anything.
-// create-signet-app last: its full template installs signet-db and signet-payments.
+// mcp needs server. create-signet-app last: its full template installs signet-db
+// and signet-payments, and --describe reads signet-mcp's index.
 const ORDER = [
   "config",
   "tokens",
@@ -33,6 +34,7 @@ const ORDER = [
   "server",
   "ai",
   "spec",
+  "mcp",
   "create-signet-app",
 ] as const
 

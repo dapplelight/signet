@@ -34,6 +34,7 @@ Bun, npm and pnpm all work (`bunx`, `npm create signet-app my-app -- --template 
 | `--target` | `cloudflare`, `bun`, `node`, `vercel` | `cloudflare` | `api` only. |
 | `--mcp`, `--no-mcp` | flag | asks on a terminal, else `--mcp` | `api` and `full` only. Serve routes to agents at `/mcp`. |
 | `--pm` | `bun`, `npm`, `pnpm` | the one that ran it, else `bun` | Sets the printed commands, the CI workflow and the full template's README. |
+| `--describe` | sentence | none | `web`, `api` and `full` only. Picks the template and theme, then writes `PLAN.md` and `AGENTS.md`. An explicit `--template` or `--theme` wins. |
 | `-h`, `--help` | | | Print usage. |
 
 ## Templates
@@ -154,6 +155,58 @@ Bun, npm and pnpm all work (`bunx`, `npm create signet-app my-app -- --template 
 </Tabs>
 
 The generated env file gets fresh `SESSION_SECRET` and `OTP_SECRET` values in the `full` template. Templates ship `_gitignore` and `_github`, renamed to `.gitignore` and `.github` on scaffold.
+
+## Plan the whole app from one sentence
+
+```bash
+npx create-signet-app my-app --describe "a team inbox with settings and pricing"
+```
+
+`--describe` scaffolds as usual, then writes two files in the new app:
+
+- `PLAN.md`: the pages, each with its block command, components, server modules and data; the data models; the recipes to apply; the build order; and the check to run after each page.
+- `AGENTS.md`: tells a coding agent to follow `PLAN.md` one page at a time and not to move on until the check passes.
+
+It makes no LLM call. The template (`web`, `api` or `full`) and theme come from keywords in the sentence, each page comes from the `plan_page` tool of [signet-mcp](/docs/packages/mcp), and the same sentence always gives the same files. A sign-in or API word picks `full` (or `api` if no page matches); a finance or media word picks that theme, else `editorial`. `--template` and `--theme` always win, and `--describe` with `cli`, `extension` or `desktop` is an error. If nothing matches, the app is still scaffolded and `PLAN.md` lists words to try.
+
+A trimmed `PLAN.md`:
+
+````md
+# Plan: my-app
+
+> a team inbox with settings and pricing
+
+Template: web · Theme: editorial
+
+## Pages
+
+### 1. list-detail
+
+**Blocks**
+
+- `list-detail`: List with search and status filters, paging, and a detail pane that becomes a sheet on phones.
+
+```bash
+npx @dapplelight/signet-cli add block list-detail
+```
+
+**Data**
+
+- items: id, title, status and the fields the detail pane shows
+
+## Build order
+
+1. list-detail: run its block command, wire its data, then `npx @dapplelight/signet-cli check --pages /list-detail`.
+
+## After each page
+
+```bash
+npx @dapplelight/signet-cli check --pages /<page>
+npm run test
+```
+````
+
+The [Build a whole app with an agent](/docs/guides/build-a-whole-app-with-an-agent) guide walks through the whole flow.
 
 ## Examples
 

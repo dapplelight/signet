@@ -1,0 +1,83 @@
+---
+title: "Build a whole app with an agent"
+description: "Describe an app in one sentence, get a PLAN.md, and let a coding agent build it page by page."
+---
+
+Describe the app in one sentence and `create-signet-app` scaffolds it and writes a plan: the pages, the data they need and the order to build them in. A coding agent then follows the plan one page at a time. This guide builds a team inbox with settings and pricing, with sample data like "Projects" and "Active users".
+
+## 1. Scaffold with --describe
+
+```bash
+npx create-signet-app my-app --describe "a team inbox with settings and pricing"
+```
+
+It picks the template and theme from the sentence, scaffolds, and prints the pages it planned.
+
+```text
+Planned 3 pages in PLAN.md: list-detail, settings, pricing. Hand AGENTS.md to your coding agent.
+```
+
+It makes no LLM call, so the same sentence always gives the same plan. Add `--template` or `--theme` to choose them yourself; see the [flags](/docs/packages/create-signet-app#flags).
+
+## 2. Read PLAN.md
+
+`PLAN.md` has a fixed set of sections: Pages, Data models, Recipes, Build order and After each page. Each page lists the block command, the components and import paths, the server modules and the data the block takes.
+
+```md
+### 3. pricing
+
+- `pricing`: Pricing table: plan cards from props with a highlighted plan, a Monthly / Yearly toggle, features with checks and a call to action.
+
+- plans: name, price per interval, features and call to action for each plan
+- currency: an ISO code such as USD
+```
+
+If no page matched, the plan says so and lists words to try, such as dashboard, settings, pricing and inbox. Rephrase and run the page-level [`plan_page`](/docs/guides/build-a-page-with-an-agent) tool for each page instead.
+
+## 3. Hand AGENTS.md to your agent
+
+`AGENTS.md` is short. It tells the agent to build the pages in the plan's build order, to run each page's check before moving on, and to use only Signet's components and tokens. Add the Signet MCP server so the agent can look things up. The steps are on the [MCP server page](/docs/packages/mcp).
+
+```bash
+claude mcp add signet -- bunx @dapplelight/signet-mcp
+```
+
+Then tell the agent: "Follow PLAN.md."
+
+## 4. Build one page
+
+For each page, in build order, the agent runs the block command and wires the data.
+
+```bash
+npx @dapplelight/signet-cli add block list-detail
+```
+
+Replace the sample data with your own, shaped like the page's data lines. Here that is `items` for the inbox, with an id, a title and a status.
+
+```tsx
+<ListDetail
+  items={[
+    { id: "1", title: "Projects", status: "open" },
+    { id: "2", title: "Active users", status: "open" },
+  ]}
+/>
+```
+
+## 5. Check before the next page
+
+Start the dev server, then run the check from the plan with the page's path.
+
+```bash
+npx @dapplelight/signet-cli check --pages /list-detail
+npm run test
+```
+
+`check` typechecks, runs Biome, checks Signet's conventions and screenshots the page at 390 and 1280 px with axe. Fix every finding and rerun until it exits 0. Only then move on to the next page. The [CLI page](/docs/packages/cli#check) lists the flags.
+
+## Next
+
+<Cards>
+  <Card title="Create Signet App" href="/docs/packages/create-signet-app" description="Every flag and template." />
+  <Card title="Build a page with an agent" href="/docs/guides/build-a-page-with-an-agent" description="One page at a time with plan_page." />
+  <Card title="Page Blocks" href="/docs/guides/blocks" description="Every block, its props and its parts." />
+</Cards>

@@ -10,7 +10,18 @@
  * still slips through. Diff packed file hashes if that bites.
  */
 
-const PKGS = ["config", "tokens", "lib", "db", "payments", "ui", "server", "ai", "spec"] as const
+const PKGS = [
+  "config",
+  "tokens",
+  "lib",
+  "db",
+  "payments",
+  "ui",
+  "server",
+  "ai",
+  "spec",
+  "mcp",
+] as const
 const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "")
 
 const keys = (e: unknown) => (e && typeof e === "object" ? Object.keys(e).sort() : [])

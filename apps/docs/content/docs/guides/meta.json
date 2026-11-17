@@ -47,6 +47,7 @@
     "add-ai-extraction",
     "add-mcp-tools",
     "mcp-by-default",
-    "build-a-page-with-an-agent"
+    "build-a-page-with-an-agent",
+    "build-a-whole-app-with-an-agent"
   ]
 }
