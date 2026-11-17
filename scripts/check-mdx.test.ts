@@ -57,6 +57,16 @@ ok(
   "a { inside a string in an export line does not blank later prose",
   lines('export const sep = "{"\n\nPass the <reason> here.\n').join() === "3",
 )
+ok(
+  "prose starting with export/import is still checked",
+  lines("export the usage with <reason> set\nimport the data into {total}\n").join() === "1,2",
+)
+ok(
+  "default, namespace and type imports and exports are skipped",
+  lines(
+    'import Foo from "x"\nimport * as B from "y"\nimport type { T } from "z"\nimport "side"\nexport default Foo\nexport type X = { a: 1 }\nexport { Foo }\n',
+  ).length === 0,
+)
 ok('prose JSON {"ok": true} is flagged', lines('Reply with {"ok": true} on success.').length === 1)
 ok(
   "a long string expression passes",

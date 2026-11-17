@@ -17,6 +17,10 @@ import { join } from "node:path"
 
 export type Problem = { line: number; message: string }
 
+// Real ESM statement openers only, so prose like "export the usage with <reason>" is still checked.
+const ESM_START =
+  /^import(?:\s+type)?\s*(?:[{*"']|[\w$]+\s*(?:,|\s+from\b))|^export\s*[{*]|^export\s+(?:const|let|var|function|async|class|default|type|interface|enum)\b/
+
 /** Blank out text that MDX does not parse, keeping every newline so line numbers hold. */
 function mask(src: string): string {
   const blank = (s: string) => s.replace(/[^\n]/g, " ")
@@ -39,7 +43,7 @@ function mask(src: string): string {
       return blank(line)
     }
     // ESM: `import { A } from "x"` / `export const x = ...`, possibly over several lines.
-    if (esm > 0 || /^(import|export)\s/.test(line)) {
+    if (esm > 0 || ESM_START.test(line)) {
       // Braces inside string literals do not open or close a block.
       const code = line.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, "")
       esm = Math.max(0, esm + (code.match(/\{/g)?.length ?? 0) - (code.match(/\}/g)?.length ?? 0))
