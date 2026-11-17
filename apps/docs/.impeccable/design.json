@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-17T00:00:00Z",
+  "title": "Design System: Signet docs",
+  "extensions": {
+    "colorMeta": {
+      "page": { "role": "neutral", "displayName": "Page White", "canonical": "#ffffff" },
+      "page-dark": { "role": "neutral", "displayName": "Page Black", "canonical": "#0a0a0a" },
+      "ink": { "role": "primary", "displayName": "Ink", "canonical": "#0a0a0a", "tonalRamp": ["#0a0a0a", "#171717", "#262626", "#404040", "#737373", "#a3a3a3", "#e5e5e5", "#fafafa"] },
+      "muted-ink": { "role": "neutral", "displayName": "Muted Ink", "canonical": "#737373" },
+      "hairline": { "role": "neutral", "displayName": "Hairline", "canonical": "#e5e5e5" },
+      "wash": { "role": "neutral", "displayName": "Wash", "canonical": "#f5f5f5" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "The landing hero line only." },
+      "headline": { "displayName": "Headline", "purpose": "Section headings, written as plain statements." },
+      "code": { "displayName": "Code", "purpose": "Commands and code blocks only." }
+    },
+    "shadows": [],
+    "motion": [
+      { "name": "state", "value": "150ms ease", "purpose": "Colour and opacity changes on hover and tab selection." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The main action (Read the docs).",
+      "html": "<a class=\"ds-btn-primary\" href=\"#\">Read the docs <svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M5 12h14M12 5l7 7-7 7\"/></svg></a>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 16px;border-radius:8px;background:#171717;color:#fafafa;font:500 14px Geist,system-ui,sans-serif;text-decoration:none;transition:opacity .15s}.ds-btn-primary:hover{opacity:.9}.ds-btn-primary:focus-visible{outline:2px solid #a3a3a3;outline-offset:2px}"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary action (Star on GitHub).",
+      "html": "<a class=\"ds-btn-outline\" href=\"#\">Star on GitHub</a>",
+      "css": ".ds-btn-outline{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 16px;border-radius:8px;border:1px solid #e5e5e5;color:#0a0a0a;font:500 14px Geist,system-ui,sans-serif;text-decoration:none;transition:background .15s}.ds-btn-outline:hover{background:#f5f5f5}.ds-btn-outline:focus-visible{outline:2px solid #a3a3a3;outline-offset:2px}"
+    },
+    {
+      "name": "Command Panel",
+      "kind": "custom",
+      "refersTo": "command-panel",
+      "description": "Tabbed copyable commands: scaffolder and MCP server.",
+      "html": "<div class=\"ds-cmd\"><div class=\"ds-cmd-tabs\"><button class=\"on\">New app</button><button>MCP server</button></div><div class=\"ds-cmd-line\"><code><span>$ </span>npx create-signet-app@latest my-app</code></div></div>",
+      "css": ".ds-cmd{max-width:576px;border:1px solid #e5e5e5;border-radius:12px;overflow:hidden;background:#fff}.ds-cmd-tabs{display:flex;gap:4px;padding:0 8px;border-bottom:1px solid #e5e5e5}.ds-cmd-tabs button{margin-bottom:-1px;padding:10px;border:0;border-bottom:2px solid transparent;background:none;color:#737373;font:14px Geist,system-ui,sans-serif;cursor:pointer}.ds-cmd-tabs button:hover{color:#0a0a0a}.ds-cmd-tabs .on{border-bottom-color:#0a0a0a;color:#0a0a0a}.ds-cmd-line{padding:14px 16px}.ds-cmd-line code{font:14px 'Geist Mono',ui-monospace,monospace;color:#0a0a0a}.ds-cmd-line span{color:#737373}"
+    },
+    {
+      "name": "Fact Row",
+      "kind": "custom",
+      "refersTo": "fact-row",
+      "description": "Hairline-ruled link row: package name, one-line fact, arrow.",
+      "html": "<a class=\"ds-row\" href=\"#\"><b>Payments</b><span>12 providers posting to one ledger.</span><i>→</i></a>",
+      "css": ".ds-row{display:grid;grid-template-columns:8.5rem 1fr auto;gap:16px;align-items:baseline;padding:16px 0;border-top:1px solid #e5e5e5;color:#0a0a0a;text-decoration:none;font:16px Geist,system-ui,sans-serif}.ds-row b{font-weight:500}.ds-row span{font-size:14px;color:#737373}.ds-row i{font-style:normal;color:#737373;transition:transform .15s}.ds-row:hover i{transform:translateX(2px);color:#0a0a0a}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Category Standard",
+    "overview": "The docs and landing page sit beside ui.shadcn.com and Vercel's docs: white or near-black, neutral greys, hairlines, Geist, and the product's own live components as the only colour.",
+    "keyCharacteristics": ["One surface, hairline separation", "Geist sans and mono", "Live Signet components as proof", "Left-aligned, short text"],
+    "rules": [
+      { "name": "The One Surface Rule", "body": "Containers separate by a 1px hairline, never by a different background or a shadow.", "section": "colors" },
+      { "name": "The Statement Rule", "body": "Section headings are plain sentences stating a fact, with no label above them.", "section": "typography" }
+    ],
+    "dos": ["Do render real components and commands", "Do keep the action order: scaffolder, MCP, docs, star"],
+    "donts": ["Don't add kickers or eyebrows", "Don't use gradient glow, glass, seals, fake chats or decorative serifs", "Don't use a grid of equal icon cards"]
+  }
+}

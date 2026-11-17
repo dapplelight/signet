@@ -21,9 +21,17 @@ import { SignUpCardDemo } from "./demos/input"
  * A showcase tile plus a row of links to the docs of the components in it.
  * The tile itself is never a link: it holds inputs and switches.
  */
-function Tile({ links, children }: { links: string[]; children: ReactNode }) {
+function Tile({
+  links,
+  className = "",
+  children,
+}: {
+  links: string[]
+  className?: string
+  children: ReactNode
+}) {
   return (
-    <div className="grid grid-rows-[1fr_auto] gap-2">
+    <div className={`mb-4 flex break-inside-avoid flex-col gap-2 ${className}`}>
       {children}
       <p className="text-sm text-fd-muted-foreground">
         {links.map((name, i) => (
@@ -45,7 +53,7 @@ function Tile({ links, children }: { links: string[]; children: ReactNode }) {
 /** Live Signet components with realistic content, like the shadcn/ui home page. */
 export function Showcase() {
   return (
-    <div className="grid gap-4 text-left text-foreground md:grid-cols-2 lg:grid-cols-3">
+    <div className="columns-1 gap-4 text-left text-foreground md:columns-2 lg:columns-3">
       <Tile links={["Card", "Label", "Input", "Button"]}>
         <SignUpCardDemo />
       </Tile>
@@ -75,7 +83,7 @@ export function Showcase() {
         </Card>
       </Tile>
 
-      <Tile links={["Card", "Avatar", "Badge"]}>
+      <Tile links={["Card", "Avatar", "Badge"]} className="max-md:hidden">
         <Card>
           <CardHeader>
             <CardTitle>Team</CardTitle>
@@ -99,7 +107,7 @@ export function Showcase() {
         </Card>
       </Tile>
 
-      <Tile links={["Card", "Kbd", "Tabs"]}>
+      <Tile links={["Card", "Kbd", "Tabs"]} className="max-md:hidden">
         <Card>
           <CardHeader>
             <CardTitle>API keys</CardTitle>
@@ -124,7 +132,7 @@ export function Showcase() {
         </Card>
       </Tile>
 
-      <Tile links={["Alert"]}>
+      <Tile links={["Alert"]} className="max-md:hidden">
         <AlertStackDemo />
       </Tile>
     </div>

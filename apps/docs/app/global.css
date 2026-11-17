@@ -5,9 +5,6 @@
    --color-fd-* variables, so the two don't collide. */
 @import "@dapplelight/signet-tokens/editorial.css";
 @import "@dapplelight/signet-tokens/base.css";
-/* The home page's theme switcher: cinematic and finance scoped to
-   [data-signet-theme], generated from the real theme files by scripts/sync.ts. */
-@import "./themes.generated.css";
 @source "../../../packages/ui/src";
 
 /* Signet's editorial theme shifts the type scale down a step (text-sm is
@@ -19,22 +16,6 @@
   --text-base: 1rem;
   --text-lg: 1.125rem;
   --text-xl: 1.25rem;
-}
-
-/* Editorial's own values, declared without `inline` so the utilities read
-   them as variables. A [data-signet-theme] wrapper can then reshape radius,
-   spacing and weight as well as colour, the way an app's theme file does. */
-@theme {
-  --radius-sm: 0.375rem;
-  --radius-md: 0.625rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
-  --radius-2xl: 1.25rem;
-  --spacing: calc(0.25rem * var(--density, 1) * var(--density-component, 1));
-  --font-weight-normal: 400;
-  --font-weight-medium: 500;
-  --font-weight-semibold: 600;
-  --font-weight-bold: 700;
 }
 
 /* Signet's base.css paints body with the theme background; the docs chrome
@@ -140,56 +121,4 @@ figure.shiki > div:first-child > figcaption {
 }
 figure.shiki > div:first-child svg {
   color: var(--color-fd-muted-foreground);
-}
-
-/* ── Home page ─────────────────────────────────────────────
-   Sealing wax, the one accent the page owns. --wax fills the seal; --seal
-   is the same hue made text-safe on the page ground (>= 4.5:1 both modes). */
-:root {
-  --wax: #a3182b;
-  --seal: #a3182b;
-  --seal-ink: #fff4f1;
-}
-.dark {
-  --wax: #b8202f;
-  --seal: #f07079;
-}
-.home ::selection {
-  background: color-mix(in srgb, var(--seal) 24%, transparent);
-}
-.home :focus-visible {
-  outline: 2px solid var(--seal);
-  outline-offset: 2px;
-}
-.home a {
-  text-underline-offset: 0.25em;
-  text-decoration-thickness: 1px;
-}
-
-/* The seal press: falls from above out of focus, lands, settles. The one
-   authored motion on the page. */
-@keyframes seal-press {
-  0% {
-    opacity: 0;
-    transform: scale(1.9) rotate(-24deg);
-    filter: blur(6px) drop-shadow(0 22px 18px rgb(0 0 0 / 0.35));
-  }
-  55% {
-    opacity: 1;
-    transform: scale(0.94) rotate(-9deg);
-    filter: blur(0) drop-shadow(0 1px 1px rgb(0 0 0 / 0.3));
-  }
-  100% {
-    transform: scale(1) rotate(-10deg);
-    filter: blur(0) drop-shadow(0 2px 3px rgb(0 0 0 / 0.22));
-  }
-}
-.seal {
-  transform: rotate(-10deg);
-  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.22));
-}
-@media (prefers-reduced-motion: no-preference) {
-  .seal[data-press] {
-    animation: seal-press 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
-  }
 }
