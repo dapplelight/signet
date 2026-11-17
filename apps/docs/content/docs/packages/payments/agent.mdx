@@ -8,6 +8,8 @@ description: "Payment tools for AI agents as MCP tools, with refunds always gate
 ```ts
 import { paymentTools } from "@dapplelight/signet-payments/agent"
 import { approvalGate, createMcpServer } from "@dapplelight/signet-server/mcp"
+import { payments } from "./payments"
+import { session } from "./session"
 
 const tools = paymentTools(payments, {
   userId: session.userId, // the agent only sees this user's payments
@@ -65,6 +67,7 @@ const server = createMcpServer({ name: "billing", version: "1.0.0", tools })
 ```ts
 import { paymentTools } from "@dapplelight/signet-payments/agent"
 import { approvalGate } from "@dapplelight/signet-server/mcp"
+import { payments } from "./payments"
 
 const tools = paymentTools(payments, {
   allUsers: true,

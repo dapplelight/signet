@@ -90,6 +90,7 @@ Data is shaped like signet-server's `orgRoutes` responses; actions come out as c
 
 ```tsx
 import { MembersList } from "@dapplelight/signet-ui/screens/org-screens"
+import { members, remove } from "./org"
 
 <MembersList members={members} roles={["admin", "member"]} canManage onRemove={remove} />
 ```
@@ -104,6 +105,7 @@ import { MembersList } from "@dapplelight/signet-ui/screens/org-screens"
 ```tsx
 import { useState } from "react"
 import { OrgSwitcher } from "@dapplelight/signet-ui/screens/org-screens"
+import { orgs } from "./org"
 
 function OrgSwitcherDemo() {
   const [current, setCurrent] = useState("o1")

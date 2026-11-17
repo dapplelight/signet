@@ -9,6 +9,7 @@ import { createDb } from "@dapplelight/signet-db/d1"
 import { createCipher, scoped } from "@dapplelight/signet-db"
 import { eq } from "drizzle-orm"
 import * as schema from "./schema"
+import { userIdFrom } from "./auth"
 
 export default {
   async fetch(req: Request, bindings: { DB: D1Database; FIELD_KEY: string }) {

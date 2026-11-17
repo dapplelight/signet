@@ -118,6 +118,7 @@ import {
   ChartTooltipContent,
 } from "@dapplelight/signet-ui/components/chart"
 import { CartesianGrid, Line, LineChart, XAxis } from "recharts"
+import { config, data } from "./revenue"
 
 <ChartContainer config={config} className="aspect-[2/1] w-full">
   <LineChart data={data}>
@@ -144,6 +145,7 @@ import {
   ChartTooltipContent,
 } from "@dapplelight/signet-ui/components/chart"
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
+import { config, data } from "./revenue"
 
 <ChartContainer config={config} className="aspect-[2/1] w-full">
   <AreaChart data={data}>

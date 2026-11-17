@@ -7,6 +7,8 @@ description: "Waitlist, invites, referrals, onboarding progress, changelog and f
 ```ts
 import { growthTables } from "@dapplelight/signet-db/columns/sqlite"
 import { createGrowth } from "@dapplelight/signet-db/growth"
+import { db } from "./db"
+import { email, teamId, userId } from "./session"
 
 // schema.ts
 export const { waitlist, invites, referralCodes, referrals, marks, feedback } = growthTables()
@@ -82,6 +84,10 @@ Read tools: `waitlist_stats`, `list_waitlist`, `list_feedback`, `referral_stats`
 ## Examples
 ### Reward a referrer once
 ```ts
+import { growth } from "./growth"
+import { grantCredit } from "./credits"
+import { newUserId } from "./session"
+
 const conv = await growth.convertReferral(newUserId)
 if (conv?.first && (await growth.markRewarded(newUserId))) {
   await grantCredit(conv.referral.referrer)
@@ -90,6 +96,9 @@ if (conv?.first && (await growth.markRewarded(newUserId))) {
 
 ### Onboarding checklist
 ```ts
+import { growth } from "./growth"
+import { userId } from "./session"
+
 await growth.completeStep(userId, "profile")
 const { next, percent } = await growth.onboarding(userId, ["profile", "first-project", "invite-team"])
 ```

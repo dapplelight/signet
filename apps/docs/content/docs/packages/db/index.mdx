@@ -12,6 +12,7 @@ npm i @dapplelight/signet-db drizzle-orm
 import { createDb } from "@dapplelight/signet-db/d1"
 import { scoped } from "@dapplelight/signet-db"
 import * as schema from "./schema"
+import { userIdFrom } from "./auth"
 
 export default {
   async fetch(req: Request, bindings: { DB: D1Database }) {

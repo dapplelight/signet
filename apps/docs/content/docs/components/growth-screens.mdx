@@ -82,6 +82,7 @@ Data is shaped like signet-db's growth module results; actions come out as callb
 
 ```tsx
 import { WaitlistJoin } from "@dapplelight/signet-ui/screens/growth-screens"
+import { growth } from "./growth"
 
 <WaitlistJoin onJoin={(email) => growth.joinWaitlist(email)} />
 ```
@@ -253,6 +254,7 @@ function FeedbackWidgetDemo() {
 ```tsx
 import { useState } from "react"
 import { WhatsNew } from "@dapplelight/signet-ui/screens/growth-screens"
+import { entries } from "./growth"
 
 function WhatsNewDemo() {
   const [unseen, setUnseen] = useState(2)

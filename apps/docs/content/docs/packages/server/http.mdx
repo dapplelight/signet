@@ -12,6 +12,9 @@ import { ApiException, errorHandler } from "@dapplelight/signet-server/http"
 import { zValidator } from "@dapplelight/signet-server/http/validate"
 import { apiDoc, serveOpenApi } from "@dapplelight/signet-server/http/openapi"
 import { httpCache } from "@dapplelight/signet-server/http/cache"
+import { getRuntimeEnv } from "@dapplelight/signet-server/env"
+import { inStock, listPlans, placeOrder } from "./orders"
+import { sentry } from "./sentry"
 
 const OrderInput = z.object({ sku: z.string(), quantity: z.coerce.number().int().min(1) })
 
@@ -306,6 +309,9 @@ Routes: `GET|POST /endpoints` (POST answers 201 with the secret once), `PATCH|DE
 
 ```ts
 import { currentTenant, orgGuards, orgRoutes, tenant } from "@dapplelight/signet-server/http/orgs"
+import { app } from "./app"
+import { orgs } from "./orgs"
+import { listProjects } from "./projects"
 
 const userId = (c) => c.get("session")?.sub
 const { requirePermission } = orgGuards({ orgs, userId })
@@ -320,6 +326,8 @@ app.route("/api/orgs", orgRoutes({ orgs, userId, email: (c) => c.get("session")?
 
 ```ts
 import { adminRoutes } from "@dapplelight/signet-server/http/admin"
+import { createDb } from "@dapplelight/signet-db/d1"
+import { admin, app, audit, currentUser } from "./app"
 
 app.route("/admin", adminRoutes(admin, {
   db: (c) => createDb(c.env.DB, { audit }),
@@ -335,6 +343,7 @@ app.route("/admin", adminRoutes(admin, {
 ```ts
 import { requireAiSpend } from "@dapplelight/signet-server/http/ai-spend"
 import { currentTenant } from "@dapplelight/signet-server/http/orgs"
+import { app, spend } from "./app"
 
 app.use("/api/ai/*", requireAiSpend({
   spend,
@@ -356,6 +365,7 @@ const NoteInput = z.object({ body: z.string().max(20_000).transform(sanitizeMark
 ```ts
 import { statusAdminRoutes, statusRoutes } from "@dapplelight/signet-server/http/status"
 import { maintenanceMode } from "@dapplelight/signet-server/middleware/maintenance"
+import { app, status } from "./app"
 
 app.use("*", maintenanceMode({ state: () => status.maintenance(), paths: ["/health", "/api/status", "/api/admin"] }))
 app.route("/api/status", statusRoutes({ status }))

@@ -6,6 +6,11 @@ description: "Standard Webhooks signing and verifying on Web Crypto only."
 ## Usage
 ```ts
 import { generateWebhookSecret, signWebhook, verifyWebhook } from "@dapplelight/signet-lib/webhooks"
+import { Hono } from "hono"
+import { env } from "./env"
+import { endpoint } from "./endpoints"
+
+const app = new Hono()
 
 // Sender (a Worker, a server)
 const secret = generateWebhookSecret() // "whsec_..." show once, store it

@@ -10,6 +10,7 @@ import { StatusPageDemo, StatusPageMaintenanceDemo, StatusAdminDemo, Maintenance
 
 ```tsx
 import { StatusPage } from "@dapplelight/signet-ui/screens/status-screens"
+import { summary } from "./summary"
 
 function StatusPageDemo() {
   return <StatusPage className="w-full max-w-2xl" summary={summary} />
@@ -64,6 +65,7 @@ Data is shaped like `status.summary()` from signet-db's `createStatus` (or its J
 
 ```tsx
 import { StatusPage } from "@dapplelight/signet-ui/screens/status-screens"
+import { summary } from "./summary"
 
 <StatusPage summary={summary} />
 ```
@@ -77,6 +79,7 @@ import { StatusPage } from "@dapplelight/signet-ui/screens/status-screens"
 
 ```tsx
 import { StatusPage } from "@dapplelight/signet-ui/screens/status-screens"
+import { summary } from "./summary"
 
 function StatusPageDemo() {
   return <StatusPage className="w-full max-w-2xl" summary={summary} />
@@ -92,6 +95,7 @@ With maintenance on, the overall status and a notice replace the incident list.
 
 ```tsx
 import { StatusPage } from "@dapplelight/signet-ui/screens/status-screens"
+import { summary } from "./summary"
 
 function StatusPageMaintenanceDemo() {
   return (
@@ -119,6 +123,7 @@ The whole admin screen. Each part below is exported for your own layout.
 
 ```tsx
 import { StatusAdmin } from "@dapplelight/signet-ui/screens/status-screens"
+import { summary } from "./summary"
 
 function StatusAdminDemo() {
   return (
@@ -164,6 +169,7 @@ function MaintenanceFormDemo() {
 
 ```tsx
 import { ComponentStatusList } from "@dapplelight/signet-ui/screens/status-screens"
+import { summary } from "./summary"
 
 function ComponentStatusListDemo() {
   return (
@@ -185,6 +191,7 @@ function ComponentStatusListDemo() {
 
 ```tsx
 import { IncidentForm } from "@dapplelight/signet-ui/screens/status-screens"
+import { summary } from "./summary"
 
 function IncidentFormDemo() {
   return (
@@ -206,6 +213,7 @@ function IncidentFormDemo() {
 
 ```tsx
 import { IncidentUpdateForm } from "@dapplelight/signet-ui/screens/status-screens"
+import { summary } from "./summary"
 
 function IncidentUpdateFormDemo() {
   return (

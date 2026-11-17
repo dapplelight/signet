@@ -6,6 +6,10 @@ description: "Answer caches keyed by schema, instructions, input and model."
 ## Usage
 ```ts
 import { createExtractor, kvCache, memoryCache } from "@dapplelight/signet-ai"
+import { env } from "./env"
+import { providers, schema, instructions } from "./ai"
+
+const input = "Invoice total: 120"
 
 const ai = createExtractor({
   providers,
@@ -31,6 +35,7 @@ Entries carry their own expiry, checked on read. A Workers KV key shorter than 6
 ### A custom cache
 ```ts
 import type { Cache } from "@dapplelight/signet-ai"
+import { redis } from "./redis"
 
 const redisCache: Cache = {
   async get(key) {

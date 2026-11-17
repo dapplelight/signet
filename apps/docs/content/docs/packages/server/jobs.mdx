@@ -9,6 +9,10 @@ description: "Background jobs with retries, schedules, durable steps and agent t
 import { z } from "zod"
 import { cloudflareKv, cloudflareQueue } from "@dapplelight/signet-server/adapters/cloudflare"
 import { cloudflareConsumer, cloudflareScheduled, createJobs, defineJob, defineSchedule } from "@dapplelight/signet-server/jobs"
+import { app } from "./app"
+import type { Env } from "./env"
+import { mailer } from "./mailer"
+import { purgeExpired } from "./cleanup"
 
 const sendReceipt = defineJob({
   name: "send-receipt",
@@ -149,8 +153,14 @@ Delivery is at least once. Make `run` safe to repeat, or key it. For long, multi
 ```ts
 import { inProcessJobs, startScheduler } from "@dapplelight/signet-server/jobs"
 import { upstashKv } from "@dapplelight/signet-server/adapters/upstash"
+import { env } from "./env"
+import { nightly, sendReceipt } from "./jobs"
 
-const jobs = inProcessJobs({ jobs: [sendReceipt], schedules: [nightly], store: upstashKv({ url, token }) })
+const jobs = inProcessJobs({
+  jobs: [sendReceipt],
+  schedules: [nightly],
+  store: upstashKv({ url: env.UPSTASH_URL, token: env.UPSTASH_TOKEN }),
+})
 const stop = startScheduler(jobs)
 process.on("SIGTERM", stop)
 ```
@@ -160,6 +170,9 @@ process.on("SIGTERM", stop)
 ```ts
 import { qstashQueue, upstashKv } from "@dapplelight/signet-server/adapters/upstash"
 import { createJobs, qstashReceiver } from "@dapplelight/signet-server/jobs"
+import { app } from "./app"
+import type { Env } from "./env"
+import { sendReceipt } from "./jobs"
 
 const make = (env: Env) =>
   createJobs({
@@ -180,6 +193,7 @@ app.post("/api/jobs", (c) =>
 ```ts
 import { defineJob } from "@dapplelight/signet-server/jobs"
 import { z } from "zod"
+import { payments } from "./payments"
 
 const refund = defineJob({
   name: "refund",
@@ -198,6 +212,7 @@ const refund = defineJob({
 
 ```ts
 import { createTestJobs } from "@dapplelight/signet-server/jobs"
+import { sendReceipt } from "./jobs"
 
 const jobs = createTestJobs({ jobs: [sendReceipt] })
 await sendReceipt.enqueue({ orderId: "ord_1" })
@@ -208,8 +223,13 @@ const results = await jobs.runAll() // retries and sleeps included, on a virtual
 
 ```ts
 import { drainOutbox, enqueue } from "@dapplelight/signet-db"
+import { db } from "./db"
+import { jobs, sendReceipt } from "./jobs"
+import { orders } from "./schema"
 
-const m = jobs.outboxMessage(sendReceipt, { orderId })
-await db.batch([(tx) => tx.insert(orders).values(order), enqueue(db, m.topic, m.payload)])
-await drainOutbox(db, jobs.outboxQueue) // dedupes on the outbox row id
+export async function placeOrder(orderId: string, order: typeof orders.$inferInsert) {
+  const m = jobs.outboxMessage(sendReceipt, { orderId })
+  await db.batch([(tx) => tx.insert(orders).values(order), enqueue(db, m.topic, m.payload)])
+  await drainOutbox(db, jobs.outboxQueue) // dedupes on the outbox row id
+}
 ```

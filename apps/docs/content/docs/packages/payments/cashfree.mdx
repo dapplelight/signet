@@ -11,6 +11,9 @@ import {
   CASHFREE_PAYOUT_API_VERSION,
   cashfree,
 } from "@dapplelight/signet-payments/cashfree"
+import { app } from "./app"
+import { env } from "./env"
+import { payments } from "./payments"
 
 const cf = cashfree({
   clientId: env.CASHFREE_CLIENT_ID,
@@ -28,6 +31,7 @@ const order = await cf.createCheckout({
   returnUrl: "https://shop.example/done",
 })
 
+const beneficiaryId = "bene_7"
 await cf.createPayout({ amount: 10_000, currency: "INR", idempotencyKey: "payout_42", destination: beneficiaryId })
 
 // Webhook: x-webhook-signature + x-webhook-timestamp

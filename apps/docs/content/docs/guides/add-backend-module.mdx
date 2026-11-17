@@ -15,7 +15,11 @@ npx @dapplelight/signet-cli add auth payments
 ```ts title="src/app.ts"
 import { authRoutes } from "./server/auth.ts"
 import { paymentsRoutes } from "./server/payments.ts"
+import { getRuntimeEnv } from "@dapplelight/signet-server/env"
+import { errorHandler } from "@dapplelight/signet-server/http"
 import { Hono } from "hono"
+
+const isProduction = () => getRuntimeEnv().NODE_ENV === "production"
 
 export const app = new Hono()
   .route("/api/sessions", authRoutes())

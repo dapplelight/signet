@@ -8,6 +8,10 @@ description: "Put AI token usage and cost on the active OpenTelemetry span, and 
 import { createExtractor } from "@dapplelight/signet-ai"
 import { onUsageAll, otelUsage, spendUsage } from "@dapplelight/signet-ai/otel"
 import { createAiSpend } from "@dapplelight/signet-db/ai-spend"
+import { db, usageCounters, aiSpendCaps } from "./db"
+import { providers, schema, instructions } from "./ai"
+
+const input = "Where is order A1042?"
 
 // Build where env exists (a request handler), not at module scope.
 const spend = createAiSpend(db, { tables: { usageCounters, aiSpendCaps } })

@@ -85,6 +85,7 @@ It renders nothing in production builds.
 ### Run the app in demo mode
 ```ts title="server/demo.ts"
 import { createDemo, isDemo } from "@dapplelight/signet-test/demo"
+import { env } from "./env"
 
 const SEED = { users: [{ id: "user_1", name: "Test User" }], invoices: [] }
 

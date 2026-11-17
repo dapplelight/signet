@@ -121,6 +121,9 @@ Or as a route on a Hono app:
 ```ts
 import { signetMcpOptions } from "@dapplelight/signet-mcp"
 import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
+import { Hono } from "hono"
+
+const app = new Hono()
 
 mountMcp(app, "/mcp", signetMcpOptions())
 ```
@@ -136,6 +139,10 @@ import { agentTools } from "@dapplelight/signet-db/agent"
 import { signetMcpOptions } from "@dapplelight/signet-mcp"
 import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
 import { requireToken } from "@dapplelight/signet-server/oauth-rs/hono"
+import { app } from "./app"
+import { db } from "./db"
+import { resourceMetadataUrl, verifier } from "./oauth"
+import { notes, orders } from "./schema"
 
 mountMcp(app, "/mcp", {
   ...signetMcpOptions({ db: { db, agentTools, tables: [orders, notes] } }),

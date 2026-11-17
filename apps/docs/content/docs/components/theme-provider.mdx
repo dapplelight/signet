@@ -77,12 +77,13 @@ npx @dapplelight/signet-cli add theme-provider
 
 ```tsx
 import { ThemeProvider, useTheme, themeInitScript } from "@dapplelight/signet-ui/components/theme-provider"
+import { App } from "./app"
 
 <ThemeProvider defaultTheme="system" storageKey="signet-theme">
   <App />
 </ThemeProvider>
 
-// In <head>, before any stylesheet, to avoid a flash of the wrong theme:
+{/* In <head>, before any stylesheet, to avoid a flash of the wrong theme: */}
 <script dangerouslySetInnerHTML={{ __html: themeInitScript() }} />
 ```
 

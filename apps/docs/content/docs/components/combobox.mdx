@@ -91,6 +91,8 @@ import {
   useComboboxAnchor,
 } from "@dapplelight/signet-ui/components/combobox"
 
+const items = ["Acme Corp", "Globex", "Initech"]
+
 <Combobox items={items}>
   <ComboboxInput placeholder="Search" />
   <ComboboxContent>
@@ -111,6 +113,8 @@ import {
 
 ```tsx
 import { Combobox, ComboboxInput } from "@dapplelight/signet-ui/components/combobox"
+
+const customers = ["Acme Corp", "Globex", "Initech"]
 
 <Combobox items={customers} defaultValue="Globex">
   <ComboboxInput placeholder="Select a customer" showClear />
@@ -133,8 +137,10 @@ import {
   ComboboxChipsInput,
   ComboboxContent,
   ComboboxValue,
+  useComboboxAnchor,
 } from "@dapplelight/signet-ui/components/combobox"
 
+const customers = ["Acme Corp", "Globex", "Initech"]
 const anchor = useComboboxAnchor()
 
 <Combobox multiple items={customers} defaultValue={["Acme Corp", "Initech"]}>
@@ -164,8 +170,10 @@ const anchor = useComboboxAnchor()
   <ComboboxControlledDemo />
 
 ```tsx
+import * as React from "react"
 import { Combobox } from "@dapplelight/signet-ui/components/combobox"
 
+const customers = ["Acme Corp", "Globex", "Umbrella Ltd"]
 const [value, setValue] = React.useState<string | null>("Umbrella Ltd")
 
 <Combobox items={customers} value={value} onValueChange={setValue}>

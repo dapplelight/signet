@@ -15,6 +15,7 @@ npm i @dapplelight/signet-server @dapplelight/signet-db hono drizzle-orm
 ```ts title="src/server/experiments.ts"
 import { analyticsEvents, experimentTables } from "@dapplelight/signet-db/columns/sqlite"
 import { createExperiments } from "@dapplelight/signet-db/experiments"
+import { db } from "./db"
 
 export const { experiments, experimentExposures } = experimentTables()
 
@@ -27,6 +28,9 @@ export const ex = createExperiments(db, {
 <Step>
 ### Create and start a test
 ```ts title="scripts/onboarding-test.ts"
+import { actor } from "../src/server/auth"
+import { ex } from "../src/server/experiments"
+
 await ex.create("onboarding-copy", {
   variants: [{ key: "control", weight: 50 }, { key: "short", weight: 50, value: { steps: 3 } }],
   goal: "signup_completed",
@@ -38,13 +42,26 @@ await ex.start("onboarding-copy", { actor })
 <Step>
 ### Expose where people see it
 ```ts title="src/server/onboarding.ts"
-const { variant, value } = await ex.expose("onboarding-copy", { id: userId })
+import { ex } from "./experiments"
+
+export async function onboardingVariant(userId: string) {
+  const { variant, value } = await ex.expose("onboarding-copy", { id: userId })
+  return { variant, value }
+}
 ```
 </Step>
 <Step>
 ### Mount the routes
 ```ts title="src/app.ts"
-import { experimentAdminRoutes, experimentRoutes } from "@dapplelight/signet-server/http/experiments"
+import { Hono } from "hono"
+import {
+  experimentAdminRoutes,
+  experimentRoutes,
+} from "@dapplelight/signet-server/http/experiments"
+import { me } from "./server/auth"
+import { ex } from "./server/experiments"
+
+const app = new Hono()
 
 app.route("/api/experiments", experimentRoutes({
   experiments: ex,
@@ -69,6 +86,7 @@ await ex.rollout("onboarding-copy", "short", { actor })
 ```ts title="src/server/status.ts"
 import { statusTables } from "@dapplelight/signet-db/columns/sqlite"
 import { createStatus } from "@dapplelight/signet-db/status"
+import { db } from "./db"
 
 export const { statusComponents, statusIncidents, maintenance } = statusTables()
 export const status = createStatus(db, { tables: { statusComponents, statusIncidents, maintenance } })
@@ -79,6 +97,8 @@ export const status = createStatus(db, { tables: { statusComponents, statusIncid
 ```ts title="src/app.ts"
 import { statusAdminRoutes, statusRoutes } from "@dapplelight/signet-server/http/status"
 import { maintenanceMode } from "@dapplelight/signet-server/middleware/maintenance"
+import { actor, authorize } from "./server/auth"
+import { status } from "./server/status"
 
 app.use("*", maintenanceMode({
   state: () => status.maintenance(),

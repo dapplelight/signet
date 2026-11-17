@@ -25,6 +25,10 @@ export const { offerings, placements, customerIdentities, customerEvents, custom
 ```ts title="server/monetisation.ts"
 import { createOfferings, plansFromProducts } from "@dapplelight/signet-db/offerings"
 import { createEntitlements } from "@dapplelight/signet-db/entitlements"
+import { actor } from "./actor"
+import { db } from "./db"
+import { offerings, placements } from "./db/schema"
+import { entitlementOverrides, plans, subjectPlans, usageCounters } from "./entitlements"
 
 const products = [
   { id: "pro.monthly", store: "appstore", plan: "pro", interval: "month" },
@@ -36,7 +40,7 @@ export const off = createOfferings(db, { tables: { offerings, placements }, plan
 export const ent = createEntitlements(db, {
   plans,
   default: "free",
-  tables,
+  tables: { subjectPlans, entitlementOverrides, usageCounters },
   billing: { plans: plansFromProducts(products) }, // what the paywall sells is what billing grants
 })
 
@@ -57,6 +61,10 @@ Each publish is an immutable version. Pin one with `version: 1` to roll back.
 import { createCustomers } from "@dapplelight/signet-db/customers"
 import { entitlementTables } from "@dapplelight/signet-db/columns/sqlite"
 import { createPayments } from "@dapplelight/signet-payments"
+import { customerEvents, customerIdentities, customerRequests } from "./db/schema"
+import { gateways, store } from "./gateways"
+import { applyCoupon, ownerOf } from "./billing"
+import { notifier, teamId } from "./notifier"
 
 export const customers = createCustomers(db, {
   tables: { ...entitlementTables, customerIdentities, customerEvents, customerRequests },
@@ -67,7 +75,7 @@ export const customers = createCustomers(db, {
   retention: { offer: { kind: "discount", percent: 50, months: 3 }, apply: ({ source }) => applyCoupon(source) },
 })
 
-createPayments({
+export const payments = createPayments({
   gateways,
   db: store,
   onEvent: async (e) => {
@@ -81,15 +89,23 @@ createPayments({
 <Step>
 ### Merge an anonymous device into an account
 ```ts title="server/routes/signin.ts"
-const anon = await customers.anonymousId({ orgId }) // "anon_<uuid>", before sign-in
-const r = await customers.merge({ anonymousId: anon, userId, orgId })
-// { merged: true, already: false, moved: { subscriptions, overrides, events, requests, payments } }
+import { customers } from "../monetisation"
+
+export async function signIn(orgId: string, userId: string) {
+  const anon = await customers.anonymousId({ orgId }) // "anon_<uuid>", before sign-in
+  const r = await customers.merge({ anonymousId: anon, userId, orgId })
+  // { merged: true, already: false, moved: { subscriptions, overrides, events, requests, payments } }
+}
 ```
 </Step>
 <Step>
 ### Mount the routes
 ```ts title="server/app.ts"
 import { monetisationAdminRoutes, monetisationRoutes } from "@dapplelight/signet-server/http/monetisation"
+import { Hono } from "hono"
+import { customers, off } from "./monetisation"
+
+const app = new Hono()
 
 const me = (c) => c.get("session")?.sub
 

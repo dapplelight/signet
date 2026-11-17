@@ -52,6 +52,7 @@ An incoming W3C `traceparent` header continues the caller's trace, so the same `
 ```ts title="server/app.ts"
 import { createSentry } from "@dapplelight/signet-server/observability/sentry"
 import { traceContext } from "@dapplelight/signet-server/observability/trace"
+import type { Env } from "./env"
 
 const sentryFor = (env: Env) =>
   createSentry({ dsn: env.SENTRY_DSN, enabled: env.APP_ENV === "production", environment: env.APP_ENV })
@@ -109,16 +110,17 @@ Signet's spans join those traces only when the runtime exposes an OpenTelemetry 
 Wire usage to the active span and to the spend ledger with one `onUsage`. Build the tracker where env exists, in a request handler, not at module scope.
 
 ```ts title="server/ai.ts"
-import { createExtractor } from "@dapplelight/signet-ai"
+import { createExtractor, type Provider } from "@dapplelight/signet-ai"
 import { onUsageAll, otelUsage, spendUsage } from "@dapplelight/signet-ai/otel"
 import { aiSpendCaps, aiSpendLedger, entitlementTables } from "@dapplelight/signet-db/columns/sqlite"
 import { createAiSpend, parseSpendKey } from "@dapplelight/signet-db/ai-spend"
+import type { Db } from "./db"
 
 export const { usageCounters } = entitlementTables()
 export const spendCaps = aiSpendCaps()
 export const spendLedger = aiSpendLedger()
 
-export const aiFor = (db: Db, providers: Providers) => {
+export const aiFor = (db: Db, providers: Provider[]) => {
   const spend = createAiSpend(db, {
     tables: { usageCounters, aiSpendCaps: spendCaps, aiSpendLedger: spendLedger },
   })
@@ -137,6 +139,11 @@ Then expose the ledger to the admin and draw it:
 
 ```ts title="server/app.ts"
 import { observabilityAdminRoutes } from "@dapplelight/signet-server/http/observability"
+import { aiFor } from "./ai"
+import { db } from "./db"
+import { providers } from "./providers"
+
+const { spend } = aiFor(db, providers)
 
 app.route("/api/admin/observability", observabilityAdminRoutes({
   spend, // createAiSpend(db, { tables: { usageCounters, aiSpendCaps, aiSpendLedger } })
@@ -170,6 +177,7 @@ The dashboard needs the optional peer `recharts`. It shows one state at a time:
 ### Health
 ```ts title="server/app.ts"
 import { healthRoutes } from "@dapplelight/signet-server/observability/health"
+import { pingDb, pingKv } from "./checks"
 
 app.route("/health", healthRoutes({ checks: { db: () => pingDb(), kv: () => pingKv() } }))
 ```

@@ -14,6 +14,7 @@
  * JSX): a block that does not parse is retried with the JSX wrapped in a fragment.
  */
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { builtinModules } from "node:module"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -26,8 +27,13 @@ const GLOBALS = new Set(
   `process Buffer require module exports __dirname __filename JSX
 D1Database D1PreparedStatement D1Result KVNamespace R2Bucket R2Object R2ObjectBody Queue MessageBatch
 DurableObject DurableObjectState DurableObjectNamespace DurableObjectStub ExecutionContext ExportedHandler
-ScheduledController ScheduledEvent Fetcher Hyperdrive Ai WebSocketPair HTMLRewriter caches`.split(/\s+/),
+ScheduledController ScheduledEvent Fetcher Hyperdrive Ai WebSocketPair HTMLRewriter caches`.split(
+    /\s+/,
+  ),
 )
+
+/** tsc reports `import "node:fs"` without @types/node as "Cannot find name 'node:fs'". Those are imports, not free names. */
+const BUILTIN_MODULES = new Set(builtinModules.flatMap((m) => [m, `node:${m}`]))
 
 /** Every ts/tsx fence in an MDX file: its title, dedented code and the file line of its first code line. */
 export function extractBlocks(src: string): Block[] {
@@ -73,8 +79,8 @@ function afterImports(lines: string[]): number {
 function variant(lines: string[], v: number): string[] {
   if (v === 0) return lines
   const from = afterImports(lines)
-  // 1: the whole body is JSX. 2: statements, then JSX starting at an unindented tag.
-  const at = v === 1 ? from : lines.findIndex((l, i) => i > from && /^<[A-Za-z]/.test(l))
+  // 1: statements (maybe none), then JSX starting at an unindented tag. 2: the whole body is JSX.
+  const at = v === 2 ? from : lines.findIndex((l, i) => i >= from && /^<[A-Za-z]/.test(l))
   if (at < 0 || at >= lines.length) return lines
   const out = [...lines]
   out[at] = `;(<>${out[at]}`
@@ -96,7 +102,9 @@ function tsc(dir: string, files: Map<string, string>) {
   const run = Bun.spawnSync([bin, "-p", dir, "--pretty", "false"])
   if (run.exitCode === null || run.stderr.length) throw new Error(`tsc did not run: ${run.stderr}`)
   const errors: { file: string; row: number; code: number; text: string }[] = []
-  for (const m of run.stdout.toString().matchAll(/^(?:\S*\/)?(b\d+\.tsx?)\((\d+),\d+\): error TS(\d+): (.*)$/gm))
+  for (const m of run.stdout
+    .toString()
+    .matchAll(/^(?:\S*\/)?(b\d+\.tsx?)\((\d+),\d+\): error TS(\d+): (.*)$/gm))
     errors.push({ file: m[1], row: Number(m[2]), code: Number(m[3]), text: m[4] })
   return errors
 }
@@ -131,7 +139,9 @@ export function checkSnippets(files: Source[]): Problem[] {
     for (let v = 0; v < VARIANTS; v++) {
       const todo = all.flatMap((_, i) => (chosen[i] < 0 ? [i] : []))
       if (!todo.length) break
-      const written = new Map(todo.map((i) => [`b${i}.${all[i].b.ext}`, text(variant(all[i].b.lines, v))]))
+      const written = new Map(
+        todo.map((i) => [`b${i}.${all[i].b.ext}`, text(variant(all[i].b.lines, v))]),
+      )
       const bad = new Map<number, Problem>()
       for (const e of tsc(dir, written)) {
         const i = Number(/\d+/.exec(e.file)?.[0])
@@ -156,18 +166,26 @@ export function checkSnippets(files: Source[]): Problem[] {
     for (const p of pages) {
       const first = i
       i += p.blocks.length
-      const normal = p.blocks.map((b, n) => (chosen[first + n] < 0 ? null : variant(b.lines, chosen[first + n])))
+      const normal = p.blocks.map((b, n) =>
+        chosen[first + n] < 0 ? null : variant(b.lines, chosen[first + n]),
+      )
       p.blocks.forEach((b, n) => {
         if (!normal[n]) {
           problems.push(parseError.get(first + n)!)
           return
         }
         const chain = b.title
-          ? [...p.blocks.keys()].filter((o) => o < n && p.blocks[o].title === b.title && normal[o]).concat(n)
+          ? [...p.blocks.keys()]
+              .filter((o) => o < n && p.blocks[o].title === b.title && normal[o])
+              .concat(n)
           : [n]
         const map: number[] = []
         const code: string[] = []
-        for (const c of chain) normal[c]!.forEach((l, r) => (code.push(l), map.push(p.blocks[c].start + r)))
+        for (const c of chain)
+          for (const [r, l] of normal[c]!.entries()) {
+            code.push(l)
+            map.push(p.blocks[c].start + r)
+          }
         const name = `b${jobs.length}.${chain.some((c) => p.blocks[c].ext === "tsx") ? "tsx" : "ts"}`
         out.set(name, text(code))
         jobs.push({ file: p.file, first: map.length - b.lines.length, map, name })
@@ -175,9 +193,20 @@ export function checkSnippets(files: Source[]): Problem[] {
     }
     const seen = new Set<string>()
     for (const e of tsc(dir, out)) {
-      const id = /^Cannot find (?:name|namespace) '([^']+)'/.exec(e.text)?.[1]
+      const id =
+        /^(?:Cannot find (?:name|namespace)|No value exists in scope for the shorthand property) '([^']+)'/.exec(
+          e.text,
+        )?.[1]
       const job = jobs.find((j) => j.name === e.file)
-      if (!id || !job || e.row - 1 < job.first || GLOBALS.has(id) || seen.has(`${e.file} ${id}`)) continue
+      if (
+        !id ||
+        !job ||
+        e.row - 1 < job.first ||
+        GLOBALS.has(id) ||
+        BUILTIN_MODULES.has(id) ||
+        seen.has(`${e.file} ${id}`)
+      )
+        continue
       seen.add(`${e.file} ${id}`)
       problems.push({ file: job.file, line: job.map[e.row - 1], message: MESSAGE(id) })
     }
@@ -207,7 +236,9 @@ if (import.meta.main) {
   for (const p of problems)
     console.error(`${p.file.slice(p.file.indexOf("apps/docs"))}:${p.line}: ${p.message}`)
   if (problems.length) {
-    console.error(`\n${problems.length} snippet problem(s). Every ts/tsx block must show its imports.`)
+    console.error(
+      `\n${problems.length} snippet problem(s). Every ts/tsx block must show its imports.`,
+    )
     process.exit(1)
   }
   console.log("snippets ok")

@@ -33,6 +33,9 @@ jobs:
       # Prose like "<reason>" or a bare {total} breaks the docs build.
       - run: bun run scripts/check-mdx.test.ts
       - run: bun run scripts/check-mdx.ts
+      # Every ts/tsx block in the docs must show its imports.
+      - run: bun run scripts/check-snippets.test.ts
+      - run: bun run scripts/check-snippets.ts
       # Packages import each other through dist/ (see release.yml).
       - run: bun run build:all
       - name: test + typecheck

@@ -6,6 +6,7 @@ description: "A deterministic provider for tests: no network, no spend."
 ## Usage
 ```ts
 import { createExtractor, fakeProvider } from "@dapplelight/signet-ai"
+import { invoiceSchema } from "./schemas"
 
 const ai = createExtractor({
   providers: [fakeProvider({ invoiceNumber: "INV-1042", total: 8000 })],
@@ -32,6 +33,7 @@ It is priced at $0, so it passes the ledger's pricing check.
 ```ts
 import { createExtractor } from "@dapplelight/signet-ai/extract"
 import { fakeProvider } from "@dapplelight/signet-ai/fake"
+import { invoiceSchema as schema } from "./schemas"
 
 const ai = createExtractor({
   providers: [

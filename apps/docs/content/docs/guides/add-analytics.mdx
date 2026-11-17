@@ -14,6 +14,7 @@ npm i @dapplelight/signet-lib @dapplelight/signet-server @dapplelight/signet-db 
 ### Track from the browser
 ```ts title="src/web/analytics.ts"
 import { createAnalytics, beaconTransport } from "@dapplelight/signet-lib/analytics"
+import { user } from "./session"
 
 export const analytics = createAnalytics({
   transport: beaconTransport("/api/events"),
@@ -36,6 +37,9 @@ export const events = analyticsEvents()
 ```
 ```ts title="src/server/analytics.ts"
 import { createAnalyticsStore } from "@dapplelight/signet-db/analytics"
+import { db } from "../db"
+import { events } from "../db/schema"
+import { privacy } from "./privacy"
 
 export const store = createAnalyticsStore(db, { table: events, retentionDays: 395, privacy })
 ```
@@ -46,7 +50,10 @@ Run `await store.prune()` from a daily cron.
 ```ts title="src/app.ts"
 import { registerIngest, cloudflareEnrichment } from "@dapplelight/signet-server/analytics/ingest"
 import { rateLimit } from "@dapplelight/signet-server/middleware/rate-limit"
+import { Hono } from "hono"
 import { store } from "./server/analytics"
+
+export const app = new Hono()
 
 app.use("/api/events", rateLimit({ scope: "ingest", max: 60, trust: "cloudflare" }))
 registerIngest(app, "/api/events", {
@@ -61,16 +68,24 @@ The route is public, so the `userId` resolver is the only way a user id gets in.
 ### Record server-side events
 ```ts title="src/server/signup.ts"
 import { analyticsContext, serverTracker } from "@dapplelight/signet-server/analytics/session"
+import { app } from "../app"
+import { store } from "./analytics"
 
-const t = serverTracker(store, analyticsContext(c.req.raw.headers))
-await t.identify(user.id)
-await t.track("signup", { plan: "free" })
+app.post("/signup", async (c) => {
+  const user = c.get("user")
+  const t = serverTracker(store, analyticsContext(c.req.raw.headers))
+  await t.identify(user.id)
+  await t.track("signup", { plan: "free" })
+  return c.json({ ok: true })
+})
 ```
 </Step>
 <Step>
 ### Ask questions
 ```ts title="src/server/reports.ts"
-const signups = await store.trend({ event: "signup", period: "week" })
+import { store } from "./analytics"
+
+export const signups = await store.trend({ event: "signup", period: "week" })
 const funnel = await store.funnel({ steps: ["visit", "signup", "first_project"] })
 const byPlan = await store.breakdown({ event: "signup", property: "plan", limit: 5 })
 ```
@@ -79,6 +94,7 @@ const byPlan = await store.breakdown({ event: "signup", property: "plan", limit:
 ### Lead with the answer
 ```tsx title="src/web/dashboard.tsx"
 import { MetricHeadline } from "@dapplelight/signet-ui/components/metric-headline"
+import { signups } from "../server/reports"
 
 <MetricHeadline result={signups} label="Signups" />
 ```

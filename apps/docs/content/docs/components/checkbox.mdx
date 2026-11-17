@@ -100,7 +100,9 @@ import { Checkbox } from "@dapplelight/signet-ui/components/checkbox"
   <CheckboxControlledDemo />
 
 ```tsx
+import * as React from "react"
 import { Checkbox } from "@dapplelight/signet-ui/components/checkbox"
+import { invoices, toggle } from "./invoices"
 
 const [selected, setSelected] = React.useState<string[]>(["INV-2041"])
 

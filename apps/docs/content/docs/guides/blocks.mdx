@@ -35,7 +35,12 @@ A range picker, a row of stats, an area chart and a recent-activity table. It ne
 <BlockPreview block="analytics-dashboard" />
 
 ```tsx
+import { useState } from "react"
 import { AnalyticsDashboard } from "@/components/signet/blocks/analytics-dashboard"
+import { useDashboard } from "@/lib/use-dashboard"
+
+const [range, setRange] = useState("30d")
+const { stats, series, rows, isLoading } = useDashboard(range)
 
 <AnalyticsDashboard
   data={{ stats, series, rows }}
@@ -55,6 +60,9 @@ A searchable, filterable list of 20 rows a page, with the selected row's detail 
 
 ```tsx
 import { ListDetail } from "@/components/signet/blocks/list-detail"
+import { ProjectPanel } from "@/components/project-panel"
+import { projects } from "@/lib/projects"
+import { navigate } from "@/lib/router"
 
 <ListDetail
   items={projects}
@@ -73,6 +81,8 @@ A General card, a Notifications card and a Danger zone. Each form card has a "Sa
 
 ```tsx
 import { Settings } from "@/components/signet/blocks/settings"
+import { api } from "@/lib/api"
+import { workspace } from "@/lib/workspace"
 
 <Settings
   general={{ name: workspace.name, description: workspace.description }}
@@ -112,6 +122,9 @@ A stepper on top and the current step's content in a card below. Steps come in a
 
 ```tsx
 import { Onboarding } from "@/components/signet/blocks/onboarding"
+import { InviteForm, ProfileForm } from "@/components/forms"
+import { api } from "@/lib/api"
+import { navigate } from "@/lib/router"
 
 <Onboarding
   steps={[
@@ -134,6 +147,7 @@ Plans come from props and show as cards: one column on a phone, up to three on a
 
 ```tsx
 import { Pricing } from "@/components/signet/blocks/pricing"
+import { api } from "@/lib/api"
 
 <Pricing
   currency="USD"
@@ -161,6 +175,8 @@ The line items, then subtotal, discount, tax and total, and a `Pay {total}` butt
 
 ```tsx
 import { CheckoutSummary } from "@/components/signet/blocks/checkout-summary"
+import { api } from "@/lib/api"
+import { cartId } from "@/lib/cart"
 
 <CheckoutSummary
   items={[{ id: "pro", name: "Pro plan", amount: 1200 }]}
@@ -181,6 +197,7 @@ A whole empty page: an icon, a title, a description and an action.
 
 ```tsx
 import { EmptyPage } from "@/components/signet/blocks/empty-page"
+import { openNewProject } from "@/lib/projects"
 
 <EmptyPage onAction={() => openNewProject()} />
 ```

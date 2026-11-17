@@ -56,6 +56,8 @@ Use it as an `href` on mobile, or as the payload of a QR code. No QR encoder shi
 ```ts
 import { toMinor } from "@dapplelight/signet-payments"
 import { upiIntent } from "@dapplelight/signet-payments/upi"
+import { config } from "./config"
+import { invoice } from "./invoice"
 
 const payload = upiIntent({
   pa: config.merchantVpa,

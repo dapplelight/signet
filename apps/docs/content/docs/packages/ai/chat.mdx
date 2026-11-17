@@ -8,6 +8,9 @@ description: "Tool loops with a step cap, and streaming chat for a route handler
 import { tool } from "ai"
 import { z } from "zod"
 import { runTools, streamChat } from "@dapplelight/signet-ai/chat"
+import { app } from "./app"
+import { db } from "./db"
+import { model } from "./ai"
 
 const tools = {
   lookupOrder: tool({

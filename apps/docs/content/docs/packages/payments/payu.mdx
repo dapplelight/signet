@@ -5,8 +5,11 @@ description: "PayU India hashed form checkout, pre-authorize capture, refunds an
 
 ## Usage
 
-```ts
+```ts title="payu.ts"
 import { payu, payuDate } from "@dapplelight/signet-payments/payu"
+import { app } from "./app"
+import { env } from "./env"
+import { payments } from "./payments"
 
 const pu = payu({ key: env.PAYU_KEY, salt: env.PAYU_SALT, sandbox: true })
 
@@ -23,7 +26,7 @@ const checkout = await pu.createCheckout({
 app.post("/webhooks/payu", (c) => payments.handleWebhook("payu", c.req.raw))
 ```
 
-```ts
+```ts title="payu.ts"
 // Render the form and submit it
 const { action, fields } = checkout.form!
 ```

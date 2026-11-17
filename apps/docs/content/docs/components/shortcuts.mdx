@@ -12,6 +12,7 @@ import { ShortcutsHelpDemo, ListNavigationDemo, ShortcutsHelpKeyDemo } from "@/c
 import { useState } from "react"
 import { Button } from "@dapplelight/signet-ui/components/button"
 import { ShortcutsHelp, useListNavigation } from "@dapplelight/signet-ui/components/shortcuts"
+import { openOrder } from "./orders"
 
 const orders = ["ORD-2041", "ORD-2042", "ORD-2043", "ORD-2044"]
 
@@ -71,6 +72,8 @@ import {
   useListNavigation,
   useShortcutList,
 } from "@dapplelight/signet-ui/components/shortcuts"
+import { useHotkey, useHotkeySequence } from "@tanstack/react-hotkeys"
+import { goInbox, openSearch } from "./navigation"
 
 // Register keys with TanStack Hotkeys and describe them in `meta`.
 useHotkey("Mod+K", openSearch, { meta: { name: "Search", group: "General" } })
@@ -91,6 +94,7 @@ Needs the optional peer `@tanstack/react-hotkeys`. Press `?` to open the overlay
 
 ```tsx
 import { useListNavigation } from "@dapplelight/signet-ui/components/shortcuts"
+import { openOrder } from "./orders"
 
 const orders = ["ORD-2041", "ORD-2042", "ORD-2043", "ORD-2044"]
 

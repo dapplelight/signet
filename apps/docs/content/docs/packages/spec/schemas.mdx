@@ -31,7 +31,9 @@ The files are generated from the Zod modules by `bun run gen` in `packages/spec`
 
 ```ts
 import contract from "@dapplelight/signet-spec/schemas/contract.json" with { type: "json" }
+import { readFileSync } from "node:fs"
 
+const css = readFileSync("src/brand.css", "utf8")
 const missing = contract.required.filter(({ name }) => !css.includes(`${name}:`))
 ```
 

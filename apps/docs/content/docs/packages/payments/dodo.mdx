@@ -7,6 +7,9 @@ description: "Dodo Payments checkout sessions as merchant of record, with refund
 
 ```ts
 import { dodo } from "@dapplelight/signet-payments/dodo"
+import { app } from "./app"
+import { env } from "./env"
+import { payments } from "./payments"
 
 const dd = dodo({
   apiKey: env.DODO_API_KEY,

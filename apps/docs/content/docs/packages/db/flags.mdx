@@ -7,6 +7,9 @@ description: "Feature flags defined in code, with stored overrides per subject."
 ```ts
 import { flagOverrides } from "@dapplelight/signet-db/columns/sqlite"
 import { createFlags, defineFlags } from "@dapplelight/signet-db/flags"
+import { db } from "./db"
+import { ent } from "./entitlements"
+import { actor, country, userId } from "./session"
 
 export const overrides = flagOverrides()
 
@@ -61,6 +64,8 @@ Store methods: `get(key, subject)`, `all(subject)`, `overrides(subjectId?)`, `se
 ### Hand an agent the flags
 ```ts
 import { entitlementTools } from "@dapplelight/signet-db/entitlements"
+import { ent, ff } from "./flags"
+import { orgId } from "./session"
 
 const tools = entitlementTools({ entitlements: ent, flags: ff, subject: orgId })
 // list_flags is read-only; set_flag needs allowWrites and approval
@@ -69,6 +74,7 @@ const tools = entitlementTools({ entitlements: ent, flags: ff, subject: orgId })
 ### Test a rule without a database
 ```ts
 import { evaluateFlag } from "@dapplelight/signet-db/flags"
+import { flags } from "./flags"
 
 evaluateFlag("newEditor", flags.newEditor, { id: "u_1", plan: "team" }) // { value: true, reason: "rule", rule: 0 }
 ```

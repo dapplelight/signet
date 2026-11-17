@@ -7,6 +7,9 @@ description: "Paddle Billing transactions from catalog prices, refunds as adjust
 
 ```ts
 import { paddle } from "@dapplelight/signet-payments/paddle"
+import { app } from "./app"
+import { env } from "./env"
+import { payments } from "./payments"
 
 const pd = paddle({
   apiKey: env.PADDLE_API_KEY,

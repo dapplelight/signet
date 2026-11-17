@@ -7,6 +7,9 @@ description: "Hyperswitch orchestrator payments for its SDK, refunds, saved meth
 
 ```ts
 import { hyperswitch } from "@dapplelight/signet-payments/hyperswitch"
+import { app } from "./app"
+import { env } from "./env"
+import { payments } from "./payments"
 
 const hs = hyperswitch({
   apiKey: env.HYPERSWITCH_API_KEY,

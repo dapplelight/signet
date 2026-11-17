@@ -18,8 +18,10 @@ import { z } from "zod"
 import { zValidator } from "@dapplelight/signet-server/http/validate"
 import { appTools, asTool } from "@dapplelight/signet-server/mcp"
 import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
+import { hook, list, save } from "./notes"
 
 const Note = z.object({ title: z.string(), body: z.string() })
+const Event = z.object({ type: z.string() })
 
 export const app = new Hono()
   .get("/api/notes", zValidator("query", z.object({ q: z.string().optional() }).describe("Search my notes")), list)
@@ -37,6 +39,10 @@ import { approvalGate, kvApprovals } from "@dapplelight/signet-server/mcp"
 import { approvalRoutes } from "@dapplelight/signet-server/http/routes"
 import { requireStoredSession } from "@dapplelight/signet-server/auth/hono"
 import { paymentTools } from "@dapplelight/signet-payments/agent"
+import { audit } from "./audit"
+import { kv } from "./kv"
+import { payments, userId } from "./payments"
+import { sessions } from "./sessions"
 
 const approvals = kvApprovals(kv, {
   ttlSeconds: 86_400,
@@ -61,6 +67,7 @@ The person approves or denies at `/api/approvals/:id/approve` or `/deny`. The ag
 ### Show different tools to different people
 ```ts title="server/app.ts"
 import { requireToken } from "@dapplelight/signet-server/oauth-rs/hono"
+import { META, admin, base, isAdmin, verifier } from "./oauth"
 
 mountMcp(app, "/mcp", {
   name: "notes",
@@ -74,6 +81,8 @@ A tool left out of a caller's list is not callable by them either.
 <Step>
 ### Add guardrails
 ```ts title="server/app.ts"
+import { tools } from "./tools"
+
 mountMcp(app, "/mcp", {
   name: "notes",
   version: "1.0.0",

@@ -13,6 +13,8 @@ npm i @dapplelight/signet-payments
 import { createPayments, sqlStore } from "@dapplelight/signet-payments"
 import { razorpay } from "@dapplelight/signet-payments/razorpay"
 import { stripe } from "@dapplelight/signet-payments/stripe"
+import { Hono } from "hono"
+import type { Env } from "./env"
 
 // Configs never read env at module scope: build them per request on Workers.
 export const makePayments = (env: Env) =>
@@ -26,9 +28,17 @@ export const makePayments = (env: Env) =>
     db: sqlStore({ query: async (s, p) => (await env.DB.prepare(s).bind(...p).all()).results }, { dialect: "sqlite" }),
   })
 
-const payments = makePayments(env)
-const checkout = await payments.checkout({ amount: 49_900, currency: "INR", idempotencyKey: orderId, reference: orderId, userId })
-app.post("/webhooks/:gateway", (c) => payments.handleWebhook(c.req.param("gateway"), c.req.raw))
+const app = new Hono<{ Bindings: Env }>()
+
+app.post("/orders/:orderId/pay", async (c) => {
+  const payments = makePayments(c.env)
+  const orderId = c.req.param("orderId")
+  const { userId } = await c.req.json<{ userId: string }>()
+  const checkout = await payments.checkout({ amount: 49_900, currency: "INR", idempotencyKey: orderId, reference: orderId, userId })
+  return c.json(checkout)
+})
+
+app.post("/webhooks/:gateway", (c) => makePayments(c.env).handleWebhook(c.req.param("gateway"), c.req.raw))
 ```
 
 ## The common interface
@@ -157,7 +167,10 @@ Routes each charge, fails over only on an outage, runs charges and refunds under
 - Mount it on the raw request. Do not parse the body first.
 
 ```ts
-app.post("/webhooks/:gateway", (c) => payments.handleWebhook(c.req.param("gateway"), c.req.raw))
+import { app } from "./app"
+import { makePayments } from "./payments"
+
+app.post("/webhooks/:gateway", (c) => makePayments(c.env).handleWebhook(c.req.param("gateway"), c.req.raw))
 ```
 
 ### Storage
@@ -190,6 +203,7 @@ Double entry, integer minor units, balanced per currency or rejected with `UNBAL
 
 ```ts
 import { balance, post, transfer } from "@dapplelight/signet-payments"
+import { store } from "./store"
 
 await post(store, { txId: "adj-7", kind: "adjustment", legs: transfer("fees", "receivable:razorpay", 250, "INR") })
 await balance(store, "receivable:razorpay", "INR")
@@ -199,7 +213,12 @@ await balance(store, "receivable:razorpay", "INR")
 
 ```ts
 import { reconcile, reconcileJob } from "@dapplelight/signet-payments"
+import { env } from "./env"
+import { alert } from "./alerts"
+import { makePayments } from "./payments"
+import { store } from "./store"
 
+const payments = makePayments(env)
 const r = await reconcile(store, payments.gateway("razorpay"), { date: "2026-11-13" })
 // r.mismatches: missing (settled, not in ledger), amount_differs, extra (in ledger, not settled)
 
@@ -221,6 +240,8 @@ Works for gateways with `settlements`. `missing` is usually a webhook that never
 
 ```ts
 import { applePayDomainAssociation } from "@dapplelight/signet-payments"
+import { app } from "./app"
+import { env } from "./env"
 
 const serveApplePay = applePayDomainAssociation(env.APPLE_PAY_DOMAIN_FILE)
 export default { fetch: (req: Request) => serveApplePay(req) ?? app.fetch(req) }

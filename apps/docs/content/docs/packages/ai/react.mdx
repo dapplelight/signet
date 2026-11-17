@@ -6,6 +6,7 @@ description: "useSignetChat: a chat hook for a streamChat route, with usage."
 ## Usage
 ```tsx
 import { useSignetChat } from "@dapplelight/signet-ai/react"
+import { getCsrfToken } from "./csrf"
 
 export function SupportChat() {
   const { messages, sendMessage, status, stop, usage } = useSignetChat({

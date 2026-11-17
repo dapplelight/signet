@@ -37,6 +37,10 @@ import { nextSequence } from "@dapplelight/signet-db"
 import * as schema from "../db/schema"
 import { db } from "./db"
 
+const name = "Acme Software Pvt Ltd"
+const address = "12 MG Road, Bengaluru"
+const gstin = "29ABCDE1234F1Z5"
+
 export async function issueInvoice(now: Date) {
   const fy = financialYear(now)
   const seq = await nextSequence(db, schema.sequences, `invoice:INV:${fy}`)

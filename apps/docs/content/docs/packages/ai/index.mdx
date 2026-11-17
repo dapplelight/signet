@@ -12,6 +12,7 @@ npm i @dapplelight/signet-ai
 import { z } from "zod"
 import { createExtractor, memoryCache, createBudgetLedger } from "@dapplelight/signet-ai"
 import { aiSdkProvider } from "@dapplelight/signet-ai/providers/ai-sdk"
+import { model } from "./model"
 
 const ai = createExtractor({
   providers: [

@@ -8,6 +8,8 @@ description: "Per-user database tools for AI agents, safe by construction."
 import { agentTools } from "@dapplelight/signet-db/agent"
 import { createMcpServer } from "@dapplelight/signet-server/mcp"
 import { notes, orders } from "./schema"
+import { db } from "./db"
+import { session } from "./session"
 
 const tools = agentTools(db, {
   tables: [orders, notes],
@@ -48,6 +50,11 @@ Needs `zod`. Each table gets `<table>_list`, `<table>_get` and `<table>_search`.
 ### Let the agent edit, after a dry run
 ```ts
 import { agentTools } from "@dapplelight/signet-db/agent"
+import { orders } from "./schema"
+import { db } from "./db"
+import { session } from "./session"
+
+const orderId = "ord_1"
 
 const tools = agentTools(db, {
   tables: [orders],

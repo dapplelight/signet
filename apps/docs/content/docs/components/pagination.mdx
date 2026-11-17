@@ -56,7 +56,10 @@ npx @dapplelight/signet-cli add pagination
 ## Usage
 
 ```tsx
+import { useState } from "react"
 import { Pagination } from "@dapplelight/signet-ui/components/pagination"
+
+const [page, setPage] = useState(1)
 
 <Pagination page={page} totalPages={8} onPageChange={setPage} />
 ```

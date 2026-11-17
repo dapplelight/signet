@@ -37,6 +37,8 @@ Pass your own client with prepared statements off.
 ```ts
 import postgres from "postgres"
 import { createDb } from "@dapplelight/signet-db/postgres"
+import * as schema from "./schema"
+import { poolerUrl } from "./env"
 
 export const db = createDb(postgres(poolerUrl, { prepare: false }), { schema })
 ```

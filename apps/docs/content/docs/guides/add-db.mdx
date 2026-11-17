@@ -25,7 +25,11 @@ For SQLite on Bun use `@dapplelight/signet-db/sqlite`, for Postgres `@dappleligh
 ```ts title="src/server/orders.ts"
 import { scoped } from "@dapplelight/signet-db"
 import { desc, eq } from "drizzle-orm"
+import { orders } from "../db/schema"
+import { db } from "./db"
+import { session } from "./session"
 
+const id = "ord_1"
 const me = scoped(db, { userId: session.userId })
 await me.insert(orders, { item: "Dosa" })
 await me.select(orders, eq(orders.item, "Dosa"), { orderBy: desc(orders.createdAt), limit: 20 })
@@ -37,31 +41,39 @@ Deletes set `deletedAt` unless you pass `{ hard: true }`.
 ### Store money and secrets
 ```ts title="src/db/schema.ts"
 import { money, encrypted, id } from "@dapplelight/signet-db/columns/sqlite"
-import { sqliteTable } from "drizzle-orm/sqlite-core"
+import { sqliteTable, text } from "drizzle-orm/sqlite-core"
 
 export const items = sqliteTable("items", { id: id(), ...money("price", { currency: "INR" }) })
 export const profiles = sqliteTable("profiles", { id: id(), userId: text("user_id").notNull(), pan: encrypted("pan") })
 ```
 ```ts title="src/server/db.ts"
 import { createCipher } from "@dapplelight/signet-db"
+import { bindings } from "./env"
 
 const cipher = createCipher({ keys: { k1: bindings.FIELD_KEY }, current: "k1" })
-const db = createDb(bindings.DB, { schema, cipher })
+export const db = createDb(bindings.DB, { schema, cipher })
 ```
 </Step>
 <Step>
 ### Make writes safe to retry
 ```ts title="src/server/orders.ts"
 import { withIdempotency, enqueue, drainOutbox } from "@dapplelight/signet-db"
+import { app } from "./app"
+import { queue } from "./queue"
 
-const order = await withIdempotency(db, c.req.header("idempotency-key") ?? "", userId, () =>
-  scoped(db, { userId }).insert(orders, body),
-)
-await db.batch([
-  (tx) => tx.insert(orders).values(order),
-  enqueue(db, "order.created", { orderId: order.id }),
-])
-await drainOutbox(db, queue, { batch: 50 })
+app.post("/orders", async (c) => {
+  const body = await c.req.json()
+  const { userId } = session
+  const order = await withIdempotency(db, c.req.header("idempotency-key") ?? "", userId, () =>
+    scoped(db, { userId }).insert(orders, body),
+  )
+  await db.batch([
+    (tx) => tx.insert(orders).values(order),
+    enqueue(db, "order.created", { orderId: order.id }),
+  ])
+  await drainOutbox(db, queue, { batch: 50 })
+  return c.json(order, 201)
+})
 ```
 Create the db with `idempotency` and `outbox` tables set.
 </Step>

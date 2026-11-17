@@ -10,6 +10,9 @@ import { z } from "zod"
 import { createNotifier, defineTemplates, kvNotifyStore } from "@dapplelight/signet-server/notify/notifier"
 import { resendSender } from "@dapplelight/signet-server/notify/channels"
 import { kvRateLimitStore, waitUntilDefer } from "@dapplelight/signet-server/adapters"
+import { db } from "./db"
+import type { Env } from "./env"
+import { kv } from "./kv"
 
 const templates = defineTemplates({
   "order.shipped": {
@@ -39,8 +42,11 @@ const notifierFor = (env: Env, ctx: ExecutionContext) =>
     rateLimitStore: kvRateLimitStore(kv),
   })
 
-const results = await notifierFor(env, ctx).notify("user_42", "order.shipped", { orderId: "ord_1042", url })
-// [{ channel: "email", status: "queued" }, { channel: "inApp", status: "queued" }]
+export async function onShipped(env: Env, ctx: ExecutionContext, url: string) {
+  const results = await notifierFor(env, ctx).notify("user_42", "order.shipped", { orderId: "ord_1042", url })
+  // [{ channel: "email", status: "queued" }, { channel: "inApp", status: "queued" }]
+  return results
+}
 ```
 
 `notify` validates data against the template, then per channel checks preferences, suppression, WhatsApp opt-in, quiet hours and the rate limit. The request never waits on a provider. A channel is `queued` or `skipped` with a reason: `PREFS`, `SUPPRESSED`, `NO_OPT_IN`, `QUIET_HOURS`, `RATE_LIMITED`, `NO_ADDRESS`, `NO_SENDER`, `DUPLICATE`.
@@ -148,6 +154,8 @@ Plain `fetch` helpers for sending without templates. They return `false` or a co
 
 ```ts
 import { resendWebhook, twilioWebhook, unsubscribeRoute } from "@dapplelight/signet-server/notify/webhooks"
+import { app } from "./app"
+import { notifier } from "./notifier"
 
 app.post("/webhooks/resend", (c) => resendWebhook(notifier, { secret: c.env.RESEND_WEBHOOK_SECRET })(c.req.raw))
 app.post("/webhooks/twilio", (c) => twilioWebhook(notifier, { authToken: c.env.TWILIO_AUTH_TOKEN })(c.req.raw))
@@ -158,6 +166,9 @@ app.all("/unsubscribe", (c) => unsubscribeRoute(notifier)(c.req.raw))
 
 ```ts
 import { createPusher, webCryptoPushSender } from "@dapplelight/signet-server/notify/push"
+import { db } from "./db"
+import { subscriptions } from "./subscriptions"
+import { privateKey, publicKey } from "./vapid"
 
 const pusher = createPusher({
   send: webCryptoPushSender({ vapid: { subject: "mailto:ops@example.com", publicKey, privateKey } }),
@@ -169,14 +180,31 @@ await pusher.sendTo(subscriptions, { title: "Invoice paid", message: "Invoice 10
 ### SMS in India
 
 ```ts
-sms: { text: (d) => `Order ${d.orderId} shipped`, dltTemplateId: "1107...", senderId: "ACMEIN",
-       providerTemplateId: "flow-id", params: (d) => ({ order: d.orderId }) },
+import { z } from "zod"
+import { defineTemplates } from "@dapplelight/signet-server/notify/notifier"
+
+const templates = defineTemplates({
+  "order.shipped": {
+    category: "orders",
+    data: z.object({ orderId: z.string() }),
+    en: {
+      sms: {
+        text: (d) => `Order ${d.orderId} shipped`,
+        dltTemplateId: "1107...",
+        senderId: "ACMEIN",
+        providerTemplateId: "flow-id",
+        params: (d) => ({ order: d.orderId }),
+      },
+    },
+  },
+})
 ```
 
 ### Phone codes through a real provider
 
 ```ts
 import { msg91Sms, smsSenderFor } from "@dapplelight/signet-server/notify/channels"
+import { env } from "./env"
 
 const sender = smsSenderFor(msg91Sms({ authKey: env.MSG91_KEY }), {
   dltTemplateId: "1107...",
@@ -193,6 +221,9 @@ const sender = smsSenderFor(msg91Sms({ authKey: env.MSG91_KEY }), {
 import { notifyJob } from "@dapplelight/signet-server/notify/notifier"
 import { z } from "zod"
 import { createJobs } from "@dapplelight/signet-server/jobs"
+import { notifier } from "./notifier"
+import { queue } from "./queue"
+import { store } from "./store"
 
 const sendJob = notifyJob(notifier, z)
 const jobs = createJobs({ jobs: [sendJob], queue, store })

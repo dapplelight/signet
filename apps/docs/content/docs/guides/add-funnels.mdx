@@ -13,8 +13,18 @@ npm i @dapplelight/signet-server @dapplelight/signet-payments @dapplelight/signe
 <Step>
 ### Define the funnel
 ```ts title="src/server/funnels.ts"
-import { createFunnels } from "@dapplelight/signet-db/funnels"
+import { createFunnels, funnelTables } from "@dapplelight/signet-db/funnels"
 import { redemptionLink } from "@dapplelight/signet-server/http/funnels"
+import { sink } from "./analytics"
+import { db } from "./db"
+import { customerEvents } from "./db/schema"
+import { entitlements } from "./entitlements"
+import { env } from "./env"
+import { sendMail } from "./mail"
+import { customers, off as offerings } from "./monetisation"
+import { payments } from "./payments"
+
+const opts = { secret: env.FUNNEL_SECRET, redeemUrl: "https://app.example.com/redeem" }
 
 export const funnels = createFunnels(db, {
   tables: { ...funnelTables(), customerEvents },
@@ -34,8 +44,12 @@ export const funnels = createFunnels(db, {
 ### Apply gateway events
 ```ts title="src/server/payments.ts"
 import { createPayments } from "@dapplelight/signet-payments"
+import { entitlements } from "./entitlements"
+import { gateways } from "./gateways"
+import { funnels } from "./funnels"
+import { customers } from "./monetisation"
 
-createPayments({
+export const payments = createPayments({
   ...gateways,
   onEvent: async (e) => {
     await entitlements.applyBillingEvent(e)
@@ -49,17 +63,23 @@ Nothing is granted until the gateway webhook signature verifies.
 <Step>
 ### Mount the routes
 ```ts title="src/app.ts"
+import { Hono } from "hono"
 import { funnelRoutes } from "@dapplelight/signet-server/http/funnels"
 import { rateLimit } from "@dapplelight/signet-server/middleware/rate-limit"
+import { env } from "./server/env"
+import { funnels } from "./server/funnels"
+import { payments } from "./server/payments"
+
+const app = new Hono()
 
 app.use("/f/:key/checkout", rateLimit({ scope: "funnel-checkout", max: 10, trust: "cloudflare" }))
 app.use("/f/redeem", rateLimit({ scope: "funnel-redeem", max: 10, trust: "cloudflare" }))
 app.route("/f", funnelRoutes({
   funnels,
-  secret: c.env.FUNNEL_SECRET,
+  secret: env.FUNNEL_SECRET,
   redeemUrl: "https://app.example.com/redeem",
   userId: (c) => c.get("session")?.sub,
-  page: { stripePublishableKey: c.env.STRIPE_PUBLISHABLE_KEY, razorpayKeyId: c.env.RAZORPAY_KEY_ID },
+  page: { stripePublishableKey: env.STRIPE_PUBLISHABLE_KEY, razorpayKeyId: env.RAZORPAY_KEY_ID },
 }))
 app.post("/webhooks/:gateway", (c) => payments.handleWebhook(c.req.param("gateway"), c.req.raw))
 ```
@@ -68,16 +88,23 @@ app.post("/webhooks/:gateway", (c) => payments.handleWebhook(c.req.param("gatewa
 <Step>
 ### Redeem in the app
 ```ts title="src/web/redeem.ts"
-await api.post("/f/redeem", { token })
+import { api } from "./api"
+
+export async function redeem(token: string) {
+  await api.post("/f/redeem", { token })
+}
 ```
 This moves the anonymous buyer's plan, payments and history to the signed-in account. A token works once.
 </Step>
 <Step>
 ### Read drop-off
 ```ts title="src/server/reports.ts"
-import { funnelSteps } from "@dapplelight/signet-db/funnels"
+import { funnelSteps, type FunnelDefinition } from "@dapplelight/signet-db/funnels"
+import { store } from "./analytics"
 
-const dropOff = await store.funnel({ steps: funnelSteps(def) })
+export async function readDropOff(def: FunnelDefinition) {
+  return store.funnel({ steps: funnelSteps(def) })
+}
 ```
 </Step>
 </Steps>

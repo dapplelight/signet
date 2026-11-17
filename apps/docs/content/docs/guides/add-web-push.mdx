@@ -14,6 +14,8 @@ npm i @dapplelight/signet-server
 ### Create the pusher
 ```ts title="server/push.ts"
 import { createPusher, webCryptoPushSender } from "@dapplelight/signet-server/notify/push"
+import { db } from "./db"
+import type { Env } from "./env"
 
 export const pusherFor = (env: Env) =>
   createPusher({
@@ -28,10 +30,17 @@ The public key is the 65-byte point you give `pushManager.subscribe`. Both are b
 <Step>
 ### Send
 ```ts title="server/routes/orders.ts"
-const sent = await pusherFor(c.env).sendTo(subscriptions, {
-  title: "Order shipped",
-  message: "Your order ord_1042 is on its way.",
-  url: "/orders/ord_1042",
+import { app } from "../app"
+import { subscriptions } from "../db"
+import { pusherFor } from "../push"
+
+app.post("/orders/ord_1042/ship", async (c) => {
+  const sent = await pusherFor(c.env).sendTo(subscriptions, {
+    title: "Order shipped",
+    message: "Your order ord_1042 is on its way.",
+    url: "/orders/ord_1042",
+  })
+  return c.json({ sent })
 })
 ```
 `sendTo` returns the count delivered and never throws. A 404 or 410 from the endpoint removes that subscription.

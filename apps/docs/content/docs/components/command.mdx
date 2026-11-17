@@ -91,6 +91,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@dapplelight/signet-ui/components/command"
+import { run } from "./commands"
 
 <Command onAction={(value) => run(value)}>
   <CommandInput placeholder="Search..." />
@@ -136,6 +137,8 @@ import {
   CommandList,
 } from "@dapplelight/signet-ui/components/command"
 import { FileTextIcon, PlusIcon } from "lucide-react"
+import * as React from "react"
+import { run } from "./commands"
 
 const [open, setOpen] = React.useState(false)
 

@@ -8,23 +8,26 @@ description: "Verify and track Apple App Store purchases and subscriptions from 
 ```ts
 import { appstore } from "@dapplelight/signet-payments/appstore"
 import { createPayments } from "@dapplelight/signet-payments"
+import { app } from "./app"
+import { db } from "./db"
+import { env } from "./env"
 
-const payments = createPayments({
-  gateways: [
-    appstore({
-      issuerId: env.APPSTORE_ISSUER_ID,
-      keyId: env.APPSTORE_KEY_ID,
-      privateKey: env.APPSTORE_P8, // In-App Purchase key, PKCS#8 PEM
-      bundleId: "com.example.notes",
-      appAppleId: 1234567890,
-    }),
-  ],
-  db,
+export const apple = appstore({
+  issuerId: env.APPSTORE_ISSUER_ID,
+  keyId: env.APPSTORE_KEY_ID,
+  privateKey: env.APPSTORE_P8, // In-App Purchase key, PKCS#8 PEM
+  bundleId: "com.example.notes",
+  appAppleId: 1234567890,
 })
 
+export const payments = createPayments({ gateways: [apple], db })
+
 // The app sends the transaction id after a StoreKit purchase.
-await payments.verifyPurchase({ gateway: "appstore", id: transactionId, userId })
-await payments.gateway("appstore").getSubscription(originalTransactionId)
+app.post("/purchases", async (c) => {
+  const { transactionId, originalTransactionId, userId } = await c.req.json()
+  await payments.verifyPurchase({ gateway: "appstore", id: transactionId, userId })
+  return c.json(await payments.gateway("appstore").getSubscription(originalTransactionId))
+})
 
 // Server Notifications V2
 app.post("/webhooks/appstore", (c) => payments.handleWebhook("appstore", c.req.raw))
@@ -68,11 +71,17 @@ Plus the shared `sandbox` (`api.storekit-sandbox.apple.com`), `baseUrl`, `fetch`
 ## Restore purchases
 
 ```ts
-const { restored, refused } = await payments.restorePurchases({
-  userId,
-  purchases: [{ gateway: "appstore", signedTransaction: jwsRepresentation }],
-})
-for (const r of restored) if (r.subscription) await ent.applySubscription(r.subscription, { subject: userId }) // signet-db
+import { ent } from "./entitlements"
+import { payments } from "./payments"
+
+export async function restore(userId: string, jwsRepresentation: string) {
+  const { restored, refused } = await payments.restorePurchases({
+    userId,
+    purchases: [{ gateway: "appstore", signedTransaction: jwsRepresentation }],
+  })
+  for (const r of restored) if (r.subscription) await ent.applySubscription(r.subscription, { subject: userId }) // signet-db
+  return refused
+}
 ```
 
 A purchase that is already another user's lands in `refused` with `BAD_INPUT`, a forged JWS with `BAD_SIGNATURE`. An outage throws, so retry the call.
@@ -92,7 +101,10 @@ A purchase that is already another user's lands in `refused` with `BAD_INPUT`, a
 ### Answer a refund request
 
 ```ts
+import { apple } from "./payments"
+
 // `apple` is the value `appstore({...})` returned: the extra methods are on it, not on `payments.gateway()`.
+const transactionId = "2000000123456789"
 await apple.sendConsumptionInfo(transactionId, {
   customerConsented: true, // for a customer who did not consent, send nothing
   deliveryStatus: "DELIVERED",

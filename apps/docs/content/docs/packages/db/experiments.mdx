@@ -7,6 +7,8 @@ description: "A/B/n tests with sticky assignment and a significance readout."
 ```ts
 import { analyticsEvents, experimentTables } from "@dapplelight/signet-db/columns/sqlite"
 import { createExperiments } from "@dapplelight/signet-db/experiments"
+import { db } from "./db"
+import { actor, userId } from "./session"
 
 export const { experiments, experimentExposures } = experimentTables()
 export const events = analyticsEvents()
@@ -65,6 +67,9 @@ A conversion is the subject's goal event (`userId` or `anonymousId` equal to the
 
 ### Call expose where the person sees it
 ```ts
+import { ex } from "./experiments"
+import { userId, plan } from "./session"
+
 const a = await ex.expose("onboarding-copy", { id: userId, plan })
 const steps = (a?.value as { steps?: number } | null)?.steps ?? 5
 ```

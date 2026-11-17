@@ -11,6 +11,7 @@ export { BudgetCounter } from "@dapplelight/signet-ai/budget-do"
 // in a handler
 import { createBudgetLedger } from "@dapplelight/signet-ai"
 import { durableObjectBudgetStore } from "@dapplelight/signet-ai/budget-do"
+import { env } from "./env"
 
 const ledger = createBudgetLedger(5, 86_400, {
   store: durableObjectBudgetStore(env.AI_BUDGET),

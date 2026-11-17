@@ -113,6 +113,7 @@ Data goes in as props shaped like signet-db's `createCollab` results (or the JSO
 
 ```tsx
 import { CommentThreads } from "@dapplelight/signet-ui/screens/collab-screens"
+import { addComment, searchPeople, threads } from "./collab"
 
 <CommentThreads threads={threads} onAdd={addComment} onSearchPeople={searchPeople} />
 ```
@@ -268,6 +269,7 @@ function ActivityFeedDemo() {
 
 ```tsx
 import { VersionHistory } from "@dapplelight/signet-ui/screens/collab-screens"
+import { versions } from "./collab"
 
 function VersionHistoryDemo() {
   return (
@@ -290,6 +292,7 @@ function VersionHistoryDemo() {
 
 ```tsx
 import { VersionDiff } from "@dapplelight/signet-ui/screens/collab-screens"
+import { versions } from "./collab"
 
 function VersionDiffDemo() {
   return <VersionDiff className="w-full max-w-md" changes={versions[0].changes} />

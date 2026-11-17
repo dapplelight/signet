@@ -15,11 +15,18 @@ npm i @dapplelight/signet-server hono
 ```ts title="src/server/gate.ts"
 import { verifyPasscode } from "@dapplelight/signet-server/auth/passcode"
 import { issueSession, sessionCookie } from "@dapplelight/signet-server/auth/session"
+import { Hono } from "hono"
 
-const opts = { cookieName: "rsvp_session", secret: c.env.SESSION_SECRET, sameSite: "none" as const }
+const app = new Hono()
 
-if (!(await verifyPasscode(body.passcode, c.env.PASSCODE_HASH))) return c.json({ error: "Wrong passcode" }, 401)
-c.header("Set-Cookie", sessionCookie(await issueSession(opts), opts))
+app.post("/gate", async (c) => {
+  const body = await c.req.json()
+  const opts = { cookieName: "rsvp_session", secret: c.env.SESSION_SECRET, sameSite: "none" as const }
+
+  if (!(await verifyPasscode(body.passcode, c.env.PASSCODE_HASH))) return c.json({ error: "Wrong passcode" }, 401)
+  c.header("Set-Cookie", sessionCookie(await issueSession(opts), opts))
+  return c.json({ ok: true })
+})
 ```
 </Step>
 <Step>
@@ -37,6 +44,9 @@ Store the output as the `PASSCODE_HASH` secret, never the passcode.
 import { betterAuthDefaults, socialProviders } from "@dapplelight/signet-server/auth/better-auth"
 import { betterAuth } from "better-auth"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
+import { db, schema } from "../db"
+import { env } from "../env"
+import { logger } from "./logger"
 
 export const auth = betterAuth({
   ...betterAuthDefaults(env),
@@ -52,6 +62,9 @@ export const auth = betterAuth({
 ### Turn on CSRF
 ```ts title="src/app.ts"
 import { csrfMiddleware } from "@dapplelight/signet-server/middleware/csrf"
+import { Hono } from "hono"
+
+const app = new Hono()
 
 app.use("/api/*", csrfMiddleware({ originEnvKeys: ["WEB_URL", "ADMIN_URL"] }))
 ```

@@ -16,6 +16,7 @@ npm i @dapplelight/signet-payments
 import { createPayments, sqlStore } from "@dapplelight/signet-payments"
 import { razorpay } from "@dapplelight/signet-payments/razorpay"
 import { stripe } from "@dapplelight/signet-payments/stripe"
+import type { Env } from "./env"
 
 // Build per request: Workers have no env at module scope.
 export const paymentsFor = (env: Env) =>
@@ -34,7 +35,12 @@ Create the tables with the statements from `paymentsSchema("sqlite")`.
 <Step>
 ### Start a checkout
 ```ts title="server/routes/checkout.ts"
+import { app } from "../app"
+import { paymentsFor } from "../payments"
+
 app.post("/api/checkout", async (c) => {
+  const { orderId } = await c.req.json()
+  const userId = c.get("userId")
   const checkout = await paymentsFor(c.env).checkout({
     amount: 49900, // minor units
     currency: "INR",
@@ -49,6 +55,9 @@ app.post("/api/checkout", async (c) => {
 <Step>
 ### Receive webhooks
 ```ts title="server/routes/webhooks.ts"
+import { app } from "../app"
+import { paymentsFor } from "../payments"
+
 app.post("/webhooks/:gateway", (c) => paymentsFor(c.env).handleWebhook(c.req.param("gateway"), c.req.raw))
 ```
 The signature is verified on the raw body, the event is stored once, and captures, fees and refunds post to the ledger exactly once.
@@ -59,23 +68,46 @@ The signature is verified on the raw body, the event is stored once, and capture
 import { appstore } from "@dapplelight/signet-payments/appstore"
 import { googleplay } from "@dapplelight/signet-payments/googleplay"
 
-const gateways = [
-  appstore({ issuerId, keyId, privateKey: p8, bundleId, appAppleId }),
-  googleplay({ packageName, serviceAccount: { client_email, private_key }, pubsub }),
-]
+export const storeGateways = (env: Env) => {
+  const { issuerId, keyId, p8, bundleId, appAppleId, packageName, client_email, private_key, pubsub } = env
+
+  return [
+    appstore({ issuerId, keyId, privateKey: p8, bundleId, appAppleId }),
+    googleplay({ packageName, serviceAccount: { client_email, private_key }, pubsub }),
+  ]
+}
 ```
 ```ts title="server/routes/purchases.ts"
-await payments.verifyPurchase({ gateway: "appstore", id: transactionId, userId })
-const { restored, refused } = await payments.restorePurchases({ userId, purchases })
+import { app } from "../app"
+import { paymentsFor } from "../payments"
+
+app.post("/api/purchases", async (c) => {
+  const { transactionId, purchases } = await c.req.json()
+  const userId = c.get("userId")
+  const payments = paymentsFor(c.env)
+
+  await payments.verifyPurchase({ gateway: "appstore", id: transactionId, userId })
+  const { restored, refused } = await payments.restorePurchases({ userId, purchases })
+  return c.json({ restored, refused })
+})
 ```
 </Step>
 <Step>
 ### Reconcile daily
 ```ts title="worker/index.ts"
 import { reconcileJob } from "@dapplelight/signet-payments"
+import type { Env } from "../server/env"
+import { paymentsFor } from "../server/payments"
+import { store } from "../server/store"
+import { alert } from "./alerts"
 
-const job = reconcileJob(store, payments.gateway("razorpay"), { onMismatch: alert })
-await job() // yesterday, UTC: call from a cron
+export default {
+  async scheduled(_event: ScheduledController, env: Env) {
+    const payments = paymentsFor(env)
+    const job = reconcileJob(store, payments.gateway("razorpay"), { onMismatch: alert })
+    await job() // yesterday, UTC: call from a cron
+  },
+}
 ```
 Mismatches are `missing`, `amount_differs` or `extra`.
 </Step>
@@ -84,8 +116,14 @@ Mismatches are `missing`, `amount_differs` or `extra`.
 ```ts title="server/mcp.ts"
 import { paymentTools } from "@dapplelight/signet-payments/agent"
 import { approvalGate } from "@dapplelight/signet-server/mcp"
+import type { Env } from "./env"
+import { paymentsFor } from "./payments"
 
-const tools = paymentTools(payments, { userId, approve: approvalGate })
+export function toolsFor(env: Env, userId: string) {
+  const payments = paymentsFor(env)
+  const tools = paymentTools(payments, { userId, approve: approvalGate })
+  return tools
+}
 ```
 Without `approve`, `refund_payment` returns `APPROVAL_REQUIRED` and refunds nothing.
 </Step>

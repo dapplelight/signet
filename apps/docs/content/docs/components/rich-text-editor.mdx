@@ -67,6 +67,9 @@ import {
   RichTextContent,
   RichTextEditor,
 } from "@dapplelight/signet-ui/components/rich-text-editor"
+import { useState } from "react"
+
+const [note, setNote] = useState("")
 
 <RichTextEditor value={note} onValueChange={setNote} aria-label="Account note" />
 ```
@@ -123,7 +126,10 @@ import { RichTextEditor } from "@dapplelight/signet-ui/components/rich-text-edit
   <RichTextEditorPreviewDemo />
 
 ```tsx
+import { useState } from "react"
 import { RichTextContent, RichTextEditor } from "@dapplelight/signet-ui/components/rich-text-editor"
+
+const [value, setValue] = useState("")
 
 <RichTextEditor value={value} onValueChange={setValue} aria-label="Release notes" />
 

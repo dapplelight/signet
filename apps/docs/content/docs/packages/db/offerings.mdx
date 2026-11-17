@@ -7,6 +7,9 @@ description: "Versioned offerings and remote paywalls, served by placement and a
 ```ts
 import { monetisationTables } from "@dapplelight/signet-db/columns/sqlite"
 import { createOfferings } from "@dapplelight/signet-db/offerings"
+import { db } from "./db"
+import { plans } from "./plans"
+import { staffId } from "./session"
 
 // schema.ts
 export const { offerings, placements } = monetisationTables()
@@ -77,7 +80,7 @@ Each `publish` writes a new immutable version. Change what the app sells with `p
 ## Examples
 ### Free trial offer for new customers only
 ```ts
-{
+const product = {
   id: "pro.yearly",
   store: "appstore",
   plan: "pro",
@@ -89,6 +92,7 @@ Each `publish` writes a new immutable version. Change what the app sells with `p
 ### Map product ids to plans for entitlements
 ```ts
 import { plansFromProducts } from "@dapplelight/signet-db/offerings"
+import { catalog } from "./catalog"
 
 const plansByProduct = plansFromProducts((await catalog.get("default"))!.products)
 // { "appstore:pro.monthly": "pro", "price_9f": "pro" }

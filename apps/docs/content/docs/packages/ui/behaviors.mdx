@@ -72,9 +72,11 @@ export function AutoPayToggle({ value, defaultValue = false, onChange }: Props) 
 ```ts
 import { matchScore } from "@dapplelight/signet-ui/behaviors"
 
-const hits = customers
-  .map((c) => ({ c, score: matchScore(c.name, query) }))
-  .filter((x) => x.score > 0)
-  .sort((a, b) => b.score - a.score)
-  .map((x) => x.c)
+export function rank(customers: { name: string }[], query: string) {
+  return customers
+    .map((c) => ({ c, score: matchScore(c.name, query) }))
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((x) => x.c)
+}
 ```

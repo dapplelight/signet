@@ -52,12 +52,18 @@ Passwords, tokens, cookies and API keys are redacted by default. Add more with `
 ### Add Sentry
 ```ts title="server/sentry.ts"
 import { createSentry } from "@dapplelight/signet-server/observability/sentry"
+import type { Env } from "./env"
 
 export const sentryFor = (env: Env) =>
   createSentry({ dsn: env.SENTRY_DSN, enabled: env.APP_ENV === "production", environment: env.APP_ENV })
 ```
 ```ts title="server/app.ts"
-c.executionCtx.waitUntil(sentryFor(c.env).captureException(err, { job: "sync" }))
+import { sentryFor } from "./sentry"
+
+app.onError((err, c) => {
+  c.executionCtx.waitUntil(sentryFor(c.env).captureException(err, { job: "sync" }))
+  return c.json({ error: "Internal error" }, 500)
+})
 ```
 Pass the report to `waitUntil`: a Worker is frozen once the response is sent.
 </Step>

@@ -13,6 +13,8 @@ import {
   renderGstInvoiceHtml,
 } from "@dapplelight/signet-payments/gst"
 import { nextSequence } from "@dapplelight/signet-db"
+import { db } from "./db"
+import * as schema from "./schema"
 
 const now = new Date()
 const fy = financialYear(now) // "2026-27", 1 April to 31 March IST
@@ -81,7 +83,12 @@ A line is `{ description, hsn, quantity, unit, unitPrice, discount?, rate }`. Pr
 
 ```ts
 import { isValidGstin, parseGstin } from "@dapplelight/signet-payments/gst"
+import { app } from "./app"
 
-if (!isValidGstin(form.gstin)) return c.json({ error: "Invalid GSTIN" }, 422)
-const { stateCode } = parseGstin(form.gstin) // use it as placeOfSupply for a B2B sale
+app.post("/signup", async (c) => {
+  const form = await c.req.json()
+  if (!isValidGstin(form.gstin)) return c.json({ error: "Invalid GSTIN" }, 422)
+  const { stateCode } = parseGstin(form.gstin) // use it as placeOfSupply for a B2B sale
+  return c.json({ stateCode })
+})
 ```

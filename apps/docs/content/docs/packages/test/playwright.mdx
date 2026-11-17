@@ -66,23 +66,29 @@ Baselines differ by OS and browser build. Write them with `--update-snapshots` o
 ### Only the dark editorial theme
 
 ```ts
+import { test } from "@playwright/test"
 import { expectAcrossThemes } from "@dapplelight/signet-test/playwright"
 
-await expectAcrossThemes(page, "invoice-list", {
-  themes: ["editorial"],
-  modes: ["dark"],
-  screenshot: { fullPage: true },
+test("invoice list", async ({ page }) => {
+  await expectAcrossThemes(page, "invoice-list", {
+    themes: ["editorial"],
+    modes: ["dark"],
+    screenshot: { fullPage: true },
+  })
 })
 ```
 
 ### An app that switches themes its own way
 
 ```ts
+import { test } from "@playwright/test"
 import { expectAcrossThemes } from "@dapplelight/signet-test/playwright"
 
-await expectAcrossThemes(page, "settings", {
-  apply: async (page, theme, mode) => {
-    await page.goto(`/settings?skin=${theme}&mode=${mode}`)
-  },
+test("settings", async ({ page }) => {
+  await expectAcrossThemes(page, "settings", {
+    apply: async (page, theme, mode) => {
+      await page.goto(`/settings?skin=${theme}&mode=${mode}`)
+    },
+  })
 })
 ```

@@ -8,6 +8,11 @@ description: "Per-user, per-org and global AI spend caps per day and month, and 
 import { aiSpendCaps, entitlementTables } from "@dapplelight/signet-db/columns/sqlite"
 import { createAiSpend, spendKey } from "@dapplelight/signet-db/ai-spend"
 import { createExtractor } from "@dapplelight/signet-ai/extract"
+import { args, providers } from "../ai"
+import { db } from "../db"
+
+const userId = "u_1"
+const orgId = "org_1"
 
 export const { usageCounters } = entitlementTables()
 export const spendCaps = aiSpendCaps()
@@ -79,10 +84,21 @@ Each row is `{ day, units, calls, cacheSavedUnits }` (`model` or `subject` in pl
 
 ### Check first, then record a streamed chat
 ```ts
-const gate = await spend.check({ userId, orgId })
-if (!gate.ok) return c.json({ error: "AI_BUDGET_EXCEEDED", resetsAt: gate.resetsAt }, 429)
+import { Hono } from "hono"
+import { spendKey } from "@dapplelight/signet-db/ai-spend"
+import { streamChat } from "@dapplelight/signet-ai/chat"
+import { args } from "../ai"
+import { spend } from "../spend"
 
-await streamChat({ ...args, key: spendKey({ userId, orgId }), onUsage: spend.onUsage })
+const app = new Hono()
+
+app.post("/chat", async (c) => {
+  const { userId, orgId } = await c.req.json()
+  const gate = await spend.check({ userId, orgId })
+  if (!gate.ok) return c.json({ error: "AI_BUDGET_EXCEEDED", resetsAt: gate.resetsAt }, 429)
+
+  await streamChat({ ...args, key: spendKey({ userId, orgId }), onUsage: spend.onUsage })
+})
 ```
 
 Do not give an extractor both `ledger` and `onUsage`: spend would count twice.
@@ -92,6 +108,12 @@ Do not give an extractor both `ledger` and `onUsage`: spend would count twice.
 import { aiSpendLedger } from "@dapplelight/signet-db/columns/sqlite"
 import { createAiSpend, spendKey } from "@dapplelight/signet-db/ai-spend"
 import { streamChat } from "@dapplelight/signet-ai/chat"
+import { args } from "../ai"
+import { db } from "../db"
+import { spendCaps, usageCounters } from "../schema"
+
+const userId = "u_1"
+const orgId = "org_1"
 
 const spend = createAiSpend(db, {
   tables: { usageCounters, aiSpendCaps: spendCaps, aiSpendLedger: aiSpendLedger() },
@@ -106,6 +128,11 @@ const days = await spend.series({ scope: "org", subject: orgId, days: 30 })
 
 ### Raise one org's cap
 ```ts
+import { spend } from "../spend"
+
+const orgId = "org_1"
+const adminId = "u_1"
+
 await spend.setCap({ scope: "org", subject: orgId, period: "month", units: 50_000_000 }, { actor: { id: adminId } })
 ```
 

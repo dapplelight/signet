@@ -63,7 +63,14 @@ npx @dapplelight/signet-cli add pill-group
 ## Usage
 
 ```tsx
+import { useState } from "react"
 import { PillGroup } from "@dapplelight/signet-ui/components/pill-group"
+
+const statuses = [
+  { value: "", label: "All" },
+  { value: "paid", label: "Paid" },
+]
+const [status, setStatus] = useState("")
 
 <PillGroup options={statuses} value={status} onChange={setStatus} />
 ```
@@ -76,7 +83,10 @@ import { PillGroup } from "@dapplelight/signet-ui/components/pill-group"
   <PillGroupColoursDemo />
 
 ```tsx
+import { useState } from "react"
 import { PillGroup } from "@dapplelight/signet-ui/components/pill-group"
+
+const [status, setStatus] = useState("paid")
 
 <PillGroup
   value={status}
@@ -97,6 +107,7 @@ import { PillGroup } from "@dapplelight/signet-ui/components/pill-group"
   <PillGroupRangeDemo />
 
 ```tsx
+import { useState } from "react"
 import { PillGroup } from "@dapplelight/signet-ui/components/pill-group"
 
 const [range, setRange] = useState("30d")

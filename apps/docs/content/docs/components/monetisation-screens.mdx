@@ -10,6 +10,7 @@ import { RemotePaywallDemo, CustomerCenterDemo, CustomerTimelineDemo, Promotiona
 
 ```tsx
 import { RemotePaywall } from "@dapplelight/signet-ui/screens/monetisation-screens"
+import { offering } from "./offering"
 
 function RemotePaywallDemo() {
   return (
@@ -76,6 +77,8 @@ Data is shaped like signet-db's offerings and customers results (or their JSON);
 
 ```tsx
 import { RemotePaywall } from "@dapplelight/signet-ui/screens/monetisation-screens"
+import { checkout } from "./billing"
+import { offering } from "./offering"
 
 <RemotePaywall offering={offering} onPurchase={(product) => checkout(product)} />
 ```
@@ -89,6 +92,7 @@ import { RemotePaywall } from "@dapplelight/signet-ui/screens/monetisation-scree
 
 ```tsx
 import { RemotePaywall } from "@dapplelight/signet-ui/screens/monetisation-screens"
+import { offering } from "./offering"
 
 function RemotePaywallDemo() {
   return (

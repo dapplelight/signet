@@ -8,6 +8,11 @@ description: "Multi-tenant organisations: members, roles, permissions, custom do
 import { orgTables } from "@dapplelight/signet-db/columns/sqlite"
 import { scoped } from "@dapplelight/signet-db"
 import { createOrgs } from "@dapplelight/signet-db/orgs"
+import { db } from "../db"
+
+const userId = "u_1"
+const otherId = "u_2"
+const email = "asha@example.test"
 
 // schema.ts
 export const { organizations, memberships, invitations, orgRoles } = orgTables()
@@ -84,18 +89,30 @@ Pass `{ by: userId }` where shown to check the actor's permissions; omit it for 
 ## Examples
 ### Custom role per org
 ```ts
+import { orgs } from "../orgs"
+
+const ownerId = "u_1"
+const accountantId = "u_3"
+const [{ org }] = await orgs.listForUser(ownerId)
+
 await orgs.saveRole(org.id, "billing", ["members:read", "billing:*"], { by: ownerId })
 await orgs.setRole(org.id, accountantId, "billing", { by: ownerId })
 ```
 
 ### Resolve the org from the request host
 ```ts
-const org = (await orgs.byDomain(request.headers.get("host") ?? "")) ?? null
+import { orgs } from "../orgs"
+
+export async function orgFor(request: Request) {
+  const org = (await orgs.byDomain(request.headers.get("host") ?? "")) ?? null
+  return org
+}
 ```
 
 ### Your own roles
 ```ts
 import { createOrgs, defineRoles, ORG_PERMISSIONS } from "@dapplelight/signet-db/orgs"
+import { db, tables } from "../db"
 
 const roles = defineRoles({
   owner: ["*"],

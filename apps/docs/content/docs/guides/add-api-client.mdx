@@ -29,6 +29,7 @@ const rows = await api.get<Transaction[]>("/transactions")
 ```ts title="src/server/app.ts"
 import { zValidator } from "@dapplelight/signet-server/http/validate"
 import { Hono } from "hono"
+import { NoteInput, save } from "./notes"
 
 export const app = new Hono()
   .post("/api/notes", zValidator("json", NoteInput), (c) => c.json(save(c.req.valid("json")), 201))
@@ -52,11 +53,17 @@ const note = await (await api.api.notes.$post({ json: { title: "Hi" } })).json()
 ### Show field errors
 ```ts title="src/web/note-form.tsx"
 import { ApiError } from "@dapplelight/signet-lib/api"
+import { api } from "./api"
 
-try {
-  await api.api.notes.$post({ json })
-} catch (e) {
-  if (e instanceof ApiError && e.code === "VALIDATION_FAILED") setFieldErrors(e.details?.fieldErrors ?? {})
+export async function submit(
+  json: { title: string },
+  setFieldErrors: (errors: Record<string, string[]>) => void,
+) {
+  try {
+    await api.api.notes.$post({ json })
+  } catch (e) {
+    if (e instanceof ApiError && e.code === "VALIDATION_FAILED") setFieldErrors(e.details?.fieldErrors ?? {})
+  }
 }
 ```
 </Step>
@@ -64,23 +71,31 @@ try {
 ### Map error codes to copy
 ```ts title="src/web/error-copy.ts"
 import { DEFAULT_ERROR_COPY, errorCopy, type ErrorCode, type ErrorCopy } from "@dapplelight/signet-lib/api"
+import type { AppErrorCode } from "./codes"
 
 export const COPY = {
   ...DEFAULT_ERROR_COPY,
   RATE_LIMITED: { title: "Easy there", detail: "Search again shortly.", action: "wait" },
 } satisfies Record<ErrorCode | AppErrorCode, ErrorCopy>
 
-const { title, detail } = errorCopy(err.code, COPY)
+export function describe(err: { code: string }) {
+  const { title, detail } = errorCopy(err.code, COPY)
+  return `${title}: ${detail}`
+}
 ```
 </Step>
 <Step>
 ### Read a stream
 ```ts title="src/web/chat-stream.ts"
 import { readSseJson } from "@dapplelight/signet-lib/api"
+import type { UIMessage, UIMessageChunk } from "ai"
+import { api } from "./api"
 
-const res = await api.api.chat.$post({ json: { messages } })
-for await (const chunk of readSseJson<UIMessageChunk>(res)) {
-  if (chunk.type === "text-delta") append(chunk.delta)
+export async function send(messages: UIMessage[], append: (delta: string) => void) {
+  const res = await api.api.chat.$post({ json: { messages } })
+  for await (const chunk of readSseJson<UIMessageChunk>(res)) {
+    if (chunk.type === "text-delta") append(chunk.delta)
+  }
 }
 ```
 </Step>

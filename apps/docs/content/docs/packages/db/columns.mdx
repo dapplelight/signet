@@ -69,6 +69,7 @@ Add every table to your migrations.
 import { auditLog, outbox } from "@dapplelight/signet-db/columns/sqlite"
 import { createDb } from "@dapplelight/signet-db/d1"
 import * as schema from "./schema" // exports audit = auditLog(), queue = outbox()
+import { bindings } from "./bindings"
 
 const db = createDb(bindings.DB, { schema, audit: schema.audit, outbox: schema.queue })
 ```

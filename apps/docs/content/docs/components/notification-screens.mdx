@@ -11,6 +11,7 @@ import { NotificationInboxDemo, NotificationInboxEmptyDemo, InboxItemDemo, Notif
 ```tsx
 import { useState } from "react"
 import { NotificationInbox } from "@dapplelight/signet-ui/screens/notification-screens"
+import { initial } from "./notifications"
 
 function NotificationInboxDemo() {
   const [items, setItems] = useState(initial)
@@ -77,6 +78,7 @@ Shapes match signet-server's notifier: `InboxEntry` from `inbox.list`, `ChannelP
 
 ```tsx
 import { NotificationInbox } from "@dapplelight/signet-ui/screens/notification-screens"
+import { items, markRead } from "./notifications"
 
 <NotificationInbox items={items} onMarkRead={markRead} />
 ```
@@ -91,6 +93,7 @@ import { NotificationInbox } from "@dapplelight/signet-ui/screens/notification-s
 ```tsx
 import { useState } from "react"
 import { NotificationInbox } from "@dapplelight/signet-ui/screens/notification-screens"
+import { initial } from "./notifications"
 
 function NotificationInboxDemo() {
   const [items, setItems] = useState(initial)
@@ -135,6 +138,7 @@ One row, on its own. It is a button; pass `render={<a href={item.link} />}` to m
 
 ```tsx
 import { InboxItem } from "@dapplelight/signet-ui/screens/notification-screens"
+import { initial } from "./notifications"
 
 function InboxItemDemo() {
   return (

@@ -17,6 +17,7 @@ The Tiptap packages are only for the rich text editor.
 ```tsx title="src/web/customers-import.tsx"
 import { CsvImport } from "@dapplelight/signet-ui/domain/csv-import"
 import { z } from "zod"
+import { api } from "./api"
 
 const schema = z.object({ name: z.string().min(1), email: z.email(), plan: z.enum(["free", "pro"]) })
 
@@ -32,6 +33,9 @@ const schema = z.object({ name: z.string().min(1), email: z.email(), plan: z.enu
 ```ts title="src/server/customers.ts"
 import { bulkInsert } from "@dapplelight/signet-db/import"
 import { audited, scoped } from "@dapplelight/signet-db"
+import { customers } from "../db/schema"
+import { app } from "./app"
+import { db } from "./db"
 
 app.post("/customers/import", async (c) => {
   const { rows } = await c.req.json()
@@ -45,21 +49,30 @@ Importing the same file twice inserts nothing new.
 ### Edit in a grid
 ```tsx title="src/web/customers-grid.tsx"
 import { DataGrid } from "@dapplelight/signet-ui/components/data-grid"
+import { useState } from "react"
+import { api } from "./api"
+import { applyChanges } from "./rows"
 
-<DataGrid
-  aria-label="Customers"
-  rows={rows}
-  getRowId={(r) => r.id}
-  columns={[
-    { id: "name", header: "Name" },
-    { id: "seats", header: "Seats", type: "number" },
-    { id: "plan", header: "Plan", type: "select", options: [{ value: "free", label: "Free" }, { value: "pro", label: "Pro" }] },
-  ]}
-  onChange={async (changes) => {
-    await api.patch("/customers", { changes })
-    setRows((all) => applyChanges(all, changes))
-  }}
-/>
+export function CustomersGrid() {
+  const [rows, setRows] = useState<{ id: string }[]>([])
+
+  return (
+    <DataGrid
+      aria-label="Customers"
+      rows={rows}
+      getRowId={(r) => r.id}
+      columns={[
+        { id: "name", header: "Name" },
+        { id: "seats", header: "Seats", type: "number" },
+        { id: "plan", header: "Plan", type: "select", options: [{ value: "free", label: "Free" }, { value: "pro", label: "Pro" }] },
+      ]}
+      onChange={async (changes) => {
+        await api.patch("/customers", { changes })
+        setRows((all) => applyChanges(all, changes))
+      }}
+    />
+  )
+}
 ```
 A throw from `onChange` reverts the cells and marks them with the error.
 </Step>
@@ -67,9 +80,19 @@ A throw from `onChange` reverts the cells and marks them with the error.
 ### Write rich notes
 ```tsx title="src/web/note.tsx"
 import { RichTextEditor, RichTextContent } from "@dapplelight/signet-ui/components/rich-text-editor"
+import { useState } from "react"
+import { api } from "./api"
 
-<RichTextEditor aria-label="Note" value={body} onValueChange={setBody} onMentionSearch={(q) => api.get(`/mentions?q=${q}`)} />
-<RichTextContent value={body} />
+export function Note() {
+  const [body, setBody] = useState("")
+
+  return (
+    <>
+      <RichTextEditor aria-label="Note" value={body} onValueChange={setBody} onMentionSearch={(q) => api.get(`/mentions?q=${q}`)} />
+      <RichTextContent value={body} />
+    </>
+  )
+}
 ```
 </Step>
 <Step>

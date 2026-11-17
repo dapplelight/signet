@@ -5,9 +5,22 @@ description: "Pricing experiments: read out which offering earns more, then roll
 
 ## Usage
 ```ts
+import {
+  analyticsEvents,
+  experimentTables,
+  monetisationTables,
+} from "@dapplelight/signet-db/columns/sqlite"
 import { createExperiments } from "@dapplelight/signet-db/experiments"
 import { createOfferings } from "@dapplelight/signet-db/offerings"
 import { createPricing } from "@dapplelight/signet-db/pricing"
+import { db } from "./db"
+import { plans } from "./plans"
+import { audience, staffId, subjectId } from "./session"
+
+const { experimentExposures } = experimentTables()
+const tables = monetisationTables()
+const { customerEvents, customerIdentities } = tables
+const events = analyticsEvents()
 
 const ex = createExperiments(db, { tables: experimentTables(), events })
 const offerings = createOfferings(db, { tables, plans, experiments: ex })
@@ -73,6 +86,9 @@ The experiment gives everyone the variant and stops. Every placement running it 
 ## Examples
 ### Decide on a result
 ```ts
+import { pricing } from "./pricing"
+import { actor } from "./session"
+
 const { variants } = await pricing.readout("annual-first")
 const best = variants.find((v) => v.significant && (v.lift ?? 0) > 0)
 if (best) await pricing.rollout("annual-first", best.key, { actor })

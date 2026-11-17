@@ -227,7 +227,13 @@ bun add @modelcontextprotocol/server
 ```ts title="src/app.ts"
 import { appTools } from "@dapplelight/signet-server/mcp"
 import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
+import { Hono } from "hono"
 
-// at the end of createApp, after the routes
-mountMcp(app, "/mcp", { name: "api", version: "0.0.0", tools: appTools(app) })
+export function createApp() {
+  const app = new Hono()
+
+  // at the end of createApp, after the routes
+  mountMcp(app, "/mcp", { name: "api", version: "0.0.0", tools: appTools(app) })
+  return app
+}
 ```
