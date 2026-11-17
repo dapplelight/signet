@@ -15,7 +15,7 @@
     { "do": "expectCount", "role": "row", "min": 5 },
     {
       "do": "sourceForbids",
-      "pattern": "[\"'`(]#[0-9a-fA-F]{3,8}\\b|\\[#[0-9a-fA-F]{3,8}\\]|\\b(?:rgb|hsl)a?\\(\\s*\\d"
+      "pattern": "(?<![\\w&])#(?:(?=[0-9a-fA-F]*[a-fA-F])[0-9a-fA-F]{3,8}|[0-9]{3}|[0-9]{6})\\b|\\[#[0-9a-fA-F]{3,8}\\]|\\b(?:rgb|hsl)a?\\(\\s*\\d"
     }
   ]
 }

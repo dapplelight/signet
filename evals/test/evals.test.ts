@@ -74,9 +74,21 @@ test("the three real-failure tasks have hidden checks that can fail", () => {
     "bg-[#fff]",
     "style={{ background: 'rgb(0, 128, 0)' }}",
     "`#abc`",
+    'style={{ border: "1px solid #ccc" }}',
+    '"color: #fff"',
+    '"bg #fff"',
+    "border: 1px solid #000",
   ])
     expect(rx.test(bad)).toBe(true)
-  for (const ok of ["Order #1234", "bg-primary", "rgb(var(--ok))", "text-success"])
+  // a 4-digit order number like "#1001" is not a colour the task is about
+  for (const ok of [
+    "Order #1234",
+    "<td>#1001</td>",
+    "&#39;",
+    "bg-primary",
+    "rgb(var(--ok))",
+    "text-success",
+  ])
     expect(rx.test(ok)).toBe(false)
   // raw fetch and form: they mock the server, with an error envelope and a non-JSON failure
   const mocks = [...get("raw-fetch-errors"), ...get("form-states")].filter(
