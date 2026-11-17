@@ -31,3 +31,4 @@ next-env.d.ts
 /content/docs/components/index.mdx
 /components/demos.generated.tsx
 /.wrangler/
+/app/themes.generated.css
