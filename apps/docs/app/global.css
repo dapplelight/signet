@@ -59,8 +59,11 @@ html {
   scrollbar-gutter: stable;
 }
 
+/* react-remove-scroll injects these with !important; only !important beats it. */
 html > body[data-scroll-locked] {
+  /* biome-ignore lint/complexity/noImportantStyles: must beat the injected !important */
   margin-right: 0px !important;
+  /* biome-ignore lint/complexity/noImportantStyles: must beat the injected !important */
   --removed-body-scroll-bar-size: 0px !important;
 }
 
@@ -73,9 +76,11 @@ html > body[data-scroll-locked] {
 #nd-sidebar {
   font-size: 0.875rem;
 }
-.prose pre,
-.prose pre code,
 figure pre code {
+  font-size: 0.875rem;
+}
+.prose pre,
+.prose pre code {
   font-size: 0.875rem;
 }
 
