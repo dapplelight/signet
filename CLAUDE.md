@@ -1,6 +1,6 @@
 # Signet
 
-Shared design system and backend kit. Extracted from 23 products.
+Shared design system and backend kit.
 
 ## Layout
 ```

@@ -1,6 +1,6 @@
 # Conventions
 
-Decisions made 2026-09-22, from the audit of 23 products in `~/projects`.
+Decisions made 2026-09-22.
 
 | Concern | Choice | Why |
 |---|---|---|

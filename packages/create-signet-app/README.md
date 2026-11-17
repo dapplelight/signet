@@ -91,10 +91,8 @@ The API runs on Bun whichever package manager installs it.
 
 ## Why
 
-The audit found this exact setup rebuilt by hand 13 times across 23 products,
-and the five-package eslint config copied as a block into **exactly 8 of 23**
-repos — the identical count for all five packages is the signature of
-copy-paste, not configuration.
+This setup kept getting rebuilt by hand, and the same lint config kept getting
+copied between repos as a block. Copy-paste is not configuration.
 
 ## What you get
 
