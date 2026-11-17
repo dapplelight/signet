@@ -12,7 +12,9 @@ npm run dev
 
 With pnpm: `pnpm create signet-app my-app --template full`. With bun:
 `bunx create-signet-app my-app --template full`. Then install and `run dev` with
-the same manager. Open `http://localhost:5173`.
+the same manager. Open `http://localhost:5173`. `full` needs
+[Bun](https://bun.sh) 1.3+ installed: `run dev` is a Bun script, whichever
+package manager installs the app.
 
 `--theme` takes `editorial`, `cinematic` or `finance` (editorial plus the
 spend-category and money tokens; default `editorial`).

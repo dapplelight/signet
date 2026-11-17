@@ -41,7 +41,8 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. `--theme` is `editorial` (default) or
+Open `http://localhost:5173`. `full` needs [Bun](https://bun.sh) 1.3+ installed:
+`run dev` is a Bun script, whichever package manager installs the app. `--theme` is `editorial` (default) or
 `cinematic`; `--template api` scaffolds a Hono Worker instead. Details in
 [packages/create-signet-app](packages/create-signet-app/README.md).
 

@@ -36,6 +36,8 @@ bun run dev
 </Tab>
 </Tabs>
 
+`full` needs [Bun](https://bun.sh) 1.3+ installed, even when npm or pnpm installs it: `run dev` is a Bun script.
+
 <Steps>
 <Step>
 
@@ -62,12 +64,11 @@ Open `http://localhost:5173`. Sign in with any phone number; the code prints in 
 
 ### Make your first edit
 
-Change the title. The page reloads on save.
+Change the `CardTitle` on line 17 (it starts as `Hello`). The page reloads on save.
 
 ```tsx title="src/routes/_app/index.tsx"
 <CardTitle>Welcome to my app</CardTitle>
 ```
-
 </Step>
 </Steps>
 
