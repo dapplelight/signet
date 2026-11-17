@@ -3,7 +3,7 @@ title: "Alert"
 description: "Displays a callout for user attention."
 ---
 
-import { AlertDemo, AlertDestructiveDemo, AlertWarningDemo, AlertNoIconDemo } from "@/components/demos/alert"
+import { AlertDemo, AlertDestructiveDemo, AlertWarningDemo, AlertNoIconDemo, AlertStackDemo } from "@/components/demos/alert"
 
 <Preview>
   <AlertDemo />
@@ -123,29 +123,55 @@ import { Alert, AlertDescription, AlertTitle } from "@dapplelight/signet-ui/comp
 
 </Preview>
 
+## Composition
+
+<Preview>
+  <AlertStackDemo />
+
+```tsx
+import { Alert, AlertDescription, AlertTitle } from "@dapplelight/signet-ui/components/alert"
+
+export function DeployAlerts() {
+  return (
+    <div className="grid gap-4">
+      <Alert>
+        <AlertTitle>Deploy succeeded</AlertTitle>
+        <AlertDescription>production · 41s · commit 9f3c2e1</AlertDescription>
+      </Alert>
+      <Alert variant="destructive">
+        <AlertTitle>Card declined</AlertTitle>
+        <AlertDescription>Ask the customer for another payment method.</AlertDescription>
+      </Alert>
+    </div>
+  )
+}
+```
+
+</Preview>
+
 ## API Reference
 
 ### Alert
 
-| Prop | Type | Default | Description |
-| --- | --- | --- | --- |
-| `variant` | `default` \| `destructive` \| `warning` | `default` | Colour of the border, background and icon. |
-| `className` | `string` | - | Merged last. |
+| Prop | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `variant` | `"default" \| "destructive" \| "warning"` | `"default"` | No | Colour of the border, background and icon. |
+| `className` | `string` | — | No | Merged last. |
 
-Renders a `div` with `role="alert"` and accepts every `div` prop. A direct child `svg` is placed at the start and the text indents past it.
+Plus every native [`<div>`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/div) attribute. Renders with `role="alert"`. A direct child `svg` is placed at the start and the text indents past it.
 
 ### AlertTitle
 
-| Prop | Type | Default | Description |
-| --- | --- | --- | --- |
-| `className` | `string` | - | Merged last. |
+| Prop | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `className` | `string` | — | No | Merged last. |
 
-Renders an `h5`.
+Plus every native [`<h5>`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/Heading_Elements) attribute.
 
 ### AlertDescription
 
-| Prop | Type | Default | Description |
-| --- | --- | --- | --- |
-| `className` | `string` | - | Merged last. |
+| Prop | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `className` | `string` | — | No | Merged last. |
 
-Renders a `div`.
+Plus every native [`<div>`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/div) attribute.

@@ -5,13 +5,58 @@ description: Write your business logic. Signet handles the rest.
 
 Signet is a design system and backend kit for React apps. Your app holds only its own business logic.
 
+Vite + React + Tailwind v4 on the front, Hono on Cloudflare Workers behind.
+
+- Install packages to get updates.
+- Run `signet add` to copy source you own.
+
 ## How it fits
 
 | Layer | Packages | You get |
 | --- | --- | --- |
-| Frontend | ui, tokens, lib | Components, themes, API client, forms |
-| Backend | server, db, payments, ai | Auth, middleware, tables, billing, models |
-| Tooling | create-signet-app, cli, mcp, config, test | Scaffold, copy-in, agents, presets, fakes |
+| Frontend | `@dapplelight/signet-ui`, `@dapplelight/signet-tokens`, `@dapplelight/signet-lib` | Components, themes, API client, forms |
+| Backend | `@dapplelight/signet-server`, `@dapplelight/signet-db`, `@dapplelight/signet-payments`, `@dapplelight/signet-ai` | Auth, middleware, tables, billing, models |
+| Tooling | `create-signet-app`, `@dapplelight/signet-cli`, `@dapplelight/signet-mcp`, `@dapplelight/signet-config`, `@dapplelight/signet-test` | Scaffold, copy-in, agents, presets, fakes |
+
+## Example
+
+<Files>
+  <Folder name="my-app" defaultOpen>
+    <Folder name="src/routes" defaultOpen>
+      <File name="index.tsx" />
+    </Folder>
+    <Folder name="api" defaultOpen>
+      <File name="index.ts" />
+    </Folder>
+  </Folder>
+</Files>
+
+```tsx title="src/routes/index.tsx"
+import { createApiClient } from "@dapplelight/signet-lib/api"
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { useState } from "react"
+
+const api = createApiClient({ baseUrl: "/api" })
+
+export function Home() {
+  const [text, setText] = useState("Say hello")
+  const load = async () => setText((await api.get<{ text: string }>("/hello")).text)
+  return <Button onClick={load}>{text}</Button>
+}
+```
+
+```ts title="api/index.ts"
+import { errorHandler } from "@dapplelight/signet-server/http"
+import { requestId, secureHeaders } from "@dapplelight/signet-server/middleware"
+import { Hono } from "hono"
+
+const app = new Hono()
+app.use(requestId(), secureHeaders())
+app.onError(errorHandler({ isProduction: true }))
+app.get("/api/hello", (c) => c.json({ text: "Hello from Workers" }))
+
+export default app
+```
 
 ### Frontend
 
@@ -85,4 +130,6 @@ Open `http://localhost:5173`. `full` needs [Bun](https://bun.sh) 1.3+ installed,
 
 <Cards>
   <Card title="Signet MCP" href="/docs/packages/mcp" description="Docs, exports, components, themes and checks as tools your coding agent can call." />
+  <Card title="/llms.txt" href="/llms.txt" description="Every docs page as a link list, for an agent's context." />
+  <Card title="/llms-full.txt" href="/llms-full.txt" description="Every docs page in full, as one text file." />
 </Cards>
