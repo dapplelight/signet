@@ -1,0 +1,46 @@
+---
+title: First component
+description: Add a Badge to the home route.
+---
+
+<Steps>
+<Step>
+
+### Import it
+
+```tsx title="src/routes/_app/index.tsx"
+import { Badge } from "@dapplelight/signet-ui/components/badge"
+```
+
+</Step>
+<Step>
+
+### Use it
+
+```tsx title="src/routes/_app/index.tsx"
+<CardTitle>
+  Hello <Badge>{me?.plan ?? "free"}</Badge>
+</CardTitle>
+```
+
+The page reloads with a badge in the title.
+
+</Step>
+<Step>
+
+### Try a variant
+
+```tsx
+<Badge variant="outline">Beta</Badge>
+```
+
+Variants and props: [Badge](/docs/components/badge).
+
+</Step>
+</Steps>
+
+<Cards>
+  <Card title="Components" href="/docs/components/button" description="Every component, with props and examples." />
+  <Card title="Blocks" href="/docs/guides/blocks" description="Whole pages you copy in and edit." />
+  <Card title="Next: First API route" href="/docs/first-api-route" description="Add a route and call it from the page." />
+</Cards>

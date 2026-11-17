@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### create-signet-app: one quickstart
+
+- The README and the docs now use one quickstart everywhere: `create-signet-app my-app --template full`, then install and `run dev`, at `http://localhost:5173`. The docs gain a Getting started path (Installation, Project structure, First component, First API route, Deploy).
+
 ### signet-ai: 0.5.0 publishes ./otel
 
 - `./otel` (AI usage to OpenTelemetry spans) was added without a version bump, so npm did not have it. 0.5.0 publishes it. No breaking change.

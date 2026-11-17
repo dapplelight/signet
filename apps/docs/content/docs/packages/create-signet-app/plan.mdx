@@ -1,0 +1,56 @@
+---
+title: "Plan from a sentence"
+description: "--describe turns one sentence into a scaffolded app, a PLAN.md and an AGENTS.md."
+---
+
+```bash
+npx create-signet-app@latest my-app --describe "a team inbox with settings and pricing"
+```
+
+`--describe` scaffolds as usual, then writes two files in the new app:
+
+- `PLAN.md`: the pages, each with its block command, components, server modules and data; the data models; the recipes to apply; the build order; and the check to run after each page.
+- `AGENTS.md`: tells a coding agent to follow `PLAN.md` one page at a time and not to move on until the check passes.
+
+It makes no LLM call. The template (`web`, `api` or `full`) and theme come from keywords in the sentence, each page comes from the `plan_page` tool of [signet-mcp](/docs/packages/mcp), and the same sentence always gives the same files. A sign-in or API word picks `full` (or `api` if no page matches); a finance or media word picks that theme, else `editorial`. `--template` and `--theme` always win, and `--describe` with `cli`, `extension` or `desktop` is an error. If nothing matches, the app is still scaffolded and `PLAN.md` lists words to try.
+
+The same function without the CLI: [plan](/docs/packages/mcp/plan).
+
+A trimmed `PLAN.md`:
+
+````md
+# Plan: my-app
+
+> a team inbox with settings and pricing
+
+Template: web · Theme: editorial
+
+## Pages
+
+### 1. list-detail
+
+**Blocks**
+
+- `list-detail`: List with search and status filters, paging, and a detail pane that becomes a sheet on phones.
+
+```bash
+npx @dapplelight/signet-cli add block list-detail
+```
+
+**Data**
+
+- items: id, title, status and the fields the detail pane shows
+
+## Build order
+
+1. list-detail: run its block command, wire its data, then `npx @dapplelight/signet-cli check --pages /list-detail`.
+
+## After each page
+
+```bash
+npx @dapplelight/signet-cli check --pages /<page>
+npm run test
+```
+````
+
+The [Build a whole app with an agent](/docs/guides/build-a-whole-app-with-an-agent) guide walks through the whole flow.

@@ -1,0 +1,21 @@
+---
+title: Deploy
+description: One command per template and API target.
+---
+
+| Target | Command | Docs |
+| --- | --- | --- |
+| `full` | `bun run build`, then `bun run start` | [Project structure](/docs/project-structure) |
+| `api --target cloudflare` | `wrangler deploy` | [API targets](/docs/packages/create-signet-app/flags#api-targets) |
+| `api --target vercel` | `vercel deploy` | [API targets](/docs/packages/create-signet-app/flags#api-targets) |
+| `api --target bun` | `docker build -t my-api .` | [API targets](/docs/packages/create-signet-app/flags#api-targets) |
+| `api --target node` | `bun run start` | [API targets](/docs/packages/create-signet-app/flags#api-targets) |
+
+`docker run -p 3000:3000 my-api` runs the Bun image.
+
+Before production, `full` needs `APP_ENV=production`, `SESSION_SECRET`, `OTP_SECRET` and `ADMIN_PHONES` set on the host, a volume for `DATABASE_PATH`, and a real SMS sender in `api/services.ts`.
+
+<Cards>
+  <Card title="Add Workers-Safe Env Configuration" href="/docs/guides/add-env" description="Validated config, read lazily." />
+  <Card title="Trace a Request Across Logs, Sentry and Spans" href="/docs/guides/observability" description="Logs, spans and health checks." />
+</Cards>

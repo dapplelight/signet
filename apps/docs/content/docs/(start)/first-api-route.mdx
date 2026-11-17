@@ -1,0 +1,52 @@
+---
+title: First API route
+description: Add a Hono route and call it with the typed client.
+---
+
+<Steps>
+<Step>
+
+### Add the route
+
+Chain it next to `/api/health`. Chaining is what types the client.
+
+```ts title="api/app.ts"
+const app = base
+  .get("/api/health", (c) => c.json({ ok: true }))
+  .get("/api/hello", (c) => c.json({ message: "Hello" }))
+```
+
+</Step>
+<Step>
+
+### Call it
+
+`src/lib/api.ts` already exports the client. The path and response type come from the route.
+
+```tsx title="src/routes/_app/index.tsx"
+import { useQuery } from "@tanstack/react-query"
+import { api } from "../../lib/api"
+
+const hello = useQuery({
+  queryKey: ["hello"],
+  queryFn: async () => (await api.hello.$get()).json(),
+})
+
+// <p>{hello.data?.message}</p>
+```
+
+</Step>
+<Step>
+
+### Check it
+
+Save. The page shows `Hello`. Rename the field in the route and `bun run typecheck` fails in the page.
+
+</Step>
+</Steps>
+
+<Cards>
+  <Card title="Add the Typed API Client" href="/docs/guides/add-api-client" description="Errors, streaming and Query defaults." />
+  <Card title="Add a Backend Module" href="/docs/guides/add-backend-module" description="Auth, database, admin, payments, notifications." />
+  <Card title="Next: Deploy" href="/docs/deploy" description="Ship it." />
+</Cards>
