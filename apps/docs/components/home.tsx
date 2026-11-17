@@ -110,11 +110,6 @@ const THEMES = [
     label: "Cinematic",
     note: "Cool neutrals, violet accent, 2px radii and a larger type scale.",
   },
-  {
-    id: "finance",
-    label: "Finance",
-    note: "Editorial plus money slots: credits read green, debits stay ink.",
-  },
 ] as const
 type ThemeId = (typeof THEMES)[number]["id"]
 
