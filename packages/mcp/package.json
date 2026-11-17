@@ -1,7 +1,6 @@
 {
   "name": "@dapplelight/signet-mcp",
   "version": "0.1.5",
-  "private": true,
   "license": "MIT",
   "description": "MCP server that gives AI agents all of Signet: docs, exports, components, themes, scaffolding, convention checks, recipes and migrations.",
   "keywords": [
@@ -26,6 +25,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./plan": {
+      "types": "./dist/plan.d.ts",
+      "import": "./dist/plan.js"
+    },
+    "./generated": {
+      "types": "./dist/generated/index.d.ts",
+      "import": "./dist/generated/index.js"
     }
   },
   "bin": {

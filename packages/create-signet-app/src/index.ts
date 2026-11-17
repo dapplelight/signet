@@ -22,6 +22,7 @@ const TEMPLATES = ["web", "api", "full", "cli", "extension", "desktop"] as const
 type Template = (typeof TEMPLATES)[number]
 const TARGETS = ["cloudflare", "bun", "node", "vercel"] as const
 type Target = (typeof TARGETS)[number]
+const DESCRIBE_TEMPLATES: readonly Template[] = ["web", "api", "full"]
 const PMS = ["bun", "npm", "pnpm"] as const
 type Pm = (typeof PMS)[number]
 
@@ -281,6 +282,9 @@ function parseArgs(argv: string[]) {
   let target: Target | undefined
   let mcp: boolean | undefined
   let pm: Pm | undefined
+  let describe: string | undefined
+  let themeGiven: Theme | undefined
+  let templateGiven: Template | undefined
 
   for (let i = 0; i < args.length; i++) {
     const a = args[i]
@@ -289,13 +293,20 @@ function parseArgs(argv: string[]) {
       if (!THEMES.includes(v as Theme)) {
         throw new Error(`Unknown theme "${v}". Available: ${THEMES.join(", ")}`)
       }
-      theme = v as Theme
+      theme = themeGiven = v as Theme
     } else if (a === "--template") {
       const v = args[++i]
       if (!TEMPLATES.includes(v as Template)) {
         throw new Error(`Unknown template "${v}". Available: ${TEMPLATES.join(", ")}`)
       }
-      template = v as Template
+      template = templateGiven = v as Template
+    } else if (a === "--describe") {
+      const v = args[++i]
+      if (!v?.trim() || v.startsWith("--"))
+        throw new Error(
+          '--describe needs a sentence, e.g. --describe "a team inbox with settings".',
+        )
+      describe = v
     } else if (a === "--target") {
       const v = args[++i]
       if (!TARGETS.includes(v as Target)) {
@@ -339,6 +350,9 @@ Options:
   -t, --theme <name>   ${THEMES.join(" | ")}   (default: editorial; web and full)
   --pm <name>          ${PMS.join(" | ")}   (default: the one that ran this, else bun)
                        Sets the commands in CI, the README and below.
+  --describe "<sentence>"  Pick template and theme from one sentence, scaffold,
+                       write PLAN.md and AGENTS.md (web, api and full; an explicit
+                       --template or --theme wins)
   -h, --help
 
 Examples:
@@ -348,6 +362,7 @@ Examples:
   bun create-signet-app my-app --template full --theme finance
   bun create-signet-app my-cli --template cli
   npm create signet-app my-app -- --template full --pm npm
+  bun create-signet-app my-app --describe "a team inbox with settings and pricing"
 `)
       process.exit(0)
     } else if (!a.startsWith("-")) {
@@ -358,6 +373,27 @@ Examples:
   }
 
   if (!name) throw new Error("Missing target directory.\nUsage: create-signet-app <directory>")
+  if (describe !== undefined) {
+    if (templateGiven && !DESCRIBE_TEMPLATES.includes(templateGiven))
+      throw new Error("--describe applies to --template web, api and full only.")
+    // The template and theme come from the sentence, so these are checked once they are known.
+    return {
+      name,
+      theme,
+      template,
+      target: target ?? "cloudflare",
+      targetGiven: target,
+      mcp,
+      pm: pm ?? detectPm(),
+      describe: { sentence: describe, template: templateGiven, theme: themeGiven },
+    }
+  }
+  checkCombo(template, theme, target, mcp)
+  return { name, theme, template, target: target ?? "cloudflare", mcp, pm: pm ?? detectPm() }
+}
+
+/** Flags that only fit some templates. */
+function checkCombo(template: Template, theme: Theme, target?: Target, mcp?: boolean) {
   if (target && template !== "api") throw new Error("--target applies to --template api only.")
   if (
     mcp !== undefined &&
@@ -366,7 +402,6 @@ Examples:
     throw new Error("--mcp / --no-mcp apply to --template api and full only.")
   if (theme !== "editorial" && template === "api")
     throw new Error("--theme applies to --template web and full only.")
-  return { name, theme, template, target: target ?? "cloudflare", mcp, pm: pm ?? detectPm() }
 }
 
 /** Replace placeholders in every text file under dir. */
@@ -402,9 +437,23 @@ async function askMcp(): Promise<boolean> {
 }
 
 async function main() {
-  const { name, theme, template, target, pm, ...flags } = parseArgs(process.argv)
+  const parsed = parseArgs(process.argv)
+  const { name, target, pm, ...flags } = parsed
+  let { theme, template } = parsed
   const dest = resolve(process.cwd(), name)
   const appName = basename(dest)
+
+  // Loaded only here: it pulls in signet-mcp's index, which a plain scaffold never needs.
+  const described = parsed.describe
+    ? await (await import("./describe.js")).describeApp(parsed.describe.sentence, {
+        template: parsed.describe.template as "web" | "api" | "full" | undefined,
+        theme: parsed.describe.theme,
+      })
+    : undefined
+  if (described) {
+    ;({ theme, template } = described)
+    checkCombo(template, theme, parsed.targetGiven, flags.mcp)
+  }
 
   if (existsSync(dest) && (await readdir(dest)).length > 0) {
     throw new Error(`${dest} already exists and is not empty.`)
@@ -536,6 +585,15 @@ async function main() {
   )
 
   const { install, run } = PM[pm]
+  if (described && parsed.describe) {
+    const { renderAgents, renderPlan } = await import("./describe.js")
+    const runner = { run, x: PM[pm].x }
+    await writeFile(
+      join(dest, "PLAN.md"),
+      renderPlan(appName, parsed.describe.sentence, described, runner),
+    )
+    await writeFile(join(dest, "AGENTS.md"), renderAgents(appName, described, runner))
+  }
   const steps = `cd ${name}\n  ${install}\n  ${run} dev`
   console.log(
     template === "cli"
@@ -591,6 +649,15 @@ async function main() {
   Switch themes by editing the @dapplelight/signet-tokens import in src/app.css.
 `,
   )
+  if (described) {
+    const names = described.pages.map((p) => p.name)
+    const more = names.length - 5
+    console.log(
+      names.length
+        ? `  Planned ${names.length} page${names.length === 1 ? "" : "s"} in PLAN.md: ${names.slice(0, 5).join(", ")}${more > 0 ? ` and ${more} more` : ""}. Hand AGENTS.md to your coding agent.\n`
+        : "  No pages matched; PLAN.md lists words to try.\n",
+    )
+  }
 }
 
 main().catch((err: unknown) => {
