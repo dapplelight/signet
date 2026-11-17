@@ -9,7 +9,13 @@ const LLMS_TXT = "https://signet.dapplelight.in/llms.txt"
 
 /** The same prompt goes to every arm. What differs is the folder, the tools and the notes the agent finds there. */
 export const ARMS: Record<ArmId, Arm> = {
-  A: { id: "A", label: "Plain Vite and React", mcp: false, denyTools: [], check: false },
+  A: {
+    id: "A",
+    label: "Vite, React and Tailwind, shadcn allowed",
+    mcp: false,
+    denyTools: [],
+    check: false,
+  },
   B: {
     id: "B",
     label: "Signet, MCP server and llms.txt",
@@ -41,7 +47,19 @@ const write = (dir: string, file: string, text: string) => {
   writeFileSync(join(dir, file), text)
 }
 
-/** Files for a bare Vite + React + TypeScript app: no Signet anywhere. */
+/** Notes for arm A: the usual stack an agent reaches for without Signet. */
+export const notesA = `# Notes
+
+This app uses React and Tailwind CSS v4 (already set up in src/index.css).
+
+- Style with Tailwind utility classes. Make it look like a polished, modern product.
+- You may add shadcn/ui components with \`npx shadcn@latest\` if you want them.
+`
+
+/**
+ * Files for a Vite + React + TypeScript app with Tailwind v4: what an agent would
+ * start from without Signet. No Signet anywhere; shadcn/ui is allowed (see notesA).
+ */
 export function plainApp(): Record<string, string> {
   return {
     "package.json": `${JSON.stringify(
@@ -58,7 +76,9 @@ export function plainApp(): Record<string, string> {
         devDependencies: {
           "@types/react": "^19.1.0",
           "@types/react-dom": "^19.1.0",
+          "@tailwindcss/vite": "^4.1.0",
           "@vitejs/plugin-react": "^5.0.0",
+          tailwindcss: "^4.1.0",
           typescript: "^5.9.0",
           vite: "^7.1.0",
         },
@@ -67,7 +87,9 @@ export function plainApp(): Record<string, string> {
       2,
     )}\n`,
     "index.html": `<!doctype html>\n<html lang="en">\n  <head>\n    <meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n    <title>App</title>\n  </head>\n  <body>\n    <div id="root"></div>\n    <script type="module" src="/src/main.tsx"></script>\n  </body>\n</html>\n`,
-    "vite.config.ts": `import react from "@vitejs/plugin-react"\nimport { defineConfig } from "vite"\n\nexport default defineConfig({ plugins: [react()] })\n`,
+    "vite.config.ts": `import tailwindcss from "@tailwindcss/vite"\nimport react from "@vitejs/plugin-react"\nimport { defineConfig } from "vite"\n\nexport default defineConfig({ plugins: [react(), tailwindcss()] })\n`,
+    "src/index.css": `@import "tailwindcss";\n`,
+    "CLAUDE.md": notesA,
     "tsconfig.json": `${JSON.stringify(
       {
         compilerOptions: {
@@ -85,7 +107,7 @@ export function plainApp(): Record<string, string> {
       null,
       2,
     )}\n`,
-    "src/main.tsx": `import { createRoot } from "react-dom/client"\nimport { App } from "./App"\n\ncreateRoot(document.getElementById("root") as HTMLElement).render(<App />)\n`,
+    "src/main.tsx": `import "./index.css"\nimport { createRoot } from "react-dom/client"\nimport { App } from "./App"\n\ncreateRoot(document.getElementById("root") as HTMLElement).render(<App />)\n`,
     "src/App.tsx": `export function App() {\n  return <main>Hello</main>\n}\n`,
   }
 }
