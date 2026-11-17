@@ -13,7 +13,7 @@
  * Bare JSX is allowed as the end of a block (`<A /><B />`, or statements and then
  * JSX): a block that does not parse is retried with the JSX wrapped in a fragment.
  */
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { builtinModules } from "node:module"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -95,6 +95,36 @@ const isSyntax = (code: number) => code < 2000 || (code >= 17000 && code < 18000
 const MESSAGE = (name: string) =>
   `${name} is used but never imported or defined. Import it in this block, or give the block the same title= as the block it continues.`
 
+const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "")
+
+/**
+ * tsconfig `paths` that send every `@dapplelight/signet-*` import to the workspace source
+ * (exports point at dist/, which CI has not built yet), so a name or subpath that does not exist fails.
+ */
+function workspacePaths(): Record<string, string[]> {
+  const paths: Record<string, string[]> = {}
+  for (const d of readdirSync(join(ROOT, "packages"))) {
+    let pkg: { name?: string; exports?: Record<string, unknown> }
+    try {
+      pkg = JSON.parse(readFileSync(join(ROOT, "packages", d, "package.json"), "utf8"))
+    } catch {
+      continue
+    }
+    for (const [sub, target] of Object.entries(pkg.exports ?? {})) {
+      const t = typeof target === "string" ? target : (target as { import?: string }).import
+      if (!pkg.name || !t) continue
+      if (!t.startsWith("./dist/")) {
+        paths[pkg.name + sub.slice(1)] = [join(ROOT, "packages", d, t)] // json, css: as is
+        continue
+      }
+      const stem = join(ROOT, "packages", d, t.replace("./dist/", "src/")).replace(/\.js$/, "")
+      const file = [".ts", ".tsx"].map((e) => stem + e).find((f) => existsSync(f))
+      if (file) paths[pkg.name + sub.slice(1)] = [file]
+    }
+  }
+  return paths
+}
+
 function tsc(dir: string, files: Map<string, string>) {
   for (const f of readdirSync(dir)) if (f !== "tsconfig.json") rmSync(join(dir, f))
   for (const [name, text] of files) writeFileSync(join(dir, name), text)
@@ -112,22 +142,25 @@ function tsc(dir: string, files: Map<string, string>) {
 export function checkSnippets(files: Source[]): Problem[] {
   const dir = mkdtempSync(join(tmpdir(), "snippets-"))
   try {
-    writeFileSync(
-      join(dir, "tsconfig.json"),
-      JSON.stringify({
-        compilerOptions: {
-          target: "esnext",
-          module: "esnext",
-          moduleResolution: "bundler",
-          jsx: "preserve",
-          lib: ["esnext", "dom", "dom.iterable"],
-          types: [],
-          noEmit: true,
-          skipLibCheck: true,
-        },
-        include: ["*.ts", "*.tsx"],
-      }),
-    )
+    const config = (paths?: Record<string, string[]>) =>
+      writeFileSync(
+        join(dir, "tsconfig.json"),
+        JSON.stringify({
+          compilerOptions: {
+            target: "esnext",
+            module: "esnext",
+            moduleResolution: "bundler",
+            jsx: "preserve",
+            lib: ["esnext", "dom", "dom.iterable"],
+            types: [],
+            noEmit: true,
+            skipLibCheck: true,
+            paths,
+          },
+          include: ["*.ts", "*.tsx"],
+        }),
+      )
+    config() // phase 1 only parses, so it skips loading the workspace
     // export {} makes each file a module, so blocks never share globals.
     const text = (lines: string[]) => `${lines.join("\n")}\nexport {}\n`
     const pages = files.map((f) => ({ file: f.file, blocks: extractBlocks(f.src) }))
@@ -191,24 +224,47 @@ export function checkSnippets(files: Source[]): Problem[] {
         jobs.push({ file: p.file, first: map.length - b.lines.length, map, name })
       })
     }
+    config(workspacePaths())
     const seen = new Set<string>()
     for (const e of tsc(dir, out)) {
+      const job = jobs.find((j) => j.name === e.file)
+      if (!job || e.row - 1 < job.first) continue
+      const add = (key: string, message: string) => {
+        if (seen.has(`${e.file} ${key}`)) return
+        seen.add(`${e.file} ${key}`)
+        problems.push({ file: job.file, line: job.map[e.row - 1], message })
+      }
+      // Imports from our own packages are resolved: the path and every name must exist.
+      const missing = /^Module '"[^"]*"' has no exported member '([^']+)'/.exec(e.text)?.[1]
+      const mod = /^Cannot find module '(@dapplelight\/[^']+)'/.exec(e.text)?.[1]
+      const asValue = /^'([^']+)' only refers to a type, but is being used as a value/.exec(
+        e.text,
+      )?.[1]
+      if (missing) {
+        const from = /\bfrom\s+["']([^"']+)["']/.exec(
+          out
+            .get(e.file)!
+            .split("\n")
+            .slice(e.row - 1)
+            .join("\n"),
+        )?.[1]
+        add(
+          `m ${missing}`,
+          `${missing} is imported from "${from}" but that module does not export it. Import a name it exports (see API.md) or define it in the block.`,
+        )
+      } else if (mod) {
+        add(`p ${mod}`, `"${mod}" is not an import path of any Signet package. See API.md.`)
+      } else if (asValue) {
+        add(
+          `v ${asValue}`,
+          `${asValue} is only a type, but the block uses it as a value. Import a runtime export or define it in the block.`,
+        )
+      }
       const id =
         /^(?:Cannot find (?:name|namespace)|No value exists in scope for the shorthand property) '([^']+)'/.exec(
           e.text,
         )?.[1]
-      const job = jobs.find((j) => j.name === e.file)
-      if (
-        !id ||
-        !job ||
-        e.row - 1 < job.first ||
-        GLOBALS.has(id) ||
-        BUILTIN_MODULES.has(id) ||
-        seen.has(`${e.file} ${id}`)
-      )
-        continue
-      seen.add(`${e.file} ${id}`)
-      problems.push({ file: job.file, line: job.map[e.row - 1], message: MESSAGE(id) })
+      if (id && !GLOBALS.has(id) && !BUILTIN_MODULES.has(id)) add(`n ${id}`, MESSAGE(id))
     }
     return problems.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line)
   } finally {

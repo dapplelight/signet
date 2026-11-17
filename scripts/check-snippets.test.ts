@@ -93,6 +93,40 @@ ok(
   syn.length === 1 && syn[0].message.startsWith("Block does not parse"),
 )
 
+// Imports from Signet packages are resolved against the workspace source.
+const lib = (body: string) => run(fence(body, "ts"))
+ok(
+  "a real export passes",
+  lib('import { createApiClient } from "@dapplelight/signet-lib/api"\n\ncreateApiClient').length ===
+    0,
+)
+const gone = lib('import { nothingHere } from "@dapplelight/signet-lib/api"\n\nnothingHere')
+ok(
+  "a name the package does not export is flagged",
+  gone.length === 1 &&
+    gone[0].message.startsWith('nothingHere is imported from "@dapplelight/signet-lib/api"'),
+)
+ok(
+  "an import path no package has is flagged",
+  lib('import { a } from "@dapplelight/signet-lib/nope"\n\na').length === 1,
+)
+ok(
+  "a type used as a value is flagged",
+  lib('import { Invite } from "@dapplelight/signet-db/growth"\n\nexport const s = Invite')
+    .length === 1,
+)
+ok(
+  "a type used as a type passes",
+  lib('import type { Invite } from "@dapplelight/signet-db/growth"\n\nexport type X = Invite[]')
+    .length === 0,
+)
+ok(
+  "json subpaths resolve",
+  lib('import s from "@dapplelight/signet-spec/schemas/error-codes.json"\n\nconsole.log(s)')
+    .length === 0,
+)
+ok("other packages are not resolved", lib('import { x } from "left-pad"\n\nx').length === 0)
+
 // Line numbers survive a continuation and a file with several blocks.
 const multi = run(`intro\n\n\`\`\`ts\nconst a = 1\n\`\`\`\n\n\`\`\`ts\nconst b = missing\n\`\`\`\n`)
 ok("line numbers are file lines", multi.length === 1 && multi[0].line === 8)

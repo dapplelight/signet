@@ -106,10 +106,15 @@ const Invite = z.object({
   <SchemaFormServerErrorDemo />
 
 ```tsx
+import { z } from "zod"
 import { SchemaForm } from "@dapplelight/signet-ui/components/schema-form"
-import { Invite } from "@dapplelight/signet-db/growth"
 import { applyServerErrors } from "@dapplelight/signet-lib/form"
 import { api } from "./api"
+
+const Invite = z.object({
+  email: z.string().email(),
+  role: z.enum(["admin", "member"]),
+})
 
 <SchemaForm
   schema={Invite}
