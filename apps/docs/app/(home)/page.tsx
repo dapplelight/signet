@@ -63,23 +63,24 @@ function Row({
 export default function HomePage() {
   return (
     <SkinProvider>
-      <main className={`home ${display.variable} mx-auto text-base w-full max-w-6xl px-5 pb-24 md:px-6`}>
+      <main
+        className={`home ${display.variable} mx-auto text-base w-full max-w-6xl px-5 pb-24 md:px-6`}
+      >
         <section className="grid items-start gap-12 pt-14 pb-20 lg:items-center lg:grid-cols-[5fr_6fr] lg:gap-14 lg:pt-24">
           <div className="flex min-w-0 flex-col items-start gap-7">
             <h1 className="font-[family-name:var(--font-seal)] text-[clamp(2.75rem,6.4vw,5.25rem)] leading-[0.98] tracking-[-0.02em] text-balance">
-              One line turns your API into an MCP server.
+              Write the business logic. Signet ships the rest.
             </h1>
             <p className="max-w-md text-lg text-pretty text-fd-muted-foreground">
-              Every validated route becomes a tool that runs as the signed-in user. Reads run;
-              writes ask first. The rest of the app is in the kit too: payments, paywalls,
-              workflows, abuse limits and the components to show them.
+              Auth, payments, paywalls, workflows, components and an MCP server, as packages you
+              install and update.
             </p>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
               <Link
-                href="/docs/guides/mcp-by-default"
+                href="/docs"
                 className="rounded-lg bg-fd-primary px-5 py-2.5 text-sm font-medium text-fd-primary-foreground"
               >
-                Read the guide
+                Read the docs
               </Link>
               <code className="text-sm text-fd-muted-foreground">npx create-signet-app@latest</code>
             </div>
