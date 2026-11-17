@@ -30,6 +30,9 @@ jobs:
       - run: bun run changes --check
       - run: bun run scripts/check-bumps.ts
       - run: bun run scripts/changes.test.ts
+      # Prose like "<reason>" or a bare {total} breaks the docs build.
+      - run: bun run scripts/check-mdx.test.ts
+      - run: bun run scripts/check-mdx.ts
       # Packages import each other through dist/ (see release.yml).
       - run: bun run build:all
       - name: test + typecheck
