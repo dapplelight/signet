@@ -156,13 +156,17 @@ export default function HomePage() {
           </Link>
         </div>
         <div className="min-w-0 [&_figure]:my-0">
-          <DynamicCodeBlock lang="ts" code={CODE} codeblock={{ title: "server/app.ts" }} />
+          <DynamicCodeBlock
+            lang="ts"
+            code={CODE}
+            codeblock={{ title: "server/app.ts" }}
+            options={{ themes: { light: "min-light", dark: "vesper" } }}
+          />
         </div>
       </section>
 
       <section className="mt-20 flex flex-col items-start gap-6 border-t border-fd-border pt-16 md:mt-24">
-        <h2 className={h2}>Start with one command.</h2>
-        <Commands />
+        <h2 className={h2}>Build your first app.</h2>
         <Actions />
       </section>
     </main>
