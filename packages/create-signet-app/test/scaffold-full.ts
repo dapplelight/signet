@@ -196,7 +196,7 @@ try {
 const PNPM = join("/tmp", "__scaffold_full_pnpm__")
 rmSync(PNPM, { recursive: true, force: true })
 try {
-  await $`bun run ${CLI} ${PNPM} --template full --no-mcp --pm pnpm`.cwd("/tmp").quiet()
+  await $`bun run ${CLI} ${PNPM} --starter full --no-mcp --pm pnpm`.cwd("/tmp").quiet()
   const pkg = JSON.parse(readFileSync(join(PNPM, "package.json"), "utf8"))
   const appTs = readFileSync(join(PNPM, "api/app.ts"), "utf8")
   const envTs = readFileSync(join(PNPM, "api/env.ts"), "utf8")

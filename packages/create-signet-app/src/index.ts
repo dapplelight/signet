@@ -14,12 +14,27 @@ import { existsSync } from "node:fs"
 import { cp, mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises"
 import { basename, join, resolve } from "node:path"
 import { createInterface } from "node:readline/promises"
+import {
+  applyBlocks,
+  type BaseDeps,
+  compose,
+  PART_NAMES,
+  PARTS,
+  type PartName,
+  resolveParts,
+  STARTERS,
+  type StarterName,
+} from "./compose.js"
 import { appId, DESKTOP_PKG } from "./desktop.js"
 
 const THEMES = ["editorial", "cinematic", "finance"] as const
 type Theme = (typeof THEMES)[number]
-const TEMPLATES = ["web", "api", "full", "cli", "extension", "desktop"] as const
+const PLATFORMS = ["web", "api", "cli", "extension", "desktop"] as const
+type Platform = (typeof PLATFORMS)[number]
+// --template is the old name for --platform, kept working; its `full` is now `--starter full`.
+const TEMPLATES = [...PLATFORMS, "full"] as const
 type Template = (typeof TEMPLATES)[number]
+const STARTER_NAMES = Object.keys(STARTERS) as StarterName[]
 const TARGETS = ["cloudflare", "bun", "node", "vercel"] as const
 type Target = (typeof TARGETS)[number]
 const DESCRIBE_TEMPLATES: readonly Template[] = ["web", "api", "full"]
@@ -85,10 +100,9 @@ function applyPm(ci: string, pm: Pm): string {
     .replaceAll("bunx ", `${p.x} `)
 }
 
-const TEMPLATE_DIRS: Record<Template, string> = {
+const TEMPLATE_DIRS: Record<Platform, string> = {
   web: "template",
   api: "template-api",
-  full: "template-full",
   cli: "template-cli",
   extension: "template-extension",
   desktop: "template-desktop",
@@ -109,12 +123,11 @@ const MCP_DEPS = {
 
 /**
  * The api template marks MCP-only lines with `// mcp:begin` / `// mcp:end`
- * lines: with MCP the markers go, without it the blocks go.
+ * lines: with MCP the markers go, without it the blocks go. The same markers
+ * the composer resolves for every part (applyBlocks in compose.ts).
  */
 function applyMcp(text: string, mcp: boolean): string {
-  return mcp
-    ? text.replace(/^[ \t]*\/\/ mcp:(begin|end)\n/gm, "")
-    : text.replace(/^[ \t]*\/\/ mcp:begin\n[\s\S]*?^[ \t]*\/\/ mcp:end\n/gm, "")
+  return applyBlocks(text, new Set(mcp ? ["mcp"] : []))
 }
 
 const API_DEV_DEPS = {
@@ -205,22 +218,18 @@ const DEV_DEPS = {
   vite: "^8.3.0",
 }
 
-// The full template: the web app's deps plus the API's, signet-db and
-// signet-payments for plans, admin, privacy and billing, and the screens' peers.
-const FULL_DEPS = {
-  ...DEPS,
-  ...API_DEPS,
-  "@base-ui/react": "^1.3.0",
-  "@dapplelight/signet-db": "^0.2.0",
-  "@dapplelight/signet-payments": "^0.1.0",
-  "drizzle-orm": "^0.45.4",
-  "input-otp": "^1.4.2",
-}
-
-const FULL_DEV_DEPS = {
-  ...DEV_DEPS,
-  "@playwright/test": "^1.65.1",
-  "drizzle-kit": "^0.31.11",
+// Composed apps (--ui, --api, --with, --starter): the base's own deps per
+// surface. Each part adds its own in parts/<name>/part.ts. The web half calls
+// the API through hono/client; the screens need @base-ui/react.
+const BASE: BaseDeps = {
+  web: {
+    deps: { ...DEPS, "@base-ui/react": "^1.3.0", hono: API_DEPS.hono },
+    devDeps: DEV_DEPS,
+  },
+  api: {
+    deps: { ...API_DEPS, "@dapplelight/signet-db": "^0.2.0", "drizzle-orm": "^0.45.4" },
+    devDeps: { ...API_DEV_DEPS, "drizzle-kit": "^0.31.11" },
+  },
 }
 
 // The cli template: a Bun CLI that signs in by device code, compiled to one binary.
@@ -255,24 +264,22 @@ const EXT_SCRIPTS = {
   test: "bun test",
 }
 
-const FULL_SCRIPTS = {
-  // Both halves: the API (restarting on change) and Vite, which proxies /api to it.
-  dev: "bun scripts/dev.ts",
-  build: "tsc -b && vite build",
-  // One process serves the API and the built app from dist/.
-  start: "bun api/server.ts",
-  preview: "vite preview",
-  lint: "biome check .",
-  format: "biome check --write .",
-  typecheck: "tsc -b --noEmit",
-  test: "bun test src test",
-  "test:e2e": "playwright test",
-  "db:generate": "drizzle-kit generate",
-  "db:check": "signet-db-check drizzle",
+/** What a composed app is made of, as the flags said it. */
+type ComposeFlags = {
+  starter?: StarterName
+  ui: boolean
+  api: boolean
+  with: string[]
+  without: string[]
 }
 
-/** A fresh 48-character secret for the generated env file. */
-const secret = () => Buffer.from(crypto.getRandomValues(new Uint8Array(36))).toString("base64url")
+const list = (v: string | undefined, flag: string) => {
+  if (!v || v.startsWith("-")) throw new Error(`${flag} needs parts, e.g. ${flag} auth,payments`)
+  return v
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
 
 function parseArgs(argv: string[]) {
   const args = argv.slice(2)
@@ -285,6 +292,7 @@ function parseArgs(argv: string[]) {
   let describe: string | undefined
   let themeGiven: Theme | undefined
   let templateGiven: Template | undefined
+  const composeFlags: ComposeFlags = { ui: false, api: false, with: [], without: [] }
 
   for (let i = 0; i < args.length; i++) {
     const a = args[i]
@@ -294,12 +302,26 @@ function parseArgs(argv: string[]) {
         throw new Error(`Unknown theme "${v}". Available: ${THEMES.join(", ")}`)
       }
       theme = themeGiven = v as Theme
-    } else if (a === "--template") {
+    } else if (a === "--platform" || a === "--template") {
       const v = args[++i]
-      if (!TEMPLATES.includes(v as Template)) {
-        throw new Error(`Unknown template "${v}". Available: ${TEMPLATES.join(", ")}`)
+      if (a === "--platform" && v === "full")
+        throw new Error("full is a starter now: --starter full (or --template full).")
+      if (!(a === "--platform" ? PLATFORMS : TEMPLATES).includes(v as Platform)) {
+        throw new Error(`Unknown platform "${v}". Available: ${PLATFORMS.join(", ")}`)
       }
+      if (templateGiven && templateGiven !== v)
+        throw new Error("--platform and --template are the same flag; give one.")
       template = templateGiven = v as Template
+    } else if (a === "--starter") {
+      const v = args[++i]
+      if (!STARTER_NAMES.includes(v as StarterName)) {
+        throw new Error(`Unknown starter "${v}". Available: ${STARTER_NAMES.join(", ")}`)
+      }
+      composeFlags.starter = v as StarterName
+    } else if (a === "--ui" || a === "--api") {
+      composeFlags[a === "--ui" ? "ui" : "api"] = true
+    } else if (a === "--with" || a === "--without") {
+      composeFlags[a === "--with" ? "with" : "without"].push(...list(args[++i], a))
     } else if (a === "--describe") {
       const v = args[++i]
       if (!v?.trim() || v.startsWith("--"))
@@ -325,14 +347,11 @@ function parseArgs(argv: string[]) {
       console.log(`
 create-signet-app <directory> [options]
 
-Options:
-  --template <kind>    web | api | full | cli | extension | desktop   (default: web)
+Platforms (one app each):
+  --platform <name>    web | api | cli | extension | desktop   (default: web)
                        web: Vite + React + Signet UI
                        api: Hono Worker with the error envelope, request ids,
                             validation and Durable Object rate limiting
-                       full: web + API in one project, typed client between
-                            them, SQLite with migrations, phone sign-in,
-                            account, inbox, privacy, billing and admin
                        cli: Bun CLI compiled to one binary; login by device
                             code, logout, whoami
                        extension: Chrome MV3 extension: popup, options page and
@@ -340,28 +359,47 @@ Options:
                             chrome.identity (plain Vite, no extension plugin)
                        desktop: Tauri v2 desktop + menu-bar app, browser sign-in
                             (PKCE, loopback redirect), CI on macOS/Windows/Linux
-  --target <runtime>   ${TARGETS.join(" | ")}   (default: cloudflare; api only)
+  --template <name>    the old name for --platform; --template full is --starter full
+
+Composed apps (a web app and its API from parts; any of these flags):
+  --starter <name>     ${STARTER_NAMES.join(" | ")}
+                       full: every part below, web + API in one project, typed
+                            client between them, SQLite with migrations
+                       blank: the same project with no parts: shell, API, database
+  --with <parts>       comma-separated parts to add; the parts they need come too
+  --without <parts>    parts to leave out (alone: the full starter without them)
+  --ui                 the web half only; it calls an API elsewhere (VITE_API_URL)
+  --api                the API half only (Hono on Bun, SQLite)
+                       neither: both halves
+                       Parts:
+${PART_NAMES.map((p) => `                         ${p.padEnd(14)}${PARTS[p].description}${PARTS[p].needs ? ` (needs ${PARTS[p].needs?.join(", ")})` : ""}`).join("\n")}
+
+Options:
+  --target <runtime>   ${TARGETS.join(" | ")}   (default: cloudflare; platform api only)
                        cloudflare: Worker entry + wrangler.jsonc
                        bun: Bun.serve entry + Dockerfile
                        node: node:http entry (Node 22.18+)
                        vercel: Vercel entry + vercel.json
-  --mcp, --no-mcp      api and full: serve the routes to agents at /mcp
+  --mcp, --no-mcp      platform api and composed apps with an API: serve the
+                       routes to agents at /mcp (the mcp part)
                        (default: asks when interactive, else --mcp)
-  -t, --theme <name>   ${THEMES.join(" | ")}   (default: editorial; web and full)
+  -t, --theme <name>   ${THEMES.join(" | ")}   (default: editorial; anything with a web UI)
   --pm <name>          ${PMS.join(" | ")}   (default: the one that ran this, else bun)
                        Sets the commands in CI, the README and below.
-  --describe "<sentence>"  Pick template and theme from one sentence, scaffold,
-                       write PLAN.md and AGENTS.md (web, api and full; an explicit
-                       --template or --theme wins)
+  --describe "<sentence>"  Pick platform (or the full starter) and theme from one
+                       sentence, scaffold, write PLAN.md and AGENTS.md (web, api
+                       and full; an explicit --platform or --theme wins)
   -h, --help
 
 Examples:
   bun create-signet-app my-app --theme cinematic
-  bun create-signet-app my-api --template api
-  bun create-signet-app my-api --template api --target bun
-  bun create-signet-app my-app --template full --theme finance
-  bun create-signet-app my-cli --template cli
-  npm create signet-app my-app -- --template full --pm npm
+  bun create-signet-app my-api --platform api --target bun
+  bun create-signet-app my-app --starter full --theme finance
+  bun create-signet-app my-app --with payments,notifications
+  bun create-signet-app my-app --without admin,privacy
+  bun create-signet-app my-api --api --with orgs
+  bun create-signet-app my-cli --platform cli
+  npm create signet-app my-app -- --starter full --pm npm
   bun create-signet-app my-app --describe "a team inbox with settings and pricing"
 `)
       process.exit(0)
@@ -373,7 +411,24 @@ Examples:
   }
 
   if (!name) throw new Error("Missing target directory.\nUsage: create-signet-app <directory>")
+  const composing =
+    composeFlags.starter ||
+    composeFlags.ui ||
+    composeFlags.api ||
+    composeFlags.with.length ||
+    composeFlags.without.length
+  if (composing && templateGiven && templateGiven !== "full")
+    throw new Error(
+      `--platform ${templateGiven} is its own app; --starter, --with, --without, --ui and --api compose a web app and its API. Give one or the other.`,
+    )
+  if (composeFlags.ui && composeFlags.api)
+    throw new Error("--ui and --api together are the default (both halves): drop them.")
+  if (composing) template = "full"
   if (describe !== undefined) {
+    if (composing && templateGiven !== "full")
+      throw new Error(
+        "--describe picks the platform or starter itself; drop --starter, --with, --without, --ui and --api.",
+      )
     if (templateGiven && !DESCRIBE_TEMPLATES.includes(templateGiven))
       throw new Error("--describe applies to --template web, api and full only.")
     // The template and theme come from the sentence, so these are checked once they are known.
@@ -385,23 +440,43 @@ Examples:
       targetGiven: target,
       mcp,
       pm: pm ?? detectPm(),
+      composeFlags,
       describe: { sentence: describe, template: templateGiven, theme: themeGiven },
     }
   }
-  checkCombo(template, theme, target, mcp)
-  return { name, theme, template, target: target ?? "cloudflare", mcp, pm: pm ?? detectPm() }
+  checkCombo(template, theme, target, mcp, composeFlags)
+  return {
+    name,
+    theme,
+    template,
+    target: target ?? "cloudflare",
+    mcp,
+    pm: pm ?? detectPm(),
+    composeFlags,
+  }
 }
 
-/** Flags that only fit some templates. */
-function checkCombo(template: Template, theme: Theme, target?: Target, mcp?: boolean) {
-  if (target && template !== "api") throw new Error("--target applies to --template api only.")
+/** Flags that only fit some platforms. */
+function checkCombo(
+  template: Template,
+  theme: Theme,
+  target?: Target,
+  mcp?: boolean,
+  c?: ComposeFlags,
+) {
+  if (target && template !== "api") throw new Error("--target applies to --platform api only.")
   if (
     mcp !== undefined &&
     (template === "web" || template === "cli" || template === "extension" || template === "desktop")
   )
-    throw new Error("--mcp / --no-mcp apply to --template api and full only.")
-  if (theme !== "editorial" && template === "api")
-    throw new Error("--theme applies to --template web and full only.")
+    throw new Error("--mcp / --no-mcp apply to --platform api and composed apps only.")
+  if (theme !== "editorial" && (template === "api" || c?.api))
+    throw new Error("--theme applies to apps with a web UI only.")
+  if (!c) return
+  const withMcp = c.with.includes("mcp")
+  if ((withMcp || mcp) && c.ui) throw new Error("mcp serves the API's routes: drop --ui, or mcp.")
+  if ((withMcp && mcp === false) || (c.without.includes("mcp") && mcp))
+    throw new Error("--with/--without mcp and --mcp/--no-mcp disagree; give one.")
 }
 
 /** Replace placeholders in every text file under dir. */
@@ -436,6 +511,87 @@ async function askMcp(): Promise<boolean> {
   }
 }
 
+/** A platform's template, its --target files and MCP's overlay, as they always were. */
+async function copyPlatform(platform: Platform, dest: string, target: Target, mcp: boolean) {
+  const templateDir = resolve(import.meta.dirname, `../${TEMPLATE_DIRS[platform]}`)
+  const targetsDir = join(templateDir, "_targets")
+  const mcpDir = join(templateDir, "_mcp")
+  await cp(templateDir, dest, {
+    recursive: true,
+    filter: (src) => src !== targetsDir && src !== mcpDir,
+  })
+  // Only the chosen runtime's files, laid over the shared ones; MCP's tests with MCP.
+  if (platform === "api") {
+    await cp(join(targetsDir, target), dest, { recursive: true })
+    if (mcp && existsSync(mcpDir)) await cp(mcpDir, dest, { recursive: true })
+    for (const f of ["src/app.ts", "src/env.ts"]) {
+      const path = join(dest, f)
+      await writeFile(path, applyMcp(await readFile(path, "utf8"), mcp))
+    }
+  }
+}
+
+/**
+ * The parts and surfaces a composed app gets. The base set is the starter's
+ * (`--template full` and `--without` alone mean the full starter), then
+ * --with adds, --without takes away, and needs are added. MCP is asked for
+ * when nothing said, as it always was.
+ */
+async function pickParts(c: ComposeFlags, mcpFlag: boolean | undefined) {
+  const web = !c.api
+  const api = !c.ui
+  const flagged = c.ui || c.api || c.with.length > 0 || c.without.length > 0
+  const starter =
+    c.starter ?? (!flagged || (!c.with.length && c.without.length) ? "full" : undefined)
+  const base = starter ? STARTERS[starter].parts : []
+  const mcp = c.with.includes("mcp")
+    ? true
+    : c.without.includes("mcp")
+      ? false
+      : api && (mcpFlag ?? (await askMcp()))
+  const chosen = [...base.filter((p) => !c.without.includes(p)), ...c.with, ...(mcp ? ["mcp"] : [])]
+  const { parts, added } = resolveParts([...new Set(chosen)], c.without)
+  for (const p of parts)
+    if (PARTS[p].apiOnly && !api) throw new Error(`${p} needs the API: drop --ui, or ${p}.`)
+  return { parts, added, web, api, starter }
+}
+
+function composedMessage(
+  appName: string,
+  theme: Theme,
+  steps: string,
+  { parts, added, web, api }: Awaited<ReturnType<typeof pickParts>>,
+): string {
+  const what = web && api ? "web app + API" : web ? "web app (UI only)" : "API"
+  const has = (p: PartName) => parts.includes(p)
+  const lines = [
+    `Created ${appName}: ${what}${web ? ` with the ${theme} theme` : ""}${has("mcp") ? ", MCP at /mcp" : ""}.`,
+    `Parts: ${parts.length ? parts.join(", ") : "none"}${added.length ? ` (added ${added.map((a) => `${a.part} for ${a.for}`).join(", ")})` : ""}.`,
+    "",
+    steps,
+    "",
+  ]
+  if (web && api)
+    lines.push(
+      has("auth")
+        ? "Open the URL Vite prints and sign in with any phone number; in development\n  the code is printed in this terminal."
+        : "Open the URL Vite prints.",
+    )
+  if (web && !api)
+    lines.push(
+      "Set VITE_API_URL (.env.local) to your API's origin; src/lib/api.ts says how to type it.",
+    )
+  if (!web && has("auth"))
+    lines.push(
+      "Sign in with POST /api/auth/otp, then /api/auth/verify; in development the\n  code is printed in this terminal.",
+    )
+  if (has("admin")) lines.push("Put your number in ADMIN_PHONES (.env) to see /admin.")
+  lines.push(
+    `README.md walks through the first day.${api ? " The API runs on Bun,\n  whichever package manager installs it." : ""}`,
+  )
+  return `\n  ${lines.join("\n  ").replace(/\n {2}\n/g, "\n\n")}\n`
+}
+
 async function main() {
   const parsed = parseArgs(process.argv)
   const { name, target, pm, ...flags } = parsed
@@ -459,30 +615,13 @@ async function main() {
     throw new Error(`${dest} already exists and is not empty.`)
   }
 
-  const mcp = (template === "api" || template === "full") && (flags.mcp ?? (await askMcp()))
-  const templateDir = resolve(import.meta.dirname, `../${TEMPLATE_DIRS[template]}`)
+  const composed = template === "full" ? await pickParts(parsed.composeFlags, flags.mcp) : undefined
+  const mcp = composed
+    ? composed.parts.includes("mcp")
+    : template === "api" && (flags.mcp ?? (await askMcp()))
   await mkdir(dest, { recursive: true })
-  const targetsDir = join(templateDir, "_targets")
-  const mcpDir = join(templateDir, "_mcp")
-  await cp(templateDir, dest, {
-    recursive: true,
-    filter: (src) => src !== targetsDir && src !== mcpDir,
-  })
-  // Only the chosen runtime's files, laid over the shared ones; MCP's tests with MCP.
-  if (template === "api") await cp(join(targetsDir, target), dest, { recursive: true })
-  if (mcp && existsSync(mcpDir)) await cp(mcpDir, dest, { recursive: true })
-  const mcpFiles: Record<Template, string[]> = {
-    web: [],
-    extension: [],
-    desktop: [],
-    api: ["src/app.ts", "src/env.ts"],
-    full: ["api/app.ts", "api/env.ts"],
-    cli: [],
-  }
-  for (const f of mcpFiles[template]) {
-    const path = join(dest, f)
-    await writeFile(path, applyMcp(await readFile(path, "utf8"), mcp))
-  }
+  const made = composed ? await compose(dest, composed, BASE) : undefined
+  if (!composed) await copyPlatform(template as Platform, dest, target, mcp)
 
   // npm strips a file literally named .gitignore from published packages, so
   // the template ships it as _gitignore and it is renamed on scaffold.
@@ -512,22 +651,10 @@ async function main() {
     __PM_X__: PM[pm].x,
   })
 
-  if (template === "full") {
+  if (made?.env.length)
     // The API's secrets for this machine, fresh per app; gitignored. Bun loads
     // it on its own. Production sets these on the host instead.
-    await writeFile(
-      join(dest, ".env"),
-      [
-        "APP_ENV=development",
-        `SESSION_SECRET=${secret()}`,
-        `OTP_SECRET=${secret()}`,
-        "# Phone numbers (E.164, comma-separated) that become admins on sign-in.",
-        "ADMIN_PHONES=",
-        "BILLING=fake",
-        "",
-      ].join("\n"),
-    )
-  }
+    await writeFile(join(dest, ".env"), made.env.join("\n"))
 
   // signet-mcp's index reads the scripts below from this source by their
   // shape: the api object first, the web object as the next literal.
@@ -541,33 +668,26 @@ async function main() {
             typecheck: "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
             test: "bun test",
           }
-        : template === "full"
-          ? FULL_SCRIPTS
-          : {
-              dev: "vite",
-              build: "tsc -b && vite build",
-              preview: "vite preview",
-              lint: "biome check .",
-              format: "biome check --write .",
-              typecheck: "tsc -b --noEmit",
-              test: "bun test",
-            },
+        : {
+            dev: "vite",
+            build: "tsc -b && vite build",
+            preview: "vite preview",
+            lint: "biome check .",
+            format: "biome check --write .",
+            typecheck: "tsc -b --noEmit",
+            test: "bun test",
+          },
     dependencies:
-      template === "api"
-        ? { ...API_DEPS, ...(mcp ? MCP_DEPS : {}) }
-        : template === "full"
-          ? { ...FULL_DEPS, ...(mcp ? MCP_DEPS : {}) }
-          : { ...DEPS, ...I18N_DEPS },
+      template === "api" ? { ...API_DEPS, ...(mcp ? MCP_DEPS : {}) } : { ...DEPS, ...I18N_DEPS },
     devDependencies:
       template === "api"
         ? { ...API_DEV_DEPS, ...API_TARGETS[target].devDeps }
-        : template === "full"
-          ? FULL_DEV_DEPS
-          : { ...DEV_DEPS, ...PWA_DEV_DEPS },
+        : { ...DEV_DEPS, ...PWA_DEV_DEPS },
     ...(template === "api" && API_TARGETS[target].engines
       ? { engines: API_TARGETS[target].engines }
       : {}),
   }
+  if (made) Object.assign(pkg, made.pkg)
   if (template === "extension")
     Object.assign(pkg, {
       scripts: EXT_SCRIPTS,
@@ -630,17 +750,8 @@ async function main() {
   Needs Rust and Tauri's system dependencies. README.md covers sign-in (register
   the client on signet-server) and the identifier in src-tauri/tauri.conf.json.
 `
-            : template === "full"
-              ? `
-  Created ${appName}: web app + API with the ${theme} theme${mcp ? ", MCP at /mcp" : ""}.
-
-  ${steps}
-
-  Open the URL Vite prints and sign in with any phone number; in development
-  the code is printed in this terminal. Put your number in ADMIN_PHONES (.env)
-  to see /admin. README.md walks through the first day. The API runs on Bun,
-  whichever package manager installs it.
-`
+            : composed
+              ? composedMessage(appName, theme, steps, composed)
               : `
   Created ${appName} with the ${theme} theme.
 

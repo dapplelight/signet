@@ -102,3 +102,21 @@ jobs:
       - run: bun run build:all
       - run: bun run test
         working-directory: packages/create-signet-app
+
+  # Composed apps: each part alone (plus what it needs), none and all, per
+  # surface; every app installed, linted, typechecked, tested and built. One
+  # job per surface, since each runs about ten installs.
+  scaffolder-parts:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        surface: [ui, api, both]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run build:all
+      - run: bun run test:parts ${{ matrix.surface }}
+        working-directory: packages/create-signet-app
