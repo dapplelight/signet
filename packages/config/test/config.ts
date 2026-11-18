@@ -192,6 +192,7 @@ try {
   // they carry a copy. Fail when the copies drift.
   const preset = JSON.parse(readFileSync(join(PKG, "biome.json"), "utf8"))
   delete preset.root
+  delete preset.$schema
   for (const t of ["template", "template-api"]) {
     const copy = JSON.parse(
       readFileSync(join(ROOT, `packages/create-signet-app/${t}/biome.json`), "utf8"),
@@ -200,6 +201,8 @@ try {
     // TanStack Router's generated routeTree.gen.ts); the rules and formatting
     // are the house style that must not drift.
     delete copy.files?.includes
+    // $schema only feeds editors: the templates point at their installed Biome.
+    delete copy.$schema
     ok(
       `preset matches create-signet-app/${t}/biome.json`,
       JSON.stringify(copy) === JSON.stringify(preset),
