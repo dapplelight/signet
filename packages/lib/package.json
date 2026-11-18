@@ -108,10 +108,10 @@
   },
   "devDependencies": {
     "@tanstack/react-form": "^1.33.5",
-    "@tanstack/react-query": "^5.103.2",
-    "@types/bun": "^1.4.2",
-    "@types/node": "^26.6.2",
-    "fast-check": "4.3.0",
+    "@tanstack/react-query": "^5.108.0",
+    "@types/bun": "^1.4.4",
+    "@types/node": "^26.6.6",
+    "fast-check": "^4.10.2",
     "typescript": "^7.0.2",
     "zod": "^4.6.7"
   },
