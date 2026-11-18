@@ -1,0 +1,10 @@
+node_modules
+dist
+.out
+.wrangler
+.dev.vars
+.env
+.env.local
+.git
+.github
+*.log

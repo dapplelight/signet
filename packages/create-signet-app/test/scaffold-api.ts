@@ -269,12 +269,13 @@ async function servesAndLimits(name: string, cmd: string[], dir: string) {
 
 const OWN_FILES: Record<string, string[]> = {
   bun: ["src/server.ts", "Dockerfile", ".dockerignore"],
+  deno: ["src/server.ts", "Dockerfile", ".dockerignore"],
   node: ["src/server.ts"],
   vercel: ["index.ts", "vercel.json"],
 }
 const OTHER_FILES = ["src/index.ts", "wrangler.jsonc", "Dockerfile", "vercel.json", "index.ts"]
 
-for (const target of ["bun", "node", "vercel"]) {
+for (const target of ["bun", "deno", "node", "vercel"]) {
   const dir = join("/tmp", `__scaffold_api_${target}__`)
   rmSync(dir, { recursive: true, force: true })
   try {
@@ -336,6 +337,8 @@ for (const target of ["bun", "node", "vercel"]) {
     if (target === "bun") await servesAndLimits("bun", ["bun", "src/server.ts"], dir)
     // Needs Node 22.18+ on PATH: the file runs as is, by type stripping.
     if (target === "node") await servesAndLimits("node", ["node", "src/server.ts"], dir)
+    // Needs Deno 2 on PATH.
+    if (target === "deno") await servesAndLimits("deno", ["deno", "run", "-A", "src/server.ts"], dir)
     if (target === "vercel") {
       const out = await $`bun -e ${`const app = (await import("./index.ts")).default
 const h = await app.fetch(new Request("http://x/api/health", { headers: { "x-forwarded-for": "198.51.100.7" } }))

@@ -20,3 +20,5 @@
 - `--pm` also takes `yarn` (modern Yarn through corepack) and `deno` (Deno 2,
   `package.json` scripts through `deno task`), and the default follows
   `npm_config_user_agent` for all five. `--platform cli` is refused with deno.
+- `--platform api --target deno`: a Deno.serve entry and a Dockerfile, like
+  the bun target.

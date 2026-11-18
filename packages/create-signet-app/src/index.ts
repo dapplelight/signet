@@ -35,7 +35,7 @@ type Platform = (typeof PLATFORMS)[number]
 const TEMPLATES = [...PLATFORMS, "full"] as const
 type Template = (typeof TEMPLATES)[number]
 const STARTER_NAMES = Object.keys(STARTERS) as StarterName[]
-const TARGETS = ["cloudflare", "bun", "node", "vercel"] as const
+const TARGETS = ["cloudflare", "bun", "deno", "node", "vercel"] as const
 type Target = (typeof TARGETS)[number]
 const DESCRIBE_TEMPLATES: readonly Template[] = ["web", "api", "full"]
 const PMS = ["bun", "npm", "pnpm", "yarn", "deno"] as const
@@ -201,6 +201,9 @@ const API_TARGETS: Record<
     devDeps: { wrangler: "^4.136.3" },
   },
   bun: { scripts: { dev: "bun --watch src/server.ts", start: "bun src/server.ts" } },
+  deno: {
+    scripts: { dev: "deno run -A --watch src/server.ts", start: "deno run -A src/server.ts" },
+  },
   node: {
     scripts: { dev: "node --watch src/server.ts", start: "node src/server.ts" },
     devDeps: { "@types/node": "^26.6.2" },
@@ -214,6 +217,8 @@ const API_NEXT_STEPS: Record<Target, string> = {
   cloudflare: `Rate limiting is exact and per IP, backed by the RateLimitCounter Durable
   Object in wrangler.jsonc. Append migration tags; never edit a deployed one.`,
   bun: `bun run start serves src/server.ts under Bun.serve; the Dockerfile runs the same.
+  Rate limiting is in-process and keyed by the socket address.`,
+  deno: `bun run start serves src/server.ts under Deno.serve (Deno 2); the Dockerfile runs the same.
   Rate limiting is in-process and keyed by the socket address.`,
   node: `bun run start runs src/server.ts with node 22.18+ (node:http, no extra dependency).
   Rate limiting is in-process and keyed by the socket address.`,
@@ -428,6 +433,7 @@ Options:
   --target <runtime>   ${TARGETS.join(" | ")}   (default: cloudflare; platform api only)
                        cloudflare: Worker entry + wrangler.jsonc
                        bun: Bun.serve entry + Dockerfile
+                       deno: Deno.serve entry + Dockerfile (Deno 2)
                        node: node:http entry (Node 22.18+)
                        vercel: Vercel entry + vercel.json
   --mcp, --no-mcp      platform api and composed apps with an API: serve the
@@ -685,7 +691,7 @@ async function main() {
   // the CI workflow ships under _github.
   await rename(join(dest, "_gitignore"), join(dest, ".gitignore"))
   await rename(join(dest, "_github"), join(dest, ".github"))
-  if (template === "api" && target === "bun")
+  if (template === "api" && (target === "bun" || target === "deno"))
     await rename(join(dest, "_dockerignore"), join(dest, ".dockerignore"))
   // pnpm (10+) refuses to install until build scripts are reviewed; esbuild's
   // (vite, drizzle-kit, wrangler) and workerd's are the ones these templates
