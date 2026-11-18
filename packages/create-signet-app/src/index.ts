@@ -99,7 +99,7 @@ const TEMPLATE_DIRS: Record<Template, string> = {
 const API_DEPS = {
   "@dapplelight/signet-server": "^0.5.0",
   hono: "^4.13.8",
-  zod: "^4.6.5",
+  zod: "^4.6.7",
 }
 
 // Added with MCP (--mcp, the default): signet-server's optional peer for /mcp.

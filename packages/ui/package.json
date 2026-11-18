@@ -460,7 +460,7 @@
     "@autoform/react": "^5.0.0",
     "@autoform/zod": "^6.0.0",
     "@tanstack/react-form": "^1.0.0",
-    "zod": "^4.0.0"
+    "zod": "^4.6.7"
   },
   "peerDependenciesMeta": {
     "recharts": {
@@ -540,7 +540,7 @@
     "remark-parse": "11.0.0",
     "typescript": "^7.0.2",
     "unified": "11.0.5",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "publishConfig": {
     "access": "public"
