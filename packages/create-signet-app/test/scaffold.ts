@@ -205,5 +205,30 @@ try {
   rmSync(DIR, { recursive: true, force: true })
 }
 
+// Every Signet range a scaffolded app asks for must take the current release:
+// on 0.x a caret pins the minor, so a stale `^0.5.0` installs 0.5 from npm while
+// this test links the local 0.6 and passes. The apps then failed to typecheck.
+{
+  const PKG = join(ROOT, "packages/create-signet-app")
+  const files = [
+    ...readdirSync(join(PKG, "src")).map((f) => join(PKG, "src", f)),
+    ...readdirSync(join(PKG, "parts")).map((d) => join(PKG, "parts", d, "part.ts")),
+  ].filter((f) => f.endsWith(".ts") && existsSync(f))
+  const local = Object.fromEntries(
+    readdirSync(join(ROOT, "packages"))
+      .filter((d) => existsSync(join(ROOT, "packages", d, "package.json")))
+      .map((d) => JSON.parse(readFileSync(join(ROOT, "packages", d, "package.json"), "utf8")))
+      .map((p: { name: string; version: string }) => [p.name, p.version]),
+  )
+  const stale = files.flatMap((f) =>
+    [...readFileSync(f, "utf8").matchAll(/"(@dapplelight\/[\w-]+)": "([^"]+)"/g)]
+      .filter(([, name, range]) => local[name] && !Bun.semver.satisfies(local[name], range))
+      .map(
+        ([, name, range]) => `${f.slice(PKG.length + 1)}: ${name} ${range} misses ${local[name]}`,
+      ),
+  )
+  ok("Signet ranges take the current releases", stale.length === 0, stale.join("; "))
+}
+
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail) process.exit(1)
