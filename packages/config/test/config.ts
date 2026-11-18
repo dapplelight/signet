@@ -193,7 +193,13 @@ try {
   const preset = JSON.parse(readFileSync(join(PKG, "biome.json"), "utf8"))
   delete preset.root
   delete preset.$schema
-  for (const t of ["template", "template-api", "template-full", "template-cli", "template-extension"]) {
+  for (const t of [
+    "template",
+    "template-api",
+    "template-full",
+    "template-cli",
+    "template-extension",
+  ]) {
     const copy = JSON.parse(
       readFileSync(join(ROOT, `packages/create-signet-app/${t}/biome.json`), "utf8"),
     )
