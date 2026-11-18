@@ -30,7 +30,7 @@ a plain `node_modules` (`.yarnrc.yml`), and lists signet-ui's required peers,
 which Yarn does not install on its own. Deno 2 installs and runs the
 `package.json` scripts; `--platform cli` is refused with deno, as its build is
 `bun build --compile`. Tests stay on `bun test`, so CI sets up Bun too.
-`bun run test/scaffold-pm.ts` scaffolds the full starter and the web platform with each
+`bun run test:pm` scaffolds the full starter and the web platform with each
 manager installed on the machine, installs, typechecks and builds.
 
 ## Which platform
@@ -75,7 +75,7 @@ bunx create-signet-app my-app --starter blank               # no parts: shell, A
   `bun`: Bun.serve and bun:sqlite, as before). `deno` (Deno 2) and `node`
   (22.18+) get node:sqlite under Drizzle and a node:http server instead, and
   their `dev`/`start` scripts run on that runtime with `.env` loaded. Tests stay
-  on `bun test` (Bun runs node:sqlite too). `bun run test/scaffold-runtime.ts` serves the
+  on `bun test` (Bun runs node:sqlite too). `bun run test:runtime` serves the
   full starter on each runtime installed and checks `/api/health`, an MCP call
   and the built page.
 - **MCP** is the `mcp` part. As before it is asked for on a terminal (default
@@ -331,7 +331,8 @@ config into anything new produces a crash.
 
 ## Test
 
-`bun run test/scaffold-parts.ts` scaffolds each part alone (plus what it needs), no
+`bun run test:parts` (`test/scaffold-parts.ts`; CI runs it on PRs that touch
+this package and nightly) scaffolds each part alone (plus what it needs), no
 parts and every part, on each surface (`--ui`, `--api`, both), and checks each
 app: no markers or placeholders left, only its surfaces' files, every
 dependency imported (or a peer of one that is) and every import declared, lint,
