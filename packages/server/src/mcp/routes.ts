@@ -16,7 +16,6 @@
 import type { MiddlewareHandler } from "hono"
 import type { z } from "zod"
 import { STATUS_CODES } from "../http/status-codes.js"
-import { VALIDATES } from "../http/validate.js"
 import { toolErrorResult } from "./errors.js"
 import { requireApproval } from "./interaction.js"
 import {
@@ -27,6 +26,13 @@ import {
   type ToolRateLimit,
   toolResult,
 } from "./server.js"
+
+/**
+ * The mark `validate()` puts on its middleware. Built here from the global
+ * symbol registry, not imported from ../http/validate.js: that file loads
+ * hono at runtime, and this module must load without hono (the stdio MCP bin).
+ */
+const VALIDATES = Symbol.for("signet.http.validates")
 
 type ObjectSchema = z.ZodType<Record<string, unknown>>
 
