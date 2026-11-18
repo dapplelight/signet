@@ -3,9 +3,10 @@
 # this repo + this workflow as a trusted publisher on npmjs.com (Settings ->
 # Trusted Publisher -> GitHub Actions: dapplelight/signet, release.yml).
 #
-# Release: bump a version in packages/*/package.json and push to main — that
-# alone publishes it. A release-* tag or a manual run from the Actions tab
-# also works.
+# Release: merge a PR with a .changes/ fragment. post-merge bumps the packages
+# it names (scripts/bump.ts) and starts this workflow, so every such merge
+# publishes. A version bumped by hand on main, a release-* tag or a manual run
+# from the Actions tab also works.
 name: release
 
 on:
