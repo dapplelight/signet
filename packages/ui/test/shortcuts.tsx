@@ -9,7 +9,7 @@ GlobalRegistrator.register()
 const { cleanup, render, screen, within } = await import("@testing-library/react")
 const { default: userEvent } = await import("@testing-library/user-event")
 const { useState } = await import("react")
-const { useHotkey, useHotkeySequence } = await import("@tanstack/react-hotkeys")
+const { useHotkey } = await import("@tanstack/react-hotkeys")
 const { ShortcutCommands, ShortcutsHelp, useListNavigation } = await import(
   "../src/components/ui/shortcuts"
 )
@@ -39,7 +39,7 @@ await t("overlay", async () => {
     useHotkey("Mod+K", () => fired.push("search"), {
       meta: { name: "Search", description: "Find a job", group: "General" },
     })
-    useHotkeySequence(["G", "I"], () => fired.push("inbox"), {
+    useHotkey(["G", "I"], () => fired.push("inbox"), {
       meta: { name: "Go to inbox", group: "Go to" },
     })
     useHotkey("X", () => fired.push("x")) // no meta: works, not listed
@@ -210,7 +210,7 @@ await t("palette", async () => {
       enabled: false,
       meta: { name: "Print", group: "File" },
     })
-    useHotkeySequence(["G", "I"], () => fired.push("inbox"), {
+    useHotkey(["G", "I"], () => fired.push("inbox"), {
       meta: { name: "Go to inbox", group: "Go to" },
     })
     return (

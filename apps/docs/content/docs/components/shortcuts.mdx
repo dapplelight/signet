@@ -72,12 +72,12 @@ import {
   useListNavigation,
   useShortcutList,
 } from "@dapplelight/signet-ui/components/shortcuts"
-import { useHotkey, useHotkeySequence } from "@tanstack/react-hotkeys"
+import { useHotkey } from "@tanstack/react-hotkeys"
 import { goInbox, openSearch } from "./navigation"
 
 // Register keys with TanStack Hotkeys and describe them in `meta`.
 useHotkey("Mod+K", openSearch, { meta: { name: "Search", group: "General" } })
-useHotkeySequence(["G", "I"], goInbox, { meta: { name: "Go to inbox" } })
+useHotkey(["G", "I"], goInbox, { meta: { name: "Go to inbox" } })
 
 // Mount the overlay once, near the root.
 <ShortcutsHelp />
