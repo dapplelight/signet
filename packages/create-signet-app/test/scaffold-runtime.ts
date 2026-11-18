@@ -9,6 +9,7 @@
  *   bun run test/scaffold-runtime.ts [bun|deno|node]
  */
 
+import { spawn } from "node:child_process"
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { $ } from "bun"
@@ -102,19 +103,31 @@ for (const [label, args] of RUNTIMES.flatMap(CASES)) {
     }
 
     const port = 8700 + Math.floor(Math.random() * 200)
-    const proc = Bun.spawn(["sh", "-c", pkg.scripts.start], {
+    // Its own process group: the start script's server is a child of sh, and killing only sh left
+    // it running, so this script never exited on Linux CI.
+    const proc = spawn("sh", ["-c", pkg.scripts.start], {
       cwd: dir,
       env: { ...process.env, PORT: String(port) },
-      stdout: "pipe",
-      stderr: "pipe",
+      detached: true,
+      stdio: ["ignore", "ignore", "pipe"],
     })
+    let stderr = ""
+    proc.stderr?.on("data", (d) => {
+      stderr += d
+    })
+    const stop = () => {
+      try {
+        process.kill(-(proc.pid as number), "SIGKILL")
+      } catch {
+        // already gone
+      }
+    }
     try {
       const base = `http://127.0.0.1:${port}`
       const up = await waitUp(`${base}/api/health`)
       ok(`${label}: serves /api/health`, up)
       if (!up) {
-        proc.kill()
-        console.log((await new Response(proc.stderr).text()).slice(-1500))
+        console.log(stderr.slice(-1500))
         continue
       }
       const res = await fetch(`${base}/mcp`, {
@@ -142,8 +155,7 @@ for (const [label, args] of RUNTIMES.flatMap(CASES)) {
       if (web) ok(`${label}: serves the built page`, page.ok && html.includes('<div id="root"'))
       else ok(`${label}: no page, only the API`, page.status === 404)
     } finally {
-      proc.kill()
-      await proc.exited
+      stop()
     }
   } finally {
     rmSync(dir, { recursive: true, force: true })
@@ -152,4 +164,5 @@ for (const [label, args] of RUNTIMES.flatMap(CASES)) {
 
 rmSync(TMP, { recursive: true, force: true })
 console.log(`\n${pass} passed, ${fail} failed`)
-if (fail) process.exit(1)
+// Exit even if a server's grandchild outlived its group kill.
+process.exit(fail ? 1 : 0)
