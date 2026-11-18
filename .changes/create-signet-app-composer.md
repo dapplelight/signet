@@ -22,3 +22,5 @@
   `npm_config_user_agent` for all five. `--platform cli` is refused with deno.
 - `--platform api --target deno`: a Deno.serve entry and a Dockerfile, like
   the bun target.
+- A composed app takes `--target bun|deno|node` for its API (default bun, as
+  before): deno and node run it on node:sqlite and node:http.

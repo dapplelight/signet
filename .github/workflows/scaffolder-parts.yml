@@ -49,3 +49,21 @@ jobs:
       - run: bun run build:all
       - run: bun run test:pm
         working-directory: packages/create-signet-app
+
+  # The composed app served on each API runtime (bun, deno, node): health,
+  # an MCP call and the built page over real HTTP.
+  runtimes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: bun install --frozen-lockfile
+      - run: bun run build:all
+      - run: bun run test:runtime
+        working-directory: packages/create-signet-app

@@ -21,6 +21,8 @@ import {
   PART_NAMES,
   PARTS,
   type PartName,
+  RUNTIMES,
+  type Runtime,
   resolveParts,
   STARTERS,
   type StarterName,
@@ -430,7 +432,9 @@ Composed apps (a web app and its API from parts; any of these flags):
 ${PART_NAMES.map((p) => `                         ${p.padEnd(14)}${PARTS[p].description}${PARTS[p].needs ? ` (needs ${PARTS[p].needs?.join(", ")})` : ""}`).join("\n")}
 
 Options:
-  --target <runtime>   ${TARGETS.join(" | ")}   (default: cloudflare; platform api only)
+  --target <runtime>   ${TARGETS.join(" | ")}   (default: cloudflare; platform api)
+                       composed apps: ${RUNTIMES.join(" | ")} runs the API (default: bun;
+                       deno and node use node:sqlite and node:http)
                        cloudflare: Worker entry + wrangler.jsonc
                        bun: Bun.serve entry + Dockerfile
                        deno: Deno.serve entry + Dockerfile (Deno 2)
@@ -507,6 +511,7 @@ Examples:
     theme,
     template,
     target: target ?? "cloudflare",
+    targetGiven: target,
     mcp,
     pm: pm ?? detectPm(),
     composeFlags,
@@ -521,7 +526,15 @@ function checkCombo(
   mcp?: boolean,
   c?: ComposeFlags,
 ) {
-  if (target && template !== "api") throw new Error("--target applies to --platform api only.")
+  if (target && template !== "api" && template !== "full")
+    throw new Error("--target applies to --platform api and composed apps only.")
+  if (target && template === "full") {
+    if (!(RUNTIMES as readonly string[]).includes(target))
+      throw new Error(
+        `A composed app's API runs on ${RUNTIMES.join(", ")}: --target ${target} is for --platform api.`,
+      )
+    if (c?.ui) throw new Error("--target picks the API's runtime: drop --ui, or --target.")
+  }
   if (
     mcp !== undefined &&
     (template === "web" || template === "cli" || template === "extension" || template === "desktop")
@@ -682,7 +695,8 @@ async function main() {
     ? composed.parts.includes("mcp")
     : template === "api" && (flags.mcp ?? (await askMcp()))
   await mkdir(dest, { recursive: true })
-  const made = composed ? await compose(dest, composed, BASE) : undefined
+  const runtime = (parsed.targetGiven ?? "bun") as Runtime
+  const made = composed ? await compose(dest, { ...composed, runtime }, BASE) : undefined
   if (!composed) await copyPlatform(template as Platform, dest, target, mcp)
 
   // npm strips a file literally named .gitignore from published packages, so

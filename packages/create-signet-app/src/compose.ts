@@ -111,7 +111,18 @@ export function resolveParts(
   return { parts: PART_NAMES.filter((p) => set.has(p)), added }
 }
 
-const MARKER_NAMES = new Set<string>([...PART_NAMES, "web", "api"])
+/** What runs the API: bun (bun:sqlite, Bun.serve), or deno or node (node:sqlite, node:http). */
+export const RUNTIMES = ["bun", "deno", "node"] as const
+export type Runtime = (typeof RUNTIMES)[number]
+
+/** How each runtime runs a TypeScript file, with the app's env file loaded. */
+const RUN: Record<Runtime, string> = {
+  bun: "bun",
+  deno: "deno run -A --env-file=.env",
+  node: "node --env-file-if-exists=.env",
+}
+
+const MARKER_NAMES = new Set<string>([...PART_NAMES, "web", "api", ...RUNTIMES])
 const BLOCK = /^\s*(?:\/\/|\{\/\*|<!--|#)\s*(!?[\w|-]+):(begin|end)\s*(?:\*\/\}|-->)?\s*$/
 const TAG =
   /\s+(?:\/\/\s*@(!?[\w|-]+)|#\s*@(!?[\w|-]+)|\{\/\*\s*@(!?[\w|-]+)\s*\*\/\}|<!--\s*@(!?[\w|-]+)\s*-->)\s*$/
@@ -224,6 +235,7 @@ export type ComposeOptions = {
   parts: PartName[]
   web: boolean
   api: boolean
+  runtime?: Runtime
 }
 
 /** The base's own dependencies per surface, from index.ts (signet-mcp's index reads them there). */
@@ -240,7 +252,11 @@ const sorted = (o: Deps) =>
  * Lay the base and the chosen parts' files into dest and resolve their
  * markers. Returns the package.json body and the env file lines.
  */
-export async function compose(dest: string, { parts, web, api }: ComposeOptions, base: BaseDeps) {
+export async function compose(
+  dest: string,
+  { parts, web, api, runtime = "bun" }: ComposeOptions,
+  base: BaseDeps,
+) {
   const halves = ["shared", ...(web ? ["web"] : []), ...(api ? ["api"] : [])]
   if (web && api) halves.push("both")
   for (const dir of ["base", ...parts.map((p) => `parts/${p}`)])
@@ -254,7 +270,7 @@ export async function compose(dest: string, { parts, web, api }: ComposeOptions,
       for (const [from, to] of Object.entries((PARTS[p] as Part).uiCopies ?? {}))
         await cp(join(ROOT, "parts", p, "api", from), join(dest, to))
 
-  const on = new Set<string>([...parts, ...(web ? ["web"] : []), ...(api ? ["api"] : [])])
+  const on = new Set<string>([...parts, ...(web ? ["web"] : []), ...(api ? ["api", runtime] : [])])
   for (const f of await walk(dest)) {
     const path = join(dest, f)
     const text = await readFile(path, "utf8")
@@ -305,10 +321,10 @@ export async function compose(dest: string, { parts, web, api }: ComposeOptions,
     web && api
       ? {
           // Both halves: the API (restarting on change) and Vite, which proxies /api to it.
-          dev: "bun scripts/dev.ts",
+          dev: `${RUN[runtime]} scripts/dev.ts`,
           build: "tsc -b && vite build",
           // One process serves the API and the built app from dist/.
-          start: "bun api/server.ts",
+          start: `${RUN[runtime]} api/server.ts`,
           preview: "vite preview",
           lint: "biome check .",
           format: "biome check --write .",
@@ -327,8 +343,8 @@ export async function compose(dest: string, { parts, web, api }: ComposeOptions,
             test: "bun test src",
           }
         : {
-            dev: "bun --watch api/server.ts",
-            start: "bun api/server.ts",
+            dev: `${RUN[runtime]} --watch api/server.ts`,
+            start: `${RUN[runtime]} api/server.ts`,
             lint: "biome check .",
             format: "biome check --write .",
             typecheck: "tsc -b --noEmit",
@@ -341,7 +357,13 @@ export async function compose(dest: string, { parts, web, api }: ComposeOptions,
     })
 
   return {
-    pkg: { scripts, dependencies: sorted(deps), devDependencies: sorted(devDeps) },
+    pkg: {
+      scripts,
+      dependencies: sorted(deps),
+      devDependencies: sorted(devDeps),
+      // Runs api/server.ts as is: type stripping is on by default from 22.18.
+      ...(api && runtime === "node" ? { engines: { node: ">=22.18" } } : {}),
+    },
     env: api ? ["APP_ENV=development", ...chosen.flatMap((p) => p.env?.() ?? []), ""] : [],
   }
 }

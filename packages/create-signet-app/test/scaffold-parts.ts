@@ -57,7 +57,7 @@ function files(dir: string, base = dir): string[] {
 }
 
 const MARKER = new RegExp(
-  String.raw`(//|\{/\*|<!--|#)\s*!?(${[...PART_NAMES, "web", "api"].join("|")}):(begin|end)|\s(//|#)\s*@!?(${[...PART_NAMES, "web", "api"].join("|")})\s*$`,
+  String.raw`(//|\{/\*|<!--|#)\s*!?(${[...PART_NAMES, "web", "api", "bun", "deno", "node"].join("|")}):(begin|end)|\s(//|#)\s*@!?(${[...PART_NAMES, "web", "api", "bun", "deno", "node"].join("|")})\s*$`,
   "m",
 )
 

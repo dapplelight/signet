@@ -338,7 +338,8 @@ for (const target of ["bun", "deno", "node", "vercel"]) {
     // Needs Node 22.18+ on PATH: the file runs as is, by type stripping.
     if (target === "node") await servesAndLimits("node", ["node", "src/server.ts"], dir)
     // Needs Deno 2 on PATH.
-    if (target === "deno") await servesAndLimits("deno", ["deno", "run", "-A", "src/server.ts"], dir)
+    if (target === "deno")
+      await servesAndLimits("deno", ["deno", "run", "-A", "src/server.ts"], dir)
     if (target === "vercel") {
       const out = await $`bun -e ${`const app = (await import("./index.ts")).default
 const h = await app.fetch(new Request("http://x/api/health", { headers: { "x-forwarded-for": "198.51.100.7" } }))

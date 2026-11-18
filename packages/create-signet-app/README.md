@@ -71,6 +71,13 @@ bunx create-signet-app my-app --starter blank               # no parts: shell, A
 - **Needs** come along on their own and the output says so (`--with payments`
   prints `added auth for payments`). Leaving out a part another one needs is
   an error.
+- **Runtime.** `--target bun|deno|node` picks what runs the API (default
+  `bun`: Bun.serve and bun:sqlite, as before). `deno` (Deno 2) and `node`
+  (22.18+) get node:sqlite under Drizzle and a node:http server instead, and
+  their `dev`/`start` scripts run on that runtime with `.env` loaded. Tests stay
+  on `bun test` (Bun runs node:sqlite too). `bun run test:runtime` serves the
+  full starter on each runtime installed and checks `/api/health`, an MCP call
+  and the built page.
 - **MCP** is the `mcp` part. As before it is asked for on a terminal (default
   yes) unless `--mcp`, `--no-mcp`, `--with mcp` or `--without mcp` says.
 
