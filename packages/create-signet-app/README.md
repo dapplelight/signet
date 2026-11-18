@@ -76,6 +76,7 @@ bunx create-signet-app my-app --starter blank               # no parts: shell, A
 | `notifications` | the in-app inbox and preferences, `/notifications` | auth |
 | `privacy` | DPDP consent and data export / erasure requests, `/privacy` | auth |
 | `payments` | plans (`api/plans.ts`), entitlements, `/billing`, gateway webhooks | auth |
+| `growth` | waitlist, invites, referral codes, referrals, feedback and marks tables, with signet-db's `createGrowth` (API only) | |
 | `mcp` | the API's validated routes as tools at `/mcp` (API only) | |
 
 ### How parts are put together

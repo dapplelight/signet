@@ -4,7 +4,7 @@ import { type AdminContext, type Authorize, defineAdmin, roles } from "@dappleli
 // payments:begin
 import { createEntitlements } from "@dapplelight/signet-db/entitlements"
 // payments:end
-import { createGrowth } from "@dapplelight/signet-db/growth"
+import { createGrowth } from "@dapplelight/signet-db/growth" // @growth
 // orgs:begin
 import { createOrgs } from "@dapplelight/signet-db/orgs"
 // orgs:end
@@ -39,7 +39,7 @@ import { eq } from "drizzle-orm"
 import { z } from "zod"
 // notifications:end
 import type { Db } from "./db/index.ts"
-import * as schema from "./db/schema.ts"
+import * as schema from "./db/schema.ts" // @notifications|payments|privacy|growth|orgs|admin
 import { env } from "./env.ts" // @auth
 // payments:begin
 import { plans } from "./plans.ts"
@@ -228,11 +228,12 @@ export function createServices({ db, kv }: Deps) { // @!auth
     privacy: createPrivacy(db, {
       tables: schema,
       // What export covers and erasure deletes, children before parents.
-      userTables: [schema.feedback, [schema.users, schema.users.id]],
+      userTables: [schema.feedback, [schema.users, schema.users.id]], // @growth
+      userTables: [[schema.users, schema.users.id]], // @!growth
       respondWithinMs: 30 * 86_400_000,
     }),
     // privacy:end
-    growth: createGrowth(db, { tables: schema }),
+    growth: createGrowth(db, { tables: schema }), // @growth
     // orgs:begin
     // Orgs, roles (owner, admin, member) and invites. Add roles with
     // `roles: defineRoles({ ...DEFAULT_ORG_ROLES, ... })`.

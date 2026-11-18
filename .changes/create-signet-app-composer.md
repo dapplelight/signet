@@ -1,7 +1,8 @@
 ### create-signet-app: compose apps from parts
 
 - A web app and its API are now composed from parts: `auth`, `account`,
-  `orgs`, `admin`, `notifications`, `privacy`, `payments` and `mcp`. `--with`
+  `orgs`, `admin`, `notifications`, `privacy`, `payments`, `growth` (waitlist,
+  invites, referrals, feedback and marks) and `mcp`. `--with`
   adds parts, `--without` leaves them out, and the parts they need come along
   (the output says which). `--ui` writes the web half only (its client calls
   an API at `VITE_API_URL`), `--api` the API half only (no web files, no Vite);

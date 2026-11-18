@@ -543,7 +543,8 @@ async function pickParts(c: ComposeFlags, mcpFlag: boolean | undefined) {
   const flagged = c.ui || c.api || c.with.length > 0 || c.without.length > 0
   const starter =
     c.starter ?? (!flagged || (!c.with.length && c.without.length) ? "full" : undefined)
-  const base = starter ? STARTERS[starter].parts : []
+  // A UI-only app takes the starter's parts that have a web half.
+  const base = starter ? STARTERS[starter].parts.filter((p) => api || !PARTS[p].apiOnly) : []
   const mcp = c.with.includes("mcp")
     ? true
     : c.without.includes("mcp")

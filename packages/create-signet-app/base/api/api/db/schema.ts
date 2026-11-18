@@ -1,16 +1,22 @@
 // auth:begin
+// payments|growth|orgs|privacy:begin
 import {
   auditLog,
   entitlementTables, // @payments
-  growthTables,
+  growthTables, // @growth
   id,
   idempotencyKeys,
   orgTables, // @orgs
   privacyTables, // @privacy
   timestamps,
 } from "@dapplelight/signet-db/columns/sqlite"
+// payments|growth|orgs|privacy:end
+import { auditLog, id, idempotencyKeys, timestamps } from "@dapplelight/signet-db/columns/sqlite" // @!payments|growth|orgs|privacy
 // auth:end
-import { auditLog, growthTables, idempotencyKeys } from "@dapplelight/signet-db/columns/sqlite" // @!auth
+// !auth:begin
+import { auditLog, growthTables, idempotencyKeys } from "@dapplelight/signet-db/columns/sqlite" // @growth
+import { auditLog, idempotencyKeys } from "@dapplelight/signet-db/columns/sqlite" // @!growth
+// !auth:end
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core"
 
 // The whole database. Change a table here, then `db:generate` writes the
@@ -49,7 +55,7 @@ export const audit = auditLog()
 export const idempotency = idempotencyKeys()
 
 export const { subjectPlans, entitlementOverrides, usageCounters } = entitlementTables() // @payments
-export const { waitlist, invites, referralCodes, referrals, marks, feedback } = growthTables()
+export const { waitlist, invites, referralCodes, referrals, marks, feedback } = growthTables() // @growth
 export const { consents, dataRequests } = privacyTables() // @privacy
 // orgs:begin
 /**

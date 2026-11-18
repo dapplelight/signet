@@ -17,6 +17,7 @@ import { join, resolve } from "node:path"
 import account from "../parts/account/part.js"
 import admin from "../parts/admin/part.js"
 import auth from "../parts/auth/part.js"
+import growth from "../parts/growth/part.js"
 import mcp from "../parts/mcp/part.js"
 import notifications from "../parts/notifications/part.js"
 import orgs from "../parts/orgs/part.js"
@@ -54,6 +55,7 @@ export const PART_NAMES = [
   "notifications",
   "privacy",
   "payments",
+  "growth",
   "mcp",
 ] as const
 export type PartName = (typeof PART_NAMES)[number]
@@ -65,6 +67,7 @@ export const PARTS: Record<PartName, Part> = {
   notifications,
   privacy,
   payments,
+  growth,
   mcp,
 }
 
@@ -109,21 +112,30 @@ export function resolveParts(
 }
 
 const MARKER_NAMES = new Set<string>([...PART_NAMES, "web", "api"])
-const BLOCK = /^\s*(?:\/\/|\{\/\*|<!--|#)\s*(!?[\w-]+):(begin|end)\s*(?:\*\/\}|-->)?\s*$/
+const BLOCK = /^\s*(?:\/\/|\{\/\*|<!--|#)\s*(!?[\w|-]+):(begin|end)\s*(?:\*\/\}|-->)?\s*$/
 const TAG =
-  /\s+(?:\/\/\s*@(!?[\w-]+)|#\s*@(!?[\w-]+)|\{\/\*\s*@(!?[\w-]+)\s*\*\/\}|<!--\s*@(!?[\w-]+)\s*-->)\s*$/
+  /\s+(?:\/\/\s*@(!?[\w|-]+)|#\s*@(!?[\w|-]+)|\{\/\*\s*@(!?[\w|-]+)\s*\*\/\}|<!--\s*@(!?[\w|-]+)\s*-->)\s*$/
 
 /**
  * Keep what applies, drop the markers. A block is the lines between
  * `// name:begin` and `// name:end` (also `{/* name:begin *\/}`, `<!-- … -->`,
  * `# …`); blocks nest. A line ending in `// @name` is that one line. `!name`
- * means "without name". Names are parts and the surfaces, `web` and `api`.
+ * means "without name"; `a|b` means "with a or b", `!a|b` "with neither". Names are parts and the
+ * surfaces, `web` and `api`.
  */
 export function applyBlocks(text: string, on: ReadonlySet<string>): string {
   const name = (c: string) => c.replace(/^!/, "")
   // Only our names are markers, so a stray `// @ts-expect-error` stays put.
-  const known = (c: string) => MARKER_NAMES.has(name(c))
-  const holds = (c: string) => (c.startsWith("!") ? !on.has(name(c)) : on.has(c))
+  const known = (c: string) =>
+    name(c)
+      .split("|")
+      .every((n) => MARKER_NAMES.has(n))
+  const holds = (c: string) =>
+    c.startsWith("!")
+      ? !name(c)
+          .split("|")
+          .some((n) => on.has(n))
+      : c.split("|").some((n) => on.has(n))
   const open: boolean[] = []
   const out: string[] = []
   for (const line of text.split("\n")) {
@@ -145,11 +157,12 @@ export function applyBlocks(text: string, on: ReadonlySet<string>): string {
 
 /**
  * The blank lines a dropped block leaves, gone the way the formatter would
- * have it: none at the top, never two in a row, none just inside brackets.
+ * have it: none at the top or bottom, never two in a row, none just inside brackets.
  */
 export function tidy(text: string): string {
   return text
     .replace(/^\n+/, "")
+    .replace(/\n{2,}$/, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .replace(/([{([]|=>)\n\n/g, "$1\n")
     .replace(/\n\n(\s*[})\]])/g, "\n$1")
