@@ -212,11 +212,27 @@ if (PG_URL) {
     name: "postgres (SIGNET_TEST_PG_URL)",
     async make(options) {
       const S = pgSchema() as unknown as Schema
-      const client = postgres(PG_URL, { onnotice: () => {} })
-      const db = createPg(client, withAudit(options, S))
+      // One fresh schema per instance, as PGlite gives one fresh database:
+      // tests add their own tables (some referencing these), so dropping
+      // known tables by name is not enough on a shared server.
+      const schema = `signet_test_${crypto.randomUUID().replaceAll("-", "")}`
+      const client = postgres(PG_URL, {
+        onnotice: () => {},
+        connection: { search_path: schema },
+      })
       const exec = (s: string) => client.unsafe(s)
-      for (const t of Object.values(S)) await exec(`drop table if exists "${getTableName(t)}"`)
-      return setup({ db, S, exec, close: () => client.end() })
+      const close = async () => {
+        await exec(`drop schema if exists "${schema}" cascade`)
+        await client.end()
+      }
+      try {
+        await exec(`create schema "${schema}"`)
+        const db = createPg(client, withAudit(options, S))
+        return await setup({ db, S, exec, close })
+      } catch (e) {
+        await close()
+        throw e
+      }
     },
   })
 } else {

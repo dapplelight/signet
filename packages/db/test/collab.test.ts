@@ -123,7 +123,9 @@ describe.each(backends)("collab on $name", (backend) => {
     const c = await collab.addComment(alice, ref, { body: "Mine" })
     const bob = { orgId: b.id, userId: "bob" }
     const outsider = { orgId: a.id, userId: "bob" }
-    for (const p of [
+    // Settle them all at once: on a real server these run in parallel, and a
+    // rejection nobody awaits yet is reported as unhandled.
+    const settled = await Promise.allSettled([
       collab.comments(bob, ref),
       collab.comments(outsider, ref),
       collab.addComment(outsider, ref, { body: "hi" }),
@@ -136,7 +138,7 @@ describe.each(backends)("collab on $name", (backend) => {
       collab.mentionable(outsider),
       collab.restore(bob, ref, 1),
     ])
-      expect((await fails(p)).status).toBe(404)
+    for (const s of settled) expect(s.status === "rejected" && s.reason.status).toBe(404)
     // Someone who leaves loses access to what they wrote.
     await orgs.addMember(a.id, "zed", "member")
     const zed = { orgId: a.id, userId: "zed" }
