@@ -42,6 +42,14 @@ prints.
 <!-- !api:begin -->
 `dev` starts Vite; open the URL it prints. Put your API's origin in
 `VITE_API_URL` (in `.env.local`); unset, the app calls its own origin.
+
+The client in `src/lib/api.ts` is untyped until you give it your API's type.
+To type it, replace its `api` line with:
+
+```ts
+import type { AppType } from "<your api>/api/app.ts" // an app made with --api exports it
+export const api = createRpcClient(hc<AppType>, { baseUrl }).api
+```
 <!-- !api:end -->
 <!-- web:end -->
 `dev` starts the API on port 3000 and restarts it on change. <!-- @!web -->

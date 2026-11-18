@@ -316,12 +316,15 @@ config into anything new produces a crash.
 
 ## Test
 
-`bun run test:parts` (`test/scaffold-parts.ts`, its own CI job) scaffolds each
-part alone (plus what it needs), no parts and every part, on each surface
-(`--ui`, `--api`, both), installs local packs, and checks each app: no markers
-or placeholders left, only its surfaces' files, every dependency imported (or a
-peer of one that is), lint, typecheck, its tests, and the build (web) or
-`db:check` plus a `drizzle-kit generate` that finds nothing to do (api).
+`bun run test:parts` (`test/scaffold-parts.ts`; CI runs it on PRs that touch
+this package and nightly) scaffolds each part alone (plus what it needs), no
+parts and every part, on each surface (`--ui`, `--api`, both), and checks each
+app: no markers or placeholders left, only its surfaces' files, every
+dependency imported (or a peer of one that is) and every import declared, lint,
+typecheck, its tests, and the build (web) or `db:check` plus a `drizzle-kit
+generate` that finds nothing to do (api). Every app's dependencies are
+installed once, into one shared directory each app links to; the apps run in
+parallel, and a step over files identical to an earlier app's runs once.
 `bun run test/scaffold-parts.ts api payments` runs one.
 
 `test/scaffold-full.ts` scaffolds the full starter outside the monorepo with
