@@ -5,13 +5,16 @@ import { sessionRoutes } from "@dapplelight/signet-server/auth/hono"
 import { maskPhone } from "@dapplelight/signet-server/auth/otp"
 // orgs:end
 import { errorHandler } from "@dapplelight/signet-server/http"
-// admin:begin
-import { adminRoutes } from "@dapplelight/signet-server/http/admin"
-import { ApiException } from "@dapplelight/signet-server/http/errors"
-// admin:end
+import { adminRoutes } from "@dapplelight/signet-server/http/admin" // @admin
+// ai:begin
+import { aiSpendAdminRoutes, requireAiSpend } from "@dapplelight/signet-server/http/ai-spend" // @admin
+import { requireAiSpend } from "@dapplelight/signet-server/http/ai-spend" // @!admin
+// ai:end
+import { ApiException } from "@dapplelight/signet-server/http/errors" // @admin
 // orgs:begin
 import { orgRoutes, tenant } from "@dapplelight/signet-server/http/orgs"
 // orgs:end
+import { workflowRoutes } from "@dapplelight/signet-server/http/workflows" // @workflows
 // mcp:begin
 import { appTools } from "@dapplelight/signet-server/mcp"
 import { mountMcp } from "@dapplelight/signet-server/mcp/hono"
@@ -32,20 +35,24 @@ import { type User, users } from "./db/schema.ts" // @orgs
 import type { User } from "./db/schema.ts" // @!orgs
 // auth:end
 import { env } from "./env.ts"
-// auth:begin
-import { accountRoutes } from "./routes/account.ts"
-import { authRoutes, requireUser } from "./routes/auth.ts"
-// auth:end
+import { accountRoutes } from "./routes/account.ts" // @auth
+import { aiRoutes } from "./routes/ai.ts" // @ai
+import { authRoutes, requireUser } from "./routes/auth.ts" // @auth
 // payments:begin
 import { billingRoutes, billingWebhooks } from "./routes/billing.ts"
 // payments:end
 // notifications:begin
 import { notificationRoutes } from "./routes/notifications.ts"
 // notifications:end
+// paywalls:begin
+import { paywallAdminRoutes, paywallRoutes } from "./routes/paywall.ts" // @admin
+import { paywallRoutes } from "./routes/paywall.ts" // @!admin
+// paywalls:end
 // privacy:begin
 import { privacyRoutes } from "./routes/privacy.ts"
 // privacy:end
 import { createServices, type Deps, TRUST } from "./services.ts" // @auth
+import { approvalRequest } from "./workflows.ts" // @workflows
 import { type Deps, TRUST } from "./services.ts" // @!auth
 
 export type AppEnv = { Variables: { reqId: string; user: User } } // @auth
@@ -59,6 +66,9 @@ const SIGNED_IN = [
   "/api/privacy", // consent and data requests // @privacy
   "/api/billing", // plan and checkout // @payments
   "/api/admin", // the operator's admin API // @admin
+  "/api/ai", // AI calls, within the spend caps // @ai
+  "/api/paywall", // the paywall for a placement // @paywalls
+  "/api/workflows", // workflow runs and approvals // @workflows
 ]
 // auth:end
 
@@ -98,6 +108,17 @@ export function createApp(deps: Deps) {
   // auth:begin
   for (const path of SIGNED_IN) base.use(`${path}/*`, requireUser(s))
   // auth:end
+  // ai:begin
+  // Over the caller's or the app's AI spend cap: 429 with Retry-After, before
+  // the route runs (caps in api/env.ts and the ai_spend_caps table).
+  base.use(
+    "/api/ai/*",
+    requireAiSpend({
+      spend: s.aiSpend,
+      subject: (c) => ({ userId: (c.get("user" as never) as User).id }),
+    }),
+  )
+  // ai:end
   // orgs:begin
   const gate = requireUser(s)
   base.use("/api/orgs/*", (c, next) =>
@@ -126,6 +147,21 @@ export function createApp(deps: Deps) {
     .route("/api/billing", billingRoutes(s))
     .route("/api/webhooks", billingWebhooks(s))
     // payments:end
+    .route("/api/ai", aiRoutes(s)) // @ai
+    .route("/api/paywall", paywallRoutes(s)) // @paywalls
+    // workflows:begin
+    // Durable workflows (api/workflows.ts): anyone signed in may start an
+    // approval request and decide the ones waiting on them; admins see every run.
+    .route(
+      "/api/workflows",
+      workflowRoutes({
+        workflows: s.workflows,
+        subject: (c) => (c.get("user" as never) as User).id,
+        isAdmin: (c) => (c.get("user" as never) as User).role === "admin",
+        canStart: (_c, workflow) => workflow === approvalRequest.name,
+      }),
+    )
+    // workflows:end
     // orgs:begin
     // Orgs: switch, settings, members, invites (signet-server orgRoutes).
     // Guard your own org routes the same way: orgGuards({ orgs: s.orgs, userId })
@@ -150,6 +186,19 @@ export function createApp(deps: Deps) {
     )
     // orgs:end
     // admin:begin
+    // ai:begin
+    // AI spend for admins: usage, top spenders, and caps per user or for the app.
+    .route(
+      "/api/admin/ai-spend",
+      aiSpendAdminRoutes({
+        spend: s.aiSpend,
+        authorize: (c) => (c.get("user" as never) as User).role === "admin",
+        actor: (c) => ({ type: "user", id: (c.get("user" as never) as User).id }),
+      }),
+    )
+    // ai:end
+    // Publishing offerings and pointing placements at them. // @paywalls
+    .route("/api/admin/paywalls", paywallAdminRoutes(s)) // @paywalls
     // The operator's admin API over every org (signet-db defineAdmin, config
     // in services.ts): platform roles readonly, staff and admin (ADMIN_PHONES)
     // only; everyone else gets 403. Org owners manage their org under /org.

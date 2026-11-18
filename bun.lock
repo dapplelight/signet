@@ -139,7 +139,7 @@
     },
     "packages/create-signet-app": {
       "name": "create-signet-app",
-      "version": "0.4.8",
+      "version": "0.5.0",
       "bin": {
         "create-signet-app": "./src/index.ts",
       },
@@ -153,7 +153,7 @@
     },
     "packages/db": {
       "name": "@dapplelight/signet-db",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "bin": {
         "signet-db-check": "./dist/migrations/cli.js",
       },

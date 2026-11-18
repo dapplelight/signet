@@ -15,7 +15,7 @@ import { $ } from "bun"
 
 const ROOT = new URL("../../..", import.meta.url).pathname.replace(/\/$/, "")
 const CLI = `${ROOT}/packages/create-signet-app/src/index.ts`
-const PACKAGES = ["lib", "tokens", "ui", "server", "db", "payments"]
+const PACKAGES = ["lib", "tokens", "ui", "server", "db", "payments", "ai"]
 const TMP = join("/tmp", "__scaffold_runtime__")
 const RUNTIMES = ["bun", "deno", "node"] as const
 

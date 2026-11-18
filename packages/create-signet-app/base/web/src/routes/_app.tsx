@@ -29,6 +29,7 @@ const NAV = [
   { to: "/billing", label: "Billing" }, // @payments
   { to: "/account", label: "Account" }, // @account
   { to: "/privacy", label: "Privacy" }, // @privacy
+  { to: "/approvals", label: "Approvals" }, // @workflows
   { to: "/org", label: "Org" }, // @orgs
 ] as const
 

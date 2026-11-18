@@ -16,6 +16,7 @@ import { createApp } from "./app.ts"
 import { pruneKv, sqlKv } from "./db/kv.ts"
 import { openDb } from "./db/open.ts"
 import { env } from "./env.ts"
+import { createAppWorkflows } from "./workflows.ts" // @workflows
 
 const { db, query } = openDb(env.DATABASE_PATH)
 // OBSERVABILITY=on adds request logs, spans and /health/live and /health/ready.
@@ -23,6 +24,11 @@ const serviceName = "__APP_NAME__"
 const observability = env.OBSERVABILITY === "on" ? { serviceName } : undefined
 const app = createApp({ db, query, kv: sqlKv(db.orm), observability })
 setInterval(() => pruneKv(db.orm), 60 * 60 * 1000)
+// workflows:begin
+// The workflow runner (api/workflows.ts): every second it takes the runs that
+// are due, including any a restart cut short. The same on Bun, Deno and Node.
+void createAppWorkflows(db).poll({ intervalMs: 1000 })
+// workflows:end
 
 const DIST = join(import.meta.dirname, "../dist") // @web
 

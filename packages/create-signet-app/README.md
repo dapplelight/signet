@@ -90,7 +90,10 @@ bunx create-signet-app my-app --starter blank               # no parts: shell, A
 | `notifications` | the in-app inbox and preferences, `/notifications` | auth |
 | `privacy` | DPDP consent and data export / erasure requests, `/privacy` | auth |
 | `payments` | plans (`api/plans.ts`), entitlements, `/billing`, gateway webhooks | auth |
+| `paywalls` | remote paywalls: versioned offerings and placements with audience overrides (signet-db's `createOfferings`), `GET /api/paywall/:placement`; with `admin`, publishing under `/api/admin/paywalls` (API only) | payments |
 | `growth` | waitlist, invites, referral codes, referrals, feedback and marks tables, with signet-db's `createGrowth` (API only) | |
+| `ai` | AI spend caps per user and for the app (signet-db's `createAiSpend`, `requireAiSpend` on `/api/ai/*`), a sample `/api/ai/summary` on signet-ai's fake provider (no key needed); with `admin`, `/api/admin/ai-spend` (API only) | auth |
+| `workflows` | durable workflows (signet-db's `createWorkflows`) at `/api/workflows`, a generic approval-request example, the runner in `api/server.ts`, `/approvals` | auth |
 | `mcp` | the API's validated routes as tools at `/mcp` (API only) | |
 
 ### How parts are put together
@@ -105,8 +108,10 @@ tree, the tests' helpers) lives in `base/` once, with each part's lines marked
 `!<part>` means without it; `web` and `api` are the surfaces). The composer
 keeps the chosen lines and drops every marker, so an app has no trace of the
 parts it left out. The migrations in `base/api/drizzle/` cover every table; the
-composer keeps the statements and snapshot entries for the chosen parts' tables,
-so `db:check` passes and `db:generate` finds nothing to do.
+composer keeps the statements and snapshot entries for the chosen parts' tables
+(a table two parts list, like `usage_counters` for `payments` and `ai`, stays
+with either), drops a migration left empty and moves the later ones up a
+number, so `db:check` passes and `db:generate` finds nothing to do.
 
 ## AI-assisted planning: `--describe`
 

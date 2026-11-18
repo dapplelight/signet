@@ -1,10 +1,13 @@
+import { createExtractor, fakeProvider } from "@dapplelight/signet-ai" // @ai
 // admin:begin
 import { type AdminContext, type Authorize, defineAdmin, roles } from "@dapplelight/signet-db/admin"
 // admin:end
+import { createAiSpend } from "@dapplelight/signet-db/ai-spend" // @ai
 // payments:begin
 import { createEntitlements } from "@dapplelight/signet-db/entitlements"
 // payments:end
 import { createGrowth } from "@dapplelight/signet-db/growth" // @growth
+import { createOfferings } from "@dapplelight/signet-db/offerings" // @paywalls
 // orgs:begin
 import { createOrgs } from "@dapplelight/signet-db/orgs"
 // orgs:end
@@ -39,10 +42,11 @@ import { eq } from "drizzle-orm"
 import { z } from "zod"
 // notifications:end
 import type { Db } from "./db/index.ts"
-import * as schema from "./db/schema.ts" // @notifications|payments|privacy|growth|orgs|admin
+import * as schema from "./db/schema.ts" // @notifications|payments|privacy|growth|orgs|admin|ai
 import { env } from "./env.ts" // @auth
+import { plans } from "./plans.ts" // @payments
+import { createAppWorkflows } from "./workflows.ts" // @workflows
 // payments:begin
-import { plans } from "./plans.ts"
 
 export { PLAN_DISPLAY, type PlanId, plans } from "./plans.ts"
 // payments:end
@@ -209,6 +213,26 @@ export function createServices({ db, kv }: Deps) { // @!auth
     },
   })
   // payments:end
+  // ai:begin
+  // Spend per user and for the app, per UTC day and month, in cost units
+  // (1,000,000 = one US dollar). A cap an admin sets wins over these.
+  const aiSpend = createAiSpend(db, {
+    tables: { usageCounters: schema.usageCounters, aiSpendCaps: schema.spendCaps },
+    caps: { user: { day: env.AI_CAP_USER_DAY }, global: { month: env.AI_CAP_GLOBAL_MONTH } },
+  })
+  const ai = createExtractor({
+    // A canned answer, so /api/ai runs with no key and no network. Put a real
+    // provider here (see README, "AI"); its pricing is what the caps count.
+    providers: [
+      {
+        ...fakeProvider((input: string) => ({ summary: input.slice(0, 80) })),
+        pricing: { perCallUsd: 0.001 },
+      },
+    ],
+    // Checks the caps before each call and charges its cost after.
+    ledger: aiSpend.ledger,
+  })
+  // ai:end
   return {
     db,
     orm,
@@ -234,6 +258,13 @@ export function createServices({ db, kv }: Deps) { // @!auth
     }),
     // privacy:end
     growth: createGrowth(db, { tables: schema }), // @growth
+    // ai:begin
+    aiSpend,
+    ai,
+    // ai:end
+    // Offerings and placements: what each paywall sells (api/routes/paywall.ts). // @paywalls
+    offerings: createOfferings(db, { tables: schema, plans }), // @paywalls
+    workflows: createAppWorkflows(db), // @workflows
     // orgs:begin
     // Orgs, roles (owner, admin, member) and invites. Add roles with
     // `roles: defineRoles({ ...DEFAULT_ORG_ROLES, ... })`.
@@ -245,7 +276,16 @@ export function createServices({ db, kv }: Deps) { // @!auth
     admin: defineAdmin(schema, {
       authorize: adminAuthorize,
       // Per table by SQL name: search, readonly, hidden columns, row actions.
-      tables: { kv: false, idempotency_keys: false },
+      tables: {
+        kv: false,
+        idempotency_keys: false,
+        // These change through their own APIs, which keep them consistent: read only here. // @ai|paywalls|workflows
+        ai_spend_caps: { ops: ["list", "get"] }, // @ai
+        offerings: { ops: ["list", "get"] }, // @paywalls
+        placements: { ops: ["list", "get"] }, // @paywalls
+        workflow_runs: { ops: ["list", "get"] }, // @workflows
+        workflow_steps: { ops: ["list", "get"] }, // @workflows
+      },
     }),
     // admin:end
   }
