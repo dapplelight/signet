@@ -422,10 +422,9 @@ Platforms (one app each):
   --template <name>    the old name for --platform; --template full is --starter full
 
 Composed apps (a web app and its API from parts; any of these flags):
-  --starter <name>     ${STARTER_NAMES.join(" | ")}
-                       full: every part below, web + API in one project, typed
-                            client between them, SQLite with migrations
-                       blank: the same project with no parts: shell, API, database
+  --starter <name>     a named mix of parts, web + API in one project, typed
+                       client between them, SQLite with migrations:
+${STARTER_NAMES.map((s) => `                         ${s.padEnd(14)}${STARTERS[s].description}`).join("\n")}
   --with <parts>       comma-separated parts to add; the parts they need come too
   --without <parts>    parts to leave out (alone: the full starter without them)
   --ui                 the web half only; it calls an API elsewhere (VITE_API_URL)
@@ -518,6 +517,8 @@ Examples:
     mcp,
     pm: pm ?? detectPm(),
     composeFlags,
+    // Nothing said what to build: asked on a terminal, else the web platform.
+    pick: !templateGiven && !composing,
   }
 }
 
@@ -572,6 +573,34 @@ async function substitute(dir: string, vars: Record<string, string>) {
   }
 }
 
+/** "What are you building?": a platform or a starter, by number or name; default web. */
+async function askWhat(): Promise<Platform | StarterName> {
+  const choices = [...PLATFORMS, ...STARTER_NAMES.map((s) => `starter ${s}`)]
+  const lines = [
+    ...PLATFORMS.map((p) => p),
+    ...STARTER_NAMES.map((s) => `${s.padEnd(14)}${STARTERS[s].description}`),
+  ]
+  console.log(
+    `\n  What are you building?\n${lines.map((l, i) => `  ${String(i + 1).padStart(3)}. ${l}`).join("\n")}`,
+  )
+  const rl = createInterface({ input: process.stdin, output: process.stdout })
+  try {
+    for (;;) {
+      const a = (await rl.question("  Number or name (web): ")).trim().toLowerCase()
+      if (a === "") return "web"
+      const n = Number(a)
+      const pick =
+        Number.isInteger(n) && n >= 1
+          ? choices[n - 1]
+          : choices.find((c) => c === a || c === `starter ${a}`)
+      if (pick) return pick.replace(/^starter /, "") as Platform | StarterName
+      console.log(`  Not one of these: ${a}`)
+    }
+  } finally {
+    rl.close()
+  }
+}
+
 /** "Add MCP for agents?", default yes; only asked on a terminal. */
 async function askMcp(): Promise<boolean> {
   if (!process.stdin.isTTY) return true
@@ -611,11 +640,13 @@ async function copyPlatform(platform: Platform, dest: string, target: Target, mc
  * when nothing said, as it always was.
  */
 async function pickParts(c: ComposeFlags, mcpFlag: boolean | undefined) {
-  const web = !c.api
-  const api = !c.ui
   const flagged = c.ui || c.api || c.with.length > 0 || c.without.length > 0
   const starter =
     c.starter ?? (!flagged || (!c.with.length && c.without.length) ? "full" : undefined)
+  const apiStarter = starter !== undefined && "surface" in STARTERS[starter]
+  if (apiStarter && c.ui) throw new Error(`--starter ${starter} is the API only: drop --ui.`)
+  const web = !c.api && !apiStarter
+  const api = !c.ui
   // A UI-only app takes the starter's parts that have a web half.
   const base = starter ? STARTERS[starter].parts.filter((p) => api || !PARTS[p].apiOnly) : []
   const mcp = c.with.includes("mcp")
@@ -683,6 +714,14 @@ async function main() {
   if (described) {
     ;({ theme, template } = described)
     checkCombo(template, theme, parsed.targetGiven, flags.mcp)
+  }
+  if (parsed.pick && process.stdin.isTTY) {
+    const what = await askWhat()
+    if ((PLATFORMS as readonly string[]).includes(what)) template = what as Platform
+    else {
+      template = "full"
+      parsed.composeFlags.starter = what as StarterName
+    }
   }
   if (parsed.pm === "deno" && template === "cli")
     throw new Error(

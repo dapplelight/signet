@@ -28,6 +28,8 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run lint
       - run: bun run changes --check
+      - run: bun run scripts/bump.ts --check
+      - run: bun run scripts/bump.test.ts
       - run: bun run scripts/check-bumps.ts
       - run: bun run scripts/changes.test.ts
       # Prose like "<reason>" or a bare {total} breaks the docs build.

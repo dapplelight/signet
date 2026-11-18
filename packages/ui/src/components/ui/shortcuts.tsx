@@ -6,7 +6,7 @@
  * `meta`; Signet adds the `?` overlay that lists them, and j/k list focus.
  *
  *   useHotkey("Mod+K", openSearch, { meta: { name: "Search", group: "General" } })
- *   useHotkeySequence(["G", "I"], goInbox, { meta: { name: "Go to inbox" } })
+ *   useHotkey(["G", "I"], goInbox, { meta: { name: "Go to inbox" } })
  *
  * TanStack's defaults are the right ones here: single keys are ignored while
  * typing in a field, Mod+ and Escape are not, and `Mod` is ⌘ on macOS, Ctrl
@@ -15,9 +15,8 @@
  */
 
 import {
-  formatForDisplay,
   getHotkeyManager,
-  parseHotkey,
+  useFormatForDisplay,
   useHotkey,
   useHotkeyRegistrations,
 } from "@tanstack/react-hotkeys"
@@ -36,12 +35,11 @@ type Entry = {
   run?: () => void
 }
 
-const keysOf = (hotkey: Parameters<typeof formatForDisplay>[0]) =>
-  formatForDisplay(hotkey, { parts: true })
-
 /** The registrations the overlay lists, grouped. Exported for custom overlays. */
 export function useShortcutList(): Array<[group: string, entries: Entry[]]> {
-  const { hotkeys, sequences } = useHotkeyRegistrations()
+  const registrations = useHotkeyRegistrations()
+  // Labels follow the platform and, where the browser reports it, the keyboard layout.
+  const format = useFormatForDisplay()
   const entries: Entry[] = []
   const seen = new Set<string>()
   const add = (
@@ -69,21 +67,22 @@ export function useShortcutList(): Array<[group: string, entries: Entry[]]> {
       ...(run ? { run } : {}),
     })
   }
-  for (const h of hotkeys)
-    add(h.id, h.options, [keysOf(h.hotkey)], () => {
+  for (const r of registrations) {
+    if (r.kind === "sequence") {
+      add(r.id, r.options, format(r.hotkey, { parts: true }))
+      continue
+    }
+    add(r.id, r.options, [format(r.hotkey, { parts: true })], () => {
       // The live registration holds the handler; the list above is a read-only view.
-      const reg = getHotkeyManager().registrations.state.get(h.id)
-      reg?.callback(new KeyboardEvent("keydown"), {
+      const reg = getHotkeyManager().registrations.state.get(r.id)
+      if (reg?.kind !== "chord") return
+      reg.callback(new KeyboardEvent("keydown"), {
+        kind: "chord",
         hotkey: reg.hotkey,
-        parsedHotkey: parseHotkey(reg.hotkey),
+        parsedChord: reg.parsedChord,
       })
     })
-  for (const s of sequences)
-    add(
-      s.id,
-      s.options,
-      s.sequence.map((step) => keysOf(step)),
-    )
+  }
   const groups = new Map<string, Entry[]>()
   for (const e of entries) groups.set(e.group, [...(groups.get(e.group) ?? []), e])
   return [...groups]

@@ -14,6 +14,9 @@ It has:
 - an in-app inbox <!-- @notifications -->
 - privacy (DPDP consent and data requests) <!-- @privacy -->
 - plans and billing <!-- @payments -->
+- remote paywalls <!-- @paywalls -->
+- AI spend caps and a sample AI route <!-- @ai -->
+- durable workflows with approval steps <!-- @workflows -->
 - an admin panel over the whole database <!-- @admin -->
 - MCP for agents at `/mcp` <!-- @mcp -->
 <!-- auth:end -->
@@ -134,6 +137,84 @@ each plan allows, `PLAN_DISPLAY` the name, description and price the page shows.
 Keep it in step with the API.
 <!-- !api:end -->
 <!-- payments:end -->
+<!-- paywalls:begin -->
+
+### Paywalls (2 minutes)
+
+A placement ("onboarding", "upgrade") serves an offering: products mapped to
+plans, and what the paywall says. `GET /api/paywall/<placement>?country=IN&platform=web`
+returns the one for the caller: the first audience override that matches,
+else the placement's own, and 404 until the placement exists. Each publish is
+a new version and a published one never changes, so what a paywall sells
+changes without a release.
+<!-- admin:begin -->
+
+Admins and staff publish with `POST /api/admin/paywalls/offerings/<key>`
+(`{ products, paywall }`) and point a placement at it with
+`PUT /api/admin/paywalls/placements/<placement>` (`{ offering, overrides? }`).
+The admin panel lists both tables read only.
+<!-- admin:end -->
+<!-- !admin:begin -->
+
+Publish from code, e.g. in a seed script:
+
+```ts
+const actor = { type: "system" as const, id: "seed" }
+const products = [{ id: "plan_pro_monthly", store: "web", plan: "pro" }]
+await s.offerings.publish("standard", { products, paywall: { title: "Go further" } }, { actor })
+await s.offerings.setPlacement("upgrade", { offering: "standard" }, { actor })
+```
+<!-- !admin:end -->
+<!-- paywalls:end -->
+<!-- ai:begin -->
+
+### AI (2 minutes)
+
+`POST /api/ai/summary` with `{ "text": "..." }` answers from a canned
+provider, so it runs with no key. Each call costs $0.001, charged to the
+caller's daily cap (`AI_CAP_USER_DAY`) and the app's monthly one
+(`AI_CAP_GLOBAL_MONTH`), in cost units: 1,000,000 is one US dollar. Over a
+cap, every `/api/ai` route answers 429 with `Retry-After` before it runs.
+Spend is counted in `usage_counters`; a cap stored in `ai_spend_caps` wins
+over the env ones.
+Admins read spend and set caps per user or for the app under <!-- @admin -->
+`/api/admin/ai-spend` (`GET /usage`, `GET /caps`, `PUT /caps`). <!-- @admin -->
+Set one from code with `s.aiSpend.setCap({ scope, subject, period, units })`. <!-- @!admin -->
+
+For a real model, replace the fake provider in `api/services.ts` with yours
+(a signet-ai `Provider`: name, model, `pricing`, and `generate`); its pricing
+is what the caps count. Copy `api/routes/ai.ts` for your own AI routes.
+<!-- ai:end -->
+<!-- workflows:begin -->
+
+### Workflows (5 minutes)
+
+<!-- api:begin -->
+`api/workflows.ts` has one workflow, a generic approval request: someone
+asks, one of the listed approvers approves or rejects, and the run ends with
+the decision. `api/server.ts` runs the runner: every second it takes the runs
+that are due, including any a restart cut short.
+<!-- web:begin -->
+**Approvals** lists the approval steps waiting on you.
+<!-- web:end -->
+
+Start one with `POST /api/workflows/runs` and
+`{ "workflow": "approval-request", "input": { "summary": "...", "approvers": ["<user id>"] } }`.
+Approvers find it at `GET /api/workflows/approvals` and decide with
+`POST /api/workflows/runs/<id>/steps/approval/approve` (or `reject`); admins
+see every run at `GET /api/workflows/runs`.
+
+Add your own with `defineWorkflow` in `api/workflows.ts` and list it in
+`WORKFLOWS`. Put each side effect in `step.run`, so a replay after a restart
+does not repeat it. Who may start which workflow over HTTP is `canStart` in
+`api/app.ts`.
+<!-- api:end -->
+<!-- !api:begin -->
+**Approvals** lists the approval steps waiting on you, from your API's
+`/api/workflows` (an app made with `--api --with workflows` serves it), each
+with Approve and Reject.
+<!-- !api:end -->
+<!-- workflows:end -->
 
 ### Build your first feature (the rest of the day)
 
@@ -208,6 +289,7 @@ your lockfile.
 api/
   app.ts            routes, the signed-in gate, MCP; exports AppType for the client
   plans.ts          plans and what the billing page shows (shared with the browser) <!-- @payments -->
+  workflows.ts      the workflows the runner runs <!-- @workflows -->
   services.ts       what the routes use, built once per process
   routes/           one file per area <!-- @auth -->
   db/schema.ts      every table; drizzle/ holds the migrations
@@ -267,6 +349,11 @@ Before production:
   Fulfil them with `privacy.fulfil(id, { actor })` (export returns the data to
   send; erasure deletes the user's rows listed in `userTables`).
 <!-- privacy:end -->
+<!-- ai:begin -->
+- **AI.** `api/services.ts` answers from a canned provider. Put a real one
+  there, and set `AI_CAP_USER_DAY` and `AI_CAP_GLOBAL_MONTH` to what you will
+  pay.
+<!-- ai:end -->
 <!-- auth:end -->
 <!-- api:end -->
 <!-- !api:begin -->

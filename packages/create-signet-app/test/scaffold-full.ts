@@ -20,7 +20,7 @@ const CLI = `${ROOT}/packages/create-signet-app/src/index.ts`
 const CI = ".github/workflows/ci.yml"
 // Every Signet package the full app uses. signet-db and signet-payments are not
 // on npm yet, so all of them install from packs of this checkout.
-const PACKAGES = ["lib", "tokens", "ui", "server", "db", "payments"]
+const PACKAGES = ["lib", "tokens", "ui", "server", "db", "payments", "ai"]
 
 let pass = 0,
   fail = 0

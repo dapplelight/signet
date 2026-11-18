@@ -1,8 +1,12 @@
 #!/usr/bin/env bun
+import { headings, named, packages } from "./bump.ts"
+
 /**
  * Fails when a package's export paths differ from what npm has for the same
- * version. A new subpath without a version bump never reaches npm, and apps
- * scaffolded from create-signet-app then import paths that do not exist.
+ * version and no pending .changes fragment names the package. post-merge bumps
+ * every package a fragment names (scripts/bump.ts), so the fragment is the
+ * bump; without one a new subpath never reaches npm, and apps scaffolded from
+ * create-signet-app then import paths that do not exist.
  *
  *   bun run scripts/check-bumps.ts
  *
@@ -23,11 +27,16 @@ const PKGS = [
   "mcp",
 ] as const
 const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "")
+const KNOWN = packages(ROOT)
+const PENDING = new Set(
+  headings(ROOT).flatMap(({ heading }) => [...named(heading, KNOWN).pkgs.keys()]),
+)
 
 const keys = (e: unknown) => (e && typeof e === "object" ? Object.keys(e).sort() : [])
 
 const stale: string[] = []
 for (const p of PKGS) {
+  if (PENDING.has(p)) continue // a fragment names it: post-merge bumps it
   const { name, version, exports } = await Bun.file(`${ROOT}/packages/${p}/package.json`).json()
   // Three tries, then fail: skipping on an outage would let an unbumped
   // export merge, and the release skips versions already on npm.
@@ -57,7 +66,9 @@ for (const p of PKGS) {
 }
 
 if (stale.length) {
-  console.error(`${stale.join("\n")}\n\nBump these versions so the release publishes them.`)
+  console.error(
+    `${stale.join("\n")}\n\nAdd a .changes/<name>.md fragment naming these packages; post-merge bumps and publishes them.`,
+  )
   process.exit(1)
 }
 console.log(`Export paths match npm for every unbumped package.`)

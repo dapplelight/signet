@@ -58,6 +58,7 @@ bunx create-signet-app my-app --without admin,privacy       # the full starter w
 bunx create-signet-app my-api --api --with orgs             # the API half only
 bunx create-signet-app my-ui --ui --with account            # the web half only
 bunx create-signet-app my-app --starter blank               # no parts: shell, API, database
+bunx create-signet-app my-app --starter saas --with ai      # a starter, plus a part
 ```
 
 - **Surfaces.** Both halves by default. `--ui` writes the web half only: its
@@ -65,9 +66,21 @@ bunx create-signet-app my-app --starter blank               # no parts: shell, A
   until you point `src/lib/api.ts` at that API's `AppType`. `--api` writes the
   API half only: no web files, no Vite. `--ui --api` together is an error (it
   is the default).
-- **Starters** are named mixes of parts: `full` (every part; `--template full`
-  is the same) and `blank` (none). `--with` adds to the starter, `--without`
-  takes away; `--without` alone starts from `full`.
+- **Starters** are named mixes of parts, by the shape of app. `--with` adds to
+  the starter, `--without` takes away; `--without` alone starts from `full`.
+  Run with no flags on a terminal to pick a platform or starter from a list.
+
+  | starter | parts (plus what they need) |
+  | --- | --- |
+  | `full` | every part (`--template full` is the same) |
+  | `blank` | none: the shell, the API, the database |
+  | `saas` | account, orgs, admin, notifications, privacy, payments |
+  | `launch` | account, privacy, growth (waitlist, invites, referrals, feedback) |
+  | `internal-tool` | account, orgs, admin, workflows |
+  | `api` | account, payments; the API half only |
+  | `ai-app` | account, privacy, payments, ai |
+  | `paywall` | account, payments, paywalls |
+  | `automation` | account, notifications, workflows |
 - **Needs** come along on their own and the output says so (`--with payments`
   prints `added auth for payments`). Leaving out a part another one needs is
   an error.
@@ -90,7 +103,10 @@ bunx create-signet-app my-app --starter blank               # no parts: shell, A
 | `notifications` | the in-app inbox and preferences, `/notifications` | auth |
 | `privacy` | DPDP consent and data export / erasure requests, `/privacy` | auth |
 | `payments` | plans (`api/plans.ts`), entitlements, `/billing`, gateway webhooks | auth |
+| `paywalls` | remote paywalls: versioned offerings and placements with audience overrides (signet-db's `createOfferings`), `GET /api/paywall/:placement`; with `admin`, publishing under `/api/admin/paywalls` (API only) | payments |
 | `growth` | waitlist, invites, referral codes, referrals, feedback and marks tables, with signet-db's `createGrowth` (API only) | |
+| `ai` | AI spend caps per user and for the app (signet-db's `createAiSpend`, `requireAiSpend` on `/api/ai/*`), a sample `/api/ai/summary` on signet-ai's fake provider (no key needed); with `admin`, `/api/admin/ai-spend` (API only) | auth |
+| `workflows` | durable workflows (signet-db's `createWorkflows`) at `/api/workflows`, a generic approval-request example, the runner in `api/server.ts`, `/approvals` | auth |
 | `mcp` | the API's validated routes as tools at `/mcp` (API only) | |
 
 ### How parts are put together
@@ -105,8 +121,10 @@ tree, the tests' helpers) lives in `base/` once, with each part's lines marked
 `!<part>` means without it; `web` and `api` are the surfaces). The composer
 keeps the chosen lines and drops every marker, so an app has no trace of the
 parts it left out. The migrations in `base/api/drizzle/` cover every table; the
-composer keeps the statements and snapshot entries for the chosen parts' tables,
-so `db:check` passes and `db:generate` finds nothing to do.
+composer keeps the statements and snapshot entries for the chosen parts' tables
+(a table two parts list, like `usage_counters` for `payments` and `ai`, stays
+with either), drops a migration left empty and moves the later ones up a
+number, so `db:check` passes and `db:generate` finds nothing to do.
 
 ## AI-assisted planning: `--describe`
 

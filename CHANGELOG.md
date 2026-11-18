@@ -5,6 +5,43 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-db: outbox drains rows enqueued in the same millisecond
+
+- `drainOutbox` on a Postgres server skipped a message enqueued in the same
+  millisecond as the drain: `next_attempt_at` defaults to the database's
+  `now()`, kept to the microsecond, while the drain compared it with a
+  millisecond JS `Date`. The message waited for the next drain. Rows are now
+  due up to the end of the drain's millisecond.
+
+### signet-mcp: scaffold_app takes a starter
+
+- `scaffold_app` accepts `starter` (saas, launch, api, ...) and returns the `--starter` command. The starter list and descriptions come from create-signet-app at build time.
+
+### create-signet-app (minor): seven new starters and a picker
+
+- New `--starter` mixes: `saas`, `launch`, `internal-tool`, `api` (API half only), `ai-app`, `paywall`, `automation`. Each is a named set of parts; `--with` and `--without` still adjust it.
+- Run with no flags on a terminal to pick a platform or starter from a numbered list. Scripts and CI (no terminal) get the web platform, as before.
+- `--help` lists every starter with what it holds.
+
+### signet-ui, signet-test: happy-dom 21
+
+- Dev dependency `@happy-dom/global-registrator` (and `happy-dom`) 20.14 to 21.0.4. Test-only: no runtime or published API change. happy-dom 21 turns off CSS file and iframe page loading by default (SSRF hardening); none of the DOM tests load either.
+
+### signet-ui (minor): @tanstack/react-hotkeys 0.27
+
+- The optional peer `@tanstack/react-hotkeys` moves from `>=0.12.0 <0.13.0` to `>=0.27.0 <0.28.0`. Apps that use `components/shortcuts` need to upgrade it too, and `useHotkeySequence(["G", "I"], …)` becomes `useHotkey(["G", "I"], …)`: TanStack folded sequences into `useHotkey` in 0.14.
+- `useShortcutList`, `ShortcutsHelp` and `ShortcutCommands` read the single registration list that `useHotkeyRegistrations()` now returns. Key labels now come from `useFormatForDisplay()`, so they follow the platform and, where the browser reports it, the user's keyboard layout.
+
+### create-signet-app: `ai`, `paywalls` and `workflows` parts
+
+Three new parts for composed apps, in the `full` starter too:
+
+- `ai` (needs `auth`, API only): AI spend caps per user and for the app with signet-db's `createAiSpend`, `requireAiSpend` on `/api/ai/*` (429 with `Retry-After` over a cap), a sample `POST /api/ai/summary` on signet-ai's fake provider so it runs with no key, caps from `AI_CAP_USER_DAY` and `AI_CAP_GLOBAL_MONTH`, and with `admin`, `aiSpendAdminRoutes` at `/api/admin/ai-spend`.
+- `paywalls` (needs `payments`, API only): versioned offerings and placements with signet-db's `createOfferings`, `GET /api/paywall/:placement` for the caller's audience, and with `admin`, publishing under `/api/admin/paywalls` (the admin panel lists both tables read only).
+- `workflows` (needs `auth`): signet-db's durable workflows at `/api/workflows` through signet-server's `workflowRoutes`, a generic approval-request example, the runner polling in `api/server.ts` on Bun, Deno and Node, and an **Approvals** page on signet-ui's `ApprovalInboxCard`.
+
+Their tables come in one new migration. Migration pruning now keeps a table two parts list (`usage_counters`, for `payments` and `ai`) while either is chosen, and when a migration empties out the later ones move up a number and relink their snapshots, so `db:generate` neither reuses a number nor finds a broken chain.
+
 ### signet-db: 0.2.1 publishes the AI spend ledger
 
 `aiSpendLedger()` and `createAiSpend`'s `tables.aiSpendLedger` (dated spend per UTC day, model and scope, for `series`, `byModel` and `topSpenders`) landed after 0.2.0 was published without a version bump, so they were never on npm. 0.2.1 ships them.

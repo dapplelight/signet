@@ -45,6 +45,14 @@ export const envSchema = z.object({
   RAZORPAY_KEY_SECRET: z.string().optional(),
   RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
   // payments:end
+  // ai:begin
+  /**
+   * AI spend caps in cost units (1,000,000 = one US dollar): per user per UTC
+   * day, and for the whole app per month. A cap stored in ai_spend_caps wins.
+   */
+  AI_CAP_USER_DAY: z.coerce.number().int().min(0).default(200_000),
+  AI_CAP_GLOBAL_MONTH: z.coerce.number().int().min(0).default(50_000_000),
+  // ai:end
   // mcp:begin
   /** The MCP endpoint at /mcp (api/app.ts). "off" answers it with a 404. */
   MCP: z.enum(["on", "off"]).default("on"),

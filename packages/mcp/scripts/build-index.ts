@@ -1582,8 +1582,19 @@ function templateFiles(dir: string, target?: string): TemplateFile[] {
   }))
 }
 const themeNames = /const THEMES = \[([^\]]*)\]/.exec(CSA)?.[1]?.match(/[\w-]+/g) ?? []
+// Starter name and its one-line description, as compose.ts lists them.
+const COMPOSE = read("packages/create-signet-app/src/compose.ts")
+const startersBlock = /export const STARTERS = \{([\s\S]*?)\n\} satisfies/.exec(COMPOSE)?.[1] ?? ""
+const starters = Object.fromEntries(
+  [...startersBlock.matchAll(/^ {2}"?([\w-]+)"?: \{\s*description: "([^"]+)"/gm)].map((m) => [
+    m[1],
+    m[2],
+  ]),
+)
+if (!starters.full || !starters.blank) throw new Error("create-signet-app lost its STARTERS")
 const scaffold: SignetIndex["scaffold"] = {
   themes: themeNames,
+  starters,
   web: {
     files: templateFiles("packages/create-signet-app/template"),
     scripts: scripts("web"),
