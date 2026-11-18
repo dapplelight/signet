@@ -1,3 +1,4 @@
+import "./mcp-no-hono"
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client"
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio"
 import {
