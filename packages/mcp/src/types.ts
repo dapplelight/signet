@@ -120,5 +120,11 @@ export type SignetIndex = {
   contractCounts: { required: number; optional: number }
   recipes: Recipe[]
   blocks: BlockInfo[]
-  scaffold: { themes: string[]; web: ScaffoldTemplate; api: ScaffoldTemplate }
+  scaffold: {
+    themes: string[]
+    /** create-signet-app's starters: name to its one-line description. */
+    starters: Record<string, string>
+    web: ScaffoldTemplate
+    api: ScaffoldTemplate
+  }
 }
