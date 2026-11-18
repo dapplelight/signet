@@ -5,6 +5,16 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-mcp: scaffold_app takes a starter
+
+- `scaffold_app` accepts `starter` (saas, launch, api, ...) and returns the `--starter` command. The starter list and descriptions come from create-signet-app at build time.
+
+### create-signet-app (minor): seven new starters and a picker
+
+- New `--starter` mixes: `saas`, `launch`, `internal-tool`, `api` (API half only), `ai-app`, `paywall`, `automation`. Each is a named set of parts; `--with` and `--without` still adjust it.
+- Run with no flags on a terminal to pick a platform or starter from a numbered list. Scripts and CI (no terminal) get the web platform, as before.
+- `--help` lists every starter with what it holds.
+
 ### signet-ui, signet-test: happy-dom 21
 
 - Dev dependency `@happy-dom/global-registrator` (and `happy-dom`) 20.14 to 21.0.4. Test-only: no runtime or published API change. happy-dom 21 turns off CSS file and iframe page loading by default (SSRF hardening); none of the DOM tests load either.
