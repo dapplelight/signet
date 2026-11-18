@@ -1,0 +1,69 @@
+# Composed apps: each part alone (plus what it needs), none and all, on every
+# surface; each app linted, typechecked, tested and built over one shared
+# install. Runs on PRs that touch the scaffolder, nightly, and on demand.
+name: scaffolder-parts
+
+on:
+  pull_request:
+    paths:
+      - "packages/create-signet-app/**"
+      - ".github/workflows/scaffolder-parts.yml"
+  schedule:
+    - cron: "37 21 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scaffolder-parts-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  parts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run build:all
+      - run: bun run test:parts
+        working-directory: packages/create-signet-app
+
+  # The full starter and the web platform installed, typechecked and built
+  # with each package manager. Its own job, so it runs next to the parts one.
+  package-managers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # Yarn (pinned per app by packageManager) and pnpm come through corepack.
+      - run: corepack enable
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: bun install --frozen-lockfile
+      - run: bun run build:all
+      - run: bun run test:pm
+        working-directory: packages/create-signet-app
+
+  # The composed app served on each API runtime (bun, deno, node): health,
+  # an MCP call and the built page over real HTTP.
+  runtimes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: bun install --frozen-lockfile
+      - run: bun run build:all
+      - run: bun run test:runtime
+        working-directory: packages/create-signet-app

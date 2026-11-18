@@ -52,6 +52,8 @@ const env = {
   COREPACK_ENABLE_DOWNLOAD_PROMPT: "0",
   YARN_ENABLE_HARDENED_MODE: "0",
   YARN_ENABLE_IMMUTABLE_INSTALLS: "false",
+  // Yarn quarantines versions under a day old, like deno below.
+  YARN_NPM_MINIMAL_AGE_GATE: "0",
 }
 
 rmSync(TMP, { recursive: true, force: true })
