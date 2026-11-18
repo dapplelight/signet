@@ -15,7 +15,7 @@
  * Messages carry the outbox row id; consumers should dedupe on it.
  */
 
-import { and, asc, eq, getTableColumns, inArray, lt, lte, sql, type Table } from "drizzle-orm"
+import { and, asc, eq, getTableColumns, inArray, lt, sql, type Table } from "drizzle-orm"
 import type { SignetDb } from "./db.js"
 import { SignetDbError } from "./errors.js"
 
@@ -80,7 +80,10 @@ export async function drainOutbox(
   const o = db.orm as AnyOrm
   const now = new Date()
 
-  const due = and(eq(c.status, "pending"), lte(c.nextAttemptAt, now))
+  // `next_attempt_at` defaults to the database's now(), which Postgres keeps
+  // to the microsecond; a JS Date stops at the millisecond. Compare against
+  // the end of this millisecond so a row enqueued just now is due.
+  const due = and(eq(c.status, "pending"), lt(c.nextAttemptAt, new Date(now.getTime() + 1)))
   const ids: string[] = (
     await o.select({ id: c.id }).from(t).where(due).orderBy(asc(c.id)).limit(batch)
   ).map((r: { id: string }) => r.id)
