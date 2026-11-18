@@ -83,7 +83,7 @@
   },
   "peerDependencies": {
     "@dapplelight/signet-lib": "^0.2.0 || ^0.3.0 || ^0.4.0",
-    "zod": ">=4.0.0",
+    "zod": "^4.6.7",
     "ai": ">=7.0.0",
     "@ai-sdk/react": ">=4.0.0",
     "@opentelemetry/api": "^1.9.0"
@@ -101,11 +101,11 @@
   },
   "devDependencies": {
     "@dapplelight/signet-lib": "^0.4.0",
-    "zod": "^4.6.5",
+    "zod": "^4.6.7",
     "typescript": "^7.0.2",
-    "@types/bun": "^1.4.2",
-    "@ai-sdk/react": "4.0.112",
-    "@opentelemetry/api": "1.9.0"
+    "@types/bun": "^1.4.4",
+    "@ai-sdk/react": "^4.0.180",
+    "@opentelemetry/api": "^1.10.0"
   },
   "publishConfig": {
     "access": "public"

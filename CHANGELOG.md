@@ -5,6 +5,20 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### all packages: dependencies on their latest minor and patch versions
+
+- React 19.3.1, the AI SDK (`ai` 7.0.176, `@ai-sdk/react` 4.0.180), the MCP SDK 2.4.0, OpenTelemetry API 1.10, Radix (checkbox, dropdown menu, popover, tooltip), TanStack Query 5.108 and Table 9.3, Tailwind 4.3.5, lucide-react 1.74, react-day-picker 10.0.2, Fumadocs 16.19.4 and dev tooling. Scaffolded apps get the same versions.
+- Held back because they broke here: recharts 3.11 (chart types), Biome 2.6 (reformats code, new rule), Hono 4.13.19 (server declaration types too large to emit). Majors (postgres 4, happy-dom 21, @tanstack/react-hotkeys 0.27, @ui-sdk beta.6) are separate.
+
+### all packages: one zod 4 range
+
+- Every package's zod peer and dev range is now `^4.6.7` (was a mix of `>=4.0.0`, `>=4.2.0`, `^4.0.0` and `^4.6.5`), and scaffolded apps ask for the same. `>=4` no longer admits a future zod 5. A test in `signet-config` fails if any range drifts or the lockfile resolves more than one zod.
+
+### create-signet-app: quieter first install and lint
+
+- Generated `biome.json` points `$schema` at the installed Biome's own schema, so `lint` no longer asks you to run `biome migrate` when a newer Biome 2.x installs.
+- With `--pm npm`, the generated `package.json` allows esbuild's install script (`allowScripts`), so npm 11 no longer warns about it, and a future npm that blocks unreviewed scripts still builds.
+
 ### signet-server: `./mcp` loads without hono
 
 - `@dapplelight/signet-server/mcp` no longer imports `./http/validate` at runtime, so it loads when the optional `hono` peer is absent. This fixes `npx @dapplelight/signet-mcp` and `bunx @dapplelight/signet-mcp`, which crashed on start with "Cannot find package 'hono'".
