@@ -581,7 +581,20 @@ async function main() {
       : pkg
   await writeFile(
     join(dest, "package.json"),
-    `${JSON.stringify({ name: appName, private: true, version: "0.1.0", type: "module", ...(template === "desktop" ? DESKTOP_PKG : final) }, null, 2)}\n`,
+    `${JSON.stringify(
+      {
+        name: appName,
+        private: true,
+        version: "0.1.0",
+        type: "module",
+        ...(template === "desktop" ? DESKTOP_PKG : final),
+        // npm 11 warns on unreviewed install scripts and will block them later.
+        // esbuild (under Vite and wrangler) needs its postinstall to fetch its binary.
+        ...(pm === "npm" && template !== "cli" ? { allowScripts: { esbuild: true } } : {}),
+      },
+      null,
+      2,
+    )}\n`,
   )
 
   const { install, run } = PM[pm]
