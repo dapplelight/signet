@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-server: `./mcp` loads without hono
+
+- `@dapplelight/signet-server/mcp` no longer imports `./http/validate` at runtime, so it loads when the optional `hono` peer is absent. This fixes `npx @dapplelight/signet-mcp` and `bunx @dapplelight/signet-mcp`, which crashed on start with "Cannot find package 'hono'".
+
 ### create-signet-app: one quickstart
 
 - The README and the docs now use one quickstart everywhere: `create-signet-app my-app --template full`, then install and `run dev`, at `http://localhost:5173`. The docs gain a Getting started path (Installation, Project structure, First component, First API route, Deploy).
