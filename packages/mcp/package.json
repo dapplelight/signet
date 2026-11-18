@@ -49,13 +49,13 @@
     "@dapplelight/signet-server": "^0.6.0"
   },
   "peerDependencies": {
-    "@modelcontextprotocol/server": "^2.1.0",
+    "@modelcontextprotocol/server": "^2.4.0",
     "zod": ">=4.2.0"
   },
   "devDependencies": {
-    "@modelcontextprotocol/server": "^2.1.0",
-    "@types/bun": "^1.4.2",
-    "@types/node": "^26.6.2",
+    "@modelcontextprotocol/server": "^2.4.0",
+    "@types/bun": "^1.4.4",
+    "@types/node": "^26.6.6",
     "typescript": "^7.0.2",
     "zod": "^4.6.5"
   },

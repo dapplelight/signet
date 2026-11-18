@@ -49,7 +49,7 @@
     "gen:native": "bun run scripts/gen-native.ts"
   },
   "devDependencies": {
-    "@types/bun": "^1.4.2",
+    "@types/bun": "^1.4.4",
     "typescript": "^7.0.2"
   },
   "publishConfig": {

@@ -104,7 +104,7 @@ const API_DEPS = {
 
 // Added with MCP (--mcp, the default): signet-server's optional peer for /mcp.
 const MCP_DEPS = {
-  "@modelcontextprotocol/server": "^2.1.0",
+  "@modelcontextprotocol/server": "^2.4.0",
 }
 
 /**
@@ -119,7 +119,7 @@ function applyMcp(text: string, mcp: boolean): string {
 
 const API_DEV_DEPS = {
   "@biomejs/biome": "^2.5.14",
-  "@types/bun": "^1.4.2",
+  "@types/bun": "^1.4.4",
   typescript: "^7.0.2",
 }
 
@@ -140,7 +140,7 @@ const API_TARGETS: Record<
   bun: { scripts: { dev: "bun --watch src/server.ts", start: "bun src/server.ts" } },
   node: {
     scripts: { dev: "node --watch src/server.ts", start: "node src/server.ts" },
-    devDeps: { "@types/node": "^26.6.2" },
+    devDeps: { "@types/node": "^26.6.6" },
     // Runs src/server.ts as is: type stripping is on by default from 22.18.
     engines: { node: ">=22.18" },
   },
@@ -166,13 +166,13 @@ const DEPS = {
   "@dapplelight/signet-tokens": "^0.4.0",
   // ^0.3.2: LabelsProvider (src/components/signet-labels.tsx).
   "@dapplelight/signet-ui": "^0.3.5",
-  "@tanstack/react-query": "^5.103.2",
+  "@tanstack/react-query": "^5.108.0",
   "@tanstack/react-router": "^1.170.39",
   "class-variance-authority": "^0.7.1",
   clsx: "^2.1.1",
-  "lucide-react": "^1.47.0",
-  react: "^19.3.0",
-  "react-dom": "^19.3.0",
+  "lucide-react": "^1.74.0",
+  react: "^19.3.1",
+  "react-dom": "^19.3.1",
   sonner: "^2.0.8",
   "tailwind-merge": "^3.7.0",
 }
@@ -193,16 +193,16 @@ const PWA_DEV_DEPS = {
 
 const DEV_DEPS = {
   "@biomejs/biome": "^2.5.14",
-  "@tailwindcss/vite": "^4.3.3",
+  "@tailwindcss/vite": "^4.3.5",
   "@tanstack/router-plugin": "^1.168.40",
-  "@types/bun": "^1.4.2",
-  "@types/node": "^26.6.2",
+  "@types/bun": "^1.4.4",
+  "@types/node": "^26.6.6",
   "@types/react": "^19.3.0",
   "@types/react-dom": "^19.3.0",
-  "@vitejs/plugin-react": "^6.1.1",
-  tailwindcss: "^4.3.3",
+  "@vitejs/plugin-react": "^6.3.0",
+  tailwindcss: "^4.3.5",
   typescript: "^7.0.2",
-  vite: "^8.3.0",
+  vite: "^8.3.8",
 }
 
 // The full template: the web app's deps plus the API's, signet-db and
