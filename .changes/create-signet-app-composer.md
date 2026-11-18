@@ -17,3 +17,6 @@
 - The full app's API tests are split into one file per part, sharing
   `test/helpers.ts`; `account` gains an API key test and `notifications` an
   inbox test.
+- `--pm` also takes `yarn` (modern Yarn through corepack) and `deno` (Deno 2,
+  `package.json` scripts through `deno task`), and the default follows
+  `npm_config_user_agent` for all five. `--platform cli` is refused with deno.

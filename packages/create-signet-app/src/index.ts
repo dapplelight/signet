@@ -38,14 +38,44 @@ const STARTER_NAMES = Object.keys(STARTERS) as StarterName[]
 const TARGETS = ["cloudflare", "bun", "node", "vercel"] as const
 type Target = (typeof TARGETS)[number]
 const DESCRIBE_TEMPLATES: readonly Template[] = ["web", "api", "full"]
-const PMS = ["bun", "npm", "pnpm"] as const
+const PMS = ["bun", "npm", "pnpm", "yarn", "deno"] as const
 type Pm = (typeof PMS)[number]
 
-/** `npm create` / `pnpm create` say who ran them; bun otherwise. */
+/** `npm create`, `pnpm create`, `yarn create`, `deno run`... say who ran them; bun otherwise. */
 function detectPm(): Pm {
   const agent = process.env.npm_config_user_agent ?? ""
-  return agent.startsWith("pnpm/") ? "pnpm" : agent.startsWith("npm/") ? "npm" : "bun"
+  for (const pm of ["yarn", "pnpm", "bun", "deno", "npm"] as const)
+    if (agent.startsWith(`${pm}/`)) return pm
+  return "bun"
 }
+
+/** Yarn through corepack, pinned so CI and every machine run the same one. */
+const YARN = "yarn@4.18.1"
+
+/**
+ * signet-ui's required peers. npm, pnpm, bun and deno install them on their
+ * own; Yarn does not, so a Yarn app lists them (test/scaffold-pm.ts checks
+ * this list against signet-ui's package.json).
+ */
+const UI_PEERS: Record<string, string> = {
+  "@base-ui/react": ">=1.3.0",
+  "@radix-ui/react-checkbox": ">=1.0.0",
+  "@radix-ui/react-dropdown-menu": ">=2.0.0",
+  "@radix-ui/react-popover": ">=1.0.0",
+  "@radix-ui/react-tooltip": ">=1.0.0",
+  "@tanstack/react-table": ">=9.0.0",
+  "class-variance-authority": ">=0.0.0",
+  clsx: ">=2.0.0",
+  "input-otp": ">=1.4.0",
+  "lucide-react": ">=1.0.0",
+  react: ">=19.0.0",
+  "react-day-picker": ">=10.0.0",
+  "react-dom": ">=19.0.0",
+  "tailwind-merge": ">=3.0.0",
+  "@dapplelight/signet-tokens": "^0.3.0 || ^0.4.0",
+}
+const sortDeps = (o: Record<string, string>) =>
+  Object.fromEntries(Object.entries(o).sort(([a], [b]) => a.localeCompare(b)))
 
 /** How each package manager spells install, a frozen install and running a script or a bin. */
 const PM: Record<Pm, { install: string; ci: string; run: string; x: string; lock: string }> = {
@@ -70,23 +100,43 @@ const PM: Record<Pm, { install: string; ci: string; run: string; x: string; lock
     x: "pnpm exec",
     lock: "pnpm-lock.yaml",
   },
+  yarn: {
+    install: "yarn install",
+    ci: "yarn install --immutable",
+    run: "yarn run",
+    x: "yarn exec",
+    lock: "yarn.lock",
+  },
+  deno: {
+    install: "deno install",
+    ci: "deno install --frozen",
+    run: "deno task",
+    x: "deno x",
+    lock: "deno.lock",
+  },
 }
 
 /**
- * The CI workflow is written for bun; for npm or pnpm, install and run with
- * that instead. Bun stays for `bun test` (and the full template's API).
+ * The CI workflow is written for bun; for another manager, install and run
+ * with that instead. Bun stays for `bun test` (and the composed app's API).
  */
 function applyPm(ci: string, pm: Pm): string {
   if (pm === "bun") return ci
   const p = PM[pm]
+  const node = [
+    "      - uses: actions/setup-node@v4",
+    "        with:",
+    "          node-version: 22",
+  ]
   const setup = [
     ...(pm === "pnpm"
       ? ["      - uses: pnpm/action-setup@v4", "        with:", "          version: 10"]
       : []),
-    "      - uses: actions/setup-node@v4",
-    "        with:",
-    "          node-version: 22",
-    `          cache: ${pm}`,
+    ...(pm === "deno"
+      ? ["      - uses: denoland/setup-deno@v2", "        with:", "          deno-version: v2.x"]
+      : pm === "yarn"
+        ? [...node, "      - run: corepack enable"]
+        : [...node, `          cache: ${pm}`]),
     "      - uses: oven-sh/setup-bun@v2",
   ].join("\n")
   return ci
@@ -386,6 +436,7 @@ Options:
   -t, --theme <name>   ${THEMES.join(" | ")}   (default: editorial; anything with a web UI)
   --pm <name>          ${PMS.join(" | ")}   (default: the one that ran this, else bun)
                        Sets the commands in CI, the README and below.
+                       Tests (bun test) still need Bun; deno: not for platform cli
   --describe "<sentence>"  Pick platform (or the full starter) and theme from one
                        sentence, scaffold, write PLAN.md and AGENTS.md (web, api
                        and full; an explicit --platform or --theme wins)
@@ -611,6 +662,10 @@ async function main() {
     ;({ theme, template } = described)
     checkCombo(template, theme, parsed.targetGiven, flags.mcp)
   }
+  if (parsed.pm === "deno" && template === "cli")
+    throw new Error(
+      "--platform cli compiles one binary with `bun build --compile`; use --pm bun, npm, pnpm or yarn.",
+    )
 
   if (existsSync(dest) && (await readdir(dest)).length > 0) {
     throw new Error(`${dest} already exists and is not empty.`)
@@ -640,6 +695,9 @@ async function main() {
       join(dest, "pnpm-workspace.yaml"),
       "allowBuilds:\n  esbuild: true\n  workerd: true\nonlyBuiltDependencies:\n  - esbuild\n  - workerd\n",
     )
+  // Yarn's default Plug'n'Play has no node_modules, which Vite, tsc and
+  // wrangler expect; a plain node_modules works with all of them.
+  if (pm === "yarn") await writeFile(join(dest, ".yarnrc.yml"), "nodeLinker: node-modules\n")
   const ci = join(dest, ".github/workflows/ci.yml")
   await writeFile(ci, applyPm(await readFile(ci, "utf8"), pm))
 
@@ -700,10 +758,17 @@ async function main() {
     template === "cli"
       ? JSON.parse(JSON.stringify(CLI_PKG).replaceAll("__APP_NAME__", appName))
       : pkg
-  await writeFile(
-    join(dest, "package.json"),
-    `${JSON.stringify({ name: appName, private: true, version: "0.1.0", type: "module", ...(template === "desktop" ? DESKTOP_PKG : final) }, null, 2)}\n`,
-  )
+  const out = {
+    name: appName,
+    private: true,
+    version: "0.1.0",
+    type: "module",
+    ...(pm === "yarn" ? { packageManager: YARN } : {}),
+    ...(template === "desktop" ? DESKTOP_PKG : final),
+  }
+  if (pm === "yarn" && out.dependencies?.["@dapplelight/signet-ui"])
+    out.dependencies = sortDeps({ ...UI_PEERS, ...out.dependencies })
+  await writeFile(join(dest, "package.json"), `${JSON.stringify(out, null, 2)}\n`)
 
   const { install, run } = PM[pm]
   if (described && parsed.describe) {

@@ -19,12 +19,19 @@ package manager installs the app.
 `--theme` takes `editorial`, `cinematic` or `finance` (editorial plus the
 spend-category and money tokens; default `editorial`).
 
-`--pm bun|npm|pnpm` sets the commands printed after scaffolding, in the CI
-workflow (setup, frozen install, `<pm> run`) and in a composed app's README.
-Default: the package manager that ran it (`npm create` / `pnpm create` say so
-in `npm_config_user_agent`), else bun. With pnpm a `pnpm-workspace.yaml`
-approves esbuild's and workerd's build scripts, which pnpm 10+ otherwise refuses
-to install without. Tests stay on `bun test`, so CI sets up Bun too.
+`--pm bun|npm|pnpm|yarn|deno` sets the commands printed after scaffolding, in
+the CI workflow (setup, frozen install, `<pm> run` or `deno task`) and in the
+app's README. Default: the package manager that ran it (`npm create`, `pnpm
+create`, `yarn create`, `bunx`, `deno run` say so in `npm_config_user_agent`),
+else bun. With pnpm a `pnpm-workspace.yaml` approves esbuild's and workerd's
+build scripts, which pnpm 10+ otherwise refuses to install without. With yarn
+the app pins modern Yarn in `packageManager` (CI runs `corepack enable`), uses
+a plain `node_modules` (`.yarnrc.yml`), and lists signet-ui's required peers,
+which Yarn does not install on its own. Deno 2 installs and runs the
+`package.json` scripts; `--platform cli` is refused with deno, as its build is
+`bun build --compile`. Tests stay on `bun test`, so CI sets up Bun too.
+`bun run test:pm` scaffolds the full starter and the web platform with each
+manager installed on the machine, installs, typechecks and builds.
 
 ## Which platform
 
