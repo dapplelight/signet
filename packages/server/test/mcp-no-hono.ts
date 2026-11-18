@@ -4,6 +4,7 @@
 // a runtime (non-type) import of hono.
 import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 
 const seen = new Set<string>()
 const bad: string[] = []
@@ -18,7 +19,7 @@ const walk = (file: string) => {
     else if (spec.startsWith(".")) walk(join(dirname(file), spec.replace(/\.js$/, ".ts")))
   }
 }
-walk(join(import.meta.dir, "../src/mcp/index.ts"))
+walk(fileURLToPath(new URL("../src/mcp/index.ts", import.meta.url)))
 if (bad.length) {
   console.error(`signet-server/mcp loads hono at runtime:\n  ${bad.join("\n  ")}`)
   process.exit(1)
