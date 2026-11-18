@@ -5,6 +5,11 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### create-signet-app: quieter first install and lint
+
+- Generated `biome.json` points `$schema` at the installed Biome's own schema, so `lint` no longer asks you to run `biome migrate` when a newer Biome 2.x installs.
+- With `--pm npm`, the generated `package.json` allows esbuild's install script (`allowScripts`), so npm 11 no longer warns about it, and a future npm that blocks unreviewed scripts still builds.
+
 ### signet-server: `./mcp` loads without hono
 
 - `@dapplelight/signet-server/mcp` no longer imports `./http/validate` at runtime, so it loads when the optional `hono` peer is absent. This fixes `npx @dapplelight/signet-mcp` and `bunx @dapplelight/signet-mcp`, which crashed on start with "Cannot find package 'hono'".
