@@ -196,7 +196,7 @@ try {
   for (const t of [
     "template",
     "template-api",
-    "template-full",
+    "base/shared",
     "template-cli",
     "template-extension",
   ]) {

@@ -1372,7 +1372,7 @@ const RECIPES: RecipeSpec[] = [
     install: ["@dapplelight/signet-server", "@modelcontextprotocol/server", "hono", "zod"],
     refs: [
       ["server", "Apps inside agents"],
-      ["create-signet-app", "`--template api`: a Hono API on the runtime you pick"],
+      ["create-signet-app", "`--platform api`: a Hono API on the runtime you pick"],
     ],
     verify: [
       "tools/list shows each zValidator route; a write answers APPROVAL_PENDING or APPROVAL_REQUIRED until approved",

@@ -4,40 +4,109 @@ Scaffold a Vite + React 19 + TypeScript + Tailwind v4 app wired to
 `@dapplelight/signet-tokens`, `@dapplelight/signet-ui` and `@dapplelight/signet-lib`.
 
 ```bash
-npx create-signet-app@latest my-app --template full
+npx create-signet-app@latest my-app --starter full
 cd my-app
 npm install
 npm run dev
 ```
 
-With pnpm: `pnpm create signet-app my-app --template full`. With bun:
-`bunx create-signet-app my-app --template full`. Then install and `run dev` with
-the same manager. Open `http://localhost:5173`. `full` needs
+With pnpm: `pnpm create signet-app my-app --starter full`. With bun:
+`bunx create-signet-app my-app --starter full`. Then install and `run dev` with
+the same manager. Open `http://localhost:5173`. A composed app needs
 [Bun](https://bun.sh) 1.3+ installed: `run dev` is a Bun script, whichever
 package manager installs the app.
 
 `--theme` takes `editorial`, `cinematic` or `finance` (editorial plus the
 spend-category and money tokens; default `editorial`).
 
-`--pm bun|npm|pnpm` sets the commands printed after scaffolding, in the CI
-workflow (setup, frozen install, `<pm> run`) and in the full template's README.
-Default: the package manager that ran it (`npm create` / `pnpm create` say so
-in `npm_config_user_agent`), else bun. With pnpm a `pnpm-workspace.yaml`
-approves esbuild's and workerd's build scripts, which pnpm 10+ otherwise refuses
-to install without. Tests stay on `bun test`, so CI sets up Bun too.
+`--pm bun|npm|pnpm|yarn|deno` sets the commands printed after scaffolding, in
+the CI workflow (setup, frozen install, `<pm> run` or `deno task`) and in the
+app's README. Default: the package manager that ran it (`npm create`, `pnpm
+create`, `yarn create`, `bunx`, `deno run` say so in `npm_config_user_agent`),
+else bun. With pnpm a `pnpm-workspace.yaml` approves esbuild's and workerd's
+build scripts, which pnpm 10+ otherwise refuses to install without. With yarn
+the app pins modern Yarn in `packageManager` (CI runs `corepack enable`), uses
+a plain `node_modules` (`.yarnrc.yml`), and lists signet-ui's required peers,
+which Yarn does not install on its own. Deno 2 installs and runs the
+`package.json` scripts; `--platform cli` is refused with deno, as its build is
+`bun build --compile`. Tests stay on `bun test`, so CI sets up Bun too.
+`bun run test/scaffold-pm.ts` scaffolds the full starter and the web platform with each
+manager installed on the machine, installs, typechecks and builds.
 
-## Which template
+## Which platform
 
-`--template` defaults to `web`.
+`--platform` defaults to `web`. `--template` is its old name and still works;
+`--template full` is `--starter full` (below).
 
-| Template | Frontend | API | Database | Auth | MCP | Runs on |
+| Platform | Frontend | API | Database | Auth | MCP | Runs on |
 |---|---|---|---|---|---|---|
 | `web` | Vite + React + Signet UI, TanStack Router | none (a configured `createApiClient` for yours) | none | placeholder `/login` | no | any static host |
 | `api` | none | Hono with the error envelope and request ids | none (add with `signet add db`) | none (add with `signet add auth`) | `/mcp`, default on | `--target` cloudflare, bun, node or vercel |
-| `full` | the `web` app plus account, inbox, privacy, billing, admin | Hono on Bun, served with the built app | SQLite with migrations | phone codes, stored sessions, orgs | `/mcp`, default on | Bun (one process) |
 | `cli` | none | none | none | device-code login | no | one compiled Bun binary |
 | `extension` | Chrome MV3: popup, options, service worker | none | none | PKCE via `chrome.identity` | no | Chrome |
 | `desktop` | Tauri v2 window and menu-bar app | none | none | browser sign-in (PKCE, loopback) | no | macOS, Windows, Linux |
+
+## Composed apps: parts, starters, `--ui` and `--api`
+
+A web app and its API in one project, built from **parts**. Any of these flags
+composes one (they do not mix with `--platform`):
+
+```bash
+bunx create-signet-app my-app --starter full               # every part, web + API
+bunx create-signet-app my-app --with payments,notifications # those, plus what they need
+bunx create-signet-app my-app --without admin,privacy       # the full starter without them
+bunx create-signet-app my-api --api --with orgs             # the API half only
+bunx create-signet-app my-ui --ui --with account            # the web half only
+bunx create-signet-app my-app --starter blank               # no parts: shell, API, database
+```
+
+- **Surfaces.** Both halves by default. `--ui` writes the web half only: its
+  client calls an API elsewhere (`VITE_API_URL`, else the same origin), untyped
+  until you point `src/lib/api.ts` at that API's `AppType`. `--api` writes the
+  API half only: no web files, no Vite. `--ui --api` together is an error (it
+  is the default).
+- **Starters** are named mixes of parts: `full` (every part; `--template full`
+  is the same) and `blank` (none). `--with` adds to the starter, `--without`
+  takes away; `--without` alone starts from `full`.
+- **Needs** come along on their own and the output says so (`--with payments`
+  prints `added auth for payments`). Leaving out a part another one needs is
+  an error.
+- **Runtime.** `--target bun|deno|node` picks what runs the API (default
+  `bun`: Bun.serve and bun:sqlite, as before). `deno` (Deno 2) and `node`
+  (22.18+) get node:sqlite under Drizzle and a node:http server instead, and
+  their `dev`/`start` scripts run on that runtime with `.env` loaded. Tests stay
+  on `bun test` (Bun runs node:sqlite too). `bun run test/scaffold-runtime.ts` serves the
+  full starter on each runtime installed and checks `/api/health`, an MCP call
+  and the built page.
+- **MCP** is the `mcp` part. As before it is asked for on a terminal (default
+  yes) unless `--mcp`, `--no-mcp`, `--with mcp` or `--without mcp` says.
+
+| Part | What it adds | Needs |
+|---|---|---|
+| `auth` | phone one-time codes, stored sessions, `/login`, sign-out | |
+| `account` | `/account`: profile, signed-in devices, API keys | auth |
+| `orgs` | a personal org each, members, roles, invite links, `/org`, `/invite/$token`, tenant middleware | auth |
+| `admin` | `/admin`: the operator's panel over every table, by platform role | auth, orgs |
+| `notifications` | the in-app inbox and preferences, `/notifications` | auth |
+| `privacy` | DPDP consent and data export / erasure requests, `/privacy` | auth |
+| `payments` | plans (`api/plans.ts`), entitlements, `/billing`, gateway webhooks | auth |
+| `growth` | waitlist, invites, referral codes, referrals, feedback and marks tables, with signet-db's `createGrowth` (API only) | |
+| `mcp` | the API's validated routes as tools at `/mcp` (API only) | |
+
+### How parts are put together
+
+`base/` is the app with no parts; `parts/<name>/` holds what one part adds,
+with a small typed manifest (`part.ts`: needs, dependencies, env lines, its
+tables). Both are split into halves, each laid over the app root: `shared/`
+(always), `web/`, `api/`, and `both/` (with both surfaces). Code several parts
+share (`api/app.ts`, the schema, `services.ts`, the shell and nav, the route
+tree, the tests' helpers) lives in `base/` once, with each part's lines marked
+`// <part>:begin` / `// <part>:end` (or a single line ending in `// @<part>`;
+`!<part>` means without it; `web` and `api` are the surfaces). The composer
+keeps the chosen lines and drops every marker, so an app has no trace of the
+parts it left out. The migrations in `base/api/drizzle/` cover every table; the
+composer keeps the statements and snapshot entries for the chosen parts' tables,
+so `db:check` passes and `db:generate` finds nothing to do.
 
 ## AI-assisted planning: `--describe`
 
@@ -45,21 +114,21 @@ to install without. Tests stay on `bun test`, so CI sets up Bun too.
 bunx create-signet-app my-app --describe "a team inbox with settings and pricing"
 ```
 
-One sentence picks the template (`web`, `api` or `full`) and theme, splits the
-sentence into pages, asks signet-mcp's `plan_page` about each, scaffolds the
-app, and writes `PLAN.md` (the pages, with blocks, components, data and files
-for each) and `AGENTS.md` (the instructions an agent working in the app
-should follow). It is deterministic and makes no LLM call: the same sentence
-always gives the same files. Keyword lists choose between Signet's own
-templates and themes; a sentence that names none gets `web` and `editorial`.
+One sentence picks the platform (`web` or `api`) or the `full` starter and the
+theme, splits the sentence into pages, asks signet-mcp's `plan_page` about each,
+scaffolds the app, and writes `PLAN.md` (the pages, with blocks, components,
+data and files for each) and `AGENTS.md` (the instructions an agent working in
+the app should follow). It is deterministic and makes no LLM call: the same
+sentence always gives the same files. Keyword lists choose between Signet's own
+platforms and themes; a sentence that names none gets `web` and `editorial`.
 
-An explicit `--template` or `--theme` wins over what the sentence implies.
+An explicit `--platform` or `--theme` wins over what the sentence implies.
 `--describe` applies to `web`, `api` and `full` only.
 
-## `--template full`: web app + API in one project
+## `--starter full`: web app + API in one project
 
 ```bash
-npx create-signet-app@latest my-app --template full
+npx create-signet-app@latest my-app --starter full
 cd my-app
 npm install
 npm run dev
@@ -107,9 +176,11 @@ same-origin. In dev, Vite proxies `/api` to it. What a fresh app has:
   across orgs.
 - **Env.** `api/env.ts` (`createEnv`), and a generated, gitignored env file
   with fresh `SESSION_SECRET` / `OTP_SECRET`.
-- **MCP** as in the api template (`--mcp` / `--no-mcp`).
-- **Tests.** `test/api.test.ts` drives sign-in, plans, inbox, admin roles,
-  consent and sign-out against an in-memory database; `src/router.test.ts`
+- **MCP** as in the api platform (`--mcp` / `--no-mcp`).
+- **Tests.** One file per part under `test/` (`auth.test.ts`,
+  `payments.test.ts`, …, sharing `test/helpers.ts`) drives sign-in, plans,
+  inbox, admin roles, consent, API keys, orgs and sign-out against an in-memory
+  database; `src/router.test.ts`
   resolves every page; `e2e/smoke.spec.ts` (Playwright, `test:e2e`) starts the
   server with a throwaway database, reads the code from its console and goes
   sign-in → admin → billing → inbox → account → privacy in headless Chromium,
@@ -156,9 +227,9 @@ copied between repos as a block. Copy-paste is not configuration.
   paint — React mounts too late, and without it there is a visible flash
 - `src/lib/api.ts` with a configured `createApiClient`
 
-## `--template api`: a Hono API on the runtime you pick
+## `--platform api`: a Hono API on the runtime you pick
 
-`bun create-signet-app my-api --template api [--target cloudflare|bun|node|vercel]`
+`bun create-signet-app my-api --platform api [--target cloudflare|bun|node|vercel]`
 scaffolds a Hono API. Every target shares `src/app.ts`, `src/env.ts`, the tests
 and CI; `--target` decides the entry and its config, and only that target's
 files are written:
@@ -260,7 +331,17 @@ config into anything new produces a crash.
 
 ## Test
 
-`test/scaffold-full.ts` scaffolds the full template outside the monorepo with
+`bun run test/scaffold-parts.ts` scaffolds each part alone (plus what it needs), no
+parts and every part, on each surface (`--ui`, `--api`, both), and checks each
+app: no markers or placeholders left, only its surfaces' files, every
+dependency imported (or a peer of one that is) and every import declared, lint,
+typecheck, its tests, and the build (web) or `db:check` plus a `drizzle-kit
+generate` that finds nothing to do (api). Every app's dependencies are
+installed once, into one shared directory each app links to; the apps run in
+parallel, and a step over files identical to an earlier app's runs once.
+`bun run test/scaffold-parts.ts api payments` runs one.
+
+`test/scaffold-full.ts` scaffolds the full starter outside the monorepo with
 `--theme finance`, installs packs of every Signet package it uses, then lints,
 typechecks, runs the app's tests, builds, checks the finance tokens reached the
 CSS, and runs the app's Playwright smoke test headless. A `--no-mcp --pm pnpm`
