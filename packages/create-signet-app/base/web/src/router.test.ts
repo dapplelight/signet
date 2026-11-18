@@ -13,6 +13,7 @@ test.each([
   ["/privacy", "/_app/privacy"], // @privacy
   ["/billing", "/_app/billing"], // @payments
   ["/admin", "/_app/admin"], // @admin
+  ["/approvals", "/_app/approvals"], // @workflows
   // orgs:begin
   ["/org", "/_app/org/"],
   ["/org/members", "/_app/org/members"],

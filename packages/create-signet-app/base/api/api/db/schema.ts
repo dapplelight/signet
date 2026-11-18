@@ -1,17 +1,20 @@
 // auth:begin
-// payments|growth|orgs|privacy:begin
+// payments|growth|orgs|privacy|ai|paywalls|workflows:begin
 import {
+  aiSpendCaps, // @ai
   auditLog,
-  entitlementTables, // @payments
+  entitlementTables, // @payments|ai
   growthTables, // @growth
   id,
   idempotencyKeys,
+  monetisationTables, // @paywalls
   orgTables, // @orgs
   privacyTables, // @privacy
   timestamps,
+  workflowTables, // @workflows
 } from "@dapplelight/signet-db/columns/sqlite"
-// payments|growth|orgs|privacy:end
-import { auditLog, id, idempotencyKeys, timestamps } from "@dapplelight/signet-db/columns/sqlite" // @!payments|growth|orgs|privacy
+// payments|growth|orgs|privacy|ai|paywalls|workflows:end
+import { auditLog, id, idempotencyKeys, timestamps } from "@dapplelight/signet-db/columns/sqlite" // @!payments|growth|orgs|privacy|ai|paywalls|workflows
 // auth:end
 // !auth:begin
 import { auditLog, growthTables, idempotencyKeys } from "@dapplelight/signet-db/columns/sqlite" // @growth
@@ -55,6 +58,15 @@ export const audit = auditLog()
 export const idempotency = idempotencyKeys()
 
 export const { subjectPlans, entitlementOverrides, usageCounters } = entitlementTables() // @payments
+// ai:begin
+export const { usageCounters } = entitlementTables() // @!payments
+/** AI spend caps set at runtime; usage_counters holds the spend. */
+export const spendCaps = aiSpendCaps()
+// ai:end
+/** Versioned offerings and the placements that serve them: the remote paywalls. */ // @paywalls
+export const { offerings, placements } = monetisationTables() // @paywalls
+/** Durable workflow runs, their steps, and the events they wait on. */ // @workflows
+export const { workflowRuns, workflowSteps, workflowEvents } = workflowTables() // @workflows
 export const { waitlist, invites, referralCodes, referrals, marks, feedback } = growthTables() // @growth
 export const { consents, dataRequests } = privacyTables() // @privacy
 // orgs:begin

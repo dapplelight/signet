@@ -16,13 +16,16 @@ import { cp, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import account from "../parts/account/part.js"
 import admin from "../parts/admin/part.js"
+import ai from "../parts/ai/part.js"
 import auth from "../parts/auth/part.js"
 import growth from "../parts/growth/part.js"
 import mcp from "../parts/mcp/part.js"
 import notifications from "../parts/notifications/part.js"
 import orgs from "../parts/orgs/part.js"
 import payments from "../parts/payments/part.js"
+import paywalls from "../parts/paywalls/part.js"
 import privacy from "../parts/privacy/part.js"
+import workflows from "../parts/workflows/part.js"
 
 type Deps = Record<string, string>
 
@@ -40,7 +43,10 @@ export type Part = {
   both?: { devDeps?: Deps; scripts?: Record<string, string> }
   /** Lines for the generated env file. A function, so secrets are fresh per app. */
   env?: () => string[]
-  /** SQL tables its schema adds: the migrations keep only the chosen parts' tables. */
+  /**
+   * SQL tables its schema adds: the migrations keep only the chosen parts'
+   * tables. Two parts may list one table; it stays when either is chosen.
+   */
   tables?: string[]
   /** API files the web half also reads; a UI-only app gets a copy at the mapped path. */
   uiCopies?: Record<string, string>
@@ -55,7 +61,10 @@ export const PART_NAMES = [
   "notifications",
   "privacy",
   "payments",
+  "paywalls",
   "growth",
+  "ai",
+  "workflows",
   "mcp",
 ] as const
 export type PartName = (typeof PART_NAMES)[number]
@@ -67,7 +76,10 @@ export const PARTS: Record<PartName, Part> = {
   notifications,
   privacy,
   payments,
+  paywalls,
   growth,
+  ai,
+  workflows,
   mcp,
 }
 
@@ -190,45 +202,66 @@ async function walk(dir: string, base = dir): Promise<string[]> {
   return out
 }
 
+/** The tables a left-out part lists, less any a chosen part also lists (usage_counters: payments and ai). */
+export function droppedTables(parts: readonly PartName[]): Set<string> {
+  const kept = new Set(parts.flatMap((p) => (PARTS[p] as Part).tables ?? []))
+  return new Set(
+    PART_NAMES.filter((p) => !parts.includes(p))
+      .flatMap((p) => (PARTS[p] as Part).tables ?? [])
+      .filter((t) => !kept.has(t)),
+  )
+}
+
 /**
  * Keep the chosen parts' tables in drizzle/: drop each statement on a table
  * of a part left out, and the table from the snapshot. A migration left with
- * no statements goes, with its snapshot and journal entry.
- * ponytail: drops only trailing migrations cleanly (prevId is not relinked);
- * the base has two, and only the last can empty out.
+ * no statements goes, with its snapshot and journal entry; the ones after it
+ * move up a number and link to the snapshot before, so the next `db:generate`
+ * neither reuses a number nor finds a broken chain.
  */
-async function filterMigrations(dir: string, dropTables: Set<string>) {
+export async function filterMigrations(dir: string, dropTables: Set<string>) {
   if (!dropTables.size) return
   const journalPath = join(dir, "meta/_journal.json")
   const journal = JSON.parse(await readFile(journalPath, "utf8")) as {
     entries: { idx: number; tag: string }[]
   }
   const keep: typeof journal.entries = []
+  let prevId: string | undefined
   for (const entry of journal.entries) {
     const sqlPath = join(dir, `${entry.tag}.sql`)
     const snapPath = join(dir, `meta/${entry.tag.slice(0, 4)}_snapshot.json`)
-    const statements = (await readFile(sqlPath, "utf8")).split("--> statement-breakpoint")
+    const text = await readFile(sqlPath, "utf8")
+    const statements = text.split("--> statement-breakpoint")
     const kept = statements.filter((s) => {
       const table = /CREATE TABLE `(\w+)`/.exec(s)?.[1] ?? / ON `(\w+)`/.exec(s)?.[1]
       return !table || !dropTables.has(table)
     })
+    await rm(sqlPath)
     if (!kept.some((s) => s.trim())) {
-      await rm(sqlPath)
       await rm(snapPath)
       continue
     }
-    keep.push(entry)
-    if (kept.length !== statements.length)
-      await writeFile(sqlPath, kept.join("--> statement-breakpoint").trim())
     // Snapshots are cumulative: a later one still lists an earlier one's tables.
-    const snap = JSON.parse(await readFile(snapPath, "utf8")) as { tables: Record<string, unknown> }
+    const snap = JSON.parse(await readFile(snapPath, "utf8")) as {
+      id: string
+      prevId: string
+      tables: Record<string, unknown>
+    }
+    await rm(snapPath)
     for (const t of dropTables) delete snap.tables[t]
-    await writeFile(snapPath, JSON.stringify(snap, null, 2))
+    if (prevId !== undefined) snap.prevId = prevId
+    prevId = snap.id
+    const n = String(keep.length).padStart(4, "0")
+    const tag = `${n}${entry.tag.slice(4)}`
+    await writeFile(
+      join(dir, `${tag}.sql`),
+      kept.length === statements.length ? text : kept.join("--> statement-breakpoint").trim(),
+    )
+    await writeFile(join(dir, `meta/${n}_snapshot.json`), JSON.stringify(snap, null, 2))
+    keep.push({ ...entry, idx: keep.length, tag })
   }
-  if (keep.length !== journal.entries.length) {
-    journal.entries = keep
-    await writeFile(journalPath, JSON.stringify(journal, null, 2))
-  }
+  journal.entries = keep
+  await writeFile(journalPath, JSON.stringify(journal, null, 2))
 }
 
 export type ComposeOptions = {
@@ -281,15 +314,7 @@ export async function compose(
     await writeFile(path, out.replace(/^\n+/, "").replace(/\n{3,}/g, "\n\n"))
   }
 
-  if (api)
-    await filterMigrations(
-      join(dest, "drizzle"),
-      new Set(
-        PART_NAMES.filter((p) => !parts.includes(p)).flatMap(
-          (p) => (PARTS[p] as Part).tables ?? [],
-        ),
-      ),
-    )
+  if (api) await filterMigrations(join(dest, "drizzle"), droppedTables(parts))
 
   const refs = [...(web ? ["app", "node", "test"] : []), ...(api ? ["api"] : [])]
   const ref = (r: string) => `{ "path": "./tsconfig.${r}.json" }`

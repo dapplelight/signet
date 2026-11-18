@@ -14,6 +14,7 @@ import { Route as LoginRouteImport } from "./routes/login" // @auth
 import { Route as AppIndexRouteImport } from "./routes/_app/index"
 import { Route as AppAccountRouteImport } from "./routes/_app/account" // @account
 import { Route as AppAdminRouteImport } from "./routes/_app/admin" // @admin
+import { Route as AppApprovalsRouteImport } from "./routes/_app/approvals" // @workflows
 import { Route as AppBillingRouteImport } from "./routes/_app/billing" // @payments
 import { Route as AppNotificationsRouteImport } from "./routes/_app/notifications" // @notifications
 import { Route as AppPrivacyRouteImport } from "./routes/_app/privacy" // @privacy
@@ -52,6 +53,13 @@ const AppAdminRoute = AppAdminRouteImport.update({
   getParentRoute: () => AppRoute,
 } as any)
 // admin:end
+// workflows:begin
+const AppApprovalsRoute = AppApprovalsRouteImport.update({
+  id: "/approvals",
+  path: "/approvals",
+  getParentRoute: () => AppRoute,
+} as any)
+// workflows:end
 // payments:begin
 const AppBillingRoute = AppBillingRouteImport.update({
   id: "/billing",
@@ -107,6 +115,7 @@ export interface FileRoutesByFullPath {
   "/login": typeof LoginRoute // @auth
   "/account": typeof AppAccountRoute // @account
   "/admin": typeof AppAdminRoute // @admin
+  "/approvals": typeof AppApprovalsRoute // @workflows
   "/billing": typeof AppBillingRoute // @payments
   "/notifications": typeof AppNotificationsRoute // @notifications
   "/privacy": typeof AppPrivacyRoute // @privacy
@@ -119,6 +128,7 @@ export interface FileRoutesByTo {
   "/login": typeof LoginRoute // @auth
   "/account": typeof AppAccountRoute // @account
   "/admin": typeof AppAdminRoute // @admin
+  "/approvals": typeof AppApprovalsRoute // @workflows
   "/billing": typeof AppBillingRoute // @payments
   "/notifications": typeof AppNotificationsRoute // @notifications
   "/privacy": typeof AppPrivacyRoute // @privacy
@@ -134,6 +144,7 @@ export interface FileRoutesById {
   "/login": typeof LoginRoute // @auth
   "/_app/account": typeof AppAccountRoute // @account
   "/_app/admin": typeof AppAdminRoute // @admin
+  "/_app/approvals": typeof AppApprovalsRoute // @workflows
   "/_app/billing": typeof AppBillingRoute // @payments
   "/_app/notifications": typeof AppNotificationsRoute // @notifications
   "/_app/privacy": typeof AppPrivacyRoute // @privacy
@@ -150,6 +161,7 @@ export interface FileRouteTypes {
     | "/login" // @auth
     | "/account" // @account
     | "/admin" // @admin
+    | "/approvals" // @workflows
     | "/billing" // @payments
     | "/notifications" // @notifications
     | "/privacy" // @privacy
@@ -162,6 +174,7 @@ export interface FileRouteTypes {
     | "/login" // @auth
     | "/account" // @account
     | "/admin" // @admin
+    | "/approvals" // @workflows
     | "/billing" // @payments
     | "/notifications" // @notifications
     | "/privacy" // @privacy
@@ -176,6 +189,7 @@ export interface FileRouteTypes {
     | "/login" // @auth
     | "/_app/account" // @account
     | "/_app/admin" // @admin
+    | "/_app/approvals" // @workflows
     | "/_app/billing" // @payments
     | "/_app/notifications" // @notifications
     | "/_app/privacy" // @privacy
@@ -235,6 +249,15 @@ declare module "@tanstack/react-router" {
       parentRoute: typeof AppRoute
     }
     // admin:end
+    // workflows:begin
+    "/_app/approvals": {
+      id: "/_app/approvals"
+      path: "/approvals"
+      fullPath: "/approvals"
+      preLoaderRoute: typeof AppApprovalsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    // workflows:end
     // payments:begin
     "/_app/billing": {
       id: "/_app/billing"
@@ -304,6 +327,7 @@ declare module "@tanstack/react-router" {
 interface AppRouteChildren {
   AppAccountRoute: typeof AppAccountRoute // @account
   AppAdminRoute: typeof AppAdminRoute // @admin
+  AppApprovalsRoute: typeof AppApprovalsRoute // @workflows
   AppBillingRoute: typeof AppBillingRoute // @payments
   AppNotificationsRoute: typeof AppNotificationsRoute // @notifications
   AppPrivacyRoute: typeof AppPrivacyRoute // @privacy
@@ -316,6 +340,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppAccountRoute: AppAccountRoute, // @account
   AppAdminRoute: AppAdminRoute, // @admin
+  AppApprovalsRoute: AppApprovalsRoute, // @workflows
   AppBillingRoute: AppBillingRoute, // @payments
   AppNotificationsRoute: AppNotificationsRoute, // @notifications
   AppPrivacyRoute: AppPrivacyRoute, // @privacy

@@ -31,7 +31,7 @@ import { PART_NAMES, PARTS, type PartName } from "../src/compose.js"
 
 const ROOT = new URL("../../..", import.meta.url).pathname.replace(/\/$/, "")
 const CLI = `${ROOT}/packages/create-signet-app/src/index.ts`
-const PACKAGES = ["lib", "tokens", "ui", "server", "db", "payments"]
+const PACKAGES = ["lib", "tokens", "ui", "server", "db", "payments", "ai"]
 const SURFACES = { ui: ["--ui"], api: ["--api"], both: [] } as const
 type Surface = keyof typeof SURFACES
 const TMP = join("/tmp", "__scaffold_parts__")

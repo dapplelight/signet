@@ -38,7 +38,7 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "bun run test/scaffold.ts && bun run test/scaffold-api.ts && bun run test/scaffold-full.ts && bun run test/scaffold-cli.ts && bun run test/scaffold-extension.ts && bun run test/scaffold-desktop.ts && bun run test/describe.ts"
+    "test": "bun run test/compose.ts && bun run test/scaffold.ts && bun run test/scaffold-api.ts && bun run test/scaffold-full.ts && bun run test/scaffold-cli.ts && bun run test/scaffold-extension.ts && bun run test/scaffold-desktop.ts && bun run test/describe.ts"
   },
   "dependencies": {
     "@dapplelight/signet-mcp": "^0.1.5"
