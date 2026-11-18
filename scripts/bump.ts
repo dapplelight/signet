@@ -8,8 +8,10 @@
  * `### signet-db: ...`, `### db, ui: ...`, `### signet-db and signet-server: ...`,
  * `### all packages: ...`. Patch by default; `(minor)` or `(major)` after a
  * name raises that one: `### signet-ui (minor): ...`. Several fragments for
- * one package bump it once, at the highest level asked. A package whose
- * version is not on npm yet was bumped by hand and is left as it is. Private
+ * one package bump it once, at the highest level asked. A version a human
+ * committed that is not on npm yet is a hand bump and is left as it is. A
+ * version the last post-merge release commit set is bumped again even when not
+ * on npm yet (its release may still be running). Needs git history. Private
  * packages are never bumped.
  *
  *   bun run scripts/bump.ts          bump (post-merge, on main)
@@ -19,8 +21,12 @@
  * lookup (tests). Tested by bump.test.ts.
  */
 
+import { spawnSync } from "node:child_process"
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
+
+/** Start of the subject post-merge.yml gives its commit. Keep the two in step. */
+export const RELEASE_COMMIT = "chore: release,"
 
 export type Level = "patch" | "minor" | "major"
 export type Pkg = { dir: string; name: string; version: string; private: boolean }
@@ -79,6 +85,21 @@ export function next(version: string, level: Level): string {
   return `${maj}.${min}.${pat + 1}`
 }
 
+/**
+ * True when the last commit to change this package's version line is a
+ * post-merge release commit, not a human's. Such a version is bumped again even
+ * if its release is still running and it is not on npm yet: that release was
+ * checked out before this merge, so it publishes without this change.
+ */
+function bumpedByRelease(root: string, dir: string): boolean {
+  const out = spawnSync(
+    "git",
+    ["log", "-1", "--format=%s", "-G", '"version":', "--", `packages/${dir}/package.json`],
+    { cwd: root, encoding: "utf8" },
+  )
+  return out.status === 0 && out.stdout.startsWith(RELEASE_COMMIT)
+}
+
 async function onNpm(name: string, version: string): Promise<boolean> {
   if (process.env.BUMP_PUBLISHED)
     return (JSON.parse(process.env.BUMP_PUBLISHED)[name] ?? []).includes(version)
@@ -125,7 +146,7 @@ if (import.meta.main) {
   for (const [k, level] of wanted) {
     const p = known.get(k) as Pkg
     if (p.private) continue
-    if (!(await onNpm(p.name, p.version))) {
+    if (!bumpedByRelease(ROOT, p.dir) && !(await onNpm(p.name, p.version))) {
       console.log(`${p.name}@${p.version}: not on npm yet, left as is`)
       continue
     }

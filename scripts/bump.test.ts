@@ -48,8 +48,23 @@ try {
   pkg("lib", "@dapplelight/signet-lib", "0.4.3")
   pkg("create-signet-app", "create-signet-app", "0.5.0")
   pkg("test", "@dapplelight/signet-test", "0.0.1", true)
+  pkg("config", "@dapplelight/signet-config", "0.3.0")
   mkdirSync(join(tmp, ".changes"))
   frag("README.md", "# not an entry\n")
+
+  // bump.ts reads git history: a hand bump is a human's commit, not post-merge's.
+  const git = (...args: string[]) =>
+    spawnSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.com", ...args], {
+      cwd: tmp,
+      encoding: "utf8",
+    })
+  git("init", "-q")
+  git("add", "-A")
+  git("commit", "-q", "-m", "release: hand-set versions")
+  // post-merge bumped config 0.3.0 -> 0.3.1; its release is still running, so 0.3.1 is not on npm.
+  pkg("config", "@dapplelight/signet-config", "0.3.1")
+  git("add", "-A")
+  git("commit", "-q", "-m", "chore: release, fold changelog fragments, regenerate API.md [skip ci]")
 
   ok("no fragments bumps nothing", run().status === 0 && version("db") === "0.2.0")
 
@@ -57,7 +72,7 @@ try {
   frag("b.md", "### db and signet-server: shared fix\n\n- y\n")
   frag("c.md", "### ui (minor), create-signet-app: new screen\n\n- z\n")
   frag("d.md", "### signet-ui: small fix\n\n- w\n")
-  frag("e.md", "### signet-lib, signet-test: tweak\n\n- v\n")
+  frag("e.md", "### signet-lib, signet-test, signet-config: tweak\n\n- v\n")
 
   ok("--check passes known names", run("--check").status === 0)
   ok("--check writes nothing", version("db") === "0.2.0")
@@ -68,6 +83,10 @@ try {
   ok("highest level wins: ui minor beats a later patch", version("ui") === "0.5.0")
   ok("unscoped create-signet-app bumps", version("create-signet-app") === "0.5.1")
   ok("a version not on npm yet is left as is", version("lib") === "0.4.3")
+  ok(
+    "a version post-merge just set, release still running, is bumped again",
+    version("config") === "0.3.2",
+  )
   ok("private packages are never bumped", version("test") === "0.0.1")
   ok(
     "only the version line changes",
