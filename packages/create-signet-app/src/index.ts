@@ -245,6 +245,9 @@ const DEPS = {
   "react-dom": "^19.3.1",
   sonner: "^2.0.8",
   "tailwind-merge": "^3.7.0",
+  // Listed so npm resolves signet-ui's optional zod 4 peer, not the zod 3
+  // that @hookform/resolvers' optional peers pull in otherwise (ERESOLVE).
+  zod: "^4.6.7",
 }
 
 // The web template's i18n: src/lib/i18n.ts + src/locales/*.json.

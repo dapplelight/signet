@@ -27,7 +27,13 @@ const MANAGERS = {
     install: ["corepack", "yarn", "install"],
     run: ["corepack", "yarn", "run"],
   },
-  deno: { probe: ["deno", "--version"], install: ["deno", "install"], run: ["deno", "task"] },
+  // Deno skips versions under 24h old by default; the templates track the
+  // latest ranges, so the test turns that off to not fail for a day per bump.
+  deno: {
+    probe: ["deno", "--version"],
+    install: ["deno", "install", "--minimum-dependency-age=0"],
+    run: ["deno", "task"],
+  },
 }
 type Manager = keyof typeof MANAGERS
 
@@ -39,7 +45,14 @@ const ok = (n: string, c: boolean, d = "") => {
 }
 const out = (r: { stdout: Buffer; stderr: Buffer }) =>
   (r.stdout.toString() + r.stderr.toString()).slice(-4000)
-const env = { ...process.env, COREPACK_ENABLE_DOWNLOAD_PROMPT: "0" }
+// CI on a public PR turns on yarn's hardened mode, which refuses to write the
+// lockfile a fresh app needs; users installing locally never see it.
+const env = {
+  ...process.env,
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0",
+  YARN_ENABLE_HARDENED_MODE: "0",
+  YARN_ENABLE_IMMUTABLE_INSTALLS: "false",
+}
 
 rmSync(TMP, { recursive: true, force: true })
 const PACKS = join(TMP, "packs")
