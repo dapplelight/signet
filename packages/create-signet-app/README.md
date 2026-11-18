@@ -58,6 +58,7 @@ bunx create-signet-app my-app --without admin,privacy       # the full starter w
 bunx create-signet-app my-api --api --with orgs             # the API half only
 bunx create-signet-app my-ui --ui --with account            # the web half only
 bunx create-signet-app my-app --starter blank               # no parts: shell, API, database
+bunx create-signet-app my-app --starter saas --with ai      # a starter, plus a part
 ```
 
 - **Surfaces.** Both halves by default. `--ui` writes the web half only: its
@@ -65,9 +66,21 @@ bunx create-signet-app my-app --starter blank               # no parts: shell, A
   until you point `src/lib/api.ts` at that API's `AppType`. `--api` writes the
   API half only: no web files, no Vite. `--ui --api` together is an error (it
   is the default).
-- **Starters** are named mixes of parts: `full` (every part; `--template full`
-  is the same) and `blank` (none). `--with` adds to the starter, `--without`
-  takes away; `--without` alone starts from `full`.
+- **Starters** are named mixes of parts, by the shape of app. `--with` adds to
+  the starter, `--without` takes away; `--without` alone starts from `full`.
+  Run with no flags on a terminal to pick a platform or starter from a list.
+
+  | starter | parts (plus what they need) |
+  | --- | --- |
+  | `full` | every part (`--template full` is the same) |
+  | `blank` | none: the shell, the API, the database |
+  | `saas` | account, orgs, admin, notifications, privacy, payments |
+  | `launch` | account, privacy, growth (waitlist, invites, referrals, feedback) |
+  | `internal-tool` | account, orgs, admin, workflows |
+  | `api` | account, payments; the API half only |
+  | `ai-app` | account, privacy, payments, ai |
+  | `paywall` | account, payments, paywalls |
+  | `automation` | account, notifications, workflows |
 - **Needs** come along on their own and the output says so (`--with payments`
   prints `added auth for payments`). Leaving out a part another one needs is
   an error.

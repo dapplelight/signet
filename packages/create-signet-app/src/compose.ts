@@ -84,14 +84,46 @@ export const PARTS: Record<PartName, Part> = {
 }
 
 /**
- * A named mix of parts. `full` is everything the full template had; `blank`
- * is the base alone (the shell, the API, the database), for parts of your own.
+ * A named mix of parts, by the shape of app, never its domain. `full` is
+ * everything the full template had; `blank` is the base alone (the shell, the
+ * API, the database), for parts of your own. Needs are added for you (admin
+ * brings orgs, everything brings auth). `surface: "api"` is the API half only.
  * MCP is not listed: it is asked for (or --mcp / --no-mcp), as it always was.
+ * Each description is one line, quoted, first: signet-mcp's index reads it.
  */
 export const STARTERS = {
-  full: { parts: PART_NAMES.filter((p) => p !== "mcp") },
-  blank: { parts: [] },
-} satisfies Record<string, { parts: PartName[] }>
+  full: { description: "every part, web + API", parts: PART_NAMES.filter((p) => p !== "mcp") },
+  blank: { description: "no parts: the shell, the API and the database", parts: [] },
+  saas: {
+    description: "a paid team product: orgs, admin, billing, inbox, account, privacy",
+    parts: ["account", "orgs", "admin", "notifications", "privacy", "payments"],
+  },
+  launch: {
+    description: "before launch: sign-in, waitlist, invites, referrals, feedback, privacy",
+    parts: ["account", "privacy", "growth"],
+  },
+  "internal-tool": {
+    description: "for your own team: orgs and roles, the admin panel, approval workflows",
+    parts: ["account", "orgs", "admin", "workflows"],
+  },
+  api: {
+    description: "the API half only: sign-in, API keys, billing webhooks",
+    parts: ["account", "payments"],
+    surface: "api",
+  },
+  "ai-app": {
+    description: "an AI product: spend caps per user, billing, account, privacy",
+    parts: ["account", "privacy", "payments", "ai"],
+  },
+  paywall: {
+    description: "sell access: plans, entitlements, billing, remote paywalls",
+    parts: ["account", "payments", "paywalls"],
+  },
+  automation: {
+    description: "durable workflows with approvals, and an inbox to tell people",
+    parts: ["account", "notifications", "workflows"],
+  },
+} satisfies Record<string, { description: string; parts: PartName[]; surface?: "api" }>
 export type StarterName = keyof typeof STARTERS
 
 /**

@@ -316,6 +316,18 @@ try {
       sa.json.files.includes("wrangler.jsonc"),
     sa.json,
   )
+  const st = await call("scaffold_app", { name: "my-app", starter: "saas" })
+  ok(
+    "scaffold_app: a starter gives the --starter command",
+    st.json?.command === "bunx create-signet-app my-app --starter saas --theme editorial",
+    st.json,
+  )
+  const badStarter = await call("scaffold_app", { name: "my-app", starter: "crm" })
+  ok(
+    "scaffold_app: an unknown starter is refused",
+    badStarter.isError || !!badStarter.r?.error,
+    badStarter.r,
+  )
   const bad = await call("scaffold_app", { name: "x; rm -rf /" })
   ok(
     "scaffold_app: a name that is not a plain directory name is refused",

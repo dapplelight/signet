@@ -433,18 +433,36 @@ export function signetTools(options: ToolOptions = {}): McpTool[] {
     defineTool({
       name: "scaffold_app",
       description:
-        "Get the exact create-signet-app command for a new web app or Worker API, the files it will create, and the next steps. Use scaffold_files instead if you cannot run a shell.",
+        "Get the exact create-signet-app command for a new web app, Worker API or composed starter (saas, launch, api, ...), the files it will create, and the next steps. Use scaffold_files instead if you cannot run a shell.",
       annotations: { title: "Plan a new app", ...READ },
-      input: scaffoldInput,
-      handler: ({ name, template, theme }) => ({
-        command: scaffoldCommand(name, template, theme),
-        next: [`cd ${name}`, "bun install", "bun dev"],
-        files: scaffoldFiles(name, template, theme).map((f) => f.path),
-        notes:
-          template === "api"
-            ? "Hono Worker with request ids, the error envelope, validation, CSRF and exact Durable Object rate limiting. Append wrangler migration tags; never edit a deployed one."
-            : `Vite + React 19 + Tailwind v4 with the ${theme} theme, TanStack Router and Query, sonner. Switch themes in src/app.css.`,
+      input: scaffoldInput.extend({
+        starter: z
+          .enum(Object.keys(INDEX.scaffold.starters) as [string, ...string[]])
+          .optional()
+          .describe(
+            `A web app and its API composed from parts, instead of template: ${Object.entries(
+              INDEX.scaffold.starters,
+            )
+              .map(([k, v]) => `${k} (${v})`)
+              .join("; ")}`,
+          ),
       }),
+      handler: ({ name, template, theme, starter }) =>
+        starter
+          ? {
+              command: `bunx create-signet-app ${name} --starter ${starter} --theme ${theme}`,
+              next: [`cd ${name}`, "bun install", "bun run dev"],
+              notes: `${INDEX.scaffold.starters[starter]}. Add parts with --with, drop them with --without; --api or --ui for one half. The files depend on the parts, so scaffold_files does not cover starters: run the command.`,
+            }
+          : {
+              command: scaffoldCommand(name, template, theme),
+              next: [`cd ${name}`, "bun install", "bun dev"],
+              files: scaffoldFiles(name, template, theme).map((f) => f.path),
+              notes:
+                template === "api"
+                  ? "Hono Worker with request ids, the error envelope, validation, CSRF and exact Durable Object rate limiting. Append wrangler migration tags; never edit a deployed one."
+                  : `Vite + React 19 + Tailwind v4 with the ${theme} theme, TanStack Router and Query, sonner. Switch themes in src/app.css.`,
+            },
     }),
 
     defineTool({

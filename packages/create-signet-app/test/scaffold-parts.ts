@@ -27,7 +27,7 @@ import {
 import { availableParallelism } from "node:os"
 import { join } from "node:path"
 import { $ } from "bun"
-import { PART_NAMES, PARTS, type PartName } from "../src/compose.js"
+import { PART_NAMES, PARTS, type PartName, STARTERS, type StarterName } from "../src/compose.js"
 
 const ROOT = new URL("../../..", import.meta.url).pathname.replace(/\/$/, "")
 const CLI = `${ROOT}/packages/create-signet-app/src/index.ts`
@@ -84,13 +84,21 @@ async function pool<T>(items: T[], limit: number, run: (item: T) => Promise<void
 
 // 1. The cases.
 const surfaces = (onlySurface ? [onlySurface] : Object.keys(SURFACES)) as Surface[]
-const cases = surfaces.flatMap((surface) => {
+type Case = { label: string; surface: Surface; parts: string[]; starter?: StarterName }
+const cases: Case[] = surfaces.flatMap((surface) => {
   const fits = PART_NAMES.filter((p) => !(surface === "ui" && PARTS[p as PartName].apiOnly))
   return ([["none", []], ...fits.map((p) => [p, [p]]), ["all", fits]] as [string, string[]][])
     .filter(([name]) => !onlyPart || onlyPart === name)
     .map(([name, parts]) => ({ label: `${surface}-${name}`, surface, parts }))
 })
-type Case = (typeof cases)[number]
+// Each starter as it ships (full and blank are "all" and "none" above), on its own surface.
+if (!onlyPart || onlyPart.startsWith("starter-"))
+  for (const s of Object.keys(STARTERS) as StarterName[]) {
+    if (s === "full" || s === "blank" || (onlyPart && onlyPart !== `starter-${s}`)) continue
+    const surface: Surface = "surface" in STARTERS[s] ? "api" : "both"
+    if (onlySurface && onlySurface !== surface) continue
+    cases.push({ label: `starter-${s}`, surface, parts: [...STARTERS[s].parts], starter: s })
+  }
 
 rmSync(TMP, { recursive: true, force: true })
 mkdirSync(TMP)
@@ -98,13 +106,15 @@ const logs = new Map<string, Log>(cases.map((c) => [c.label, [`\n${c.label}`]]))
 
 // 2. Scaffold every app (cheap) and the static checks.
 const made = new Set<Case>()
-await pool(cases, availableParallelism(), async ({ label, surface, parts }) => {
+await pool(cases, availableParallelism(), async ({ label, surface, parts, starter }) => {
   const log = logs.get(label) as Log
   const dir = join(TMP, label)
-  const args = [
-    ...SURFACES[surface],
-    ...(parts.length ? ["--with", parts.join(",")] : ["--starter", "blank"]),
-  ]
+  const args = starter
+    ? ["--starter", starter]
+    : [
+        ...SURFACES[surface],
+        ...(parts.length ? ["--with", parts.join(",")] : ["--starter", "blank"]),
+      ]
   // Each part is checked alone, so MCP only where it is the part.
   const mcp = parts.includes("mcp") ? [] : surface === "ui" ? [] : ["--no-mcp"]
   const r = await $`bun run ${CLI} ${dir} ${args} ${mcp}`.cwd(TMP).nothrow().quiet()
