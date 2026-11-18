@@ -235,7 +235,7 @@ const DEPS = {
   "@dapplelight/signet-lib": "^0.4.0",
   "@dapplelight/signet-tokens": "^0.4.0",
   // LabelsProvider (src/components/signet-labels.tsx) since 0.3.2.
-  "@dapplelight/signet-ui": "^0.4.0",
+  "@dapplelight/signet-ui": "^0.5.0",
   "@tanstack/react-query": "^5.108.0",
   "@tanstack/react-router": "^1.170.39",
   "class-variance-authority": "^0.7.1",
