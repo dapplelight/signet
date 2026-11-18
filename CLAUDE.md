@@ -39,6 +39,7 @@ crawling. It is regenerated on main after each merge; a PR never edits it.
 - **A PR touches only its own source files.** Never edit or commit API.md,
   CHANGELOG.md or packages/mcp/src/generated/; parallel PRs conflicted on
   them. A user-visible change adds `.changes/<short-name>.md` (a CHANGELOG
-  entry starting `### package: title`); the post-merge workflow folds it in
-  and regenerates API.md.
+  entry starting `### package: title`); the post-merge workflow bumps that
+  package's version, folds the entry in, regenerates API.md and publishes.
+  Never bump a version in a PR (`.changes/README.md`).
 - Conventions: `CONVENTIONS.md`. Migrations: `MIGRATION.md`.
