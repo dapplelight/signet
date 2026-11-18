@@ -8,6 +8,8 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { $ } from "bun"
+// Runs the composer's migration-pruning checks (test/compose.ts) in this process.
+import "./compose"
 import { describeApp, renderAgents, renderPlan } from "../src/describe"
 
 const ROOT = new URL("../../..", import.meta.url).pathname.replace(/\/$/, "")
