@@ -193,7 +193,7 @@ try {
   const preset = JSON.parse(readFileSync(join(PKG, "biome.json"), "utf8"))
   delete preset.root
   delete preset.$schema
-  for (const t of ["template", "template-api"]) {
+  for (const t of ["template", "template-api", "template-full", "template-cli", "template-extension"]) {
     const copy = JSON.parse(
       readFileSync(join(ROOT, `packages/create-signet-app/${t}/biome.json`), "utf8"),
     )
@@ -201,7 +201,13 @@ try {
     // TanStack Router's generated routeTree.gen.ts); the rules and formatting
     // are the house style that must not drift.
     delete copy.files?.includes
-    // $schema only feeds editors: the templates point at their installed Biome.
+    // $schema only feeds editors, so it is checked on its own: a pinned
+    // version URL drifts from the installed Biome and every lint asks to migrate.
+    ok(
+      `create-signet-app/${t}/biome.json uses the installed Biome's schema`,
+      copy.$schema === "./node_modules/@biomejs/biome/configuration_schema.json",
+      copy.$schema,
+    )
     delete copy.$schema
     ok(
       `preset matches create-signet-app/${t}/biome.json`,
