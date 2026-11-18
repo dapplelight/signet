@@ -220,6 +220,41 @@ try {
       JSON.stringify(copy) === JSON.stringify(preset),
     )
   }
+
+  // ── One zod across Signet ────────────────────────────────────────────────
+  // Every package, the docs app and the scaffolded apps ask for the same zod 4
+  // range, and the lockfile resolves exactly one zod.
+  {
+    const { readdirSync } = await import("node:fs")
+    const specs = new Map<string, string>()
+    const manifests = [
+      "package.json",
+      "apps/docs/package.json",
+      ...readdirSync(join(ROOT, "packages")).map((d) => `packages/${d}/package.json`),
+    ]
+    for (const m of manifests) {
+      let pkg: Record<string, Record<string, string> | undefined>
+      try {
+        pkg = JSON.parse(readFileSync(join(ROOT, m), "utf8"))
+      } catch {
+        continue
+      }
+      for (const field of ["dependencies", "devDependencies", "peerDependencies"])
+        if (pkg[field]?.zod) specs.set(`${m} ${field}`, pkg[field].zod as string)
+    }
+    const scaffold = /\bzod: "([^"]+)"/.exec(
+      readFileSync(join(ROOT, "packages/create-signet-app/src/index.ts"), "utf8"),
+    )?.[1]
+    if (scaffold) specs.set("create-signet-app scaffolded apps", scaffold)
+    const ranges = new Set(specs.values())
+    ok(
+      "every zod range is the same zod 4 range",
+      ranges.size === 1 && /^\^4\.\d+\.\d+$/.test([...ranges][0] ?? ""),
+      [...specs].map(([k, v]) => `${k}: ${v}`).join("\n"),
+    )
+    const locked = new Set(readFileSync(join(ROOT, "bun.lock"), "utf8").match(/"zod@[^"]+"/g) ?? [])
+    ok("bun.lock resolves exactly one zod", locked.size === 1, [...locked].join(", "))
+  }
 } finally {
   rmSync(TMP, { recursive: true, force: true })
 }
