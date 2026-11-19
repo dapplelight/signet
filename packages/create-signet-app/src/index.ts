@@ -39,8 +39,11 @@ import {
 } from "./compose.js"
 import { appId, DESKTOP_PKG } from "./desktop.js"
 import {
+  answer,
   choose,
   command,
+  hasApi,
+  hasUi,
   type Mix,
   mixRows,
   nameError,
@@ -532,7 +535,10 @@ Examples:
       describe: { sentence: describe, template: templateGiven, theme: themeGiven },
     }
   }
-  checkCombo(template, theme, target, mcp, composeFlags)
+  // Nothing said what to build: asked on a terminal, else the web platform.
+  const pick = !templateGiven && !composing
+  // When the picker will run, --mcp / --no-mcp is checked against what it picks (main).
+  checkCombo(template, theme, target, pick && process.stdin.isTTY ? undefined : mcp, composeFlags)
   return {
     name,
     theme,
@@ -543,8 +549,7 @@ Examples:
     pm: pm ?? detectPm(),
     composeFlags,
     themeGiven,
-    // Nothing said what to build: asked on a terminal, else the web platform.
-    pick: !templateGiven && !composing,
+    pick,
   }
 }
 
@@ -629,7 +634,7 @@ async function askName(): Promise<string> {
  * its features (ticked, to adjust); the theme where there is a web UI; MCP
  * where there is an API. Rows and the mapping to flags are in src/picker.ts.
  */
-async function askWhat(themeGiven?: Theme) {
+async function askWhat(themeGiven?: Theme, mcpGiven?: boolean) {
   const what = ask(
     await select<Platform>({
       message: "What are you building?",
@@ -653,20 +658,18 @@ async function askWhat(themeGiven?: Theme) {
     )
     choice = choose(what, mix, ticks)
   }
-  // A web app's every answer has a web UI; an API's and a CLI's none.
-  const ui = what !== "api" && what !== "cli"
-  const theme =
-    ui && !themeGiven
-      ? ask(
-          await select<Theme>({
-            message: "Theme",
-            initialValue: "editorial",
-            options: THEMES.map((t) => ({ value: t, label: THEME_LABELS[t] ?? t })),
-          }),
-        )
-      : themeGiven
-  const mcp = choice.template === "api" || choice.template === "full" ? await askMcp() : undefined
-  return { what, choice, ticks, theme: ui ? theme : undefined, mcp }
+  // A flag that already answered a question keeps its value; it is not asked.
+  const theme = await answer(hasUi(what), themeGiven, async () =>
+    ask(
+      await select<Theme>({
+        message: "Theme",
+        initialValue: "editorial",
+        options: THEMES.map((t) => ({ value: t, label: THEME_LABELS[t] ?? t })),
+      }),
+    ),
+  )
+  const mcp = await answer(hasApi(choice), mcpGiven, askMcp)
+  return { what, choice, ticks, theme, mcp }
 }
 
 /** "Let AI coding agents work with this app?", default yes; only asked on a terminal. */
@@ -790,14 +793,17 @@ async function main() {
   }
   const picking = parsed.pick && process.stdin.isTTY
   if (picking) {
-    const { what, choice, ticks, theme: picked, mcp } = await askWhat(parsed.themeGiven)
+    const { what, choice, ticks, theme: picked, mcp } = await askWhat(parsed.themeGiven, flags.mcp)
     template = choice.template
     const c = parsed.composeFlags
     c.starter = choice.starter
     c.api = choice.api ?? false
     c.with = choice.with ?? []
     if (picked) theme = picked
-    flags.mcp = mcp
+    // Set only when the picker asked (or kept the flag); a flag is never cleared.
+    if (mcp !== undefined) flags.mcp = mcp
+    // The flags' combinations, checked now that the platform is known (parseArgs left MCP to here).
+    checkCombo(template, theme, parsed.targetGiven, flags.mcp, c)
     const runner = `${pm === "bun" ? "bunx" : "npx"} create-signet-app`
     note(
       [
