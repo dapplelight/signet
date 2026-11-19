@@ -77,7 +77,7 @@ bunx create-signet-app my-app --starter saas --with ai      # a starter, plus a 
   | `saas` | account, orgs, admin, notifications, privacy, payments |
   | `launch` | account, privacy, growth (waitlist, invites, referrals, feedback) |
   | `internal-tool` | account, orgs, admin, workflows |
-  | `api` | account, payments; the API half only |
+  | `api-billing` | account, payments; the API half only (`--starter api` still works) |
   | `ai-app` | account, privacy, payments, ai |
   | `paywall` | account, payments, paywalls |
   | `automation` | account, notifications, workflows |

@@ -322,6 +322,20 @@ try {
     st.json?.command === "bunx create-signet-app my-app --starter saas --theme editorial",
     st.json,
   )
+  const billing = await call("scaffold_app", { name: "my-api", starter: "api-billing" })
+  ok(
+    "scaffold_app: the api-billing starter (formerly api) is indexed",
+    billing.json?.command ===
+      "bunx create-signet-app my-api --starter api-billing --theme editorial" &&
+      billing.json?.notes?.startsWith("the API half only"),
+    billing.json,
+  )
+  const oldApi = await call("scaffold_app", { name: "my-api", starter: "api" })
+  ok(
+    "scaffold_app: api is the platform, not a starter",
+    oldApi.isError || !!oldApi.r?.error,
+    oldApi.r,
+  )
   const badStarter = await call("scaffold_app", { name: "my-app", starter: "crm" })
   ok(
     "scaffold_app: an unknown starter is refused",

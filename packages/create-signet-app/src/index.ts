@@ -13,7 +13,7 @@
 import { existsSync } from "node:fs"
 import { cp, mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises"
 import { basename, join, resolve } from "node:path"
-import { createInterface } from "node:readline/promises"
+import { cancel, confirm, intro, isCancel, outro, select } from "@clack/prompts"
 import {
   applyBlocks,
   type BaseDeps,
@@ -373,7 +373,8 @@ function parseArgs(argv: string[]) {
         throw new Error("--platform and --template are the same flag; give one.")
       template = templateGiven = v as Template
     } else if (a === "--starter") {
-      const v = args[++i]
+      // `api` was api-billing's name until the picker listed it beside the api platform.
+      const v = args[++i] === "api" ? "api-billing" : args[i]
       if (!STARTER_NAMES.includes(v as StarterName)) {
         throw new Error(`Unknown starter "${v}". Available: ${STARTER_NAMES.join(", ")}`)
       }
@@ -573,44 +574,56 @@ async function substitute(dir: string, vars: Record<string, string>) {
   }
 }
 
-/** "What are you building?": a platform or a starter, by number or name; default web. */
-async function askWhat(): Promise<Platform | StarterName> {
-  const choices = [...PLATFORMS, ...STARTER_NAMES.map((s) => `starter ${s}`)]
-  const lines = [
-    ...PLATFORMS.map((p) => p),
-    ...STARTER_NAMES.map((s) => `${s.padEnd(14)}${STARTERS[s].description}`),
-  ]
-  console.log(
-    `\n  What are you building?\n${lines.map((l, i) => `  ${String(i + 1).padStart(3)}. ${l}`).join("\n")}`,
-  )
-  const rl = createInterface({ input: process.stdin, output: process.stdout })
-  try {
-    for (;;) {
-      const a = (await rl.question("  Number or name (web): ")).trim().toLowerCase()
-      if (a === "") return "web"
-      const n = Number(a)
-      const pick =
-        Number.isInteger(n) && n >= 1
-          ? choices[n - 1]
-          : choices.find((c) => c === a || c === `starter ${a}`)
-      if (pick) return pick.replace(/^starter /, "") as Platform | StarterName
-      console.log(`  Not one of these: ${a}`)
-    }
-  } finally {
-    rl.close()
+/** One line each in the picker; cut to the terminal's width when shown. */
+const PLATFORM_HINTS: Record<Platform, string> = {
+  web: "Vite + React + Signet UI",
+  api: "Hono Worker: error envelope, request ids, rate limiting",
+  cli: "Bun CLI compiled to one binary, device-code login",
+  extension: "Chrome MV3 extension: popup, options page, service worker",
+  desktop: "Tauri v2 desktop + menu-bar app, browser sign-in",
+}
+
+/** Ctrl+C at a prompt: say so and leave without scaffolding. */
+function cancelled(): never {
+  cancel("Cancelled.")
+  process.exit(130)
+}
+
+/** A picker row: "platform · web" or "starter  · saas", its hint kept to one line. */
+function pickerOption<V extends string>(group: string, value: V, hint: string, width: number) {
+  const label = `${group.padEnd(8)} · ${value}`
+  // "│  ● " before the label, " (" and ")" around the hint, and the margin
+  // clack keeps when it wraps a row.
+  const room = width - label.length - 21
+  return {
+    value,
+    label,
+    hint: room < 2 ? undefined : hint.length > room ? `${hint.slice(0, room - 1)}…` : hint,
   }
+}
+
+/** "What are you building?": a platform or a starter, by arrow keys; default web. */
+async function askWhat(): Promise<Platform | StarterName> {
+  intro("create-signet-app")
+  const width = process.stdout.columns || 80
+  const what = await select<Platform | StarterName>({
+    message: "What are you building?",
+    initialValue: "web",
+    options: [
+      ...PLATFORMS.map((p) => pickerOption("platform", p, PLATFORM_HINTS[p], width)),
+      ...STARTER_NAMES.map((s) => pickerOption("starter", s, STARTERS[s].description, width)),
+    ],
+  })
+  if (isCancel(what)) cancelled()
+  return what
 }
 
 /** "Add MCP for agents?", default yes; only asked on a terminal. */
 async function askMcp(): Promise<boolean> {
   if (!process.stdin.isTTY) return true
-  const rl = createInterface({ input: process.stdin, output: process.stdout })
-  try {
-    const answer = (await rl.question("  Add MCP for agents? (Y/n) ")).trim().toLowerCase()
-    return answer === "" || answer.startsWith("y")
-  } finally {
-    rl.close()
-  }
+  const yes = await confirm({ message: "Add MCP for agents?", initialValue: true })
+  if (isCancel(yes)) cancelled()
+  return yes
 }
 
 /** A platform's template, its --target files and MCP's overlay, as they always were. */
@@ -717,7 +730,8 @@ async function main() {
     ;({ theme, template } = described)
     checkCombo(template, theme, parsed.targetGiven, flags.mcp)
   }
-  if (parsed.pick && process.stdin.isTTY) {
+  const picking = parsed.pick && process.stdin.isTTY
+  if (picking) {
     const what = await askWhat()
     if ((PLATFORMS as readonly string[]).includes(what)) template = what as Platform
     else {
@@ -852,6 +866,8 @@ async function main() {
     await writeFile(join(dest, "AGENTS.md"), renderAgents(appName, described, runner))
   }
   const steps = `cd ${name}\n  ${install}\n  ${run} dev`
+  // Closes the picker's frame; the next steps below are printed as they always were.
+  if (picking) outro(`Scaffolded ${appName}.`)
   console.log(
     template === "cli"
       ? `
