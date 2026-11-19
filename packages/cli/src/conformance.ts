@@ -6,6 +6,7 @@
 
 import type { ConformanceReport } from "@dapplelight/signet-spec/conformance"
 import { SignetCliError } from "./core.js"
+import { interactive, spinner } from "./prompt.js"
 
 const USAGE =
   "Usage: signet conformance <baseUrl> [--auth-prefix /api/auth] [--ingest /api/analytics] [--json]"
@@ -53,13 +54,15 @@ export async function conformance(args: string[]): Promise<number> {
 
   // Lazy, so every other command still runs when this module cannot load.
   const { runConformance } = await import("@dapplelight/signet-spec/conformance")
+  const spin = interactive(json) ? spinner() : undefined
+  spin?.start(`Running the wire contract against ${baseUrl}`)
   const report = await runConformance({
     baseUrl,
     authPrefix: opts.authPrefix ?? "/api/auth",
     ingestPath: opts.ingestPath ?? "/api/analytics",
     sessionsPrefix: opts.sessionsPrefix,
     jsonPath: opts.jsonPath,
-  })
+  }).finally(() => spin?.stop("Checked"))
   console.log(json ? JSON.stringify(report) : formatReport(report, baseUrl))
   return report.failed ? 1 : 0
 }

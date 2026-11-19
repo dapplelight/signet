@@ -34,10 +34,11 @@
   "scripts": {
     "build": "bun run src/build.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "bun run build && bun run test/cli.ts && bun run test/modules.ts && bun run test/conformance.ts && bun run test/check.ts",
+    "test": "bun run build && bun run test/cli.ts && bun run test/modules.ts && bun run test/conformance.ts && bun run test/check.ts && bun run test/tty.ts",
     "prepublishOnly": "bun run build"
   },
   "dependencies": {
+    "@clack/prompts": "1.8.1",
     "@dapplelight/signet-spec": "^0.1.0"
   },
   "devDependencies": {

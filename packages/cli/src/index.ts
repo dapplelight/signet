@@ -25,6 +25,7 @@ import {
   upgrade,
 } from "./core.js"
 import { addCommand, packageManager, type WireResult, wire } from "./modules.js"
+import { ask, autocompleteMultiselect, interactive, intro, outro, select, text } from "./prompt.js"
 import type { Registry } from "./registry.js"
 import { theme } from "./theme.js"
 
@@ -173,9 +174,54 @@ const installLines = (i: ReturnType<typeof install>) =>
       : ""
   }`
 
+/** On a terminal: intro, the command, then an outro that says how it went. */
+async function framed(name: string, tty: boolean, fn: () => Promise<number> | number) {
+  if (!tty) return fn()
+  intro(`signet ${name}`)
+  const code = await fn()
+  outro(code ? "Finished with problems." : "Done.")
+  return code
+}
+
+/** Whether args hold a positional; every `--flag` takes a value except those in `bare`. */
+const hasPositional = (args: string[], bare: string[]) =>
+  args.some((a, i) => {
+    const prev = args[i - 1]
+    return !a.startsWith("-") && !(prev?.startsWith("--") && !bare.includes(prev))
+  })
+
 async function main(): Promise<number> {
-  if (process.argv[2] === "theme") return theme(process.argv.slice(3))
-  if (process.argv[2] === "conformance") return conformance(process.argv.slice(3))
+  const sub = process.argv[2]
+  if (sub === "theme" || sub === "conformance") {
+    const args = process.argv.slice(3)
+    const help = args.includes("-h") || args.includes("--help")
+    return framed(sub, interactive(args.includes("--json")) && !help, async () => {
+      // A missing brand colour or URL is asked for on a terminal; elsewhere the old error stands.
+      if (
+        interactive(args.includes("--json")) &&
+        !help &&
+        !hasPositional(args, ["--json"]) &&
+        !(sub === "theme" && args.includes("--import"))
+      )
+        args.push(
+          await ask(
+            sub === "theme"
+              ? text({
+                  message: "Brand colour",
+                  placeholder: "#e11d48",
+                  validate: (v) => (v?.trim() ? undefined : "A hex colour, e.g. #e11d48"),
+                })
+              : text({
+                  message: "Backend URL",
+                  placeholder: "http://localhost:3000",
+                  validate: (v) =>
+                    URL.canParse(v ?? "") ? undefined : "A URL, e.g. http://localhost:3000",
+                }),
+          ),
+        )
+      return sub === "theme" ? theme(args) : conformance(args)
+    })
+  }
   if (process.argv[2] === "check") return check(process.argv.slice(3))
   const o = parseArgs(process.argv)
   if (!o.command || o.command === "help") {
@@ -187,57 +233,70 @@ async function main(): Promise<number> {
   const reg = JSON.parse(readFileSync(o.registry, "utf8")) as Registry
   const print = (json: unknown, text: string) => console.log(o.json ? JSON.stringify(json) : text)
 
-  if (o.command === "add") {
-    // `add block <name...>`: same copy, but the names must be page-level blocks.
-    if (o.names[0] === "block") {
-      o.names.shift()
-      if (!o.names.length)
-        throw new SignetCliError(
-          `Usage: signet add block <name...>. Blocks: ${Object.keys(reg.items)
-            .filter((n) => reg.items[n]?.block)
-            .join(", ")}`,
+  const tty = interactive(o.json)
+  if (o.command === "add")
+    return framed("add", tty, async () => {
+      // `add block <name...>`: same copy, but the names must be page-level blocks.
+      const block = o.names[0] === "block"
+      if (block) o.names.shift()
+      if (!o.names.length && tty)
+        o.names = await ask(
+          autocompleteMultiselect({
+            message: block ? "Which blocks?" : "Which items? Type to filter",
+            options: Object.keys(reg.items)
+              .filter((n) => !block || reg.items[n]?.block)
+              .map((value) => ({ value })),
+            required: true,
+          }),
         )
-      for (const n of o.names)
-        if (!reg.items[n]?.block)
-          throw new SignetCliError(`"${n}" is not a block. Run signet add block for the list.`)
-    }
-    if (!o.names.length) throw new SignetCliError("Usage: signet add <name...>")
-    const config = {
-      ...(o.dir !== undefined && { dir: o.dir }),
-      ...(o.alias !== undefined && { alias: o.alias }),
-    }
-    const r = add(o.cwd, reg, o.names, { force: o.force, config })
-    if (r.refused.length && !o.force) {
+      if (block) {
+        if (!o.names.length)
+          throw new SignetCliError(
+            `Usage: signet add block <name...>. Blocks: ${Object.keys(reg.items)
+              .filter((n) => reg.items[n]?.block)
+              .join(", ")}`,
+          )
+        for (const n of o.names)
+          if (!reg.items[n]?.block)
+            throw new SignetCliError(`"${n}" is not a block. Run signet add block for the list.`)
+      }
+      if (!o.names.length) throw new SignetCliError("Usage: signet add <name...>")
+      const config = {
+        ...(o.dir !== undefined && { dir: o.dir }),
+        ...(o.alias !== undefined && { alias: o.alias }),
+      }
+      const r = add(o.cwd, reg, o.names, { force: o.force, config })
+      if (r.refused.length && !o.force) {
+        print(
+          r,
+          `\n  Not written: you have edited these and signet-ui changed them too.\n${r.refused
+            .map((f) => `    ${f}`)
+            .join(
+              "\n",
+            )}\n\n  Merge with: signet upgrade ${o.names.join(" ")}\n  Or overwrite with --force.\n`,
+        )
+        return 1
+      }
+      const modules = r.items.filter((n) => reg.items[n]?.root === "app")
+      if (!modules.length) {
+        print(
+          r,
+          `\n  Added ${r.items.join(", ")} (signet-ui ${reg.version}).\n${r.written
+            .map((f) => `    wrote ${f}`)
+            .join("\n")}\n${peersLine(r.missingPeers)}`,
+        )
+        return 0
+      }
+      const wired = wireAll(o.cwd, reg, modules)
+      const inst = install(o.cwd, reg, r.items, r.missingPeers, o.install)
       print(
-        r,
-        `\n  Not written: you have edited these and signet-ui changed them too.\n${r.refused
-          .map((f) => `    ${f}`)
-          .join(
-            "\n",
-          )}\n\n  Merge with: signet upgrade ${o.names.join(" ")}\n  Or overwrite with --force.\n`,
-      )
-      return 1
-    }
-    const modules = r.items.filter((n) => reg.items[n]?.root === "app")
-    if (!modules.length) {
-      print(
-        r,
-        `\n  Added ${r.items.join(", ")} (signet-ui ${reg.version}).\n${r.written
+        { ...r, wired, install: inst },
+        `\n  Added ${r.items.join(", ")} (signet ${reg.version}).\n${r.written
           .map((f) => `    wrote ${f}`)
-          .join("\n")}\n${peersLine(r.missingPeers)}`,
+          .join("\n")}\n${wireLines(wired)}\n${installLines(inst)}`,
       )
-      return 0
-    }
-    const wired = wireAll(o.cwd, reg, modules)
-    const inst = install(o.cwd, reg, r.items, r.missingPeers, o.install)
-    print(
-      { ...r, wired, install: inst },
-      `\n  Added ${r.items.join(", ")} (signet ${reg.version}).\n${r.written
-        .map((f) => `    wrote ${f}`)
-        .join("\n")}\n${wireLines(wired)}\n${installLines(inst)}`,
-    )
-    return inst.ran && !inst.ok ? 1 : 0
-  }
+      return inst.ran && !inst.ok ? 1 : 0
+    })
 
   if (o.command === "upgrade") {
     const r = upgrade(o.cwd, reg, o.names, { dryRun: o.dryRun })
@@ -291,13 +350,21 @@ async function main(): Promise<number> {
     return bad.length ? 1 : 0
   }
 
-  if (o.command === "diff") {
-    const [name] = o.names
-    if (!name) throw new SignetCliError("Usage: signet diff <name>")
-    const d = diff(o.cwd, reg, name)
-    print({ diff: d }, d || `  ${name}: no upstream changes since it was copied.`)
-    return 0
-  }
+  if (o.command === "diff")
+    return framed("diff", tty, async () => {
+      const added = !o.names[0] && tty ? Object.keys(loadConfig(o.cwd).items) : []
+      const name =
+        o.names[0] ??
+        (added.length
+          ? await ask(
+              select({ message: "Which item?", options: added.map((value) => ({ value })) }),
+            )
+          : undefined)
+      if (!name) throw new SignetCliError("Usage: signet diff <name>")
+      const d = diff(o.cwd, reg, name)
+      print({ diff: d }, d || `  ${name}: no upstream changes since it was copied.`)
+      return 0
+    })
 
   if (o.command === "list") {
     const l = list(o.cwd, reg)
