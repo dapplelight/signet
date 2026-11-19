@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### create-signet-app: the picker keeps --mcp, --no-mcp and --theme
+
+Given on a terminal, these flags now skip their question instead of being overwritten by the answer.
+
 ### create-signet-app: the picker asks in plain steps
 
 - On a terminal, a missing project name is asked for (default `my-app`)
