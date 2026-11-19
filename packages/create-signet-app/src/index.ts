@@ -656,8 +656,10 @@ async function pickParts(c: ComposeFlags, mcpFlag: boolean | undefined) {
       : api && (mcpFlag ?? (await askMcp()))
   const chosen = [...base.filter((p) => !c.without.includes(p)), ...c.with, ...(mcp ? ["mcp"] : [])]
   const { parts, added } = resolveParts([...new Set(chosen)], c.without)
-  for (const p of parts)
+  for (const p of parts) {
     if (PARTS[p].apiOnly && !api) throw new Error(`${p} needs the API: drop --ui, or ${p}.`)
+    if (PARTS[p].webOnly && !web) throw new Error(`${p} is web only: drop --api, or ${p}.`)
+  }
   return { parts, added, web, api, starter }
 }
 

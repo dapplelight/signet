@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- A placeholder icon: replace it with your own (keep a square viewBox). -->
+  <title>__APP_NAME__</title>
+  <rect width="512" height="512" rx="112" fill="#18181b" />
+  <circle cx="256" cy="256" r="120" fill="none" stroke="#fafafa" stroke-width="40" />
+</svg>

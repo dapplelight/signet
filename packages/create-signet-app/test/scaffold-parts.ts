@@ -86,7 +86,11 @@ async function pool<T>(items: T[], limit: number, run: (item: T) => Promise<void
 const surfaces = (onlySurface ? [onlySurface] : Object.keys(SURFACES)) as Surface[]
 type Case = { label: string; surface: Surface; parts: string[]; starter?: StarterName }
 const cases: Case[] = surfaces.flatMap((surface) => {
-  const fits = PART_NAMES.filter((p) => !(surface === "ui" && PARTS[p as PartName].apiOnly))
+  const fits = PART_NAMES.filter(
+    (p) =>
+      !(surface === "ui" && PARTS[p as PartName].apiOnly) &&
+      !(surface === "api" && PARTS[p as PartName].webOnly),
+  )
   return ([["none", []], ...fits.map((p) => [p, [p]]), ["all", fits]] as [string, string[]][])
     .filter(([name]) => !onlyPart || onlyPart === name)
     .map(([name, parts]) => ({ label: `${surface}-${name}`, surface, parts }))
