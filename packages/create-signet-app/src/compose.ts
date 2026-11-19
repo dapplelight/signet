@@ -99,51 +99,70 @@ export const PARTS: Record<PartName, Part> = {
  * brings orgs, everything brings auth). `surface: "api"` is the API half only.
  * MCP is not listed: it is asked for (or --mcp / --no-mcp), as it always was.
  * Each description is one line, quoted, first: signet-mcp's index reads it.
+ * The label is the picker's row, in words for someone who knows none of the
+ * part names; at most 44 characters, or clack wraps the row at 60 columns.
  */
 export const STARTERS = {
   full: {
     description: "every part, web + API",
+    label: "Everything — every feature",
     parts: PART_NAMES.filter((p) => !["mcp", "dashboard", "pwa"].includes(p)),
   },
-  blank: { description: "no parts: the shell, the API and the database", parts: [] },
+  blank: {
+    description: "no parts: the shell, the API and the database",
+    label: "Empty shell — site, server and database",
+    parts: [],
+  },
   saas: {
     description: "a paid team product: orgs, admin, billing, inbox, account, privacy",
+    label: "SaaS — teams, billing, admin, notifications",
     parts: ["account", "orgs", "admin", "notifications", "privacy", "payments"],
   },
   launch: {
     description: "before launch: sign-in, waitlist, invites, referrals, feedback, privacy",
+    label: "Pre-launch — waitlist, invites, feedback",
     parts: ["account", "privacy", "growth"],
   },
   "internal-tool": {
     description: "for your own team: orgs and roles, the admin panel, approval workflows",
+    label: "Internal tool — roles, admin, approvals",
     parts: ["account", "orgs", "admin", "workflows"],
   },
   "api-billing": {
     description: "the API half only: sign-in, API keys, billing webhooks",
+    label: "Sign-in + billing — accounts, API keys",
     parts: ["account", "payments"],
     surface: "api",
   },
   "ai-app": {
     description: "an AI product: spend caps per user, billing, account, privacy",
+    label: "AI product — per-user spend limits, billing",
     parts: ["account", "privacy", "payments", "ai"],
   },
   paywall: {
     description: "sell access: plans, entitlements, billing, remote paywalls",
+    label: "Paid access — plans, billing, paywalls",
     parts: ["account", "payments", "paywalls"],
   },
   automation: {
     description: "durable workflows with approvals, and an inbox to tell people",
+    label: "Automations — jobs, approvals, alerts",
     parts: ["account", "notifications", "workflows"],
   },
   dashboard: {
     description: "a sidebar shell and an overview: stat tiles, a chart, a table",
+    label: "Dashboard — sidebar, stats, a chart, a table",
     parts: ["account", "dashboard"],
   },
   pwa: {
     description: "installable and offline: web manifest, service worker, install prompt",
+    label: "Installable app — works offline",
     parts: ["account", "pwa"],
   },
-} satisfies Record<string, { description: string; parts: PartName[]; surface?: "api" }>
+} satisfies Record<
+  string,
+  { description: string; label: string; parts: PartName[]; surface?: "api" }
+>
 export type StarterName = keyof typeof STARTERS
 
 /**
