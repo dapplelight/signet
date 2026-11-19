@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### create-signet-app: the web header fits on phones
+
+On narrow screens the top bar of web starters without a sidebar now keeps the name and actions on one row and puts the nav on a row below, wrapping onto more rows when there are many links. Before, the links stacked and "Sign out" wrapped onto its own line, worst with the PWA "Install app" button.
+
 ### create-signet-app: the picker keeps --mcp, --no-mcp and --theme
 
 Given on a terminal, these flags now skip their question instead of being overwritten by the answer.
