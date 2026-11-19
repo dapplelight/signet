@@ -5,6 +5,19 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-mcp: scaffold_app's api starter is api-billing
+
+- `scaffold_app` lists create-signet-app's `api-billing` starter (formerly `api`).
+
+### create-signet-app (minor): arrow-key picker, api starter renamed api-billing
+
+- Run with no flags on a terminal for an arrow-key picker (`@clack/prompts`):
+  platforms and starters as two labeled groups, web by default, each hint kept
+  to one line. Ctrl+C cancels with exit code 130. "Add MCP for agents?" uses the
+  same prompt style. Off a terminal nothing changes: same output, same exit codes.
+- The `api` starter is now `api-billing`, so it no longer shares a name with the
+  `api` platform. `--starter api` still works and scaffolds `api-billing`.
+
 ### signet-db: `aiSpend().caps()` returns the same order on every database
 
 It sorted with `ORDER BY id`, and a Postgres server using a locale collation put `user:a:day` before `user:*:day`. It now sorts by plain string order on every backend.
