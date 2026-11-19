@@ -472,9 +472,12 @@ export function createAiSpend(db: SignetDb<unknown>, options: AiSpendOptions) {
     return `${scope}:${subject}:${period}`
   }
 
-  /** Every stored cap. */
+  /** Every stored cap, sorted by id the same way on every backend. */
   async function caps(): Promise<SpendCapRow[]> {
-    return (await o.select().from(C).orderBy(cc.id)) as SpendCapRow[]
+    // Sorted here, not with ORDER BY: a Postgres server's locale collation puts
+    // "user:a:day" before "user:*:day", while SQLite and PGlite compare bytes.
+    const rows = (await o.select().from(C)) as SpendCapRow[]
+    return rows.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
   }
 
   /** Store a cap; `units: null` stores "unlimited", which beats a `*` row or an option. */
