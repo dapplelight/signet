@@ -48,6 +48,29 @@ jobs:
       - run: bun run typecheck
         working-directory: packages/create-signet-app
 
+  # signet-db's suites against a real Postgres server, on top of the in-process
+  # backends the check job already runs. The harness adds this backend only
+  # when SIGNET_TEST_PG_URL is set.
+  db-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      SIGNET_TEST_PG_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run build:all
+      - run: bun run test
+        working-directory: packages/db
+
   # signet-test's Playwright self-test in real Chromium. Screenshot baselines
   # are stored for Linux in packages/test/test/e2e/__screenshots__/linux; a
   # missing or changed one fails here and the rendered images are uploaded.
