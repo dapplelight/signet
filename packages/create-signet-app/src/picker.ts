@@ -9,7 +9,14 @@
 
 import { existsSync, readdirSync } from "node:fs"
 import { resolve } from "node:path"
-import { PART_NAMES, PARTS, type PartName, STARTERS, type StarterName } from "./compose.js"
+import {
+  PART_NAMES,
+  PARTS,
+  type PartName,
+  resolveParts,
+  STARTERS,
+  type StarterName,
+} from "./compose.js"
 
 export const PLATFORMS = ["web", "api", "cli", "extension", "desktop"] as const
 export type Platform = (typeof PLATFORMS)[number]
@@ -74,9 +81,12 @@ export function partRows(what: "web" | "api"): { value: PartName; label: string 
   )
 }
 
-/** The parts already ticked for a mix: the starter's own (needs come in at compose). */
+/** Parts plus everything they need, as compose installs them. */
+const installed = (parts: readonly PartName[]) => resolveParts([...parts], []).parts
+
+/** The parts already ticked for a mix: the starter's own and what they need. */
 export function ticked(mix: Mix): PartName[] {
-  return mix === "basics" ? [] : [...STARTERS[mix].parts]
+  return mix === "basics" ? [] : installed(STARTERS[mix].parts)
 }
 
 export type Choice = {
@@ -90,8 +100,9 @@ const same = (a: readonly string[], b: readonly string[]) =>
   a.length === b.length && a.every((x) => b.includes(x))
 
 /**
- * What the answers scaffold, as flags say it. Ticks that equal a starter on
- * this path are `--starter <name>` (the chosen mix first); any other ticks are
+ * What the answers scaffold, as flags say it. Ticks that install the same
+ * parts as a starter on this path (needs counted on both sides) are
+ * `--starter <name>`, the chosen mix first; any other ticks are
  * `--with`, plus `--api` on the API path. Nothing ticked from the basics, or
  * nothing that matches a starter, is the platform alone.
  */
@@ -100,7 +111,7 @@ export function choose(what: Platform, mix: Mix = "basics", ticks: PartName[] = 
   if (mix === "basics" && !ticks.length) return { template: what }
   const api = what === "api" ? ({ api: true } as const) : {}
   const order = mix === "basics" ? startersFor(what) : [mix, ...startersFor(what)]
-  const starter = order.find((s) => same(STARTERS[s].parts, ticks))
+  const starter = order.find((s) => same(installed(STARTERS[s].parts), installed(ticks)))
   if (starter) return { template: "full", starter, ...(apiStarter(starter) ? {} : api) }
   if (!ticks.length) return { template: what }
   return { template: "full", with: ticks, ...api }
@@ -126,7 +137,7 @@ export function command(
   ].join(" ")
 }
 
-/** The summary shown before creating: what, from which mix, which features, theme, MCP. */
+/** The summary shown before creating: what, which mix, the parts installed (needs too), theme, MCP. */
 export function summary(
   what: Platform,
   c: Choice,
@@ -135,11 +146,16 @@ export function summary(
   mcp?: boolean,
 ): string[] {
   const short = (label: string) => label.split(" — ")[0]
+  const parts = installed(ticks)
   return [
-    `${short(WHAT.find((w) => w.value === what)?.label ?? what)}${what === "web" && c.template === "full" ? " + API" : ""}`,
+    what === "web"
+      ? c.template === "full"
+        ? "Web app (site + server)"
+        : "Web app"
+      : short(WHAT.find((w) => w.value === what)?.label ?? what),
     ...(c.starter ? [`Starter: ${STARTERS[c.starter].label}`] : []),
     ...(c.template === "full"
-      ? [`Features: ${ticks.length ? ticks.map((p) => short(partLabel(p))).join(", ") : "none"}`]
+      ? [`Features: ${parts.length ? parts.map((p) => short(partLabel(p))).join(", ") : "none"}`]
       : []),
     ...(theme ? [`Theme: ${theme}`] : []),
     ...(mcp === undefined ? [] : [`AI coding agents (MCP): ${mcp ? "yes" : "no"}`]),

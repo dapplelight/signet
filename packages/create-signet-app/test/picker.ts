@@ -90,9 +90,10 @@ ok(
     ),
 )
 ok(
-  "features: a mix comes with its starter's parts ticked, and every tick is a row",
+  "features: a mix comes with its starter's parts and what they need ticked; every tick is a row",
   eq(ticked("basics"), []) &&
-    eq(ticked("saas"), STARTERS.saas.parts) &&
+    eq(ticked("saas"), ["auth", ...STARTERS.saas.parts]) &&
+    eq(ticked("api-billing"), ["auth", "account", "payments"]) &&
     webMixes.every((m) => ticked(m as Mix).every((p) => values(partRows("web")).includes(p))) &&
     apiMixes.every((m) => ticked(m as Mix).every((p) => values(partRows("api")).includes(p))),
 )
@@ -103,7 +104,9 @@ for (const [args, want] of [
   [["desktop"], { template: "desktop" }],
   [["web", "basics", []], { template: "web" }],
   [["api", "basics", []], { template: "api" }],
-  // A mix accepted as ticked is the starter.
+  // A mix accepted as ticked (needs included) is the starter; with or without the needs.
+  [["web", "saas", ticked("saas")], { template: "full", starter: "saas" }],
+  [["api", "api-billing", ticked("api-billing")], { template: "full", starter: "api-billing" }],
   [["web", "saas", saas], { template: "full", starter: "saas" }],
   [["web", "blank", []], { template: "full", starter: "blank" }],
   [["web", "full", [...STARTERS.full.parts]], { template: "full", starter: "full" }],
@@ -145,11 +148,11 @@ ok(
     ) === "npx create-signet-app demo --with ai --api --mcp",
 )
 ok(
-  "summary: what, starter, features, theme, MCP",
+  "summary: what, starter, the parts installed (needs too), theme, MCP",
   eq(summary("web", { template: "full", starter: "saas" }, saas, "finance", true), [
-    "Web app + API",
+    "Web app (site + server)",
     "Starter: SaaS — teams, billing, admin, notifications",
-    "Features: Account page, Teams & roles, Admin panel, Notifications, Privacy, Billing",
+    "Features: Sign-in, Account page, Teams & roles, Admin panel, Notifications, Privacy, Billing",
     "Theme: finance",
     "AI coding agents (MCP): yes",
   ]),
@@ -168,10 +171,14 @@ ok(
     [
       "API only",
       "Starter: Sign-in + billing — accounts, API keys",
-      "Features: Account page, Billing",
+      "Features: Sign-in, Account page, Billing",
       "AI coding agents (MCP): yes",
     ],
   ),
+)
+ok(
+  "summary: the web basics is a web app, no server",
+  eq(summary("web", { template: "web" }, [], "editorial"), ["Web app", "Theme: editorial"]),
 )
 const NAMES = mkdtempSync(join(tmpdir(), "csa-names-"))
 mkdirSync(join(NAMES, "taken"))
