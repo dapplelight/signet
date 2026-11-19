@@ -10,8 +10,11 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { PART_NAMES, PARTS, STARTERS } from "../src/compose.js"
 import {
+  answer,
   choose,
   command,
+  hasApi,
+  hasUi,
   type Mix,
   mixRows,
   nameError,
@@ -180,6 +183,22 @@ ok(
   "summary: the web basics is a web app, no server",
   eq(summary("web", { template: "web" }, [], "editorial"), ["Web app", "Theme: editorial"]),
 )
+// A flag that answered a question is kept and the question is not asked.
+let asked = 0
+const yes = async () => (asked++, true)
+const answers = [
+  await answer(hasApi({ template: "api" }), false, yes), // --no-mcp, API only
+  await answer(hasApi({ template: "full", starter: "saas" }), true, yes), // --mcp
+  await answer(hasApi({ template: "api" }), undefined, yes), // no flag: asked
+  await answer(hasApi({ template: "web" }), undefined, yes), // no API: not asked
+  await answer(hasUi("web"), "finance", async () => (asked++, "editorial")), // --theme
+  await answer(hasUi("api"), undefined, async () => (asked++, "editorial")), // no UI
+]
+ok(
+  "--mcp / --no-mcp / --theme with the picker: kept, not asked; asked only where it applies",
+  eq(answers, [false, true, true, undefined, "finance", undefined]) && asked === 1,
+  JSON.stringify({ answers, asked }),
+)
 const NAMES = mkdtempSync(join(tmpdir(), "csa-names-"))
 mkdirSync(join(NAMES, "taken"))
 writeFileSync(join(NAMES, "taken/x"), "")
@@ -205,6 +224,13 @@ try {
     noName.code === 1 &&
       noName.err === "\n  Missing target directory.\nUsage: create-signet-app <directory>\n\n",
     JSON.stringify(noName.err),
+  )
+  const noMcpWeb = run("my-no-mcp", "--no-mcp")
+  ok(
+    "--no-mcp with no platform, no TTY: refused as before (the web platform has no API)",
+    noMcpWeb.code === 1 &&
+      noMcpWeb.err === "\n  --mcp / --no-mcp apply to --platform api and composed apps only.\n\n",
+    JSON.stringify(noMcpWeb.err),
   )
   // The summary's command, run off a terminal, builds what the picker said.
   const tweaked = run("my-tweaked", "--with", "orgs,payments", "--no-mcp")
