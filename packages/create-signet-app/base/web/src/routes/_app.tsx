@@ -147,7 +147,7 @@ function AppLayout() {
           __APP_NAME__
         </Link>
         {switcher} {/* @orgs */}
-        <nav className="order-last flex w-full items-center gap-1 overflow-x-auto text-sm sm:order-none sm:w-auto sm:flex-1">
+        <nav className="order-last flex w-full flex-wrap items-center gap-1 text-sm sm:order-none sm:w-auto sm:flex-1">
           {nav}
         </nav>
         <div className="ml-auto flex items-center gap-2">{actions}</div>
