@@ -118,7 +118,7 @@ export const STARTERS = {
     description: "for your own team: orgs and roles, the admin panel, approval workflows",
     parts: ["account", "orgs", "admin", "workflows"],
   },
-  api: {
+  "api-billing": {
     description: "the API half only: sign-in, API keys, billing webhooks",
     parts: ["account", "payments"],
     surface: "api",

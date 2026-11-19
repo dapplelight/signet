@@ -433,7 +433,7 @@ export function signetTools(options: ToolOptions = {}): McpTool[] {
     defineTool({
       name: "scaffold_app",
       description:
-        "Get the exact create-signet-app command for a new web app, Worker API or composed starter (saas, launch, api, ...), the files it will create, and the next steps. Use scaffold_files instead if you cannot run a shell.",
+        "Get the exact create-signet-app command for a new web app, Worker API or composed starter (saas, launch, api-billing, ...), the files it will create, and the next steps. Use scaffold_files instead if you cannot run a shell.",
       annotations: { title: "Plan a new app", ...READ },
       input: scaffoldInput.extend({
         starter: z

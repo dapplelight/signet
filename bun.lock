@@ -145,6 +145,7 @@
         "create-signet-app": "./src/index.ts",
       },
       "dependencies": {
+        "@clack/prompts": "1.8.1",
         "@dapplelight/signet-mcp": "^0.1.5",
       },
       "devDependencies": {
