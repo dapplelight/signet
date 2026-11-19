@@ -72,7 +72,7 @@ bunx create-signet-app my-app --starter saas --with ai      # a starter, plus a 
 
   | starter | parts (plus what they need) |
   | --- | --- |
-  | `full` | every part (`--template full` is the same) |
+  | `full` | every part but `dashboard` and `pwa` (`--template full` is the same) |
   | `blank` | none: the shell, the API, the database |
   | `saas` | account, orgs, admin, notifications, privacy, payments |
   | `launch` | account, privacy, growth (waitlist, invites, referrals, feedback) |
@@ -81,6 +81,8 @@ bunx create-signet-app my-app --starter saas --with ai      # a starter, plus a 
   | `ai-app` | account, privacy, payments, ai |
   | `paywall` | account, payments, paywalls |
   | `automation` | account, notifications, workflows |
+  | `dashboard` | account, dashboard: a sidebar shell, home is an overview |
+  | `pwa` | account, pwa: installable, the app shell offline |
 - **Needs** come along on their own and the output says so (`--with payments`
   prints `added auth for payments`). Leaving out a part another one needs is
   an error.
@@ -107,6 +109,8 @@ bunx create-signet-app my-app --starter saas --with ai      # a starter, plus a 
 | `growth` | waitlist, invites, referral codes, referrals, feedback and marks tables, with signet-db's `createGrowth` (API only) | |
 | `ai` | AI spend caps per user and for the app (signet-db's `createAiSpend`, `requireAiSpend` on `/api/ai/*`), a sample `/api/ai/summary` on signet-ai's fake provider (no key needed); with `admin`, `/api/admin/ai-spend` (API only) | auth |
 | `workflows` | durable workflows (signet-db's `createWorkflows`) at `/api/workflows`, a generic approval-request example, the runner in `api/server.ts`, `/approvals` | auth |
+| `dashboard` | the shell's nav in signet-ui's `Sidebar` (a drawer on phones), and home as an overview: stat tiles, a bar chart and a recent-activity table on sample data, with loading, empty and error states (`src/components/overview.tsx`; web only) | |
+| `pwa` | `public/manifest.webmanifest`, a placeholder `public/icon.svg`, `public/sw.js` (network-first pages over a cached app shell, cached `/assets/`, never `/api`), registered in built apps by `src/lib/pwa.ts`, and an "Install app" button in the shell (web only) | |
 | `mcp` | the API's validated routes as tools at `/mcp` (API only) | |
 
 ### How parts are put together

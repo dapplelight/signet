@@ -18,6 +18,7 @@ import account from "../parts/account/part.js"
 import admin from "../parts/admin/part.js"
 import ai from "../parts/ai/part.js"
 import auth from "../parts/auth/part.js"
+import dashboard from "../parts/dashboard/part.js"
 import growth from "../parts/growth/part.js"
 import mcp from "../parts/mcp/part.js"
 import notifications from "../parts/notifications/part.js"
@@ -25,6 +26,7 @@ import orgs from "../parts/orgs/part.js"
 import payments from "../parts/payments/part.js"
 import paywalls from "../parts/paywalls/part.js"
 import privacy from "../parts/privacy/part.js"
+import pwa from "../parts/pwa/part.js"
 import workflows from "../parts/workflows/part.js"
 
 type Deps = Record<string, string>
@@ -37,6 +39,8 @@ export type Part = {
   needs?: PartName[]
   /** Needs the API surface (it has no web half). */
   apiOnly?: boolean
+  /** Needs the web surface (it has no API half). */
+  webOnly?: boolean
   web?: { deps?: Deps }
   api?: { deps?: Deps }
   /** With both surfaces: dev deps and scripts (the browser test). */
@@ -65,6 +69,8 @@ export const PART_NAMES = [
   "growth",
   "ai",
   "workflows",
+  "dashboard",
+  "pwa",
   "mcp",
 ] as const
 export type PartName = (typeof PART_NAMES)[number]
@@ -80,19 +86,25 @@ export const PARTS: Record<PartName, Part> = {
   growth,
   ai,
   workflows,
+  dashboard,
+  pwa,
   mcp,
 }
 
 /**
  * A named mix of parts, by the shape of app, never its domain. `full` is
- * everything the full template had; `blank` is the base alone (the shell, the
+ * everything the full template had (not dashboard or pwa, which reshape the
+ * web half); `blank` is the base alone (the shell, the
  * API, the database), for parts of your own. Needs are added for you (admin
  * brings orgs, everything brings auth). `surface: "api"` is the API half only.
  * MCP is not listed: it is asked for (or --mcp / --no-mcp), as it always was.
  * Each description is one line, quoted, first: signet-mcp's index reads it.
  */
 export const STARTERS = {
-  full: { description: "every part, web + API", parts: PART_NAMES.filter((p) => p !== "mcp") },
+  full: {
+    description: "every part, web + API",
+    parts: PART_NAMES.filter((p) => !["mcp", "dashboard", "pwa"].includes(p)),
+  },
   blank: { description: "no parts: the shell, the API and the database", parts: [] },
   saas: {
     description: "a paid team product: orgs, admin, billing, inbox, account, privacy",
@@ -122,6 +134,14 @@ export const STARTERS = {
   automation: {
     description: "durable workflows with approvals, and an inbox to tell people",
     parts: ["account", "notifications", "workflows"],
+  },
+  dashboard: {
+    description: "a sidebar shell and an overview: stat tiles, a chart, a table",
+    parts: ["account", "dashboard"],
+  },
+  pwa: {
+    description: "installable and offline: web manifest, service worker, install prompt",
+    parts: ["account", "pwa"],
   },
 } satisfies Record<string, { description: string; parts: PartName[]; surface?: "api" }>
 export type StarterName = keyof typeof STARTERS

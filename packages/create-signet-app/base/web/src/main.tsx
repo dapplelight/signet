@@ -6,11 +6,13 @@ import { RouterProvider } from "@tanstack/react-router"
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 import { Toaster } from "./components/toaster"
+import { registerPwa } from "./lib/pwa" // @pwa
 import { createAppRouter } from "./router"
 import "./app.css"
 
 const queryClient = new QueryClient({ defaultOptions: queryDefaults() })
 const router = createAppRouter()
+registerPwa() // @pwa
 // auth:begin
 
 // One redirect on session expiry, however many requests fail at once. A full

@@ -1,8 +1,12 @@
+// !dashboard:begin
 import { Card, CardContent, CardHeader, CardTitle } from "@dapplelight/signet-ui/components/card"
 import { useQuery } from "@tanstack/react-query" // @auth
 import { createFileRoute, Link } from "@tanstack/react-router" // @payments
 import { createFileRoute } from "@tanstack/react-router" // @!payments
 import { meQuery } from "../../lib/api" // @auth
+// !dashboard:end
+import { createFileRoute } from "@tanstack/react-router" // @dashboard
+import { Overview } from "../../components/overview" // @dashboard
 
 export const Route = createFileRoute("/_app/")({
   component: Home,
@@ -11,6 +15,8 @@ export const Route = createFileRoute("/_app/")({
 // Your product goes here. The other pages are already wired; this one is
 // yours.
 function Home() {
+  return <Overview /> // @dashboard
+  // !dashboard:begin
   // auth:begin
   const me = useQuery(meQuery).data
   return (
@@ -52,4 +58,5 @@ function Home() {
     </Card>
   )
   // !auth:end
+  // !dashboard:end
 }
