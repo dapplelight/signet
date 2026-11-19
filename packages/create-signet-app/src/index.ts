@@ -13,7 +13,17 @@
 import { existsSync } from "node:fs"
 import { cp, mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises"
 import { basename, join, resolve } from "node:path"
-import { cancel, confirm, intro, isCancel, outro, select } from "@clack/prompts"
+import {
+  cancel,
+  confirm,
+  intro,
+  isCancel,
+  multiselect,
+  note,
+  outro,
+  select,
+  text,
+} from "@clack/prompts"
 import {
   applyBlocks,
   type BaseDeps,
@@ -28,11 +38,23 @@ import {
   type StarterName,
 } from "./compose.js"
 import { appId, DESKTOP_PKG } from "./desktop.js"
+import {
+  choose,
+  command,
+  type Mix,
+  mixRows,
+  nameError,
+  PLATFORMS,
+  type Platform,
+  partRows,
+  summary,
+  THEME_LABELS,
+  ticked,
+  WHAT,
+} from "./picker.js"
 
 const THEMES = ["editorial", "cinematic", "finance"] as const
 type Theme = (typeof THEMES)[number]
-const PLATFORMS = ["web", "api", "cli", "extension", "desktop"] as const
-type Platform = (typeof PLATFORMS)[number]
 // --template is the old name for --platform, kept working; its `full` is now `--starter full`.
 const TEMPLATES = [...PLATFORMS, "full"] as const
 type Template = (typeof TEMPLATES)[number]
@@ -474,7 +496,9 @@ Examples:
     }
   }
 
-  if (!name) throw new Error("Missing target directory.\nUsage: create-signet-app <directory>")
+  // On a terminal a missing name is asked for (askName); elsewhere it is an error.
+  if (!name && !process.stdin.isTTY)
+    throw new Error("Missing target directory.\nUsage: create-signet-app <directory>")
   const composing =
     composeFlags.starter ||
     composeFlags.ui ||
@@ -518,6 +542,7 @@ Examples:
     mcp,
     pm: pm ?? detectPm(),
     composeFlags,
+    themeGiven,
     // Nothing said what to build: asked on a terminal, else the web platform.
     pick: !templateGiven && !composing,
   }
@@ -574,56 +599,85 @@ async function substitute(dir: string, vars: Record<string, string>) {
   }
 }
 
-/** One line each in the picker; cut to the terminal's width when shown. */
-const PLATFORM_HINTS: Record<Platform, string> = {
-  web: "Vite + React + Signet UI",
-  api: "Hono Worker: error envelope, request ids, rate limiting",
-  cli: "Bun CLI compiled to one binary, device-code login",
-  extension: "Chrome MV3 extension: popup, options page, service worker",
-  desktop: "Tauri v2 desktop + menu-bar app, browser sign-in",
-}
-
 /** Ctrl+C at a prompt: say so and leave without scaffolding. */
 function cancelled(): never {
   cancel("Cancelled.")
   process.exit(130)
 }
 
-/** A picker row: "platform · web" or "starter  · saas", its hint kept to one line. */
-function pickerOption<V extends string>(group: string, value: V, hint: string, width: number) {
-  const label = `${group.padEnd(8)} · ${value}`
-  // "│  ● " before the label, " (" and ")" around the hint, and the margin
-  // clack keeps when it wraps a row.
-  const room = width - label.length - 21
-  return {
-    value,
-    label,
-    hint: room < 2 ? undefined : hint.length > room ? `${hint.slice(0, room - 1)}…` : hint,
+/** A prompt's answer, or Ctrl+C's exit. */
+function ask<T>(answer: T): Exclude<T, symbol> {
+  if (isCancel(answer)) cancelled()
+  return answer as Exclude<T, symbol>
+}
+
+/** The directory name, when it was not given; only asked on a terminal. */
+async function askName(): Promise<string> {
+  const name = ask(
+    await text({
+      message: "Project name?",
+      placeholder: "my-app",
+      defaultValue: "my-app",
+      validate: (v) => nameError(v, process.cwd()),
+    }),
+  )
+  return name.trim() || "my-app"
+}
+
+/**
+ * The picker: what you are building; for web and api, a ready-made mix and
+ * its features (ticked, to adjust); the theme where there is a web UI; MCP
+ * where there is an API. Rows and the mapping to flags are in src/picker.ts.
+ */
+async function askWhat(themeGiven?: Theme) {
+  const what = ask(
+    await select<Platform>({
+      message: "What are you building?",
+      initialValue: "web",
+      options: WHAT,
+    }),
+  )
+  let choice = choose(what)
+  let ticks: PartName[] = []
+  if (what === "web" || what === "api") {
+    const mix = ask(
+      await select<Mix>({ message: "Start from", initialValue: "basics", options: mixRows(what) }),
+    )
+    ticks = ask(
+      await multiselect<PartName>({
+        message: "Features (change any, Enter to accept)",
+        options: partRows(what),
+        initialValues: ticked(mix),
+        required: false,
+      }),
+    )
+    choice = choose(what, mix, ticks)
   }
+  // A web app's every answer has a web UI; an API's and a CLI's none.
+  const ui = what !== "api" && what !== "cli"
+  const theme =
+    ui && !themeGiven
+      ? ask(
+          await select<Theme>({
+            message: "Theme",
+            initialValue: "editorial",
+            options: THEMES.map((t) => ({ value: t, label: THEME_LABELS[t] ?? t })),
+          }),
+        )
+      : themeGiven
+  const mcp = choice.template === "api" || choice.template === "full" ? await askMcp() : undefined
+  return { what, choice, ticks, theme: ui ? theme : undefined, mcp }
 }
 
-/** "What are you building?": a platform or a starter, by arrow keys; default web. */
-async function askWhat(): Promise<Platform | StarterName> {
-  intro("create-signet-app")
-  const width = process.stdout.columns || 80
-  const what = await select<Platform | StarterName>({
-    message: "What are you building?",
-    initialValue: "web",
-    options: [
-      ...PLATFORMS.map((p) => pickerOption("platform", p, PLATFORM_HINTS[p], width)),
-      ...STARTER_NAMES.map((s) => pickerOption("starter", s, STARTERS[s].description, width)),
-    ],
-  })
-  if (isCancel(what)) cancelled()
-  return what
-}
-
-/** "Add MCP for agents?", default yes; only asked on a terminal. */
+/** "Let AI coding agents work with this app?", default yes; only asked on a terminal. */
 async function askMcp(): Promise<boolean> {
   if (!process.stdin.isTTY) return true
-  const yes = await confirm({ message: "Add MCP for agents?", initialValue: true })
-  if (isCancel(yes)) cancelled()
-  return yes
+  return ask(
+    await confirm({
+      message: "Let AI coding agents work with this app? (adds an MCP server)",
+      initialValue: true,
+    }),
+  )
 }
 
 /** A platform's template, its --target files and MCP's overlay, as they always were. */
@@ -714,8 +768,12 @@ function composedMessage(
 
 async function main() {
   const parsed = parseArgs(process.argv)
-  const { name, target, pm, ...flags } = parsed
+  const { target, pm, ...flags } = parsed
   let { theme, template } = parsed
+  // On a terminal, a missing name or a missing platform is asked for, in one frame.
+  const asking = process.stdin.isTTY && (parsed.pick || !parsed.name)
+  if (asking) intro("create-signet-app")
+  const name = parsed.name ?? (await askName())
   const dest = resolve(process.cwd(), name)
   const appName = basename(dest)
 
@@ -732,12 +790,24 @@ async function main() {
   }
   const picking = parsed.pick && process.stdin.isTTY
   if (picking) {
-    const what = await askWhat()
-    if ((PLATFORMS as readonly string[]).includes(what)) template = what as Platform
-    else {
-      template = "full"
-      parsed.composeFlags.starter = what as StarterName
-    }
+    const { what, choice, ticks, theme: picked, mcp } = await askWhat(parsed.themeGiven)
+    template = choice.template
+    const c = parsed.composeFlags
+    c.starter = choice.starter
+    c.api = choice.api ?? false
+    c.with = choice.with ?? []
+    if (picked) theme = picked
+    flags.mcp = mcp
+    const runner = `${pm === "bun" ? "bunx" : "npx"} create-signet-app`
+    note(
+      [
+        ...summary(what, choice, ticks, picked, mcp),
+        "",
+        "Same as:",
+        command(runner, name, choice, picked, mcp),
+      ].join("\n"),
+      `Creating ${appName}`,
+    )
   }
   if (parsed.pm === "deno" && template === "cli")
     throw new Error(
@@ -867,7 +937,7 @@ async function main() {
   }
   const steps = `cd ${name}\n  ${install}\n  ${run} dev`
   // Closes the picker's frame; the next steps below are printed as they always were.
-  if (picking) outro(`Scaffolded ${appName}.`)
+  if (asking) outro(`Scaffolded ${appName}.`)
   console.log(
     template === "cli"
       ? `

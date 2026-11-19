@@ -68,7 +68,14 @@ bunx create-signet-app my-app --starter saas --with ai      # a starter, plus a 
   is the default).
 - **Starters** are named mixes of parts, by the shape of app. `--with` adds to
   the starter, `--without` takes away; `--without` alone starts from `full`.
-  Run with no flags on a terminal to pick a platform or starter from a list.
+  Run with no flags on a terminal and it asks in plain words: the name (if not
+  given), what you are building (web app, API only, command-line tool, browser
+  extension, desktop app), then for a web app or an API a mix to start from
+  (just the basics, a starter, or everything) and its features, ticked so you
+  can add or remove any. Ticks that equal a starter are `--starter`, anything
+  else is `--with`. Then the theme (where there is a web UI) and MCP (where
+  there is an API). Before creating it shows a summary and the one-line
+  command that builds the same app.
 
   | starter | parts (plus what they need) |
   | --- | --- |
