@@ -141,13 +141,16 @@ function AppLayout() {
   // !dashboard:begin
   return (
     <>
-      <header className="flex flex-wrap items-center gap-4 border-b border-border px-6 py-3">
+      {/* On phones the nav drops to its own row under the name and actions. */}
+      <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-4 py-3 sm:px-6">
         <Link to="/" className="font-medium">
           __APP_NAME__
         </Link>
         {switcher} {/* @orgs */}
-        <nav className="flex flex-1 flex-wrap items-center gap-1 text-sm">{nav}</nav>
-        {actions}
+        <nav className="order-last flex w-full items-center gap-1 overflow-x-auto text-sm sm:order-none sm:w-auto sm:flex-1">
+          {nav}
+        </nav>
+        <div className="ml-auto flex items-center gap-2">{actions}</div>
       </header>
       <main className="mx-auto max-w-3xl p-6">
         <Outlet />
