@@ -162,6 +162,24 @@ export function summary(
   ]
 }
 
+/**
+ * A question the picker asks only where it applies and only when no flag
+ * answered it: the flag's value is kept, never overwritten. Undefined where
+ * it does not apply (a flag given there is left for checkCombo to refuse).
+ */
+export async function answer<T>(
+  applies: boolean,
+  given: T | undefined,
+  ask: () => Promise<T>,
+): Promise<T | undefined> {
+  if (!applies) return undefined
+  return given ?? ask()
+}
+
+/** MCP applies where there is an API; the theme where there is a web UI. */
+export const hasApi = (c: Choice) => c.template === "api" || c.template === "full"
+export const hasUi = (what: Platform) => what !== "api" && what !== "cli"
+
 /** Why a typed project name can't be used, or undefined; empty is the default, my-app. */
 export function nameError(typed: string | undefined, cwd: string): string | undefined {
   const name = typed?.trim() || "my-app"
