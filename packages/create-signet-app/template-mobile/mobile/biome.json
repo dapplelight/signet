@@ -1,0 +1,8 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "extends": ["@dapplelight/signet-config/biome"],
+  "files": {
+    "ignoreUnknown": true,
+    "includes": ["**", "!.expo", "!ios", "!android", "!coverage", "!**/*.md"]
+  }
+}

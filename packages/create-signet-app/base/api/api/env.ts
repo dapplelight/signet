@@ -18,6 +18,10 @@ export const envSchema = z.object({
   /** Comma-separated phone numbers (E.164) that get the admin role on sign-in. */
   ADMIN_PHONES: z.string().default(""),
   // auth:end
+  // mobile:begin
+  /** Expo push access token, needed once push security is on in the Expo project. */
+  EXPO_ACCESS_TOKEN: z.string().optional(),
+  // mobile:end
   // payments:begin
   /**
    * "fake": Upgrade switches the plan at once and no money moves. Refused in

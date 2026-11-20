@@ -98,7 +98,9 @@ const cases: Case[] = surfaces.flatMap((surface) => {
 // Each starter as it ships (full and blank are "all" and "none" above), on its own surface.
 if (!onlyPart || onlyPart.startsWith("starter-"))
   for (const s of Object.keys(STARTERS) as StarterName[]) {
-    if (s === "full" || s === "blank" || (onlyPart && onlyPart !== `starter-${s}`)) continue
+    // mobile is two projects (server/, mobile/): test/scaffold-mobile.ts checks it.
+    if (s === "full" || s === "blank" || s === "mobile") continue
+    if (onlyPart && onlyPart !== `starter-${s}`) continue
     const surface: Surface = "surface" in STARTERS[s] ? "api" : "both"
     if (onlySurface && onlySurface !== surface) continue
     cases.push({ label: `starter-${s}`, surface, parts: [...STARTERS[s].parts], starter: s })

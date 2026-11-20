@@ -25,10 +25,12 @@ import { kvRateLimitStore } from "@dapplelight/signet-server/adapters"
 // account:begin
 import { kvApiKeyStore } from "@dapplelight/signet-server/auth/api-keys"
 // account:end
+import type { ClientLoginOptions } from "@dapplelight/signet-server/auth/client-login" // @mobile
 // auth:begin
 import { devSmsSender, type SmsSender } from "@dapplelight/signet-server/auth/otp"
 import { kvSessionStore } from "@dapplelight/signet-server/auth/sessions"
 // auth:end
+import { expoPushSender } from "@dapplelight/signet-server/notify/channels" // @mobile
 // notifications:begin
 import {
   createNotifier,
@@ -160,6 +162,8 @@ export function createServices({ db, kv }: Deps) { // @!auth
     cookieName: "session",
     secret: env.SESSION_SECRET,
     store: kvSessionStore(kv),
+    // The mobile app sends `Authorization: Bearer`; the web app's cookie still works. // @mobile
+    bearer: true, // @mobile
   }
   const rateLimit = kvRateLimitStore(kv)
   const otp = {
@@ -171,9 +175,54 @@ export function createServices({ db, kv }: Deps) { // @!auth
     rateLimit,
   }
   // auth:end
+  // mobile:begin
+  // The mobile app signs in with a phone code too, then holds a token pair
+  // instead of the cookie (routes/auth.ts, routes/mobile.ts). No device or
+  // browser flow is mounted, so the verification page is never shown.
+  const clientLogin: ClientLoginOptions = {
+    sessions,
+    kv,
+    rateLimit,
+    clients: { mobile: {} },
+    verificationUri: "",
+  }
+  // Each user's Expo push tokens, newest last, in the kv table.
+  // ponytail: read-modify-write per user; a table with a unique token column at scale.
+  // A token belongs to one user at a time (push-owner:<token>): when another
+  // account turns push on from the same phone, the previous owner loses it,
+  // even if their sign-out never reached the server.
+  const pushKey = (userId: string) => `push-tokens:${userId}`
+  const ownerKey = (token: string) => `push-owner:${token}`
+  const dropFrom = async (userId: string, token: string) => {
+    const kept = (await pushTokens.list(userId)).filter((t) => t !== token)
+    await kv.set(pushKey(userId), JSON.stringify(kept))
+  }
+  const pushTokens = {
+    async list(userId: string): Promise<string[]> {
+      return JSON.parse((await kv.get(pushKey(userId))) ?? "[]") as string[]
+    },
+    async add(userId: string, token: string) {
+      const previous = await kv.get(ownerKey(token))
+      if (previous && previous !== userId) await dropFrom(previous, token)
+      await kv.set(ownerKey(token), userId)
+      const kept = (await pushTokens.list(userId)).filter((t) => t !== token)
+      await kv.set(pushKey(userId), JSON.stringify([...kept, token].slice(-10)))
+    },
+    async remove(token: string, userId: string) {
+      await dropFrom(userId, token)
+      if ((await kv.get(ownerKey(token))) === userId) await kv.delete(ownerKey(token))
+    },
+  }
+  const push = expoPushSender({
+    tokens: pushTokens.list,
+    removeToken: pushTokens.remove,
+    ...(env.EXPO_ACCESS_TOKEN ? { accessToken: env.EXPO_ACCESS_TOKEN } : {}),
+  })
+  // mobile:end
   // notifications:begin
   const notifier = createNotifier({
-    channels: {},
+    channels: { push }, // a template with a push variant reaches the phone // @mobile
+    channels: {}, // @!mobile
     templates,
     store: kvNotifyStore(kv),
     recipients: async (id) => {
@@ -242,6 +291,11 @@ export function createServices({ db, kv }: Deps) { // @!auth
     rateLimit,
     otp,
     // auth:end
+    // mobile:begin
+    clientLogin,
+    pushTokens,
+    push,
+    // mobile:end
     apiKeys: kvApiKeyStore(kv), // @account
     notifier, // @notifications
     // payments:begin

@@ -208,6 +208,22 @@ export function redirectUriAllowed(registered: string[], given: string): boolean
   return false
 }
 
+/**
+ * Sign a user in on a client that proved who they are another way, such as a
+ * phone code typed into a mobile app: a new stored session and its first
+ * token pair, refreshed at the token endpoint like any other. The caller has
+ * verified the user; `clientId` must be one of `clients`.
+ */
+export async function signInClient(
+  o: ClientLoginOptions,
+  sub: string,
+  clientId: string,
+  ctx: { userAgent?: string | null; ip?: string | null } = {},
+): Promise<TokenResponse> {
+  if (!o.clients[clientId]) throw new Error(`signInClient: unknown client_id "${clientId}"`)
+  return signIn(o, sub, clientId, ctx)
+}
+
 /** A new stored session for `sub`, and its first token pair. */
 async function signIn(
   o: ClientLoginOptions,

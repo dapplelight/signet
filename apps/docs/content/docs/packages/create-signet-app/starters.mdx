@@ -12,10 +12,10 @@ npx create-signet-app@latest
 ## What it asks
 
 1. **Name.** Asked only if you gave none. Empty means `my-app`.
-2. **What are you building?** Web app, API only, command-line tool, browser extension or desktop app.
+2. **What are you building?** Web app, API only, mobile app, command-line tool, browser extension or desktop app. Mobile app is the `mobile` starter; it skips the next two steps.
 3. **Start from.** Web and API only. Just the basics, or one of the starters below.
 4. **Features.** Web and API only. The starter's parts come ticked; change any. The API path leaves out the web-only parts (`dashboard`, `pwa`).
-5. **Theme.** Where there is a web UI: `editorial`, `cinematic` or `finance`.
+5. **Theme.** Where there is a UI (web or mobile): `editorial`, `cinematic` or `finance`.
 6. **MCP.** Where there is an API: let AI coding agents work with the app. Default yes.
 7. **Summary.** What it will create, plus the one-line command that builds the same app.
 
@@ -34,8 +34,9 @@ npx create-signet-app@latest
 | `automation` | Durable jobs, approvals, alerts | web + API | `account`, `notifications`, `workflows` |
 | `dashboard` | Sidebar shell, stat tiles, a chart, a table | web + API | `account`, `dashboard` |
 | `pwa` | Installable, works offline | web + API | `account`, `pwa` |
+| `mobile` | Expo app for iOS and Android: phone sign-in, push, offline writes | mobile + API | `account`, `mobile` |
 
-Parts a part needs come along: `account` brings `auth`. On the API path the picker offers `api-billing` and `full`; ticks that match no starter print as `--api --with` followed by the parts.
+Parts a part needs come along: `account` brings `auth`. `mobile` makes two projects, `mobile/` and `server/`; see [Build a mobile app](/docs/guides/build-a-mobile-app). On the API path the picker offers `api-billing` and `full`; ticks that match no starter print as `--api --with` followed by the parts.
 
 ## Without the picker
 
@@ -50,6 +51,9 @@ npx create-signet-app@latest my-app --starter pwa
 
 # the API half of a billing app (--starter api is the old name for api-billing)
 npx create-signet-app@latest my-api --starter api-billing
+
+# an Expo app in mobile/ and its API in server/
+npx create-signet-app@latest my-app --starter mobile
 ```
 
 | Question | Flag |

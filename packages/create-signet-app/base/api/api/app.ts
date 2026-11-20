@@ -41,6 +41,7 @@ import { authRoutes, requireUser } from "./routes/auth.ts" // @auth
 // payments:begin
 import { billingRoutes, billingWebhooks } from "./routes/billing.ts"
 // payments:end
+import { mobileRoutes } from "./routes/mobile.ts" // @mobile
 // notifications:begin
 import { notificationRoutes } from "./routes/notifications.ts"
 // notifications:end
@@ -69,6 +70,7 @@ const SIGNED_IN = [
   "/api/ai", // AI calls, within the spend caps // @ai
   "/api/paywall", // the paywall for a placement // @paywalls
   "/api/workflows", // workflow runs and approvals // @workflows
+  "/api/mobile/push", // the phone's push token, a test push // @mobile
 ]
 // auth:end
 
@@ -103,7 +105,18 @@ export function createApp(deps: Deps) {
   }
   // Blocks cross-site form posts riding the session cookie. The web app is
   // served from this same origin, so nothing else needs trusting.
-  base.use("/api/*", csrfMiddleware())
+  base.use("/api/*", csrfMiddleware()) // @!mobile
+  // mobile:begin
+  // Not the mobile token routes: they read the refresh token from the body
+  // (a form post, as OAuth has it), never the cookie, so a forged post has
+  // nothing to ride.
+  const csrf = csrfMiddleware()
+  base.use("/api/*", (c, next) =>
+    c.req.path === "/api/mobile/token" || c.req.path === "/api/mobile/revoke"
+      ? next()
+      : csrf(c, next),
+  )
+  // mobile:end
   base.use("/api/*", rateLimit<AppEnv>({ store: memoryStore(), trust: TRUST, max: 300 }))
   // auth:begin
   for (const path of SIGNED_IN) base.use(`${path}/*`, requireUser(s))
@@ -137,6 +150,7 @@ export function createApp(deps: Deps) {
     .route("/api/sessions", sessionRoutes(s.sessions))
     .route("/api/account", accountRoutes(s))
     // auth:end
+    .route("/api/mobile", mobileRoutes(s)) // @mobile
     // notifications:begin
     .route("/api/notifications", notificationRoutes(s))
     // notifications:end

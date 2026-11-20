@@ -1,0 +1,145 @@
+---
+title: "Build a Mobile App"
+description: "Scaffold an Expo app for iOS and Android and its API, sign in by phone, send push notifications and queue writes offline."
+---
+
+`--starter mobile` makes two projects: an Expo Router app in `mobile/` and the Bun API it signs in to in `server/`. Each has its own `package.json`, so React Native's toolchain and the API's never share a dependency tree.
+
+<Steps>
+<Step>
+### Scaffold and run
+
+```bash
+npx create-signet-app@latest my-app --starter mobile
+cd my-app/server && npm install && npm run dev
+```
+
+In a second terminal:
+
+```bash
+cd my-app/mobile && npm install && npm run start
+```
+
+Press `i` for the iOS simulator or `a` for Android. Sign in with any phone number: in development no text is sent and the code is printed in the API's terminal. `--pm` takes `bun` or `npm` for this starter.
+
+The app reaches the API at `EXPO_PUBLIC_API_URL` (default `http://localhost:3000`). On the Android emulator use `http://10.0.2.2:3000`; on a phone, your machine's address on the Wi-Fi.
+</Step>
+<Step>
+### What you get
+
+| Where | What |
+| --- | --- |
+| `mobile/src/app/_layout.tsx` | The auth gate: `Stack.Protected` shows `(app)` when signed in and `(auth)` when not. An error boundary for any screen that throws. |
+| `mobile/src/app/(auth)` | Phone number, then the code. Keyboard-avoiding forms, 44pt targets, labelled fields. |
+| `mobile/src/app/(app)` | Tabs: Home, Devices (a list and detail with pull to refresh and loading, empty and error states) and Settings (theme, light or dark, notifications, sign out, version). |
+| `mobile/src/lib` | Session, API client, outbox, push, analytics and theme, each over a Signet package. |
+| `mobile/app.config.ts`, `eas.json` | Scheme, typed routes, `expo-updates`, placeholder icon and splash; `development`, `preview` and `production` build profiles. |
+| `server/api/routes/mobile.ts` | Token refresh and revoke, and the phone's Expo push token. |
+
+Both projects lint, typecheck and test: Biome through `@dapplelight/signet-config`, `bun test` on the API, `jest-expo` with Testing Library on the app. One CI workflow at the root runs both.
+</Step>
+<Step>
+### Sign-in: tokens, not cookies
+
+A phone keeps a token pair instead of a cookie. The sign-in screen verifies the code with `client_id=mobile`, and the API answers with `{ user, tokens }` from `signInClient`:
+
+```ts title="server/api/routes/auth.ts"
+import { type ClientLoginOptions, signInClient } from "@dapplelight/signet-server/auth/client-login"
+
+// After the code checks out, for ?client_id=mobile instead of the browser:
+// a session and its token pair, for a client registered in `clients`.
+export function tokensFor(clientLogin: ClientLoginOptions, userId: string, userAgent?: string) {
+  return signInClient(clientLogin, userId, "mobile", { userAgent })
+}
+```
+
+The app stores the pair in the Keychain or Keystore and refreshes the access token before it expires:
+
+```ts title="mobile/src/lib/session.ts"
+import { createSession, tokenEndpointRefresh } from "@dapplelight/signet-lib/session"
+import { secureStorage } from "./storage"
+
+export const session = createSession({
+  storage: secureStorage,
+  refresh: tokenEndpointRefresh(`${process.env.EXPO_PUBLIC_API_URL}/api/mobile/token`, "mobile"),
+})
+```
+
+The API client sends the access token and, when a 401 survives a refresh, clears the session. The gate in `_layout.tsx` then shows sign-in:
+
+```ts title="mobile/src/lib/api.ts"
+import { createApiClient } from "@dapplelight/signet-lib/api"
+import { session } from "./session"
+
+export const api = createApiClient({
+  baseUrl: process.env.EXPO_PUBLIC_API_URL,
+  credentials: "omit",
+  token: session.token,
+  refresh: session.refresh,
+  onAuthError: () => void session.clear(),
+})
+```
+
+Sessions show up in the API's devices list like browser ones, so the Devices tab can sign a phone out.
+</Step>
+<Step>
+### Offline writes
+
+A write that cannot reach the API is queued and sent when the network returns, each with the `Idempotency-Key` it was queued with:
+
+```ts title="mobile/src/app/(app)/index.tsx"
+import { sendOrQueue } from "@/lib/outbox"
+
+const result = await sendOrQueue({ method: "PATCH", path: "/api/account/me", body: { name: "Ada" } })
+// "sent", or "queued" until the phone is back online
+```
+
+`lib/outbox.ts` wraps `createOutbox` from `@dapplelight/signet-lib/offline` over SQLite storage and flushes on reconnect (`expo-network`). A write the API refuses for good (a 400 or 404) is dropped; offline, a 5xx or a 401 stays for the next flush.
+</Step>
+<Step>
+### Push notifications
+
+1. Make a development build: `npx eas-cli build --profile development`. Expo Go cannot receive push.
+2. Set `EAS_PROJECT_ID` (from `eas init`) for the app, and `EXPO_ACCESS_TOKEN` on the API once push security is on in your Expo project.
+3. Settings, Turn on notifications: the app posts its Expo push token to `/api/mobile/push/token`.
+
+The API sends through Expo's push service with `expoPushSender`, and drops tokens Expo reports as no longer registered:
+
+```ts title="server/api/services.ts"
+import { expoPushSender } from "@dapplelight/signet-server/notify/channels"
+
+type PushTokens = {
+  list(userId: string): Promise<string[]>
+  remove(token: string, userId: string): Promise<void>
+}
+
+// The phone's tokens are kept per user in kv; services.ts has the store.
+export const pushFor = (pushTokens: PushTokens, accessToken?: string) =>
+  expoPushSender({
+    tokens: pushTokens.list,
+    removeToken: pushTokens.remove,
+    ...(accessToken ? { accessToken } : {}),
+  })
+```
+
+A notification's `url` opens that screen when tapped, if it is one of the screens listed in `mobile/src/lib/push.ts`.
+</Step>
+<Step>
+### Ship it
+
+```bash
+npx eas-cli build --profile production --platform all
+npx eas-cli update --channel production
+```
+
+Before the first store build, replace the `com.example` identifier in `app.config.ts` and the icon and splash in `assets/`. Updates reach builds of the same app version.
+</Step>
+</Steps>
+
+## Gaps
+
+- **Push receipts.** `expoPushSender` reads Expo's tickets, not the receipts it can fetch later, so a token that fails after Expo accepts the message is only removed on the next send that reports it.
+- **Analytics ingest.** Each screen sends a `screen_view` event to `EXPO_PUBLIC_ANALYTICS_URL` when it is set. The API has no ingest route yet; add one with `@dapplelight/signet-server/analytics`.
+- **Expo Go.** Everything but push runs in Expo Go. Push needs a development build.
+
+The app's own README covers every environment variable, deep links and EAS in full.
