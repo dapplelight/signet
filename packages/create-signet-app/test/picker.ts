@@ -52,8 +52,8 @@ const allRows = [
   ...Object.values(THEME_LABELS).map((label) => ({ value: "", label })),
 ]
 ok(
-  "what: five platforms, web first",
-  eq(values(WHAT), ["web", "api", "cli", "extension", "desktop"]),
+  "what: five platforms and the mobile starter, web first",
+  eq(values(WHAT), ["web", "api", "mobile", "cli", "extension", "desktop"]),
 )
 ok(
   "every row fits one line at 60 columns (label at most 44)",
@@ -78,8 +78,10 @@ ok(
   eq(apiMixes, ["basics", "api-billing", "full"]),
 )
 ok(
-  "every starter is offered (full on both paths)",
-  Object.keys(STARTERS).every((s) => webMixes.includes(s) || apiMixes.includes(s)),
+  "every starter is offered (full on both paths; mobile is its own row in step 1)",
+  Object.keys(STARTERS).every(
+    (s) => s === "mobile" || webMixes.includes(s) || apiMixes.includes(s),
+  ) && ![...webMixes, ...apiMixes].includes("mobile"),
 )
 ok(
   "features: every part but mcp on web; the API path drops web-only parts",
@@ -105,6 +107,7 @@ for (const [args, want] of [
   [["cli"], { template: "cli" }],
   [["extension"], { template: "extension" }],
   [["desktop"], { template: "desktop" }],
+  [["mobile"], { template: "full", starter: "mobile" }],
   [["web", "basics", []], { template: "web" }],
   [["api", "basics", []], { template: "api" }],
   // A mix accepted as ticked (needs included) is the starter; with or without the needs.

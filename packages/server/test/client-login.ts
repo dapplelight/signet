@@ -9,6 +9,7 @@ import {
   normalizeUserCode,
   pkceChallenge,
   redirectUriAllowed,
+  signInClient,
 } from "../src/auth/client-login"
 import { clientLoginRoutes, requireStoredSession } from "../src/auth/hono"
 import { kvSessionStore, startSession } from "../src/auth/sessions"
@@ -428,6 +429,28 @@ ok(
     limited.status === 429 && !!limited.headers.get("retry-after"),
     limited.status,
   )
+}
+
+// ------------------------------------------------------------------ signInClient
+{
+  const t = await signInClient(opts, "user-9", "example-cli", { userAgent: "phone" })
+  const who = (await (await me(t.access_token)).json()) as { sub: string }
+  const next = await token({
+    grant_type: "refresh_token",
+    refresh_token: t.refresh_token,
+    client_id: "example-cli",
+  })
+  ok(
+    "signInClient: a token pair that authenticates and refreshes",
+    who.sub === "user-9" && next.status === 200,
+  )
+  let msg = ""
+  try {
+    await signInClient(opts, "user-9", "nobody")
+  } catch (e) {
+    msg = String(e)
+  }
+  ok("signInClient: refuses an unknown client", msg.includes("unknown client_id"), msg)
 }
 
 ok(

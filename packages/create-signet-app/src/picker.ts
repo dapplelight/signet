@@ -22,9 +22,13 @@ import {
 export const PLATFORMS = ["web", "api", "cli", "extension", "desktop"] as const
 export type Platform = (typeof PLATFORMS)[number]
 
-export const WHAT: { value: Platform; label: string }[] = [
+/** Step 1's answers: a platform, or the mobile starter (an Expo app and its API). */
+export type What = Platform | "mobile"
+
+export const WHAT: { value: What; label: string }[] = [
   { value: "web", label: "Web app — a site people open in a browser" },
   { value: "api", label: "API only — a server other apps talk to" },
+  { value: "mobile", label: "Mobile app — iOS and Android, with its API" },
   { value: "cli", label: "Command-line tool — runs in a terminal" },
   { value: "extension", label: "Browser extension — a Chrome add-on" },
   { value: "desktop", label: "Desktop app — Mac, Windows and Linux" },
@@ -34,12 +38,16 @@ export const WHAT: { value: Platform; label: string }[] = [
 export type Mix = "basics" | StarterName
 
 const STARTER_NAMES = Object.keys(STARTERS) as StarterName[]
-const apiStarter = (s: StarterName) => "surface" in STARTERS[s]
+const surfaceOf = (s: StarterName) =>
+  (STARTERS[s] as { surface?: "api" | "mobile" }).surface ?? "both"
+const apiStarter = (s: StarterName) => surfaceOf(s) === "api"
 
-/** The starters offered on a path: the API ones for api, the rest for web; full on both, last. */
+/** The starters offered on a path: the API ones for api, web + API ones for web; full on both, last. */
 function startersFor(what: "web" | "api"): StarterName[] {
   const ends: StarterName[] = what === "web" ? ["blank", "full"] : ["full"]
-  const rest = STARTER_NAMES.filter((s) => !ends.includes(s) && (what === "api") === apiStarter(s))
+  const rest = STARTER_NAMES.filter(
+    (s) => !ends.includes(s) && surfaceOf(s) === (what === "api" ? "api" : "both"),
+  )
   return [...rest, ...ends]
 }
 
@@ -72,6 +80,7 @@ const PART_LABELS: Record<Exclude<PartName, "mcp">, string> = {
   workflows: "Approvals — multi-step jobs people sign off",
   dashboard: "Dashboard — sidebar, stats, a chart, a table",
   pwa: "Installable — works offline",
+  mobile: "Mobile API — token sign-in, push tokens",
 }
 const partLabel = (p: PartName) => PART_LABELS[p as Exclude<PartName, "mcp">]
 
@@ -107,7 +116,8 @@ const same = (a: readonly string[], b: readonly string[]) =>
  * `--with`, plus `--api` on the API path. Nothing ticked from the basics, or
  * nothing that matches a starter, is the platform alone.
  */
-export function choose(what: Platform, mix: Mix = "basics", ticks: PartName[] = []): Choice {
+export function choose(what: What, mix: Mix = "basics", ticks: PartName[] = []): Choice {
+  if (what === "mobile") return { template: "full", starter: "mobile" }
   if (what !== "web" && what !== "api") return { template: what }
   if (mix === "basics" && !ticks.length) return { template: what }
   const api = what === "api" ? ({ api: true } as const) : {}
@@ -142,7 +152,7 @@ export function command(
 
 /** The summary shown before creating: what, which mix, the parts installed (needs too), theme, MCP. */
 export function summary(
-  what: Platform,
+  what: What,
   c: Choice,
   ticks: PartName[],
   theme?: string,
@@ -181,7 +191,7 @@ export async function answer<T>(
 
 /** MCP applies where there is an API; the theme where there is a web UI. */
 export const hasApi = (c: Choice) => c.template === "api" || c.template === "full"
-export const hasUi = (what: Platform) => what !== "api" && what !== "cli"
+export const hasUi = (what: What) => what !== "api" && what !== "cli"
 
 /** Why a typed project name can't be used, or undefined; empty is the default, my-app. */
 export function nameError(typed: string | undefined, cwd: string): string | undefined {

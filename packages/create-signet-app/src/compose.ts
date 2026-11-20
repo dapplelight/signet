@@ -21,6 +21,7 @@ import auth from "../parts/auth/part.js"
 import dashboard from "../parts/dashboard/part.js"
 import growth from "../parts/growth/part.js"
 import mcp from "../parts/mcp/part.js"
+import mobile from "../parts/mobile/part.js"
 import notifications from "../parts/notifications/part.js"
 import orgs from "../parts/orgs/part.js"
 import payments from "../parts/payments/part.js"
@@ -71,6 +72,7 @@ export const PART_NAMES = [
   "workflows",
   "dashboard",
   "pwa",
+  "mobile",
   "mcp",
 ] as const
 export type PartName = (typeof PART_NAMES)[number]
@@ -88,15 +90,17 @@ export const PARTS: Record<PartName, Part> = {
   workflows,
   dashboard,
   pwa,
+  mobile,
   mcp,
 }
 
 /**
  * A named mix of parts, by the shape of app, never its domain. `full` is
  * everything the full template had (not dashboard or pwa, which reshape the
- * web half); `blank` is the base alone (the shell, the
+ * web half, nor mobile, which serves a phone app); `blank` is the base alone (the shell, the
  * API, the database), for parts of your own. Needs are added for you (admin
- * brings orgs, everything brings auth). `surface: "api"` is the API half only.
+ * brings orgs, everything brings auth). `surface: "api"` is the API half only;
+ * `surface: "mobile"` is an Expo app in mobile/ with the API half in server/.
  * MCP is not listed: it is asked for (or --mcp / --no-mcp), as it always was.
  * Each description is one line, quoted, first: signet-mcp's index reads it.
  * The label is the picker's row, in words for someone who knows none of the
@@ -106,7 +110,7 @@ export const STARTERS = {
   full: {
     description: "every part, web + API",
     label: "Everything — every feature",
-    parts: PART_NAMES.filter((p) => !["mcp", "dashboard", "pwa"].includes(p)),
+    parts: PART_NAMES.filter((p) => !["mcp", "dashboard", "pwa", "mobile"].includes(p)),
   },
   blank: {
     description: "no parts: the shell, the API and the database",
@@ -159,9 +163,15 @@ export const STARTERS = {
     label: "Installable app — works offline",
     parts: ["account", "pwa"],
   },
+  mobile: {
+    description: "an Expo app for iOS and Android and its API: phone sign-in, push, offline",
+    label: "Mobile app — iOS and Android, with its API",
+    parts: ["account", "mobile"],
+    surface: "mobile",
+  },
 } satisfies Record<
   string,
-  { description: string; label: string; parts: PartName[]; surface?: "api" }
+  { description: string; label: string; parts: PartName[]; surface?: "api" | "mobile" }
 >
 export type StarterName = keyof typeof STARTERS
 

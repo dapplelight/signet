@@ -9,14 +9,14 @@ description: "Every create-signet-app flag, platform and API target."
 | --- | --- | --- | --- |
 | `<directory>` | path | asked on a terminal, else required | Must not exist or be empty. |
 | `--platform` | `web`, `api`, `cli`, `extension`, `desktop` | `web`, or asked | One app each. `--template` is the old name and still works. |
-| `--starter` | a name from [Starters](/docs/packages/create-signet-app/starters) | none | A web app and its API in one project. `api` is the old name for `api-billing`. |
+| `--starter` | a name from [Starters](/docs/packages/create-signet-app/starters) | none | A web app and its API in one project. `api` is the old name for `api-billing`. `mobile` is an Expo app in `mobile/` and its API in `server/`. |
 | `--with` | parts, comma-separated | none | Adds parts to a starter, or to the basics. What they need comes too. |
 | `--without` | parts, comma-separated | none | Leaves parts out. Alone, it starts from `full`. |
-| `--ui`, `--api` | flag | both halves | Only the web half, or only the API half. Not together. |
-| `--theme`, `-t` | `editorial`, `cinematic`, `finance` | `editorial`, or asked | Apps with a web UI only. |
+| `--ui`, `--api` | flag | both halves | Only the web half, or only the API half. Not together, and not with `--starter mobile`. |
+| `--theme`, `-t` | `editorial`, `cinematic`, `finance` | `editorial`, or asked | Apps with a web or mobile UI. |
 | `--target` | `cloudflare`, `bun`, `deno`, `node`, `vercel` | `cloudflare` for `--platform api`; `bun` for composed apps | Runs the API. Composed apps take `bun`, `deno` or `node`. |
 | `--mcp`, `--no-mcp` | flag | asks on a terminal, else `--mcp` | Apps with an API. Serve routes to agents at `/mcp`. |
-| `--pm` | `bun`, `npm`, `pnpm`, `yarn`, `deno` | the one that ran it, else `bun` | Sets the printed commands, the CI workflow and the README. |
+| `--pm` | `bun`, `npm`, `pnpm`, `yarn`, `deno` | the one that ran it, else `bun` | Sets the printed commands, the CI workflow and the README. `--starter mobile` takes `bun` or `npm`. |
 | `--describe` | sentence | none | `web`, `api` and starters only. Picks the platform or starter and the theme, then writes `PLAN.md` and `AGENTS.md`. See [Plan from a sentence](/docs/packages/create-signet-app/plan). |
 | `-h`, `--help` | | | Print usage. |
 
@@ -33,6 +33,8 @@ On a terminal, a platform or composing flag skips the picker; see [Starters and 
 | `cli` | Bun CLI compiled to one binary; device-code `login`, `logout`, `whoami`. |
 | `extension` | Chrome MV3 extension: popup, options page, service worker, PKCE sign-in with `chrome.identity`. |
 | `desktop` | Tauri v2 desktop and menu-bar app with browser sign-in (PKCE, loopback redirect); CI on macOS, Windows and Linux. |
+
+Mobile is a starter, not a platform: `--starter mobile` makes an Expo Router app (iOS and Android) and the Bun API it signs in to. See [Build a mobile app](/docs/guides/build-a-mobile-app).
 
 A starter adds a typed client, SQLite with migrations and the parts you pick on top of `web` and `api`.
 
@@ -59,4 +61,7 @@ npx create-signet-app@latest my-app --starter saas --with ai --theme finance
 
 # the API half only, with teams
 npx create-signet-app@latest my-api --api --with orgs
+
+# an Expo app and its API
+npx create-signet-app@latest my-app --starter mobile --theme cinematic
 ```

@@ -1,3 +1,4 @@
+import { signInClient } from "@dapplelight/signet-server/auth/client-login" // @mobile
 import { requireStoredSession } from "@dapplelight/signet-server/auth/hono"
 import {
   maskPhone,
@@ -63,6 +64,10 @@ export function requireUser(s: Services): MiddlewareHandler<AppEnv> {
  *
  *   POST /otp        { phone }          sends a code (printed to the console in development)
  *   POST /verify     { phone, code }    sets the session cookie, returns the user
+ // mobile:begin
+ *   POST /verify?client_id=mobile       no cookie: returns the user and a token
+ *                                       pair (refresh and revoke in routes/mobile.ts)
+ // mobile:end
  *   POST /sign-out                      revokes this session
  */
 export const authRoutes = (s: Services) =>
@@ -83,6 +88,12 @@ export const authRoutes = (s: Services) =>
       zValidator("json", z.object({ phone: z.string().min(6).max(20), code: z.string().min(4) })),
       async (c) => {
         const { phone, code } = c.req.valid("json")
+        // mobile:begin
+        // Checked before the code, so a typo here does not use it up.
+        const clientId = c.req.query("client_id")
+        if (clientId !== undefined && !s.clientLogin.clients[clientId])
+          throw new ApiException(400, "Unknown client.", "VALIDATION_FAILED")
+        // mobile:end
         const r = await verifyPhoneOtp(s.otp, { phone, code, ip: clientIp(c, TRUST) })
         if (!r.ok) throw new ApiException(400, VERIFY_ERRORS[r.code], r.code)
 
@@ -105,13 +116,6 @@ export const authRoutes = (s: Services) =>
             .returning()
             .get()
         if (!user) throw new Error("Could not create the account.")
-
-        const { token } = await startSession(s.sessions, {
-          sub: user.id,
-          userAgent: c.req.header("user-agent"),
-          previousToken: readSessionCookie(c.req.header("cookie"), s.sessions),
-        })
-        c.header("Set-Cookie", sessionCookie(token, s.sessions))
         // orgs:begin
         // Everyone has an org: a personal one on first sign-in (or for an
         // account from before orgs). Sign-in lands in the first one.
@@ -119,9 +123,28 @@ export const authRoutes = (s: Services) =>
         const org =
           mine[0]?.org ??
           (await s.orgs.create({ name: "Personal", ownerId: user.id, personal: true }))
-        c.header("Set-Cookie", orgCookie(org.id, s.orgCookie), { append: true })
         // orgs:end
         if (isNew) await s.notifier.notify(user.id, "account.welcome", { name: maskPhone(r.phone) }) // @notifications
+        // mobile:begin
+        // The mobile app has no cookie jar: a token pair for the phone's secure
+        // store instead, refreshed at /api/mobile/token. // @!orgs
+        // store instead, refreshed at /api/mobile/token. It picks an org with // @orgs
+        // the x-org header. // @orgs
+        if (clientId !== undefined) {
+          const tokens = await signInClient(s.clientLogin, user.id, clientId, {
+            userAgent: c.req.header("user-agent"),
+            ip: clientIp(c, TRUST),
+          })
+          return c.json({ user: publicUser(user), tokens })
+        }
+        // mobile:end
+        const { token } = await startSession(s.sessions, {
+          sub: user.id,
+          userAgent: c.req.header("user-agent"),
+          previousToken: readSessionCookie(c.req.header("cookie"), s.sessions),
+        })
+        c.header("Set-Cookie", sessionCookie(token, s.sessions))
+        c.header("Set-Cookie", orgCookie(org.id, s.orgCookie), { append: true }) // @orgs
         return c.json({ user: publicUser(user) })
       },
     )

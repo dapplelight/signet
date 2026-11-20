@@ -6,6 +6,7 @@ import { createJobs, type JobMessage } from "../src/jobs/jobs"
 import { memoryStore } from "../src/middleware/rate-limit"
 import {
   devSender,
+  expoPushSender,
   msg91Sms,
   postmarkSender,
   resendSender,
@@ -280,6 +281,48 @@ const SECRET = "x".repeat(40)
     JSON.parse(calls[0]?.body ?? "{}").chat_id === "42" &&
       JSON.parse(calls[0]?.body ?? "{}").text.includes("T\\.") &&
       r.id === "42:7",
+  )
+}
+{
+  const { f, calls } = fakeFetch(() =>
+    json({
+      data: [
+        { status: "ok", id: "ticket-1" },
+        { status: "error", message: "gone", details: { error: "DeviceNotRegistered" } },
+      ],
+    }),
+  )
+  const removed: string[] = []
+  const r = await expoPushSender({
+    tokens: async () => ["ExponentPushToken[a]", "ExponentPushToken[b]"],
+    removeToken: async (t, user) => {
+      removed.push(`${user}:${t}`)
+    },
+    accessToken: "expo-token",
+    fetch: f,
+  }).send("user-1", { title: "T", body: "b", url: "/items" }, { idempotencyKey: "d" })
+  const sent = JSON.parse(calls[0]?.body ?? "[]")
+  ok(
+    "expo push: one message per token, url in data, bearer, dead token dropped",
+    calls[0]?.url === "https://exp.host/--/api/v2/push/send" &&
+      sent.length === 2 &&
+      sent[0].to === "ExponentPushToken[a]" &&
+      sent[0].data.url === "/items" &&
+      hdr(calls[0], "authorization") === "Bearer expo-token" &&
+      removed.join() === "user-1:ExponentPushToken[b]" &&
+      r.id === "ticket-1",
+  )
+  ok(
+    "expo push: no tokens is permanent",
+    await throws(
+      () =>
+        expoPushSender({ tokens: async () => [], removeToken: async () => {}, fetch: f }).send(
+          "u",
+          { title: "T", body: "b" },
+          { idempotencyKey: "d" },
+        ),
+      "NO_SUBSCRIPTIONS",
+    ),
   )
 }
 {

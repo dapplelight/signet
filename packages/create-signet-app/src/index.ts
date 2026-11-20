@@ -11,7 +11,7 @@
  */
 
 import { existsSync } from "node:fs"
-import { cp, mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises"
+import { cp, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { basename, join, resolve } from "node:path"
 import {
   cancel,
@@ -38,6 +38,7 @@ import {
   type StarterName,
 } from "./compose.js"
 import { appId, DESKTOP_PKG } from "./desktop.js"
+import { MOBILE_PKG, MOBILE_PMS } from "./mobile.js"
 import {
   answer,
   choose,
@@ -54,6 +55,7 @@ import {
   THEME_LABELS,
   ticked,
   WHAT,
+  type What,
 } from "./picker.js"
 
 const THEMES = ["editorial", "cinematic", "finance"] as const
@@ -453,6 +455,8 @@ Composed apps (a web app and its API from parts; any of these flags):
 ${STARTER_NAMES.map((s) => `                         ${s.padEnd(14)}${STARTERS[s].description}`).join("\n")}
   --with <parts>       comma-separated parts to add; the parts they need come too
   --without <parts>    parts to leave out (alone: the full starter without them)
+                       mobile is an Expo app (iOS, Android) in mobile/ and its API
+                       in server/; --with and --without change the API's parts
   --ui                 the web half only; it calls an API elsewhere (VITE_API_URL)
   --api                the API half only (Hono on Bun, SQLite)
                        neither: both halves
@@ -487,6 +491,7 @@ Examples:
   bun create-signet-app my-app --with payments,notifications
   bun create-signet-app my-app --without admin,privacy
   bun create-signet-app my-api --api --with orgs
+  bun create-signet-app my-app --starter mobile
   bun create-signet-app my-cli --platform cli
   npm create signet-app my-app -- --starter full --pm npm
   bun create-signet-app my-app --describe "a team inbox with settings and pricing"
@@ -637,14 +642,15 @@ async function askName(): Promise<string> {
  */
 async function askWhat(themeGiven?: Theme, mcpGiven?: boolean) {
   const what = ask(
-    await select<Platform>({
+    await select<What>({
       message: "What are you building?",
       initialValue: "web",
       options: WHAT,
     }),
   )
   let choice = choose(what)
-  let ticks: PartName[] = []
+  // The mobile starter's API parts, for the summary.
+  let ticks: PartName[] = what === "mobile" ? ticked("mobile") : []
   if (what === "web" || what === "api") {
     const mix = ask(
       await select<Mix>({ message: "Start from", initialValue: "basics", options: mixRows(what) }),
@@ -714,9 +720,14 @@ async function pickParts(c: ComposeFlags, mcpFlag: boolean | undefined) {
   const flagged = c.ui || c.api || c.with.length > 0 || c.without.length > 0
   const starter =
     c.starter ?? (!flagged || (!c.with.length && c.without.length) ? "full" : undefined)
-  const apiStarter = starter !== undefined && "surface" in STARTERS[starter]
+  const surface =
+    starter !== undefined && "surface" in STARTERS[starter] && STARTERS[starter].surface
+  const apiStarter = surface === "api"
+  const mobile = surface === "mobile"
   if (apiStarter && c.ui) throw new Error(`--starter ${starter} is the API only: drop --ui.`)
-  const web = !c.api && !apiStarter
+  if (mobile && (c.ui || c.api))
+    throw new Error("--starter mobile makes the app and its API (in server/): drop --ui and --api.")
+  const web = !c.api && !apiStarter && !mobile
   const api = !c.ui
   // A UI-only app takes the starter's parts that have a web half.
   const base = starter ? STARTERS[starter].parts.filter((p) => api || !PARTS[p].apiOnly) : []
@@ -731,7 +742,7 @@ async function pickParts(c: ComposeFlags, mcpFlag: boolean | undefined) {
     if (PARTS[p].apiOnly && !api) throw new Error(`${p} needs the API: drop --ui, or ${p}.`)
     if (PARTS[p].webOnly && !web) throw new Error(`${p} is web only: drop --api, or ${p}.`)
   }
-  return { parts, added, web, api, starter }
+  return { parts, added, web, api, starter, mobile }
 }
 
 function composedMessage(
@@ -829,10 +840,22 @@ async function main() {
   const mcp = composed
     ? composed.parts.includes("mcp")
     : template === "api" && (flags.mcp ?? (await askMcp()))
+  const mobile = composed?.mobile ?? false
+  if (mobile && !(MOBILE_PMS as readonly string[]).includes(pm))
+    throw new Error(`--starter mobile is set up for --pm ${MOBILE_PMS.join(" or ")}.`)
   await mkdir(dest, { recursive: true })
   const runtime = (parsed.targetGiven ?? "bun") as Runtime
-  const made = composed ? await compose(dest, { ...composed, runtime }, BASE) : undefined
+  // The mobile starter: the API half in server/, the Expo app in mobile/.
+  const apiDir = mobile ? join(dest, "server") : dest
+  const made = composed ? await compose(apiDir, { ...composed, runtime }, BASE) : undefined
   if (!composed) await copyPlatform(template as Platform, dest, target, mcp)
+  if (mobile) {
+    await cp(resolve(import.meta.dirname, "../template-mobile"), dest, { recursive: true })
+    await rename(join(apiDir, "_gitignore"), join(apiDir, ".gitignore"))
+    await rename(join(dest, "mobile/_gitignore"), join(dest, "mobile/.gitignore"))
+    // One workflow at the root checks both projects.
+    await rm(join(apiDir, "_github"), { recursive: true })
+  }
 
   // npm strips a file literally named .gitignore from published packages, so
   // the template ships it as _gitignore and it is renamed on scaffold.
@@ -868,7 +891,7 @@ async function main() {
   if (made?.env.length)
     // The API's secrets for this machine, fresh per app; gitignored. Bun loads
     // it on its own. Production sets these on the host instead.
-    await writeFile(join(dest, ".env"), made.env.join("\n"))
+    await writeFile(join(apiDir, ".env"), made.env.join("\n"))
 
   // signet-mcp's index reads the scripts below from this source by their
   // shape: the api object first, the web object as the next literal.
@@ -914,7 +937,7 @@ async function main() {
       ? JSON.parse(JSON.stringify(CLI_PKG).replaceAll("__APP_NAME__", appName))
       : pkg
   const out = {
-    name: appName,
+    name: mobile ? `${appName}-server` : appName,
     private: true,
     version: "0.1.0",
     type: "module",
@@ -927,10 +950,15 @@ async function main() {
   if (pm === "yarn" && out.dependencies?.["@dapplelight/signet-ui"])
     out.dependencies = sortDeps({ ...UI_PEERS, ...out.dependencies })
   await writeFile(
-    join(dest, "package.json"),
+    join(apiDir, "package.json"),
     `${JSON.stringify(out, null, 2)}
 `,
   )
+  if (mobile)
+    await writeFile(
+      join(dest, "mobile/package.json"),
+      `${JSON.stringify({ name: `${appName}-mobile`, private: true, version: "0.1.0", ...MOBILE_PKG }, null, 2)}\n`,
+    )
 
   const { install, run } = PM[pm]
   if (described && parsed.describe) {
@@ -980,9 +1008,20 @@ async function main() {
   Needs Rust and Tauri's system dependencies. README.md covers sign-in (register
   the client on signet-server) and the identifier in src-tauri/tauri.conf.json.
 `
-            : composed
-              ? composedMessage(appName, theme, steps, composed)
-              : `
+            : mobile && composed
+              ? `
+  Created ${appName}: an Expo app in mobile/ and its API in server/.
+  Parts (server): ${composed.parts.join(", ")}.
+
+  cd ${name}/server && ${install} && ${run} dev
+  cd ${name}/mobile && ${install} && ${run} start   (in a second terminal)
+
+  Sign in with any phone number; in development the code is printed in the
+  server's terminal. README.md covers phones on your network, builds and push.
+`
+              : composed
+                ? composedMessage(appName, theme, steps, composed)
+                : `
   Created ${appName} with the ${theme} theme.
 
   ${steps}

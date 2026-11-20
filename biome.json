@@ -20,6 +20,7 @@
       "!packages/create-signet-app/template-cli",
       "!packages/create-signet-app/template-extension",
       "!packages/create-signet-app/template-desktop",
+      "!packages/create-signet-app/template-mobile",
       "!.claude",
       "!packages/mcp/src/generated",
       "!packages/spec/schemas",

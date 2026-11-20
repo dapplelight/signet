@@ -13,6 +13,7 @@
     "add-component-source",
     "blocks",
     "add-tests",
+    "build-a-mobile-app",
     "---Security---",
     "add-csrf",
     "add-rate-limit",

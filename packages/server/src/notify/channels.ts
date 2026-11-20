@@ -347,6 +347,69 @@ export function pushSender(config: {
   }
 }
 
+const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
+
+/**
+ * Expo push (a React Native app on `expo-notifications`) to every Expo push
+ * token of the user (`to` is the user id), dropping the tokens Expo reports
+ * as `DeviceNotRegistered`. A notification's `url` goes in `data.url`, for
+ * the app to open on tap. `accessToken` is needed once push security is on
+ * in the Expo project. https://docs.expo.dev/push-notifications/sending-notifications/
+ * ponytail: tickets only; a ticket "ok" means Expo accepted the message. Read
+ * push receipts if you need delivery failures from Apple and Google.
+ */
+export function expoPushSender(config: {
+  tokens: (userId: string) => Promise<string[]>
+  removeToken: (token: string, userId: string) => Promise<void>
+  accessToken?: string
+  fetch?: Fetch
+}): Sender<"push"> {
+  return {
+    provider: "expo",
+    async send(userId, m) {
+      const tokens = await config.tokens(userId)
+      if (!tokens.length) throw new NotifyError("NO_SUBSCRIPTIONS", "No push tokens.", true)
+      let sent: string | undefined
+      // Expo takes at most 100 messages per request.
+      for (let i = 0; i < tokens.length; i += 100) {
+        const batch = tokens.slice(i, i + 100)
+        const res = await (config.fetch ?? fetch)(EXPO_PUSH_URL, {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            ...(config.accessToken ? { Authorization: `Bearer ${config.accessToken}` } : {}),
+          },
+          body: JSON.stringify(
+            batch.map((to) => ({
+              to,
+              title: m.title,
+              body: m.body,
+              ...(m.url ? { data: { url: m.url } } : {}),
+            })),
+          ),
+        })
+        await check(res, "expo")
+        const body = (await res.json()) as {
+          data?: { status: string; id?: string; details?: { error?: string } }[]
+        }
+        const tickets = body.data ?? []
+        await Promise.all(
+          tickets.map((t, j) => {
+            const token = batch[j]
+            return t.details?.error === "DeviceNotRegistered" && token
+              ? config.removeToken(token, userId)
+              : undefined
+          }),
+        )
+        sent ??= tickets.find((t) => t.status === "ok" && t.id)?.id
+      }
+      if (!sent) throw new NotifyError("PUSH_FAILED", "No push token accepted the message.")
+      return { id: sent, status: "sent" }
+    },
+  }
+}
+
 /** Telegram Bot API to a user's own chat (`to` = chat id). https://core.telegram.org/bots/api#sendmessage */
 export function telegramSender(config: { botToken: string; fetch?: Fetch }): Sender<"telegram"> {
   return {
