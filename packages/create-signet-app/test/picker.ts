@@ -8,7 +8,7 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { PART_NAMES, PARTS, STARTERS } from "../src/compose.js"
+import { PART_NAMES, PARTS, resolveParts, STARTERS } from "../src/compose.js"
 import {
   answer,
   choose,
@@ -119,7 +119,10 @@ for (const [args, want] of [
   [["web", "basics", ["pwa", "account"]], { template: "full", starter: "pwa" }],
   [["web", "launch", [...saas].reverse()], { template: "full", starter: "saas" }],
   // Anything else is --with (and --api on the API path).
-  [["web", "saas", [...saas, "ai"]], { template: "full", with: [...saas, "ai"] }],
+  [
+    ["web", "saas", [...saas, "ai"]],
+    { template: "full", with: ["account", "admin", "notifications", "privacy", "payments", "ai"] },
+  ],
   [["web", "basics", ["orgs", "payments"]], { template: "full", with: ["orgs", "payments"] }],
   [["api", "api-billing", ["account"]], { template: "full", with: ["account"], api: true }],
   // Everything unticked: the basics (blank on web, which equals no parts).
@@ -128,6 +131,18 @@ for (const [args, want] of [
 ] as const) {
   const got = choose(...(args as unknown as Parameters<typeof choose>))
   ok(`choose(${args.map((a) => JSON.stringify(a)).join(", ")})`, eq(got, want), JSON.stringify(got))
+}
+// Auto-required parts are dropped from --with, and the shorter flags resolve to the same parts.
+for (const ticks of [
+  ["auth", "orgs", "payments", "paywalls"],
+  ["auth", "orgs", "admin", "ai"],
+] as const) {
+  const w = choose("web", "basics", [...ticks]).with ?? []
+  ok(
+    `choose: --with ${w.join(",")} is short and resolves to ${ticks.join(",")}`,
+    w.length < ticks.length && eq(resolveParts(w, []).parts, resolveParts([...ticks], []).parts),
+    JSON.stringify(w),
+  )
 }
 ok(
   "command: the equivalent one-liner",

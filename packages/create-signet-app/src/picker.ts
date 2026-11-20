@@ -12,6 +12,7 @@ import { resolve } from "node:path"
 import {
   PART_NAMES,
   PARTS,
+  type Part,
   type PartName,
   resolveParts,
   STARTERS,
@@ -114,7 +115,9 @@ export function choose(what: Platform, mix: Mix = "basics", ticks: PartName[] = 
   const starter = order.find((s) => same(installed(STARTERS[s].parts), installed(ticks)))
   if (starter) return { template: "full", starter, ...(apiStarter(starter) ? {} : api) }
   if (!ticks.length) return { template: what }
-  return { template: "full", with: ticks, ...api }
+  // Needs are implied by what needs them, so the command leaves them out.
+  const needed = new Set(ticks.flatMap((p) => (PARTS[p] as Part).needs ?? []))
+  return { template: "full", with: ticks.filter((p) => !needed.has(p)), ...api }
 }
 
 /** The one-line command that scaffolds the same app, so the picker teaches the flags. */

@@ -592,6 +592,7 @@ async function substitute(dir: string, vars: Record<string, string>) {
       await substitute(full, vars)
       continue
     }
+    if (entry.name.endsWith(".png")) continue // binary: utf8 would corrupt it
     let text = await readFile(full, "utf8")
     let changed = false
     for (const [k, v] of Object.entries(vars)) {
