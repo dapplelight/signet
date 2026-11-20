@@ -1,0 +1,66 @@
+---
+title: "Starters and the picker"
+description: "The questions create-signet-app asks on a terminal, every starter, and the flags that answer them."
+---
+
+Run it with a name or nothing, and no platform or composing flag, and it asks. Run it with a platform or composing flag and the picker is skipped.
+
+```bash
+npx create-signet-app@latest
+```
+
+## What it asks
+
+1. **Name.** Asked only if you gave none. Empty means `my-app`.
+2. **What are you building?** Web app, API only, command-line tool, browser extension or desktop app.
+3. **Start from.** Web and API only. Just the basics, or one of the starters below.
+4. **Features.** Web and API only. The starter's parts come ticked; change any. The API path leaves out the web-only parts (`dashboard`, `pwa`).
+5. **Theme.** Where there is a web UI: `editorial`, `cinematic` or `finance`.
+6. **MCP.** Where there is an API: let AI coding agents work with the app. Default yes.
+7. **Summary.** What it will create, plus the one-line command that builds the same app.
+
+## Starters
+
+| Starter | You get | Platform | Parts |
+| --- | --- | --- | --- |
+| `full` | Every feature | web + API | all but `dashboard` and `pwa` |
+| `blank` | Site, server and database, no features | web + API | none |
+| `saas` | Teams, billing, admin, notifications | web + API | `account`, `orgs`, `admin`, `notifications`, `privacy`, `payments` |
+| `launch` | Waitlist, invites, feedback | web + API | `account`, `privacy`, `growth` |
+| `internal-tool` | Roles, admin, approvals | web + API | `account`, `orgs`, `admin`, `workflows` |
+| `api-billing` | Accounts, API keys, billing webhooks | API only | `account`, `payments` |
+| `ai-app` | Per-user spend limits, billing | web + API | `account`, `privacy`, `payments`, `ai` |
+| `paywall` | Plans, entitlements, remote paywalls | web + API | `account`, `payments`, `paywalls` |
+| `automation` | Durable jobs, approvals, alerts | web + API | `account`, `notifications`, `workflows` |
+| `dashboard` | Sidebar shell, stat tiles, a chart, a table | web + API | `account`, `dashboard` |
+| `pwa` | Installable, works offline | web + API | `account`, `pwa` |
+
+Parts a part needs come along: `account` brings `auth`. On the API path the picker offers `api-billing` and `full`; ticks that match no starter print as `--api --with` followed by the parts.
+
+## Without the picker
+
+Each answer has a flag. The command in the summary is the same thing.
+
+```bash
+# the dashboard starter, cinematic theme, no MCP
+npx create-signet-app@latest my-app --starter dashboard --theme cinematic --no-mcp
+
+# an installable app
+npx create-signet-app@latest my-app --starter pwa
+
+# the API half of a billing app (--starter api is the old name for api-billing)
+npx create-signet-app@latest my-api --starter api-billing
+```
+
+| Question | Flag |
+| --- | --- |
+| Platform | `--platform` with `web`, `api`, `cli`, `extension` or `desktop` (`--template` is the old name) |
+| Start from | `--starter` and a name from the table |
+| Features | `--with` to add parts, `--without` to remove them (comma-separated) |
+| API only | `--api` (the web half only is `--ui`) |
+| Theme | `--theme` with `editorial`, `cinematic` or `finance` |
+| MCP | `--mcp` or `--no-mcp` |
+
+A flag given on a terminal skips its question. `--platform`, `--template`, `--starter`, `--with`, `--without`, `--ui` and `--api` skip the platform, start-from and features steps together; `--theme` and `--mcp` skip only theirs. Off a terminal nothing is asked: a missing name is an error, MCP defaults to on and the theme to `editorial`.
+
+See [Flags and templates](/docs/packages/create-signet-app/flags) for every flag and [MCP](/docs/packages/create-signet-app/mcp) for the `/mcp` route.

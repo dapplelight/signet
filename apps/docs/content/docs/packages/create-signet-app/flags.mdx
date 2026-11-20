@@ -1,31 +1,40 @@
 ---
 title: "Flags and templates"
-description: "Every create-signet-app flag, template and API target."
+description: "Every create-signet-app flag, platform and API target."
 ---
 
 ## Flags
 
 | Flag | Values | Default | |
 | --- | --- | --- | --- |
-| `<directory>` | path | required | Must not exist or be empty. |
-| `--template` | `web`, `api`, `full`, `cli`, `extension`, `desktop` | `web` | What to scaffold. |
-| `--theme`, `-t` | `editorial`, `cinematic`, `finance` | `editorial` | `web` and `full` only. |
-| `--target` | `cloudflare`, `bun`, `node`, `vercel` | `cloudflare` | `api` only. |
-| `--mcp`, `--no-mcp` | flag | asks on a terminal, else `--mcp` | `api` and `full` only. Serve routes to agents at `/mcp`. |
-| `--pm` | `bun`, `npm`, `pnpm` | the one that ran it, else `bun` | Sets the printed commands, the CI workflow and the full template's README. |
-| `--describe` | sentence | none | `web`, `api` and `full` only. Picks the template and theme, then writes `PLAN.md` and `AGENTS.md`. An explicit `--template` or `--theme` wins. |
+| `<directory>` | path | asked on a terminal, else required | Must not exist or be empty. |
+| `--platform` | `web`, `api`, `cli`, `extension`, `desktop` | `web`, or asked | One app each. `--template` is the old name and still works. |
+| `--starter` | a name from [Starters](/docs/packages/create-signet-app/starters) | none | A web app and its API in one project. `api` is the old name for `api-billing`. |
+| `--with` | parts, comma-separated | none | Adds parts to a starter, or to the basics. What they need comes too. |
+| `--without` | parts, comma-separated | none | Leaves parts out. Alone, it starts from `full`. |
+| `--ui`, `--api` | flag | both halves | Only the web half, or only the API half. Not together. |
+| `--theme`, `-t` | `editorial`, `cinematic`, `finance` | `editorial`, or asked | Apps with a web UI only. |
+| `--target` | `cloudflare`, `bun`, `deno`, `node`, `vercel` | `cloudflare` for `--platform api`; `bun` for composed apps | Runs the API. Composed apps take `bun`, `deno` or `node`. |
+| `--mcp`, `--no-mcp` | flag | asks on a terminal, else `--mcp` | Apps with an API. Serve routes to agents at `/mcp`. |
+| `--pm` | `bun`, `npm`, `pnpm`, `yarn`, `deno` | the one that ran it, else `bun` | Sets the printed commands, the CI workflow and the README. |
+| `--describe` | sentence | none | `web`, `api` and starters only. Picks the platform or starter and the theme, then writes `PLAN.md` and `AGENTS.md`. See [Plan from a sentence](/docs/packages/create-signet-app/plan). |
 | `-h`, `--help` | | | Print usage. |
 
-## Templates
+`--platform` with one of `--starter`, `--with`, `--without`, `--ui` or `--api` is an error: a platform is its own app, and those flags compose a web app and its API. `--template full` still works and means `--starter full`.
 
-| Template | You get |
+On a terminal, a platform or composing flag skips the picker; see [Starters and the picker](/docs/packages/create-signet-app/starters).
+
+## Platforms
+
+| Platform | You get |
 | --- | --- |
 | `web` | Vite + React 19 + Tailwind v4 + TanStack Router, `signet-ui`, `signet-tokens`, `signet-lib`. |
 | `api` | Hono API: request ids, error envelope, validation, rate limiting. Entry and config follow `--target`. |
-| `full` | `web` + `api` in one project: typed client, SQLite with migrations, phone sign-in, account, inbox, privacy, billing, admin, organisations. |
 | `cli` | Bun CLI compiled to one binary; device-code `login`, `logout`, `whoami`. |
 | `extension` | Chrome MV3 extension: popup, options page, service worker, PKCE sign-in with `chrome.identity`. |
 | `desktop` | Tauri v2 desktop and menu-bar app with browser sign-in (PKCE, loopback redirect); CI on macOS, Windows and Linux. |
+
+A starter adds a typed client, SQLite with migrations and the parts you pick on top of `web` and `api`.
 
 ### API targets
 
@@ -33,13 +42,21 @@ description: "Every create-signet-app flag, template and API target."
 | --- | --- | --- | --- |
 | `cloudflare` | `src/index.ts` (Worker) | `wrangler.jsonc` | `RateLimitCounter` Durable Object: exact |
 | `bun` | `src/server.ts` (`Bun.serve`) | `Dockerfile` | in-process |
+| `deno` | `src/server.ts` (`Deno.serve`) | `Dockerfile` | in-process |
 | `node` | `src/server.ts` (`node:http`, Node 22.18+) | `engines.node` | in-process |
 | `vercel` | `index.ts` | `vercel.json` | per function instance |
 
 Folder layouts: [Project structure](/docs/project-structure).
 
-## Example: a Bun API
+## Examples
 
 ```bash
-npx create-signet-app@latest my-api --template api --target bun --no-mcp
+# a Bun API without MCP
+npx create-signet-app@latest my-api --platform api --target bun --no-mcp
+
+# a starter with an extra part and a theme
+npx create-signet-app@latest my-app --starter saas --with ai --theme finance
+
+# the API half only, with teams
+npx create-signet-app@latest my-api --api --with orgs
 ```
