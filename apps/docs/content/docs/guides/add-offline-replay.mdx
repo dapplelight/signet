@@ -119,10 +119,11 @@ export async function checkIn(
 
   // Keep the result first, then release. A crash between the two leaves the
   // result stored (a retry gets it) and the lease held until it expires.
-  await db
+  const inserted = await db
     .insert(checkInResults)
     .values({ id, resource: body.resource, result: JSON.stringify(result) })
     .onConflictDoNothing()
+    .returning()
   // Release only the lease we read: if it expired and was re-issued meanwhile, this matches nothing.
   const released = await db
     .update(leases)
@@ -130,7 +131,10 @@ export async function checkIn(
     .where(and(eq(leases.resource, body.resource), eq(leases.device, device), eq(leases.seed, lease.seed)))
     .returning()
   if (!released.length) {
-    await db.delete(checkInResults).where(eq(checkInResults.id, id))
+    // Undo only our own row: a concurrent retry of the same id may have stored it and released the lease.
+    if (inserted.length) await db.delete(checkInResults).where(eq(checkInResults.id, id))
+    const [kept] = await db.select().from(checkInResults).where(eq(checkInResults.id, id))
+    if (kept) return { ok: true as const, result: JSON.parse(kept.result) }
     return { ok: false as const, reason: "lease-changed" }
   }
   return { ok: true as const, result }
