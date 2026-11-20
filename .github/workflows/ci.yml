@@ -70,6 +70,9 @@ jobs:
       - run: bun run build:all
       - run: bun run test
         working-directory: packages/db
+      # Ledger floors under truly concurrent posts.
+      - run: bun test test/floor.test.ts
+        working-directory: packages/payments
 
   # signet-test's Playwright self-test in real Chromium. Screenshot baselines
   # are stored for Linux in packages/test/test/e2e/__screenshots__/linux; a

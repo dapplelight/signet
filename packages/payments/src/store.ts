@@ -16,6 +16,7 @@
  * without a transaction (D1 has none).
  */
 
+import { PaymentsError } from "./errors.js"
 import type { Event, PaymentStatus } from "./types.js"
 
 export type Actor = { type: "user" | "agent" | "system"; id: string }
@@ -113,8 +114,12 @@ export type PaymentsStore = {
   ): Promise<PaymentRecord | undefined>
   renamePayment(gateway: string, from: string, to: string): Promise<void>
   listPayments(q: PaymentQuery): Promise<PaymentRecord[]>
-  /** Insert all entries of one transaction atomically. Returns false if txId exists. */
-  post(entries: LedgerEntry[]): Promise<boolean>
+  /**
+   * Insert all entries of one transaction atomically. Returns false if txId exists.
+   * With `floors`, nothing is written if any of those accounts would end below its
+   * `min`; that throws INSUFFICIENT_BALANCE, and holds under concurrent posts.
+   */
+  post(entries: LedgerEntry[], floors?: Floor[]): Promise<boolean>
   entries(q: {
     ref?: string
     account?: string
@@ -211,9 +216,16 @@ export function memoryStore(): PaymentsStore {
         .slice(q.offset ?? 0, (q.offset ?? 0) + q.limit)
         .map(clone)
     },
-    async post(entries) {
+    async post(entries, floors = []) {
+      // No await before the push: check and write happen in one turn of the event loop.
       const tx = entries[0]?.txId
       if (!tx || ledger.some((e) => e.txId === tx)) return false
+      for (const f of floors) {
+        const now = ledger
+          .filter((e) => e.account === f.account && e.currency === f.currency)
+          .reduce((s, e) => s + e.amount, 0)
+        if (now + delta(entries, f) < f.min) throw insufficient(f)
+      }
       ledger.push(...entries.map(clone))
       return true
     },
@@ -248,13 +260,36 @@ export function memoryStore(): PaymentsStore {
 
 // ---------------------------------------------------------------- sql
 
+type Query = (
+  sql: string,
+  params: unknown[],
+) => Promise<Record<string, unknown>[]> | Record<string, unknown>[]
+
 export type SqlClient = {
   /** Run one statement with positional parameters; return its rows (or [] for none). */
-  query(
-    sql: string,
-    params: unknown[],
-  ): Promise<Record<string, unknown>[]> | Record<string, unknown>[]
+  query: Query
+  /**
+   * Run `work` in one transaction, its statements through the `query` it is
+   * handed. Only Postgres needs it, for a ledger post with a floor
+   * (postgres-js: `(work) => sql.begin((tx) => work((s, p) => tx.unsafe(s, p)))`).
+   */
+  transaction?<T>(work: (query: Query) => Promise<T>): Promise<T>
 }
+
+/** An account that must not end below `min` (minor units of `currency`) after a post. */
+export type Floor = { account: string; currency: string; min: number }
+
+/** How much `entries` change the floor's account. */
+const delta = (entries: LedgerEntry[], f: Floor) =>
+  entries
+    .filter((e) => e.account === f.account && e.currency === f.currency)
+    .reduce((s, e) => s + e.amount, 0)
+
+const insufficient = (f: Floor) =>
+  new PaymentsError(
+    "INSUFFICIENT_BALANCE",
+    `${f.account} would go below ${f.min} ${f.currency}; nothing was posted.`,
+  )
 
 export type Dialect = "sqlite" | "pg"
 
@@ -477,23 +512,75 @@ export function sqlStore(client: SqlClient, options: { dialect: Dialect }): Paym
         ])
       ).map(revivePayment)
     },
-    async post(entries) {
+    async post(entries, floors = []) {
       if (!entries.length) return false
+      const cols = "tx_id, seq, account, amount, currency, kind, gateway, ref, at"
+      const tuples = entries.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ")
+      const values = entries.flatMap((e) => [
+        e.txId,
+        e.seq,
+        e.account,
+        e.amount,
+        e.currency,
+        e.kind,
+        e.gateway ?? null,
+        e.ref ?? null,
+        e.at.getTime(),
+      ])
+      const insert = `INSERT INTO pay_ledger (${cols}) VALUES ${tuples} ON CONFLICT DO NOTHING RETURNING tx_id`
+      if (!floors.length) return (await q(insert, values)).length > 0
+      const sum =
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM pay_ledger WHERE account = ? AND currency = ?"
+      const posted = async (run: typeof q) =>
+        (await run("SELECT 1 AS one FROM pay_ledger WHERE tx_id = ? LIMIT 1", [entries[0]?.txId]))
+          .length > 0
+
+      if (pg) {
+        // Postgres runs statements concurrently, so a floor check in the same
+        // statement can read a stale balance. Lock each floored account for the
+        // transaction (in a fixed order, so two posts never deadlock), then read
+        // and write: each statement after the lock sees every earlier commit.
+        if (!client.transaction)
+          throw new PaymentsError(
+            "UNSUPPORTED",
+            "A ledger post with a floor on Postgres needs `transaction` on the SQL client.",
+          )
+        return client.transaction(async (raw) => {
+          const run = async (sql: string, params: unknown[] = []) => {
+            let i = 0
+            return (
+              (await raw(
+                sql.replace(/\?/g, () => `$${++i}`),
+                params,
+              )) ?? []
+            )
+          }
+          const keys = [...new Set(floors.map((f) => `${f.account}\n${f.currency}`))].sort()
+          for (const k of keys) await run("SELECT pg_advisory_xact_lock(hashtext(?)) AS l", [k])
+          if (await posted(run)) return false
+          for (const f of floors) {
+            const [r] = await run(sum, [f.account, f.currency])
+            if (Number(r?.total ?? 0) + delta(entries, f) < f.min) throw insufficient(f)
+          }
+          return (await run(insert, values)).length > 0
+        })
+      }
+
+      // SQLite and D1 run one write at a time, so a check inside the insert
+      // statement cannot be raced.
+      const guard = floors.map(() => `(${sum}) + ? >= ?`).join(" AND ")
       const rows = await q(
-        `INSERT INTO pay_ledger (tx_id, seq, account, amount, currency, kind, gateway, ref, at) VALUES ${entries.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ")} ON CONFLICT DO NOTHING RETURNING tx_id`,
-        entries.flatMap((e) => [
-          e.txId,
-          e.seq,
-          e.account,
-          e.amount,
-          e.currency,
-          e.kind,
-          e.gateway ?? null,
-          e.ref ?? null,
-          e.at.getTime(),
-        ]),
+        `INSERT INTO pay_ledger (${cols}) SELECT * FROM (VALUES ${tuples}) WHERE ${guard} ON CONFLICT DO NOTHING RETURNING tx_id`,
+        [...values, ...floors.flatMap((f) => [f.account, f.currency, delta(entries, f), f.min])],
       )
-      return rows.length > 0
+      if (rows.length) return true
+      if (await posted(q)) return false
+      // Not a duplicate, so a floor refused it: name the first one that did.
+      for (const f of floors) {
+        const [r] = await q(sum, [f.account, f.currency])
+        if (Number(r?.total ?? 0) + delta(entries, f) < f.min) throw insufficient(f)
+      }
+      return false
     },
     async entries(f) {
       const w = where([
