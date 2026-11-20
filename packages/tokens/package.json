@@ -1,6 +1,6 @@
 {
   "name": "@dapplelight/signet-tokens",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "license": "MIT",
   "description": "Signet design tokens. One theme file per design system; all themes satisfy CONTRACT.md.",
   "keywords": [

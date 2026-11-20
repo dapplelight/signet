@@ -5,6 +5,36 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-server: Expo push sender and client sign-in
+
+- New `expoPushSender` in `./notify/channels`: a `push` channel sender that
+  sends through Expo's push service in batches of 100, with an optional access
+  token, and removes tokens Expo reports as `DeviceNotRegistered`. It reads
+  tickets, not receipts.
+- New `signInClient` in `./auth/client-login`: issues a session and token pair
+  for a registered client after your own sign-in (a phone code, for example),
+  without the device-code flow.
+
+### create-signet-app (minor): mobile starter
+
+- New `--starter mobile` (and "Mobile app" in the picker): an Expo Router app
+  for iOS and Android in `mobile/` and its Bun API in `server/`. Phone sign-in
+  with a token pair in the secure store and refresh, an auth gate that a 401
+  signs out of, tabs (Home, a list and detail sample with pull to refresh and
+  loading, empty and error states, Settings with theme, sign-out and version),
+  an offline outbox flushed on reconnect, Expo push with deep links on tap,
+  screen-view analytics, `eas.json` profiles and `expo-updates`. jest-expo and
+  Testing Library tests, Biome through `signet-config`, one CI workflow for
+  both projects. `--pm` takes `bun` or `npm`.
+- New `mobile` part (API only): `?client_id=mobile` on sign-in returns tokens
+  instead of a cookie, `/api/mobile/token` and `/api/mobile/revoke`, and the
+  phone's Expo push token at `/api/mobile/push/token`.
+
+### signet-tokens: `./native` resolves under require
+
+- The `./native` export has a `default` condition, so Jest and other CommonJS
+  resolvers find it (React Native test setups failed to resolve it).
+
 ### create-signet-app: PNG icons in the PWA part, shorter picker command
 
 The pwa part now ships 192px, 512px and maskable 512px PNG icons next to the SVG, listed in the manifest and the service worker's precache, so phones that ignore SVG home-screen icons get one. Scaffolding skips PNGs when resolving markers and placeholders, so they are copied byte for byte. The picker's equivalent command lists only the parts you chose, not ones added because another part needs them; it resolves to the same app.

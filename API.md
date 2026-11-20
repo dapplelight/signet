@@ -147,7 +147,7 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/auth/api-keys` | kvApiKeyStore, createApiKey, listApiKeys, revokeApiKey, verifyApiKey, ApiKeyRecord, … | API-key manager: create (secret shown once), list, revoke, with scopes and optional expiry |
 | `@dapplelight/signet-server/auth/bearer` | readBearer, verifySharedToken, sha256Hex, createApiToken, hashIncomingToken | Bearer-token auth for machine callers — CLIs, MCP servers, webhooks, cron |
 | `@dapplelight/signet-server/auth/better-auth` | betterAuthDefaults, socialProviders, BetterAuthEnv, BetterAuthDefaultsOptions | Opinionated defaults for Better Auth |
-| `@dapplelight/signet-server/auth/client-login` | DEVICE_CODE_GRANT, pkceChallenge, redirectUriAllowed, authorizeClient, exchangeToken, normalizeUserCode, … | Sign-in for clients that cannot hold the web app's cookie: a browser extension or desktop app (authorization code + PKCE, S256 only) and a CLI (device |
+| `@dapplelight/signet-server/auth/client-login` | DEVICE_CODE_GRANT, pkceChallenge, redirectUriAllowed, signInClient, authorizeClient, exchangeToken, … | Sign-in for clients that cannot hold the web app's cookie: a browser extension or desktop app (authorization code + PKCE, S256 only) and a CLI (device |
 | `@dapplelight/signet-server/auth/guards` | isDevAuthEnabled, requireEnv, checkEnv | Configuration guards |
 | `@dapplelight/signet-server/auth/hono` | requireSession, requireStoredSession, sessionRoutes, requireApiKey, requireSharedToken, requireAuth, … | Hono middleware |
 | `@dapplelight/signet-server/auth/mcp` | authTools, AuthToolsOptions | Per-user MCP tools for sessions and API keys: `list_my_sessions`, `revoke_session`, `list_api_keys`, `revoke_api_key` |
