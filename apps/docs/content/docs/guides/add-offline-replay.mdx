@@ -1,0 +1,152 @@
+---
+title: "Add Offline Work the Server Can Trust"
+description: "A device checks a resource out, works offline, then the server replays its inputs and accepts only a matching result."
+---
+
+For logic that is **deterministic**: the same inputs and seed always give the same result. The device records its inputs, not its results. The server re-runs them and keeps what it computes itself.
+
+This differs from `signet-lib/sync`, which merges edits to records. Here, one device holds a lock while offline and the server verifies the computation.
+
+<Steps>
+<Step>
+### Check out: lock the resource and issue a seed
+
+One row per resource. The conditional update succeeds only if nobody holds an unexpired lease, so two devices never check out the same thing.
+
+```ts
+import { and, eq, isNull, lt, or } from "drizzle-orm"
+import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core"
+import type { BaseSQLiteDatabase } from "drizzle-orm/sqlite-core"
+
+export const leases = sqliteTable("leases", {
+  resource: text("resource").primaryKey(),
+  device: text("device"),
+  seed: text("seed"),
+  version: text("version"),
+  expiresAt: integer("expires_at"),
+})
+
+export async function checkOut(
+  db: BaseSQLiteDatabase<"async", unknown>,
+  resource: string,
+  device: string,
+  version: string,
+  ttlMs: number,
+) {
+  const now = Date.now()
+  const seed = crypto.randomUUID()
+  await db.insert(leases).values({ resource }).onConflictDoNothing()
+  const won = await db
+    .update(leases)
+    .set({ device, seed, version, expiresAt: now + ttlMs })
+    .where(and(eq(leases.resource, resource), or(isNull(leases.expiresAt), lt(leases.expiresAt, now))))
+    .returning()
+  return won[0] ?? null // null: someone else has it
+}
+```
+
+The device gets the seed with its lease and cannot pick its own; the server keeps its copy to replay with.
+</Step>
+
+<Step>
+### Work offline: record inputs and a hash of your result
+
+The device runs the same logic version with the seed from its lease, and sends a hash of what it got, so the server can tell a matching replay from a mismatch.
+
+```ts
+import { createOutbox } from "@dapplelight/signet-lib/offline"
+import { indexedDbStorage } from "@dapplelight/signet-lib/storage"
+
+type CheckIn = { resource: string; version: string; inputs: unknown[]; resultHash: string }
+
+export const checkIns = createOutbox<CheckIn>({ storage: indexedDbStorage(), key: "check-ins" })
+
+export async function hashResult(result: unknown) {
+  const bytes = new TextEncoder().encode(JSON.stringify(result))
+  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+}
+
+// While offline, keep the inputs; when done, queue one check-in.
+export const finish = async (resource: string, version: string, inputs: unknown[], result: unknown) =>
+  checkIns.add({ resource, version, inputs, resultHash: await hashResult(result) })
+```
+
+Flush when back online, sending each item's outbox `id` with it. The server keys the check-in by that id, so a retry after a lost response gets the same answer.
+</Step>
+
+<Step>
+### Check in: replay on the server
+
+Take the device from the authenticated session or device credential, never from the request body. Replay the inputs with the lease's seed and logic version, compare hashes, and only then release the lease, conditionally on the exact holder and seed you read.
+
+```ts
+import { and, eq } from "drizzle-orm"
+import { sqliteTable, text } from "drizzle-orm/sqlite-core"
+import type { BaseSQLiteDatabase } from "drizzle-orm/sqlite-core"
+import { hashResult } from "./check-ins"
+import { leases } from "./leases"
+
+export const checkInResults = sqliteTable("check_in_results", {
+  id: text("id").primaryKey(), // the outbox id
+  resource: text("resource").notNull(),
+  result: text("result").notNull(),
+})
+
+type Engine = (seed: string, inputs: unknown[]) => unknown
+// Every logic version you still accept. A Map, so a version like "constructor" is not found.
+const engines = new Map<string, Engine>()
+
+export async function checkIn(
+  db: BaseSQLiteDatabase<"async", unknown>,
+  device: string, // from the session, not the body
+  id: string,
+  body: { resource: string; version: string; inputs: unknown[]; resultHash: string },
+) {
+  // A retry of a check-in that already went through gets the stored answer.
+  const [done] = await db.select().from(checkInResults).where(eq(checkInResults.id, id))
+  if (done) return { ok: true as const, result: JSON.parse(done.result) }
+
+  const [lease] = await db.select().from(leases).where(eq(leases.resource, body.resource))
+  if (!lease?.seed || lease.device !== device || lease.version !== body.version)
+    return { ok: false as const, reason: "not-holder" }
+  const run = engines.get(body.version)
+  if (!run) return { ok: false as const, reason: "unknown-version" }
+
+  const result = run(lease.seed, body.inputs) // the server's own result is the one kept
+  if ((await hashResult(result)) !== body.resultHash) return { ok: false as const, reason: "mismatch" }
+
+  // Keep the result first, then release. A crash between the two leaves the
+  // result stored (a retry gets it) and the lease held until it expires.
+  const inserted = await db
+    .insert(checkInResults)
+    .values({ id, resource: body.resource, result: JSON.stringify(result) })
+    .onConflictDoNothing()
+    .returning()
+  // Release only the lease we read: if it expired and was re-issued meanwhile, this matches nothing.
+  const released = await db
+    .update(leases)
+    .set({ device: null, seed: null, expiresAt: null })
+    .where(and(eq(leases.resource, body.resource), eq(leases.device, device), eq(leases.seed, lease.seed)))
+    .returning()
+  if (!released.length) {
+    // Undo only our own row: a concurrent retry of the same id may have stored it and released the lease.
+    if (inserted.length) await db.delete(checkInResults).where(eq(checkInResults.id, id))
+    const [kept] = await db.select().from(checkInResults).where(eq(checkInResults.id, id))
+    if (kept) return { ok: true as const, result: JSON.parse(kept.result) }
+    return { ok: false as const, reason: "lease-changed" }
+  }
+  return { ok: true as const, result }
+}
+```
+
+This order needs no transaction, so it works on D1 too. Check out only versions that are in `engines`. On a mismatch the lease stays until it expires; decide in your app whether that device may try again.
+</Step>
+
+<Step>
+### Keep old versions callable
+
+A device may check in hours after an app update. Keep each logic version in `engines` until no lease issued under it can still be open (its longest TTL has passed), then remove it.
+</Step>
+</Steps>
