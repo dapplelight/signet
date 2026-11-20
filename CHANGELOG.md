@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### create-signet-app: PNG icons in the PWA part, shorter picker command
+
+The pwa part now ships 192px, 512px and maskable 512px PNG icons next to the SVG, listed in the manifest and the service worker's precache, so phones that ignore SVG home-screen icons get one. Scaffolding skips PNGs when resolving markers and placeholders, so they are copied byte for byte. The picker's equivalent command lists only the parts you chose, not ones added because another part needs them; it resolves to the same app.
+
 ### signet-server: realtime reducers, deadlines and rooms
 
 - `createRealtime({ actions })`: a reducer per channel or prefix (`"room:*"`). Clients send `{ type: "action", channel, action, ref? }`; an accepted action updates the channel's value and broadcasts an `action` event with the usual seq, a rejected one (`throw new ActionRejected(message, code?)`) answers only the sender and changes nothing. `set` is refused on these channels. `joined` carries the channel's `value`.
