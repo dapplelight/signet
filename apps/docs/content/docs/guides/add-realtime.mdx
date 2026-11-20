@@ -123,6 +123,56 @@ export function Doc({ id, me }: { id: string; me: string }) {
 
 The org comes from `authenticate`, never from the client, so tenants cannot see each other's channels. Bun and Node hubs live in one process: run one instance.
 
+## Server-authoritative rooms
+
+Give a channel (or a prefix ending in `*`) a reducer and its value changes only through it. A client sends `{ type: "action", channel, action, ref? }`; the hub runs the reducer and broadcasts an `action` event `{ action, by, value, ref }` with the usual `seq`, or answers only the sender with an error. `set` is refused on these channels.
+
+```ts title="server/realtime.ts"
+import { ActionRejected, createRealtime } from "@dapplelight/signet-server/realtime"
+
+type Turn = { holder: string | null; closed: boolean }
+
+export const hub = createRealtime({
+  authorize: (who, channel) => channel.startsWith("turn:"),
+  actions: {
+    "turn:*": {
+      initial: (): Turn => ({ holder: null, closed: false }),
+      reduce: (state: Turn, action, who, ctx) => {
+        if (!who) return { ...state, closed: true } // the deadline below, run by the server
+        if (state.closed || state.holder === who.userId) throw new ActionRejected("Not now.")
+        ctx.schedule("close", ctx.now + 15_000, { close: true }) // same name replaces
+        return { holder: who.userId, closed: false }
+      },
+    },
+  },
+})
+```
+
+On Cloudflare, `realtimeRoom` keeps deadlines in Durable Object alarms and reducer values in its storage, so "closes in 15 s" survives eviction and restarts. On Bun and Node they are in-memory timers.
+
+To let users of different orgs meet, set `room` on the identity in `authenticate`. `connectRoom` then routes the socket to that room's object, and `roomScope(key)` stands in for the org id when publishing.
+
+```ts title="worker/rooms.ts"
+import { connectRoom, roomPublisher } from "@dapplelight/signet-server/realtime/cloudflare"
+import { roomScope } from "@dapplelight/signet-server/realtime"
+import { app } from "../server/app"
+import { authenticate } from "../server/realtime"
+import { mayEnter } from "../server/rooms"
+
+app.get("/rooms/:key/live", (c) =>
+  connectRoom(c.env.REALTIME, c.req.raw, {
+    authenticate: async (req) => {
+      const who = await authenticate(req)
+      const key = c.req.param("key")
+      return who && (await mayEnter(who.userId, key)) ? { ...who, room: key } : null
+    },
+  }),
+)
+
+export const announce = (env: { REALTIME: DurableObjectNamespace }, key: string) =>
+  roomPublisher(env.REALTIME as never).publish(roomScope(key), "turn:1", "opened")
+```
+
 ## Next
 <Cards>
   <Card title="Realtime" href="/docs/packages/server/realtime" description="Resume, shared state, limits and the outbox path." />

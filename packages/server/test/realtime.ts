@@ -4,14 +4,17 @@
  * heartbeat timeouts on a fake clock, resume after reconnect, last-writer-wins
  * shared state with a conflict, backpressure and rate limits, the outbox
  * queue, session auth and origin checks, then the same protocol over real
- * sockets on Bun and Node and through the Durable Object class.
+ * sockets on Bun and Node and through the Durable Object class. Then
+ * reducer channels (accept, reject, set refused, deadlines), rooms across
+ * orgs, and Durable Object deadlines that fire after a restart.
  */
 import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import { issueSession, verifySession } from "../src/auth/session"
 import { bunRealtime } from "../src/realtime/bun"
-import { realtimeRoom, roomPublisher } from "../src/realtime/cloudflare"
+import { connectRoom, realtimeRoom, roomPublisher } from "../src/realtime/cloudflare"
 import {
+  ActionRejected,
   admit,
   CLOSE,
   createRealtime,
@@ -19,6 +22,7 @@ import {
   type RealtimeIdentity,
   type RealtimeOptions,
   realtimeOutbox,
+  roomScope,
   sessionAuth,
 } from "../src/realtime/index"
 import { attachRealtime } from "../src/realtime/node"
@@ -584,6 +588,201 @@ const liveHub = () => createRealtime({ authorize: allowRecords })
     .fetch(new Request("https://app.example/realtime", { headers: { upgrade: "websocket" } }))
   ok("durable object: an upgrade without the worker's identity is refused", noId.status === 426)
   for (const r of rooms.values()) clearInterval(r.timer)
+}
+
+// --- server-authoritative actions
+{
+  type S = { high: number; by: string | null; closed?: boolean }
+  const hub = createRealtime({
+    authorize: (_who, ch) => ch.startsWith("room:") || ch.startsWith("record:"),
+    actions: {
+      "room:*": {
+        initial: () => ({ high: 0, by: null }),
+        reduce: (state: S, action, who, ctx) => {
+          const a = action as { amount?: number; close?: boolean; boom?: boolean }
+          if (a.boom) throw new Error("internal detail")
+          if (a.close && !who) return { ...state, closed: true }
+          state.high = -1 // mutate the copy before a rejection: must not leak
+          if (!who || state.closed || typeof a.amount !== "number" || a.amount <= 0)
+            throw new ActionRejected("Not accepted.", "TOO_LOW")
+          ctx.schedule("close", ctx.now + 30, { close: true })
+          return { high: a.amount, by: who.userId }
+        },
+      },
+      "room:fixed": { reduce: () => "exact match wins" },
+    },
+  })
+  const a = fake(hub, alice)
+  const b = fake(hub, bob)
+  await a.send({ type: "join", channel: "room:1" })
+  await b.send({ type: "join", channel: "room:1" })
+  ok(
+    "action channel: joined carries the initial value",
+    a.last("joined")?.value?.high === 0 && a.last("joined").value.by === null,
+  )
+  b.clear()
+  await a.send({ type: "action", channel: "room:1", action: { amount: 0 }, ref: "r1" })
+  ok(
+    "action rejected: only the sender hears, with its code and ref",
+    a.last("error")?.code === "TOO_LOW" &&
+      a.last("error").ref === "r1" &&
+      a.last("error").message === "Not accepted." &&
+      b.inbox.length === 0,
+  )
+  ok(
+    "action rejected: nothing changes, even though the reducer mutated its copy",
+    (hub.value("org_a", "room:1") as S).high === 0,
+  )
+  await a.send({ type: "action", channel: "room:1", action: { amount: 5 }, ref: "r2" })
+  const ev = b.last("event")
+  ok(
+    "action accepted: everyone gets an action event with seq, by, value and ref",
+    ev?.event === "action" &&
+      ev.seq === 1 &&
+      ev.data.by === "alice" &&
+      ev.data.value.high === 5 &&
+      ev.data.ref === "r2" &&
+      a.last("event")?.seq === 1,
+    ev,
+  )
+  await b.send({ type: "set", channel: "room:1", key: "high", value: 999 })
+  ok(
+    "action channel: a direct set is refused and changes nothing",
+    b.last("error")?.code === "FORBIDDEN" &&
+      (hub.value("org_a", "room:1") as S).high === 5 &&
+      Object.keys(hub.state("org_a", "room:1")).length === 0,
+  )
+  await a.send({ type: "action", channel: "room:1", action: { boom: true } })
+  ok(
+    "a reducer that throws a plain error is ACTION_FAILED, without its message",
+    a.last("error")?.code === "ACTION_FAILED" && !JSON.stringify(a.inbox).includes("internal"),
+  )
+  await a.send({ type: "join", channel: "record:doc:1" })
+  await a.send({ type: "action", channel: "record:doc:1", action: {} })
+  ok("a channel without a reducer takes no actions", a.last("error")?.code === "BAD_REQUEST")
+  await a.send({ type: "join", channel: "room:fixed" })
+  ok("an exact channel key beats a prefix", a.last("joined")?.value === null)
+  await new Promise((r) => setTimeout(r, 80))
+  ok(
+    "a deadline scheduled by an accepted action fires as a server action",
+    (hub.value("org_a", "room:1") as S).closed === true && b.last("event")?.data.by === null,
+  )
+  await a.send({ type: "action", channel: "room:1", action: { amount: 9 } })
+  ok("after the deadline the reducer refuses", a.last("error")?.code === "TOO_LOW")
+  const v = (await hub.act("org_a", "room:2", { close: true })) as S
+  ok("act creates the channel and runs as the server", v.closed === true && v.high === 0)
+  let threw = false
+  await hub.act("org_a", "record:doc:1", {}).catch(() => {
+    threw = true
+  })
+  ok("act refuses a channel without a reducer", threw)
+}
+
+// --- rooms across orgs
+{
+  const hub = createRealtime({
+    now,
+    authorize: (who, ch) => who.room === "match-1" && ch === "live",
+  })
+  const a = fake(hub, { ...alice, room: "match-1" })
+  const e = fake(hub, { ...eve, room: "match-1" })
+  const b = fake(hub, bob) // same org as alice, no room
+  await a.send({ type: "join", channel: "live" })
+  await e.send({ type: "join", channel: "live" })
+  await b.send({ type: "join", channel: "live" })
+  ok(
+    "room: users of two orgs share the room's channel",
+    e.last("presence")?.members.length === 2 && b.last("error")?.code === "FORBIDDEN",
+  )
+  await hub.publish(roomScope("match-1"), "live", "tick", 1)
+  await hub.publish("org_a", "live", "org-only", 1)
+  ok(
+    "room: publish with roomScope reaches the room, the org scope does not",
+    a.last("event")?.event === "tick" &&
+      e.last("event")?.event === "tick" &&
+      !a.inbox.some((m) => m.event === "org-only"),
+  )
+}
+
+// --- durable deadlines and rooms in the Durable Object
+{
+  const kv = new Map<string, unknown>()
+  let alarmAt: number | null = null
+  const state = {
+    storage: {
+      get: async (k: string) => structuredClone(kv.get(k)),
+      put: async (k: string, v: unknown) => {
+        kv.set(k, structuredClone(v))
+      },
+      delete: async (k: string) => kv.delete(k),
+      list: async ({ prefix }: { prefix: string }) =>
+        new Map([...kv].filter(([k]) => k.startsWith(prefix))),
+      getAlarm: async () => alarmAt,
+      setAlarm: async (at: number) => {
+        alarmAt = at
+      },
+    },
+  }
+  const opts = {
+    now,
+    authorize: () => true,
+    actions: {
+      "timed:*": {
+        initial: () => ({ open: true, n: 0 }),
+        reduce: (s: { open: boolean; n: number }, action: unknown, who: unknown, ctx: any) => {
+          if ((action as { close?: boolean }).close && !who) return { ...s, open: false }
+          if (!s.open) throw new ActionRejected("Closed.")
+          ctx.schedule("close", ctx.now + 15_000, { close: true })
+          return { ...s, n: s.n + 1 }
+        },
+      },
+    },
+  }
+  const Room = realtimeRoom(opts)
+  const first = new Room(state)
+  await first.hub.act("org_a", "timed:1", { go: true })
+  ok(
+    "durable object: a deadline is stored and the alarm set",
+    alarmAt === clock + 15_000 && [...kv.keys()].some((k) => k.startsWith("deadline")),
+  )
+  // Evicted: a new instance over the same storage, then the alarm rings.
+  const second = new Room(state)
+  clock += 15_000
+  await second.alarm()
+  ok(
+    "durable object: the deadline fires after a restart, on the stored value",
+    (second.hub.value("org_a", "timed:1") as { open: boolean; n: number }).open === false &&
+      (second.hub.value("org_a", "timed:1") as { n: number }).n === 1 &&
+      ![...kv.keys()].some((k) => k.startsWith("deadline")),
+  )
+  const third = new Room(state)
+  let refused = false
+  await third.hub.act("org_a", "timed:1", { go: true }).catch((e) => {
+    refused = e instanceof ActionRejected
+  })
+  ok("durable object: the closed value survives another restart", refused)
+  const noAlarm = new Room()
+  await noAlarm.alarm()
+  ok("durable object: no state, the alarm is a no-op", noAlarm.storage === undefined)
+
+  const routed: string[] = []
+  const ns = {
+    idFromName: (n: string) => n,
+    get: (id: never) => ({
+      fetch: async () => {
+        routed.push(id as unknown as string)
+        return new Response(null, { status: 204 })
+      },
+    }),
+  }
+  const req = () =>
+    new Request("https://app.example/realtime", { headers: { upgrade: "websocket" } })
+  await connectRoom(ns, req(), { authenticate: () => ({ ...eve, room: "match-1" }) })
+  await connectRoom(ns, req(), { authenticate: () => eve })
+  ok(
+    "connectRoom: a room identity goes to the room's object, others to their org's",
+    routed[0] === roomScope("match-1") && routed[1] === "org_b",
+  )
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)
