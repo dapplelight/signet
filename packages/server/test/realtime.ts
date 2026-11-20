@@ -678,6 +678,46 @@ const liveHub = () => createRealtime({ authorize: allowRecords })
   ok("act refuses a channel without a reducer", threw)
 }
 
+// --- reducer values outlive idle channels; a failed load is retried
+{
+  const counter = { "count:*": { initial: () => 0, reduce: (n: number) => n + 1 } }
+  const hub = createRealtime({ now, authorize: () => true, actions: counter })
+  await hub.act("org_a", "count:1", {})
+  await hub.act("org_a", "count:1", {})
+  clock += 400_000
+  hub.sweep()
+  ok("idle sweep drops the empty channel", hub.value("org_a", "count:1") === undefined)
+  const a = fake(hub, alice)
+  await a.send({ type: "join", channel: "count:1" })
+  ok(
+    "without storage, a reducer value survives the idle sweep",
+    a.last("joined")?.value === 2,
+    a.last("joined"),
+  )
+
+  let failures = 1
+  const flaky = createRealtime({
+    now,
+    authorize: () => true,
+    actions: counter,
+    storage: {
+      get: async () => {
+        if (failures-- > 0) throw new Error("storage down")
+        return 7
+      },
+      put: async () => {},
+    },
+  })
+  const f = fake(flaky, alice)
+  await f.send({ type: "join", channel: "count:1" })
+  ok(
+    "a failed load answers the join with an error",
+    f.last("error")?.code === "UNAVAILABLE" && !f.last("joined"),
+  )
+  await f.send({ type: "join", channel: "count:1" })
+  ok("the next join retries the load", f.last("joined")?.value === 7, f.last("joined"))
+}
+
 // --- rooms across orgs
 {
   const hub = createRealtime({

@@ -115,7 +115,10 @@ export type RealtimeTimers = {
   clear(orgId: string, channel: string, name: string): void | Promise<void>
 }
 
-/** Where reducer values are kept between restarts (Durable Object storage fits). Default: memory only. */
+/**
+ * Where reducer values are kept between restarts (Durable Object storage fits).
+ * Default: memory, kept even after an idle channel is dropped.
+ */
 export type RealtimeStorage = {
   get(key: string): Promise<unknown>
   put(key: string, value: unknown): Promise<void>
@@ -282,7 +285,7 @@ export function createRealtime(options: RealtimeOptions = {}): RealtimeHub {
   const orgs = new Map<string, Map<string, Channel>>()
   const conns = new Set<Conn>()
   let nextId = 0
-  const { actions = {}, storage } = options
+  const { actions = {} } = options
   const reducerFor = (name: string) => {
     let best: string | undefined
     for (const k of Object.keys(actions)) {
@@ -317,13 +320,27 @@ export function createRealtime(options: RealtimeOptions = {}): RealtimeHub {
     },
   }
   const valueKey = (orgId: string, name: string) => `value\u0000${orgId}\u0000${name}`
-  // ponytail: stored values are never deleted; add a cleanup when channel churn makes storage grow.
+  // Without storage, reducer values live in this map, which the idle sweep
+  // does not clear: an empty channel is dropped but its value survives. The
+  // sweep frees a value only when it is back to `initial`, so memory is one
+  // entry per reducer channel whose value differs from its initial value.
+  // ponytail: values in a configured storage are never deleted; add a cleanup if channel churn makes it grow.
+  const memory = options.storage ? undefined : new Map<string, unknown>()
+  const storage: RealtimeStorage = options.storage ?? {
+    get: async (k) => memory?.get(k),
+    put: async (k, v) => {
+      memory?.set(k, v)
+    },
+  }
+  const initialOf = (name: string) => (reducerFor(name) as RealtimeReducer).initial?.(name) ?? null
   const ready = (orgId: string, ch: Channel) => {
-    const r = ch.reducer as RealtimeReducer
     ch.loading ??= (async () => {
-      const stored = storage ? await storage.get(valueKey(orgId, ch.name)) : undefined
-      ch.value = stored !== undefined ? stored : (r.initial?.(ch.name) ?? null)
-    })()
+      const stored = await storage.get(valueKey(orgId, ch.name))
+      ch.value = stored !== undefined ? stored : initialOf(ch.name)
+    })().catch((e) => {
+      ch.loading = undefined // the next join or action retries the load
+      throw e
+    })
     return ch.loading
   }
   const scopeOf = (who: RealtimeIdentity) =>
@@ -374,7 +391,7 @@ export function createRealtime(options: RealtimeOptions = {}): RealtimeHub {
       value: next,
       ...(ref !== undefined && { ref }),
     })
-    if (storage) await storage.put(valueKey(orgId, ch.name), next)
+    await storage.put(valueKey(orgId, ch.name), next)
     for (const f of later) await f()
     return next
   }
@@ -496,7 +513,13 @@ export function createRealtime(options: RealtimeOptions = {}): RealtimeHub {
       if (!c.open) return
       if (!allowed) return error(c, "FORBIDDEN", "Not allowed to join this channel.", name)
       const ch = channelOf(scopeOf(c.who), name, true) as Channel
-      if (ch.reducer) await ready(scopeOf(c.who), ch)
+      if (ch.reducer) {
+        try {
+          await ready(scopeOf(c.who), ch)
+        } catch {
+          return error(c, "UNAVAILABLE", "The channel could not be loaded. Try again.", name)
+        }
+      }
       if (!c.open) return
       const isNewUser = !userIn(ch, c.who.userId)
       ch.members.set(c.id, { conn: c, typingUntil: 0, editing: null })
@@ -690,7 +713,16 @@ export function createRealtime(options: RealtimeOptions = {}): RealtimeHub {
       for (const [orgId, org] of orgs) {
         for (const [name, ch] of org) {
           if (ch.members.size === 0) {
-            if (t - ch.emptySince > idleMs) org.delete(name)
+            if (t - ch.emptySince > idleMs) {
+              org.delete(name)
+              // The value outlives the channel (see `memory`); free it once it is back to initial.
+              if (
+                memory &&
+                ch.reducer &&
+                JSON.stringify(ch.value) === JSON.stringify(initialOf(name))
+              )
+                memory.delete(valueKey(orgId, name))
+            }
             continue
           }
           let expired = false
