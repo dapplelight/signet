@@ -188,18 +188,29 @@ export function createServices({ db, kv }: Deps) { // @!auth
   }
   // Each user's Expo push tokens, newest last, in the kv table.
   // ponytail: read-modify-write per user; a table with a unique token column at scale.
+  // A token belongs to one user at a time (push-owner:<token>): when another
+  // account turns push on from the same phone, the previous owner loses it,
+  // even if their sign-out never reached the server.
   const pushKey = (userId: string) => `push-tokens:${userId}`
+  const ownerKey = (token: string) => `push-owner:${token}`
+  const dropFrom = async (userId: string, token: string) => {
+    const kept = (await pushTokens.list(userId)).filter((t) => t !== token)
+    await kv.set(pushKey(userId), JSON.stringify(kept))
+  }
   const pushTokens = {
     async list(userId: string): Promise<string[]> {
       return JSON.parse((await kv.get(pushKey(userId))) ?? "[]") as string[]
     },
     async add(userId: string, token: string) {
+      const previous = await kv.get(ownerKey(token))
+      if (previous && previous !== userId) await dropFrom(previous, token)
+      await kv.set(ownerKey(token), userId)
       const kept = (await pushTokens.list(userId)).filter((t) => t !== token)
       await kv.set(pushKey(userId), JSON.stringify([...kept, token].slice(-10)))
     },
     async remove(token: string, userId: string) {
-      const kept = (await pushTokens.list(userId)).filter((t) => t !== token)
-      await kv.set(pushKey(userId), JSON.stringify(kept))
+      await dropFrom(userId, token)
+      if ((await kv.get(ownerKey(token))) === userId) await kv.delete(ownerKey(token))
     },
   }
   const push = expoPushSender({

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { app, codes, post } from "./helpers.ts"
+import { app, codes, db, post, sqlKv } from "./helpers.ts"
 
 type Tokens = { access_token: string; refresh_token: string; expires_in: number }
 
@@ -77,4 +77,28 @@ test("push tokens: saved, refused when malformed, and revoke signs out", async (
     body: new URLSearchParams({ token: t.refresh_token }).toString(),
   })
   expect((await app.request("/api/account/me", bearer(t.access_token))).status).toBe(401)
+})
+
+test("a phone's push token follows the account that last turned push on", async () => {
+  const kv = sqlKv(db.orm)
+  const token = "ExponentPushToken[shared-phone]"
+  const turnOn = async (phone: string) => {
+    const t = await mobileSignIn(phone)
+    const me = await app.request("/api/account/me", bearer(t.access_token))
+    const { user } = (await me.json()) as { user: { id: string } }
+    const res = await app.request(
+      "/api/mobile/push/token",
+      bearer(t.access_token, { method: "POST", body: JSON.stringify({ token }) }),
+    )
+    expect(res.status).toBe(200)
+    return user.id
+  }
+  const tokensOf = async (id: string) =>
+    JSON.parse((await kv.get(`push-tokens:${id}`)) ?? "[]") as string[]
+
+  // A never signs out on the server (offline sign-out), then B uses the phone.
+  const a = await turnOn("+919000000705")
+  const b = await turnOn("+919000000706")
+  expect(await tokensOf(a)).toEqual([])
+  expect(await tokensOf(b)).toEqual([token])
 })
