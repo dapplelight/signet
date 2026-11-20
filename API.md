@@ -206,9 +206,9 @@ Signet backend primitives. Auth first.
 | `@dapplelight/signet-server/observability/request-log` | requestLog, RequestLogConfig | One structured log line when a request starts and one when it ends: `request.started`, then `request.completed` or `request.failed` |
 | `@dapplelight/signet-server/observability/sentry` | redactSecrets, parseStack, createSentry, SentryConfig, StackFrame, SentryRequest, … | Sentry reporting over the Envelope HTTP API |
 | `@dapplelight/signet-server/observability/trace` | traceContext, traceMiddleware, withSpan, SpanHandle, TraceConfig, TraceIds | OpenTelemetry tracing for Hono |
-| `@dapplelight/signet-server/realtime` | REALTIME_TOPIC, CLOSE, createRealtime, realtimeOutbox, admit, sessionAuth, … | Real-time channels: presence, live updates and a small shared state per channel, with one hub for every runtime |
+| `@dapplelight/signet-server/realtime` | roomScope, ActionRejected, REALTIME_TOPIC, CLOSE, createRealtime, realtimeOutbox, … | Real-time channels: presence, live updates and a small shared state per channel, with one hub for every runtime |
 | `@dapplelight/signet-server/realtime/bun` | bunRealtime, BunSocket, BunServer | The realtime hub on Bun's built-in WebSocket server |
-| `@dapplelight/signet-server/realtime/cloudflare` | realtimeRoom, connectRoom, roomPublisher, RealtimeNamespace, WorkerSocket | The realtime hub in a Cloudflare Durable Object: one object per org, so every connection and channel of a tenant meets in one place and two orgs never |
+| `@dapplelight/signet-server/realtime/cloudflare` | realtimeRoom, connectRoom, roomPublisher, RealtimeNamespace, WorkerSocket, RoomState | The realtime hub in a Cloudflare Durable Object: one object per org, so every connection and channel of a tenant meets in one place and two orgs never |
 | `@dapplelight/signet-server/realtime/node` | attachRealtime, NodeRealtimeOptions | The realtime hub on a Node `http.Server`, with no dependency |
 | `@dapplelight/signet-server/storage` | sniffType, stripMetadata, UploadError, assertContentMatches, createUploads, abandonedUploadsJob, … | re-exports metadata, uploads |
 
