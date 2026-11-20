@@ -15,6 +15,16 @@
  * await roomPublisher(env.REALTIME).publish(orgId, "record:projects:42", "updated", { id: "42" })
  * ```
  *
+ * Rooms across orgs: when `authenticate` sets `room` on the identity, the
+ * connection goes to that room's object instead of the org's, and its
+ * channels are shared by everyone in the room whatever their org. Publish
+ * into it with `roomPublisher(ns).publish(roomScope(key), ...)`.
+ *
+ * Deadlines (`schedule`, or `ctx.schedule` in a reducer) are kept in the
+ * object's storage and fired by its alarm, so they survive eviction and
+ * restarts; reducer values are kept in the same storage. Export the class
+ * as is: workerd passes the state to the constructor and calls `alarm()`.
+ *
  * The worker authenticates and picks the org's object; the object trusts the
  * identity it is handed, which is safe because a Durable Object is reachable
  * only through its binding. No `cloudflare:workers` import, so this module
@@ -25,10 +35,12 @@ import {
   type AdmitOptions,
   admit,
   createRealtime,
+  type RealtimeDeadline,
   type RealtimeHub,
   type RealtimeIdentity,
   type RealtimeOptions,
   type RealtimePublisher,
+  roomScope,
 } from "./index.js"
 
 /** The subset of DurableObjectNamespace this uses. */
@@ -46,7 +58,22 @@ export type WorkerSocket = {
   addEventListener(type: "close" | "error", fn: () => void): void
 }
 
+/** The subset of DurableObjectState this uses. */
+export type RoomState = {
+  storage: {
+    get(key: string): Promise<unknown>
+    put(key: string, value: unknown): Promise<void>
+    delete(key: string): Promise<boolean>
+    list(options: { prefix: string }): Promise<Map<string, unknown>>
+    getAlarm(): Promise<number | null>
+    setAlarm(at: number): Promise<void>
+  }
+}
+
 const IDENTITY = "x-signet-realtime-identity"
+const DEADLINE = "deadline\u0000"
+const deadlineKey = (orgId: string, channel: string, name: string) =>
+  DEADLINE + JSON.stringify([orgId, channel, name])
 const stub = (ns: RealtimeNamespace, orgId: string) => ns.get(ns.idFromName(orgId) as never)
 
 /**
@@ -57,8 +84,52 @@ export function realtimeRoom(
   options: RealtimeOptions & { pair?: () => [client: unknown, server: WorkerSocket] } = {},
 ) {
   return class RealtimeRoom {
-    readonly hub: RealtimeHub = createRealtime(options)
+    readonly hub: RealtimeHub
     timer: ReturnType<typeof setInterval> | undefined
+    readonly storage: RoomState["storage"] | undefined
+
+    constructor(state?: RoomState) {
+      const storage = state?.storage
+      this.storage = storage
+      this.hub = createRealtime(
+        storage
+          ? {
+              storage,
+              timers: {
+                async set(d) {
+                  await storage.put(deadlineKey(d.orgId, d.channel, d.name), d)
+                  const current = await storage.getAlarm()
+                  if (current === null || d.at < current) await storage.setAlarm(d.at)
+                },
+                async clear(orgId, channel, name) {
+                  await storage.delete(deadlineKey(orgId, channel, name))
+                },
+              },
+              ...options,
+            }
+          : options,
+      )
+    }
+
+    /** workerd calls this when the alarm rings: fire due deadlines, re-arm for the next. */
+    async alarm(): Promise<void> {
+      if (!this.storage) return
+      const t = (options.now ?? Date.now)()
+      for (const [key, value] of await this.storage.list({ prefix: DEADLINE })) {
+        const d = value as RealtimeDeadline
+        if (d.at > t) continue
+        await this.storage.delete(key)
+        // A rejected deadline action changes nothing, like a rejected client action.
+        await this.hub.act(d.orgId, d.channel, d.action).catch(() => {})
+      }
+      // Listed again: a fired action may have scheduled a new deadline.
+      let next: number | undefined
+      for (const value of (await this.storage.list({ prefix: DEADLINE })).values()) {
+        const at = (value as RealtimeDeadline).at
+        if (at > t) next = next === undefined ? at : Math.min(next, at)
+      }
+      if (next !== undefined) await this.storage.setAlarm(next)
+    }
 
     async fetch(request: Request): Promise<Response> {
       const url = new URL(request.url)
@@ -107,7 +178,7 @@ export function realtimeRoom(
   }
 }
 
-/** Authenticate an upgrade in the worker and hand it to the caller's org object. */
+/** Authenticate an upgrade in the worker and hand it to the caller's org object, or its room's when `authenticate` set `room`. */
 export async function connectRoom(
   ns: RealtimeNamespace,
   request: Request,
@@ -117,10 +188,11 @@ export async function connectRoom(
   if (who instanceof Response) return who
   const headers = new Headers(request.headers)
   headers.set(IDENTITY, JSON.stringify(who))
-  return stub(ns, who.orgId).fetch(new Request(request.url, { headers }))
+  const scope = who.room !== undefined ? roomScope(who.room) : who.orgId
+  return stub(ns, scope).fetch(new Request(request.url, { headers }))
 }
 
-/** Publish into an org's object from a worker, a cron or `realtimeOutbox`. */
+/** Publish into an org's object (or a room's, with `roomScope(key)`) from a worker, a cron or `realtimeOutbox`. */
 export function roomPublisher(ns: RealtimeNamespace): RealtimePublisher {
   return {
     async publish(orgId, channel, event, data = null, id) {

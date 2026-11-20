@@ -20,8 +20,33 @@
  *   { type: "leave", channel }
  *   { type: "presence", channel, typing?: boolean, editing?: string | null }
  *   { type: "set", channel, key, value, base?: number } last writer wins; base = version you saw
+ *   { type: "action", channel, action, ref? }      a channel with a reducer (see `actions`)
  *   { type: "ping" }
  * server to client: welcome, joined, event, presence, state, conflict, pong, error.
+ *
+ * Server-authoritative channels: `actions` gives a channel (or a prefix,
+ * "room:*") a reducer. Clients send intents; the hub runs the reducer and
+ * either broadcasts an "action" event `{ action, by, value, ref? }` with the
+ * usual seq, or answers only the sender with an error and changes nothing.
+ * `set` is refused on such a channel, so its value changes only through the
+ * reducer.
+ *
+ * ```ts
+ * const hub = createRealtime({
+ *   authorize,
+ *   actions: {
+ *     "room:*": {
+ *       initial: () => ({ high: 0, by: null }),
+ *       reduce: (state, action, who, ctx) => {
+ *         const a = action as { amount: number }
+ *         if (!who || a.amount <= state.high) throw new ActionRejected("Too low.")
+ *         ctx.schedule("close", ctx.now + 15_000, { close: true }) // replaces the earlier one
+ *         return { high: a.amount, by: who.userId }
+ *       },
+ *     },
+ *   },
+ * })
+ * ```
  */
 
 export type RealtimeIdentity = {
@@ -34,6 +59,69 @@ export type RealtimeIdentity = {
   permissions?: string[]
   /** Epoch ms after which the connection is closed (the session's expiry). */
   expiresAt?: number
+  /**
+   * A room key chosen by the server (in `authenticate`), never the client.
+   * When set, this connection's channels live under `roomScope(room)` instead
+   * of its org, so users of different orgs meet in the same channels.
+   */
+  room?: string
+}
+
+/** The scope to pass where an orgId is expected (publish, act, schedule...) to reach a room's channels. */
+export const roomScope = (room: string) => `room\u0000${room}`
+
+/** Throw from a reducer to refuse an action: the sender gets this message, nothing changes. */
+export class ActionRejected extends Error {
+  constructor(
+    message: string,
+    readonly code = "REJECTED",
+  ) {
+    super(message)
+  }
+}
+
+export type ActionContext = {
+  orgId: string
+  channel: string
+  now: number
+  /** Dispatch `action` (with `who` null) at `at`. Same name replaces. Applied only if the action is accepted. */
+  schedule(name: string, at: number, action: unknown): void
+  unschedule(name: string): void
+}
+
+// biome-ignore lint/suspicious/noExplicitAny: the app types its own state
+export type RealtimeReducer<S = any> = {
+  /** The value of a fresh channel. Default null. */
+  initial?: (channel: string) => S
+  /**
+   * The next value, or throw `ActionRejected`. Synchronous and pure: it gets a
+   * copy, so a mutation before a throw changes nothing. `who` is null for
+   * server actions (`act`, deadlines).
+   */
+  reduce: (state: S, action: unknown, who: RealtimeIdentity | null, ctx: ActionContext) => S
+}
+
+export type RealtimeDeadline = {
+  orgId: string
+  channel: string
+  name: string
+  at: number
+  action: unknown
+}
+
+/** Where deadlines are kept. Default: in-memory timers. `realtimeRoom` keeps them in Durable Object alarms. */
+export type RealtimeTimers = {
+  set(deadline: RealtimeDeadline): void | Promise<void>
+  clear(orgId: string, channel: string, name: string): void | Promise<void>
+}
+
+/**
+ * Where reducer values are kept between restarts (Durable Object storage fits).
+ * Default: memory, kept even after an idle channel is dropped.
+ */
+export type RealtimeStorage = {
+  get(key: string): Promise<unknown>
+  put(key: string, value: unknown): Promise<void>
 }
 
 /** What the hub needs from a socket. Adapters wrap Bun, Node and Cloudflare sockets in this. */
@@ -73,6 +161,10 @@ export type RealtimeOptions = {
   idleMs?: number
   /** Clock, for tests. Default Date.now. */
   now?: () => number
+  /** Reducers by channel name, or by prefix ending in "*" ("room:*"). Longest match wins. */
+  actions?: Record<string, RealtimeReducer>
+  timers?: RealtimeTimers
+  storage?: RealtimeStorage
 }
 
 export type PresenceMember = {
@@ -120,6 +212,13 @@ export type RealtimeHub = RealtimePublisher & {
   disconnect(orgId: string, userId?: string): void
   presence(orgId: string, channel: string): PresenceMember[]
   state(orgId: string, channel: string): Record<string, StateEntry>
+  /** Run an action as the server (`who` null). Resolves to the new value; rejects with `ActionRejected`. */
+  act(orgId: string, channel: string, action: unknown): Promise<unknown>
+  /** A reducer channel's current value (undefined if not loaded). */
+  value(orgId: string, channel: string): unknown
+  /** Dispatch `action` on `channel` at `at` (epoch ms). Same name replaces. */
+  schedule(orgId: string, channel: string, name: string, at: number, action: unknown): Promise<void>
+  unschedule(orgId: string, channel: string, name: string): Promise<void>
   readonly heartbeatMs: number
   /** Connections open now. */
   readonly size: number
@@ -149,6 +248,9 @@ type Channel = {
   members: Map<string, Member>
   state: Map<string, StateEntry>
   emptySince: number
+  reducer?: RealtimeReducer
+  value?: unknown
+  loading?: Promise<void>
 }
 type Conn = {
   id: string
@@ -183,6 +285,116 @@ export function createRealtime(options: RealtimeOptions = {}): RealtimeHub {
   const orgs = new Map<string, Map<string, Channel>>()
   const conns = new Set<Conn>()
   let nextId = 0
+  const { actions = {} } = options
+  const reducerFor = (name: string) => {
+    let best: string | undefined
+    for (const k of Object.keys(actions)) {
+      const hit = k.endsWith("*") ? name.startsWith(k.slice(0, -1)) : name === k
+      if (hit && (best === undefined || k.length > best.length)) best = k
+    }
+    return best === undefined ? undefined : actions[best]
+  }
+  const timeouts = new Map<string, ReturnType<typeof setTimeout>>()
+  const timers: RealtimeTimers = options.timers ?? {
+    set(d) {
+      const key = JSON.stringify([d.orgId, d.channel, d.name])
+      const arm = () => {
+        clearTimeout(timeouts.get(key))
+        const t = setTimeout(
+          () => {
+            if (d.at > now()) return arm() // a delay past setTimeout's 24.8-day cap
+            timeouts.delete(key)
+            hub.act(d.orgId, d.channel, d.action).catch(() => {})
+          },
+          Math.min(Math.max(d.at - now(), 0), 2 ** 31 - 1),
+        )
+        ;(t as { unref?: () => void }).unref?.()
+        timeouts.set(key, t)
+      }
+      arm()
+    },
+    clear(orgId, channel, name) {
+      const key = JSON.stringify([orgId, channel, name])
+      clearTimeout(timeouts.get(key))
+      timeouts.delete(key)
+    },
+  }
+  const valueKey = (orgId: string, name: string) => `value\u0000${orgId}\u0000${name}`
+  // Without storage, reducer values live in this map, which the idle sweep
+  // does not clear: an empty channel is dropped but its value survives. The
+  // sweep frees a value only when it is back to `initial`, so memory is one
+  // entry per reducer channel whose value differs from its initial value.
+  // ponytail: values in a configured storage are never deleted; add a cleanup if channel churn makes it grow.
+  const memory = options.storage ? undefined : new Map<string, unknown>()
+  const storage: RealtimeStorage = options.storage ?? {
+    get: async (k) => memory?.get(k),
+    put: async (k, v) => {
+      memory?.set(k, v)
+    },
+  }
+  const initialOf = (name: string) => (reducerFor(name) as RealtimeReducer).initial?.(name) ?? null
+  const ready = (orgId: string, ch: Channel) => {
+    ch.loading ??= (async () => {
+      const stored = await storage.get(valueKey(orgId, ch.name))
+      ch.value = stored !== undefined ? stored : initialOf(ch.name)
+    })().catch((e) => {
+      ch.loading = undefined // the next join or action retries the load
+      throw e
+    })
+    return ch.loading
+  }
+  const scopeOf = (who: RealtimeIdentity) =>
+    who.room !== undefined ? roomScope(who.room) : who.orgId
+
+  const record = (ch: Channel, event: string, data: unknown, id?: string) => {
+    const e: RealtimeEvent = {
+      type: "event",
+      channel: ch.name,
+      seq: ++ch.seq,
+      ...(id !== undefined && { id }),
+      event,
+      data,
+      at: now(),
+    }
+    ch.history.push(e)
+    if (ch.history.length > L.history) ch.history.shift()
+    broadcast(ch, e)
+  }
+
+  /** Run a reducer: the new value, or it throws and nothing changes. */
+  const apply = async (
+    orgId: string,
+    ch: Channel,
+    action: unknown,
+    who: RealtimeIdentity | null,
+    ref?: string,
+  ) => {
+    await ready(orgId, ch)
+    const r = ch.reducer as RealtimeReducer
+    const later: Array<() => Promise<void>> = []
+    // The reducer is synchronous, so nothing interleaves between read and write.
+    const next = r.reduce(structuredClone(ch.value), action, who, {
+      orgId,
+      channel: ch.name,
+      now: now(),
+      schedule: (name, at, a) => {
+        later.push(() => hub.schedule(orgId, ch.name, name, at, a))
+      },
+      unschedule: (name) => {
+        later.push(() => hub.unschedule(orgId, ch.name, name))
+      },
+    })
+    ch.value = next
+    record(ch, "action", {
+      action,
+      by: who?.userId ?? null,
+      value: next,
+      ...(ref !== undefined && { ref }),
+    })
+    await storage.put(valueKey(orgId, ch.name), next)
+    for (const f of later) await f()
+    return next
+  }
 
   const channelOf = (orgId: string, name: string, create: boolean) => {
     let org = orgs.get(orgId)
@@ -202,6 +414,8 @@ export function createRealtime(options: RealtimeOptions = {}): RealtimeHub {
         state: new Map(),
         emptySince: now(),
       }
+      const reducer = reducerFor(name)
+      if (reducer) ch.reducer = reducer
       org.set(name, ch)
     }
     return ch
@@ -255,7 +469,7 @@ export function createRealtime(options: RealtimeOptions = {}): RealtimeHub {
     [...ch.members.values()].some((m) => m.conn.who.userId === userId)
 
   const leave = (c: Conn, name: string) => {
-    const ch = channelOf(c.who.orgId, name, false)
+    const ch = channelOf(scopeOf(c.who), name, false)
     c.channels.delete(name)
     if (!ch?.members.delete(c.id)) return
     if (ch.members.size === 0) ch.emptySince = now()
@@ -278,7 +492,7 @@ export function createRealtime(options: RealtimeOptions = {}): RealtimeHub {
     send(c, { type: "error", code, message, ...(channel && { channel }) })
 
   const joined = (c: Conn, name: string) =>
-    c.channels.has(name) ? channelOf(c.who.orgId, name, false) : undefined
+    c.channels.has(name) ? channelOf(scopeOf(c.who), name, false) : undefined
 
   async function handle(c: Conn, msg: Record<string, unknown>) {
     const name = msg.channel
@@ -298,7 +512,15 @@ export function createRealtime(options: RealtimeOptions = {}): RealtimeHub {
       }
       if (!c.open) return
       if (!allowed) return error(c, "FORBIDDEN", "Not allowed to join this channel.", name)
-      const ch = channelOf(c.who.orgId, name, true) as Channel
+      const ch = channelOf(scopeOf(c.who), name, true) as Channel
+      if (ch.reducer) {
+        try {
+          await ready(scopeOf(c.who), ch)
+        } catch {
+          return error(c, "UNAVAILABLE", "The channel could not be loaded. Try again.", name)
+        }
+      }
+      if (!c.open) return
       const isNewUser = !userIn(ch, c.who.userId)
       ch.members.set(c.id, { conn: c, typingUntil: 0, editing: null })
       c.channels.add(name)
@@ -317,6 +539,7 @@ export function createRealtime(options: RealtimeOptions = {}): RealtimeHub {
         seq: ch.seq,
         members: members(ch),
         state: Object.fromEntries(ch.state),
+        ...(ch.reducer && { value: ch.value }),
         ...(replay && { replay }),
         ...(reset && { reset: true }),
       })
@@ -336,7 +559,27 @@ export function createRealtime(options: RealtimeOptions = {}): RealtimeHub {
       return presenceChanged(ch)
     }
 
+    if (msg.type === "action") {
+      if (!ch.reducer) return error(c, "BAD_REQUEST", "This channel takes no actions.", name)
+      const ref = typeof msg.ref === "string" ? msg.ref.slice(0, 100) : undefined
+      try {
+        await apply(scopeOf(c.who), ch, msg.action ?? null, c.who, ref)
+      } catch (e) {
+        const rejected = e instanceof ActionRejected
+        return send(c, {
+          type: "error",
+          code: rejected ? e.code : "ACTION_FAILED",
+          message: rejected ? e.message : "The action failed.",
+          channel: name,
+          ...(ref !== undefined && { ref }),
+        })
+      }
+      return
+    }
+
     if (msg.type === "set") {
+      if (ch.reducer)
+        return error(c, "FORBIDDEN", "This channel's state changes only through actions.", name)
       const key = msg.key
       if (typeof key !== "string" || key.length === 0 || key.length > 200)
         return error(c, "BAD_REQUEST", "A set needs a key.", name)
@@ -438,18 +681,26 @@ export function createRealtime(options: RealtimeOptions = {}): RealtimeHub {
     async publish(orgId, channel, event, data = null, id) {
       const ch = channelOf(orgId, channel, false)
       if (!ch) return // nobody joined, nothing to resume: drop
-      const e: RealtimeEvent = {
-        type: "event",
-        channel,
-        seq: ++ch.seq,
-        ...(id !== undefined && { id }),
-        event,
-        data,
-        at: now(),
-      }
-      ch.history.push(e)
-      if (ch.history.length > L.history) ch.history.shift()
-      broadcast(ch, e)
+      record(ch, event, data, id)
+    },
+
+    async act(orgId, channel, action) {
+      if (!CHANNEL.test(channel) || !reducerFor(channel))
+        throw new Error(`No reducer for channel ${channel}.`)
+      // Created if nobody is in it, so the value is there for the next join.
+      return apply(orgId, channelOf(orgId, channel, true) as Channel, action, null)
+    },
+
+    value(orgId, channel) {
+      return channelOf(orgId, channel, false)?.value
+    },
+
+    async schedule(orgId, channel, name, at, action) {
+      await timers.set({ orgId, channel, name, at, action })
+    },
+
+    async unschedule(orgId, channel, name) {
+      await timers.clear(orgId, channel, name)
     },
 
     sweep() {
@@ -462,7 +713,16 @@ export function createRealtime(options: RealtimeOptions = {}): RealtimeHub {
       for (const [orgId, org] of orgs) {
         for (const [name, ch] of org) {
           if (ch.members.size === 0) {
-            if (t - ch.emptySince > idleMs) org.delete(name)
+            if (t - ch.emptySince > idleMs) {
+              org.delete(name)
+              // The value outlives the channel (see `memory`); free it once it is back to initial.
+              if (
+                memory &&
+                ch.reducer &&
+                JSON.stringify(ch.value) === JSON.stringify(initialOf(name))
+              )
+                memory.delete(valueKey(orgId, name))
+            }
             continue
           }
           let expired = false
