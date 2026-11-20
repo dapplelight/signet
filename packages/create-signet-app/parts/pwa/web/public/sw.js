@@ -15,7 +15,14 @@ async function cacheShell() {
   const html = await res.clone().text()
   const assets = [...html.matchAll(/\/assets\/[^"'\s]+/g)].map((m) => m[0])
   await cache.put("/", res)
-  await cache.addAll(["/manifest.webmanifest", "/icon.svg", ...new Set(assets)])
+  await cache.addAll([
+    "/manifest.webmanifest",
+    "/icon.svg",
+    "/icon-192.png",
+    "/icon-512.png",
+    "/icon-maskable-512.png",
+    ...new Set(assets),
+  ])
 }
 
 self.addEventListener("install", (event) => {

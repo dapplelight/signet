@@ -376,6 +376,7 @@ export async function compose(
 
   const on = new Set<string>([...parts, ...(web ? ["web"] : []), ...(api ? ["api", runtime] : [])])
   for (const f of await walk(dest)) {
+    if (f.endsWith(".png")) continue // binary: never round-trip through utf8
     const path = join(dest, f)
     const text = await readFile(path, "utf8")
     let out = applyBlocks(text, on)
