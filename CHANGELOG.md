@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-payments: ledger posts can carry a balance floor
+
+`post(store, tx, { floor: { "wallet:u1": 0 } })` writes nothing and throws `INSUFFICIENT_BALANCE` if the post would take that account below its floor. It holds when many posts race, on the memory store, SQLite/D1 and Postgres. On Postgres the SQL client needs the new optional `transaction` hook. A repeated `txId` is still a no-op. New guide: Add In-App Currency.
+
 ### create-signet-app: the web header fits on phones
 
 On narrow screens the top bar of web starters without a sidebar now keeps the name and actions on one row and puts the nav on a row below, wrapping onto more rows when there are many links. Before, the links stacked and "Sign out" wrapped onto its own line, worst with the PWA "Install app" button.
