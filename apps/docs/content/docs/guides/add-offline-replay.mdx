@@ -95,7 +95,8 @@ export const checkInResults = sqliteTable("check_in_results", {
 })
 
 type Engine = (seed: string, inputs: unknown[]) => unknown
-const engines: Record<string, Engine> = {} // every logic version you still accept
+// Every logic version you still accept. A Map, so a version like "constructor" is not found.
+const engines = new Map<string, Engine>()
 
 export async function checkIn(
   db: BaseSQLiteDatabase<"async", unknown>,
@@ -110,25 +111,33 @@ export async function checkIn(
   const [lease] = await db.select().from(leases).where(eq(leases.resource, body.resource))
   if (!lease?.seed || lease.device !== device || lease.version !== body.version)
     return { ok: false as const, reason: "not-holder" }
-  const run = engines[body.version]
+  const run = engines.get(body.version)
   if (!run) return { ok: false as const, reason: "unknown-version" }
 
   const result = run(lease.seed, body.inputs) // the server's own result is the one kept
   if ((await hashResult(result)) !== body.resultHash) return { ok: false as const, reason: "mismatch" }
 
+  // Keep the result first, then release. A crash between the two leaves the
+  // result stored (a retry gets it) and the lease held until it expires.
+  await db
+    .insert(checkInResults)
+    .values({ id, resource: body.resource, result: JSON.stringify(result) })
+    .onConflictDoNothing()
   // Release only the lease we read: if it expired and was re-issued meanwhile, this matches nothing.
   const released = await db
     .update(leases)
     .set({ device: null, seed: null, expiresAt: null })
     .where(and(eq(leases.resource, body.resource), eq(leases.device, device), eq(leases.seed, lease.seed)))
     .returning()
-  if (!released.length) return { ok: false as const, reason: "lease-changed" }
-  await db.insert(checkInResults).values({ id, resource: body.resource, result: JSON.stringify(result) })
+  if (!released.length) {
+    await db.delete(checkInResults).where(eq(checkInResults.id, id))
+    return { ok: false as const, reason: "lease-changed" }
+  }
   return { ok: true as const, result }
 }
 ```
 
-Run the release and the insert in one transaction where the database has them (D1: `db.batch`), so a crash between them cannot release a lease without keeping its result. On a mismatch the lease stays until it expires; decide in your app whether that device may try again.
+This order needs no transaction, so it works on D1 too. Check out only versions that are in `engines`. On a mismatch the lease stays until it expires; decide in your app whether that device may try again.
 </Step>
 
 <Step>
