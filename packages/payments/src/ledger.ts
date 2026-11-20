@@ -18,7 +18,7 @@
  */
 
 import { PaymentsError } from "./errors.js"
-import type { LedgerEntry, PaymentsStore } from "./store.js"
+import type { Floor, LedgerEntry, PaymentsStore } from "./store.js"
 
 export type Leg = { account: string; amount: number; currency: string }
 
@@ -68,9 +68,36 @@ export function toEntries(tx: Transaction): LedgerEntry[] {
   }))
 }
 
-/** Post a balanced transaction. Returns false if `txId` was already posted. */
-export function post(store: PaymentsStore, tx: Transaction): Promise<boolean> {
-  return store.post(toEntries(tx))
+/**
+ * Post a balanced transaction. Returns false if `txId` was already posted.
+ *
+ * `floor` maps accounts to the lowest balance they may end at, e.g.
+ * `{ "wallet:u1": 0 }` for a balance that must never go negative. A post that
+ * would take one below it writes nothing and throws INSUFFICIENT_BALANCE, even
+ * with concurrent posts. Only posts that take money out of a floored account are
+ * checked, and only posts that pass a floor are guarded: give every spend from
+ * that account its floor.
+ */
+export async function post(
+  store: PaymentsStore,
+  tx: Transaction,
+  options: { floor?: Record<string, number> } = {},
+): Promise<boolean> {
+  const entries = toEntries(tx)
+  const floors: Floor[] = []
+  for (const [account, min] of Object.entries(options.floor ?? {})) {
+    if (!Number.isSafeInteger(min))
+      throw new PaymentsError("BAD_INPUT", `Floor for ${account} must be integer minor units.`)
+    for (const currency of new Set(
+      entries.filter((e) => e.account === account).map((e) => e.currency),
+    )) {
+      const net = entries
+        .filter((e) => e.account === account && e.currency === currency)
+        .reduce((s, e) => s + e.amount, 0)
+      if (net < 0) floors.push({ account, currency, min })
+    }
+  }
+  return store.post(entries, floors.length ? floors : undefined)
 }
 
 /** Debit `debit`, credit `credit`, `amount` minor units. */

@@ -140,7 +140,7 @@
     },
     "packages/create-signet-app": {
       "name": "create-signet-app",
-      "version": "0.7.0",
+      "version": "0.8.3",
       "bin": {
         "create-signet-app": "./src/index.ts",
       },
@@ -155,7 +155,7 @@
     },
     "packages/db": {
       "name": "@dapplelight/signet-db",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "bin": {
         "signet-db-check": "./dist/migrations/cli.js",
       },
@@ -203,7 +203,7 @@
     },
     "packages/mcp": {
       "name": "@dapplelight/signet-mcp",
-      "version": "0.1.7",
+      "version": "0.1.8",
       "bin": {
         "signet-mcp": "./dist/bin.js",
       },
@@ -226,7 +226,9 @@
       "name": "@dapplelight/signet-payments",
       "version": "0.1.0",
       "devDependencies": {
+        "@electric-sql/pglite": "^0.5.16",
         "@types/bun": "^1.4.4",
+        "postgres": "^3.4.7",
         "typescript": "^7.0.2",
       },
     },

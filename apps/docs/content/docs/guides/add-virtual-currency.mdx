@@ -1,0 +1,97 @@
+---
+title: "Add In-App Currency"
+description: "Coins people buy or earn, on the payments ledger: granted once per purchase, never spent below zero."
+---
+
+Coins live on the same double-entry ledger as payments, in **their own store** with their own currency code. Real money stays in the payments store, so revenue reports and `reconcile` never see coins.
+
+<Steps>
+<Step>
+### Install
+```bash
+npm i @dapplelight/signet-payments
+```
+</Step>
+
+<Step>
+### A second store for coins
+
+Use `sqlStore` with its own tables (a second database, or a separate D1). On Postgres, pass `transaction` too: spends with a floor need it.
+
+```ts
+import postgres from "postgres"
+import { paymentsSchema, sqlStore } from "@dapplelight/signet-payments"
+
+const sql = postgres(process.env.COINS_DATABASE_URL as string)
+for (const s of paymentsSchema("pg")) await sql.unsafe(s)
+
+export const coins = sqlStore(
+  {
+    query: (s, p) => sql.unsafe(s, p as never[]) as never,
+    transaction: (work) => sql.begin((tx) => work((s, p) => tx.unsafe(s, p as never[]) as never)) as never,
+  },
+  { dialect: "pg" },
+)
+```
+</Step>
+
+<Step>
+### Grant on a verified purchase
+
+Derive `txId` from the store's purchase id, so a retried webhook or a restore grants once.
+
+```ts
+import { post, transfer } from "@dapplelight/signet-payments"
+import { coins } from "./coins"
+
+export async function grantCoins(userId: string, purchaseId: string, amount: number) {
+  await post(coins, {
+    txId: `grant:${purchaseId}`,
+    kind: "grant",
+    legs: transfer(`wallet:${userId}`, "iap", amount, "COINS"),
+  })
+}
+```
+</Step>
+
+<Step>
+### Spend, never below zero
+
+`floor` refuses a spend that would take the wallet below 0 and writes nothing, even when many spends race. Give every spend from a wallet its floor.
+
+```ts
+import { isPaymentsError, post, transfer } from "@dapplelight/signet-payments"
+import { coins } from "./coins"
+
+export async function spendCoins(userId: string, requestId: string, amount: number) {
+  try {
+    return await post(
+      coins,
+      { txId: `spend:${requestId}`, kind: "spend", legs: transfer("spent", `wallet:${userId}`, amount, "COINS") },
+      { floor: { [`wallet:${userId}`]: 0 } },
+    )
+  } catch (e) {
+    if (isPaymentsError(e) && e.code === "INSUFFICIENT_BALANCE") return false
+    throw e
+  }
+}
+```
+</Step>
+
+<Step>
+### Balance, refunds and expiry
+
+```ts
+import { balance, post, transfer } from "@dapplelight/signet-payments"
+import { coins } from "./coins"
+
+export const wallet = (userId: string) => balance(coins, `wallet:${userId}`, "COINS")
+
+// A refunded purchase reverses its grant (this one may go negative: no floor).
+export const refundCoins = (userId: string, purchaseId: string, amount: number) =>
+  post(coins, { txId: `refund:${purchaseId}`, kind: "refund", legs: transfer("iap", `wallet:${userId}`, amount, "COINS") })
+```
+
+Expiry is your rule: a cron posts an `expire` transaction from the wallet. Signet has no withdraw or user-to-user transfer, so coins cannot be cashed out unless your app adds that.
+</Step>
+</Steps>

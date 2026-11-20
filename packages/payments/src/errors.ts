@@ -18,6 +18,8 @@ export type PaymentsErrorCode =
   | "BAD_SIGNATURE"
   | "IDEMPOTENCY_KEY_REQUIRED"
   | "UNBALANCED"
+  /** A ledger post would take an account below its floor; nothing was written. */
+  | "INSUFFICIENT_BALANCE"
   | "CURRENCY_MISMATCH"
   | "NO_GATEWAY"
 
