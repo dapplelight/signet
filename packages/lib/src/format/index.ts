@@ -169,9 +169,16 @@ export function createDateTimeFormatter(locale = "en-IN", options: DateFormatOpt
   )
 }
 
-/** "3 days ago", "in 2 hours". Uses Intl.RelativeTimeFormat, no dependency. */
+/**
+ * "3 days ago", "in 2 hours". Uses Intl.RelativeTimeFormat, no dependency.
+ * Where that is missing (Hermes on Android, older engines) it falls back to
+ * plain English, so creating one never throws at import time.
+ */
 export function createRelativeTimeFormatter(locale = "en-IN") {
-  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" })
+  const rtf: Pick<Intl.RelativeTimeFormat, "format"> =
+    typeof Intl.RelativeTimeFormat === "function"
+      ? new Intl.RelativeTimeFormat(locale, { numeric: "auto" })
+      : { format: englishRelative }
   const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
     ["year", 31_536_000_000],
     ["month", 2_592_000_000],
@@ -192,6 +199,12 @@ export function createRelativeTimeFormatter(locale = "en-IN") {
     }
     return ""
   }
+}
+
+function englishRelative(n: number, unit: Intl.RelativeTimeFormatUnit): string {
+  if (n === 0) return unit === "second" ? "now" : `this ${unit}`
+  const label = `${Math.abs(n)} ${unit}${Math.abs(n) === 1 ? "" : "s"}`
+  return n < 0 ? `${label} ago` : `in ${label}`
 }
 
 export {
