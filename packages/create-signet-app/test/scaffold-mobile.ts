@@ -126,6 +126,10 @@ try {
   )
   // The server names sessions after the User-Agent; React Native's is "okhttp".
   ok("the API client names this phone", read("mobile/src/lib/api.ts").includes('"User-Agent"'))
+  ok(
+    "the User-Agent strips non-ASCII (okhttp rejects it)",
+    read("mobile/src/lib/config.ts").includes("[^\\x20-\\x7e]"),
+  )
   ok("the server reads EXPO_ACCESS_TOKEN", read("server/.env").includes("EXPO_ACCESS_TOKEN="))
   const ci = read(".github/workflows/ci.yml")
   ok(

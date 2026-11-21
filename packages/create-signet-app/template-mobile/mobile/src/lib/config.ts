@@ -17,8 +17,11 @@ export const APP_VERSION = Constants.expoConfig?.version ?? "0.0.0"
 /**
  * Sent as User-Agent: the server names each session after it (the Devices
  * tab), and React Native's own is "okhttp/…" on Android, CFNetwork on iOS.
+ * Header values must be printable ASCII (okhttp throws otherwise, failing every
+ * request), and the app name is whatever the developer typed, so strip the rest.
  */
 const model = (Platform.constants as { Model?: string }).Model
-export const USER_AGENT = `${Constants.expoConfig?.name ?? "app"}/${APP_VERSION} (${
+const ascii = (s: string) => s.replace(/[^\x20-\x7e]/g, "").trim()
+export const USER_AGENT = `${ascii(Constants.expoConfig?.name ?? "") || "app"}/${ascii(APP_VERSION)} (${
   Platform.OS === "ios" ? "iPhone; iOS" : "Android"
-} ${Platform.Version}${model ? `; ${model}` : ""})`
+} ${Platform.Version}${model && ascii(model) ? `; ${ascii(model)}` : ""})`
