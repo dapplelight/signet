@@ -124,6 +124,8 @@ try {
     "the crypto polyfill tolerates a missing expo-crypto",
     !/^import .* from "expo-crypto"/m.test(read("mobile/src/lib/polyfills.ts")),
   )
+  // The server names sessions after the User-Agent; React Native's is "okhttp".
+  ok("the API client names this phone", read("mobile/src/lib/api.ts").includes('"User-Agent"'))
   ok("the server reads EXPO_ACCESS_TOKEN", read("server/.env").includes("EXPO_ACCESS_TOKEN="))
   const ci = read(".github/workflows/ci.yml")
   ok(
