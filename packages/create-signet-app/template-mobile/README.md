@@ -97,6 +97,9 @@ __PM_X__ eas-cli init            # creates the project; put its id in EAS_PROJEC
 __PM_X__ eas-cli build --profile development --platform ios   # or android
 ```
 
+Once it is installed, run `__PM_RUN__ start:dev` instead of `start` (which
+opens Expo Go).
+
 `eas.json` has three profiles: `development` (a development build with the dev
 client, for push and native debugging), `preview` (an internal build to share)
 and `production` (store builds, version numbers kept by EAS). Change the
