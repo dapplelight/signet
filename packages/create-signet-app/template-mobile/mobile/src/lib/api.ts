@@ -2,7 +2,7 @@ import { ApiError, createApiClient, errorCopy } from "@dapplelight/signet-lib/ap
 import { queryDefaults } from "@dapplelight/signet-lib/api/query-client"
 import { QueryClient } from "@tanstack/react-query"
 import { analytics } from "./analytics"
-import { API_URL } from "./config"
+import { API_URL, USER_AGENT } from "./config"
 import { session } from "./session"
 
 export const queryClient = new QueryClient({ defaultOptions: queryDefaults() })
@@ -18,7 +18,7 @@ export const api = createApiClient({
   credentials: "omit",
   token: session.token,
   refresh: session.refresh,
-  headers: () => analytics.headers(),
+  headers: async () => ({ ...(await analytics.headers()), "User-Agent": USER_AGENT }),
   onAuthError: () => void session.clear(),
 })
 
