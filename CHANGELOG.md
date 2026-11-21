@@ -5,6 +5,11 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### create-signet-app: the mobile starter opens in Expo Go
+
+- `start`, `android` and `ios` pass `--go`: `expo-dev-client` is installed, so a plain `expo start` stopped with "No development build installed" on a first run. `start:dev` opens the development build.
+- The crypto polyfill no longer imports `expo-crypto` at the top: in an Expo Go build without the `ExpoCrypto` native module the app crashed at launch. It falls back to a Math.random id, used only for outbox and analytics ids.
+
 ### signet-lib: relative time works without Intl.RelativeTimeFormat
 
 - `createRelativeTimeFormatter` no longer throws where `Intl.RelativeTimeFormat` is missing (Hermes on Android, which crashed the mobile starter at launch). It falls back to plain English: "3 days ago", "in 2 hours", "now".
