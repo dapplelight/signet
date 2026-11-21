@@ -142,5 +142,20 @@ ok(
 )
 ok("relative invalid -> empty", rel("junk", now) === "")
 
+// Hermes on Android has no Intl.RelativeTimeFormat: creating one must not throw.
+{
+  const real = Intl.RelativeTimeFormat
+  delete (Intl as any).RelativeTimeFormat
+  try {
+    const plain = createRelativeTimeFormatter("en-US")
+    ok("no Intl.RelativeTimeFormat: past", plain("2026-03-12T12:00:00Z", now) === "3 days ago")
+    ok("no Intl.RelativeTimeFormat: future", plain("2026-03-15T15:00:00Z", now) === "in 3 hours")
+    ok("no Intl.RelativeTimeFormat: one", plain("2026-03-14T12:00:00Z", now) === "1 day ago")
+    ok("no Intl.RelativeTimeFormat: now", plain(now, now) === "now")
+  } finally {
+    ;(Intl as any).RelativeTimeFormat = real
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail) process.exit(1)
