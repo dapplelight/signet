@@ -9,9 +9,12 @@
 export const MOBILE_PKG = {
   main: "expo-router/entry",
   scripts: {
-    start: "expo start",
-    android: "expo start --android",
-    ios: "expo start --ios",
+    // --go: Expo Go, since expo-dev-client otherwise expects a development
+    // build to be installed. start:dev is for that build (push needs it).
+    start: "expo start --go",
+    android: "expo start --go --android",
+    ios: "expo start --go --ios",
+    "start:dev": "expo start --dev-client",
     lint: "biome check .",
     format: "biome check --write .",
     typecheck: "tsc --noEmit",

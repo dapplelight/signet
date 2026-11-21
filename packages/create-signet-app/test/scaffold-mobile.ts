@@ -112,6 +112,18 @@ try {
     "package names follow the app",
     mpkg.name === "scaffold-mobile-mobile" && spkg.name === "scaffold-mobile-server",
   )
+  // expo-dev-client is installed, so a plain `expo start` waits for a
+  // development build that a first run does not have.
+  ok(
+    "start opens Expo Go; start:dev is for the development build",
+    mpkg.scripts.start.includes("--go") && mpkg.scripts["start:dev"].includes("--dev-client"),
+  )
+  // Expo Go may lack the ExpoCrypto native module; importing it at the top
+  // crashed the app at launch.
+  ok(
+    "the crypto polyfill tolerates a missing expo-crypto",
+    !/^import .* from "expo-crypto"/m.test(read("mobile/src/lib/polyfills.ts")),
+  )
   ok("the server reads EXPO_ACCESS_TOKEN", read("server/.env").includes("EXPO_ACCESS_TOKEN="))
   const ci = read(".github/workflows/ci.yml")
   ok(
