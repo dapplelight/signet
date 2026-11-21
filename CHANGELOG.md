@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-lib: relative time works without Intl.RelativeTimeFormat
+
+- `createRelativeTimeFormatter` no longer throws where `Intl.RelativeTimeFormat` is missing (Hermes on Android, which crashed the mobile starter at launch). It falls back to plain English: "3 days ago", "in 2 hours", "now".
+
 ### signet-server: Expo push sender and client sign-in
 
 - New `expoPushSender` in `./notify/channels`: a `push` channel sender that
