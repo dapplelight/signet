@@ -400,6 +400,19 @@ ok(
         ).ok,
       )
     ok("otp: per-IP limit", perIp.join() === "true,true,false", perIp)
+    // Behind a proxy that reports its own address as the client's, every user
+    // shares one IP: the 11th distinct number in an hour is refused (default perIp 10).
+    const proxied = { ...rl, rateLimit: kvRateLimitStore(memoryKv()) }
+    const shared: string[] = []
+    for (let i = 0; i < 11; i++) {
+      const r = await requestPhoneOtp(proxied, { phone: `98765200${10 + i}`, ip: "10.0.0.1" })
+      shared.push(r.ok ? "ok" : r.code)
+    }
+    ok(
+      "otp: 11 different phones behind one proxy IP, the 11th is RATE_LIMITED",
+      shared.slice(0, 10).every((s) => s === "ok") && shared[10] === "RATE_LIMITED",
+      shared,
+    )
     const limited = await requestPhoneOtp(rl, { phone: "9876500003", ip: "9.9.9.9" })
     ok(
       "otp: rate-limited result carries retryAfterSeconds and sends nothing",
