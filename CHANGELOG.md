@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### create-signet-app: the mobile app names itself in the Devices list
+
+- The mobile starter's API client sends a User-Agent like `my-app/0.1.0 (Android 16; SM-E556B)`, so the Devices tab shows "Android" or "iOS" instead of "okhttp".
+
 ### create-signet-app: the mobile starter opens in Expo Go
 
 - `start`, `android` and `ios` pass `--go`: `expo-dev-client` is installed, so a plain `expo start` stopped with "No development build installed" on a first run. `start:dev` opens the development build.
