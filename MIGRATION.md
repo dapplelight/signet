@@ -79,16 +79,25 @@ Signet is on TS 7, Vite 8, react-table 9, day-picker 10. Three are breaking:
    diff visually.
 3. Swap the server modules one at a time, `env` and `middleware` first
    (mechanical), `auth` last (highest risk). `betterAuthDefaults` no longer
-   defaults to app-a's settings. To keep app-a's current behaviour exactly, pass
-   them explicitly — and reconsider the first two:
+   defaults to app-a's settings. Carry over only the two that cost nothing:
    ```ts
    betterAuthDefaults(env, {
      sessionSeconds: 30 * 24 * 60 * 60,
-     cookieCacheSeconds: 300,        // a deleted account stays signed in up to 5 min
-     skipStateCookieCheck: true,     // disables the OAuth state CSRF check
      rateLimit: { window: 60, max: 10 },
    })
    ```
+   **Drop `cookieCacheSeconds: 300` and `skipStateCookieCheck: true`** (ticket
+   #1378). Neither is a Signet default, and app-a keeps one only with a written
+   reason in its own repo:
+   - `cookieCacheSeconds`: a deleted account or revoked session stays signed in
+     up to 5 minutes. Its only upside is skipping one session DB read per
+     request. Keep it only if app-a has measured that read as a real cost and
+     accepts the 5-minute revocation delay; otherwise drop it.
+   - `skipStateCookieCheck`: turns off the OAuth callback CSRF (login CSRF)
+     check. There is no safe reason to keep it. If OAuth sign-in fails without
+     the state cookie, fix the cookie (`crossOrigin: true`, `COOKIE_DOMAIN`,
+     callback on the same site) instead of disabling the check. Test Google
+     sign-in on a staging deploy after dropping it.
 4. Delete the local copies only once each swap is green.
 
 ### Why not a big-bang migration
