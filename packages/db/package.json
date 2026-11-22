@@ -1,6 +1,6 @@
 {
   "name": "@dapplelight/signet-db",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "license": "MIT",
   "description": "Drizzle helpers: sortable ids, money, encrypted fields, per-user scoping, audit trail, migration checks.",
   "keywords": [
