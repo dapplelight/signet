@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-ai: invalid model output now counts toward the budget
+
+- `extract` records cost, `onUsage` and the budget ledger before validating the output. A call whose output fails the schema is still billed by the provider, so it now counts toward the window cap instead of being invisible. No migration needed.
+
 ### create-signet-app: the mobile app names itself in the Devices list
 
 - The mobile starter's API client sends a User-Agent like `my-app/0.1.0 (Android 16; SM-E556B)`, so the Devices tab shows "Android" or "iOS" instead of "okhttp".

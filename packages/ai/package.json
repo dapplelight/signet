@@ -1,6 +1,6 @@
 {
   "name": "@dapplelight/signet-ai",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "license": "MIT",
   "description": "Provider-agnostic structured LLM calls with budget caps, caching and failover.",
   "keywords": [
