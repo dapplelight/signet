@@ -32,6 +32,7 @@ jobs:
       - run: bun run scripts/bump.test.ts
       - run: bun run scripts/check-bumps.ts
       - run: bun run scripts/changes.test.ts
+      - run: bun run scripts/app-drift.test.ts
       # Prose like "<reason>" or a bare {total} breaks the docs build.
       - run: bun run scripts/check-mdx.test.ts
       - run: bun run scripts/check-mdx.ts
