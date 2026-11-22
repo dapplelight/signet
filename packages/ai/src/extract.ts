@@ -181,20 +181,10 @@ export function createExtractor(config: ExtractConfig) {
             signal: controller.signal,
           })
 
-          // Validate even though the provider claims to have done so — a
-          // provider returning an unvalidated object is the failure this
-          // package exists to prevent.
-          const parsed = args.schema.safeParse(value)
-          if (!parsed.success) {
-            throw new AiError(
-              `Model output failed schema validation: ${parsed.error.issues[0]?.message ?? "unknown"}`,
-              SCHEMA_INVALID,
-              502,
-            )
-          }
-
           const costUsd = costOf(usage, provider.pricing)
 
+          // Spend is recorded BEFORE validation: output that fails the schema
+          // was still billed, and must count toward the window ledger.
           // Per-call ceiling is enforced AFTER the spend, because the true cost
           // is only known from usage. It is recorded either way — the money is
           // already gone, and hiding it would corrupt the window ledger.
@@ -214,6 +204,18 @@ export function createExtractor(config: ExtractConfig) {
               `Call cost ${costUsd.toFixed(6)} USD exceeded cap ${args.budget.maxCostUsd} USD`,
               BUDGET_EXCEEDED,
               429,
+            )
+          }
+
+          // Validate even though the provider claims to have done so — a
+          // provider returning an unvalidated object is the failure this
+          // package exists to prevent.
+          const parsed = args.schema.safeParse(value)
+          if (!parsed.success) {
+            throw new AiError(
+              `Model output failed schema validation: ${parsed.error.issues[0]?.message ?? "unknown"}`,
+              SCHEMA_INVALID,
+              502,
             )
           }
 
