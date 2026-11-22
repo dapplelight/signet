@@ -208,6 +208,14 @@ describe.each(backends)("$name", (backend) => {
     expect(paid).toBe(2)
     expect((await spend.usage("org", "o")).day.used).toBe(20_000)
     expect(await spend.ledger.spentUsd(clock.getTime(), "a")).toBeCloseTo(0.02)
+    // The ledger says which limit fired and the seconds until the day rolls over.
+    const verdict = await spend.ledger.canSpend(0.01, clock.getTime(), "a")
+    expect(verdict.ok).toBe(false)
+    if (!verdict.ok) {
+      expect(verdict.limit).toBe("key")
+      const midnight = Date.UTC(clock.getUTCFullYear(), clock.getUTCMonth(), clock.getUTCDate() + 1)
+      expect(verdict.retryAfterSeconds).toBe(Math.ceil((midnight - clock.getTime()) / 1000))
+    }
     // A plain key is a user id; another user is not affected.
     await extractor.extract({ ...args, budget: { key: "b" } })
     expect(paid).toBe(3)
