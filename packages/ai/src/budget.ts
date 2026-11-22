@@ -20,6 +20,16 @@ export type BudgetStore = {
   /** USD recorded for `key` within the last `windowSeconds`. */
   spent(key: string, windowSeconds: number, now: number): number | Promise<number>
   record(key: string, usd: number, windowSeconds: number, now: number): void | Promise<void>
+  /**
+   * When (ms) the oldest spend still in the window counts from, so `canSpend`
+   * can say when room opens. Optional: without it a refusal says to wait a
+   * whole window, which is an upper bound.
+   */
+  oldestAt?(
+    key: string,
+    windowSeconds: number,
+    now: number,
+  ): number | undefined | Promise<number | undefined>
 }
 
 export function memoryBudgetStore(): BudgetStore {
@@ -30,6 +40,10 @@ export function memoryBudgetStore(): BudgetStore {
       const kept = (spends.get(key) ?? []).filter((s) => s.at > cutoff)
       spends.set(key, kept)
       return kept.reduce((n, s) => n + s.usd, 0)
+    },
+    oldestAt(key, windowSeconds, now) {
+      const cutoff = now - windowSeconds * 1000
+      return (spends.get(key) ?? []).find((s) => s.at > cutoff)?.at
     },
     record(key, usd, _windowSeconds, now) {
       spends.set(key, [...(spends.get(key) ?? []), { at: now, usd }])
@@ -60,6 +74,13 @@ export function kvBudgetStore(
     async spent(key, windowSeconds, now) {
       return Number((await kv.get(bucket(key, windowSeconds, now))) ?? 0)
     },
+    // Fixed window: everything clears when the bucket ends.
+    async oldestAt(key, windowSeconds, now) {
+      const w = windowSeconds * 1000
+      return (await kv.get(bucket(key, windowSeconds, now))) === null
+        ? undefined
+        : Math.floor(now / w) * w
+    },
     async record(key, usd, windowSeconds, now) {
       const k = bucket(key, windowSeconds, now)
       const total = Number((await kv.get(k)) ?? 0) + usd
@@ -79,6 +100,15 @@ export type BudgetLedgerOptions = {
 }
 
 const GLOBAL = "global"
+
+/**
+ * What `canSpend` answers. A refusal says which limit fired (`global` or the
+ * `key`'s own cap) and the seconds until the oldest spend leaves the window,
+ * which is what a `Retry-After` header carries.
+ */
+export type SpendVerdict =
+  | { ok: true }
+  | { ok: false; limit: "global" | "key"; retryAfterSeconds: number }
 
 /**
  * Rolling-window spend ledger.
@@ -107,11 +137,22 @@ export function createBudgetLedger(
     async remainingUsd(now = Date.now()): Promise<number> {
       return Math.max(0, windowUsd - (await store.spent(GLOBAL, windowSeconds, now)))
     },
-    /** False when the global window, or `key`'s window, has no room for this estimate. */
-    async canSpend(estimateUsd: number, now = Date.now(), key?: string): Promise<boolean> {
-      if ((await store.spent(GLOBAL, windowSeconds, now)) + estimateUsd > windowUsd) return false
-      if (key === undefined || options.perKeyUsd === undefined) return true
-      return (await store.spent(perKey(key), windowSeconds, now)) + estimateUsd <= options.perKeyUsd
+    /**
+     * `{ ok: false, limit, retryAfterSeconds }` when the global window, or
+     * `key`'s window, has no room for this estimate; `limit` names which.
+     */
+    async canSpend(estimateUsd: number, now = Date.now(), key?: string): Promise<SpendVerdict> {
+      const refuse = async (limit: "global" | "key", storeKey: string): Promise<SpendVerdict> => {
+        const since = (await store.oldestAt?.(storeKey, windowSeconds, now)) ?? now
+        const ms = since + windowSeconds * 1000 - now
+        return { ok: false, limit, retryAfterSeconds: Math.max(1, Math.ceil(ms / 1000)) }
+      }
+      if ((await store.spent(GLOBAL, windowSeconds, now)) + estimateUsd > windowUsd)
+        return refuse("global", GLOBAL)
+      if (key === undefined || options.perKeyUsd === undefined) return { ok: true }
+      if ((await store.spent(perKey(key), windowSeconds, now)) + estimateUsd > options.perKeyUsd)
+        return refuse("key", perKey(key))
+      return { ok: true }
     },
     async record(usd: number, now = Date.now(), key?: string): Promise<void> {
       if (usd <= 0) return

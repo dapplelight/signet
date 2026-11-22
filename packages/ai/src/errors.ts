@@ -10,8 +10,10 @@ export class AiError extends ApiError {
     code: string,
     status = 502,
     readonly cause?: unknown,
+    /** Seconds until a retry can succeed; the server sends it as Retry-After. */
+    retryAfter?: number,
   ) {
-    super(message, status, code)
+    super(message, status, code, undefined, undefined, retryAfter)
   }
 }
 

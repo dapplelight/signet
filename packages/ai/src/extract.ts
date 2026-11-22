@@ -156,11 +156,15 @@ export function createExtractor(config: ExtractConfig) {
       const room = await budgetStore(() =>
         ledger.canSpend(args.budget?.maxCostUsd ?? 0, now(), budgetKey),
       )
-      if (!room) {
+      if (!room.ok) {
+        const isKey = room.limit === "key"
+        const spent = await budgetStore(() => ledger.spentUsd(now(), isKey ? budgetKey : undefined))
         throw new AiError(
-          `AI budget window exhausted (${(await config.ledger.spentUsd(now())).toFixed(4)} USD spent)`,
+          `AI budget window exhausted: the ${isKey ? "per-key" : "global"} limit fired (${spent.toFixed(4)} USD spent)`,
           BUDGET_EXCEEDED,
           429,
+          undefined,
+          room.retryAfterSeconds,
         )
       }
     }

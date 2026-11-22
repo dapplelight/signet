@@ -537,8 +537,19 @@ export function createAiSpend(db: SignetDb<unknown>, options: AiSpendOptions) {
       const u = await usage("global", "*", new Date(at))
       return u.day.remaining === null ? Number.POSITIVE_INFINITY : u.day.remaining / UNITS_PER_USD
     },
-    async canSpend(estimateUsd: number, at = Date.now(), key?: string): Promise<boolean> {
-      return (await check(parseSpendKey(key), usdToUnits(estimateUsd), new Date(at))).ok
+    /** Same answer as signet-ai's ledger: which limit fired (`global`, else the key's own) and seconds until it resets. */
+    async canSpend(
+      estimateUsd: number,
+      at = Date.now(),
+      key?: string,
+    ): Promise<{ ok: true } | { ok: false; limit: "global" | "key"; retryAfterSeconds: number }> {
+      const r = await check(parseSpendKey(key), usdToUnits(estimateUsd), new Date(at))
+      if (r.ok) return { ok: true }
+      return {
+        ok: false,
+        limit: r.scope === "global" ? "global" : "key",
+        retryAfterSeconds: Math.max(1, Math.ceil((r.resetsAt.getTime() - at) / 1000)),
+      }
     },
     async record(usd: number, at = Date.now(), key?: string): Promise<void> {
       await record(parseSpendKey(key), usdToUnits(usd), new Date(at))
