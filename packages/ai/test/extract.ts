@@ -157,6 +157,32 @@ try {
 }
 ok("fallback does NOT swallow a budget refusal", (caught as AiError)?.code === BUDGET_EXCEEDED)
 
+// output that fails the schema was still billed: it must count toward the ledger and onUsage
+{
+  const badLedger = createBudgetLedger(100, 3600)
+  const reports: UsageReport[] = []
+  const billedBad = {
+    ...fakeProvider(
+      { budget: "not a number" },
+      { usage: { inputTokens: 1_000_000, outputTokens: 0 } },
+    ),
+    pricing: { inputPerMTokens: 10, outputPerMTokens: 10 },
+  }
+  try {
+    await createExtractor({
+      providers: [billedBad],
+      ledger: badLedger,
+      onUsage: (u) => void reports.push(u),
+    }).extract(base)
+    caught = null
+  } catch (e) {
+    caught = e
+  }
+  ok("invalid output still fails", caught instanceof AiError)
+  ok("invalid output spend is on the ledger", (await badLedger.spentUsd()) > 0)
+  ok("invalid output reports usage", reports.length === 1 && (reports[0]?.costUsd ?? 0) > 0)
+}
+
 ok(
   "costOf adds a flat per-call price, even with no usage",
   costOf(undefined, { perCallUsd: 0.01 }) === 0.01 &&
