@@ -413,6 +413,24 @@ ok(
       shared.slice(0, 10).every((s) => s === "ok") && shared[10] === "RATE_LIMITED",
       shared,
     )
+    // Unknown IP (null): not the 10/hour bucket. 11 phones all succeed; the
+    // shared unknown-IP bucket (200/hour) trips on the 201st request.
+    const unknownRl = { ...base, rateLimit: kvRateLimitStore(memoryKv()) }
+    const unknown: string[] = []
+    for (let i = 0; i < 201; i++) {
+      const r = await requestPhoneOtp(unknownRl, { phone: `9${800000000 + i}`, ip: null })
+      unknown.push(r.ok ? "ok" : r.code)
+    }
+    ok(
+      "otp: 11 different phones with ip null all succeed",
+      unknown.slice(0, 11).every((s) => s === "ok"),
+      unknown.slice(0, 11),
+    )
+    ok(
+      "otp: the 201st unknown-IP request is RATE_LIMITED",
+      unknown.slice(0, 200).every((s) => s === "ok") && unknown[200] === "RATE_LIMITED",
+      unknown.filter((s) => s !== "ok"),
+    )
     const limited = await requestPhoneOtp(rl, { phone: "9876500003", ip: "9.9.9.9" })
     ok(
       "otp: rate-limited result carries retryAfterSeconds and sends nothing",
