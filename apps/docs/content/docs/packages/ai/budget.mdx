@@ -48,7 +48,7 @@ The ledger fails closed: an exhausted window or an unreachable store refuses the
 | --- | --- |
 | `spentUsd(now?, key?)` | USD spent in the window, globally or for a key |
 | `remainingUsd(now?)` | USD left globally |
-| `canSpend(estimateUsd, now?, key?)` | `false` when the global or the key window has no room |
+| `canSpend(estimateUsd, now?, key?)` | `{ ok: true }`, or `{ ok: false, limit: "global" \| "key", retryAfterSeconds }` when the global or the key window has no room. `retryAfterSeconds` is the time until the oldest spend leaves the window (a whole window if the store has no `oldestAt`) |
 | `record(usd, now?, key?)` | Adds spend; ignores values of 0 or less |
 
 <Callout type="warn">

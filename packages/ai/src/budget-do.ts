@@ -39,6 +39,7 @@ export type BudgetNamespace = {
 /** Bucket start (ms) to USD. Stored size is bounded by the window, not by call volume. */
 type Buckets = Record<string, number>
 type Body = { op: "spent" | "record"; windowSeconds: number; usd?: number; now: number }
+type Reply = { spent: number; oldestAt?: number }
 
 export class BudgetCounter {
   constructor(private readonly state: BudgetCounterState) {}
@@ -60,7 +61,11 @@ export class BudgetCounter {
       await this.state.storage.setAlarm(now + windowSeconds * 1000 + bucketMs)
     }
     await this.state.storage.put("buckets", buckets)
-    return Response.json({ spent: Object.values(buckets).reduce((n, v) => n + v, 0) })
+    // A bucket leaves the window at its start + bucketMs, so that is when its spend "began".
+    const starts = Object.keys(buckets).map(Number)
+    const reply: Reply = { spent: Object.values(buckets).reduce((n, v) => n + v, 0) }
+    if (starts.length) reply.oldestAt = Math.min(...starts) + bucketMs
+    return Response.json(reply)
   }
 
   async alarm(): Promise<void> {
@@ -77,10 +82,13 @@ export function durableObjectBudgetStore(namespace: BudgetNamespace): BudgetStor
       body: JSON.stringify(body),
     })
     if (!res.ok) throw new Error(`AI budget store returned ${res.status}`)
-    return ((await res.json()) as { spent: number }).spent
+    return (await res.json()) as Reply
   }
   return {
-    spent: (key, windowSeconds, now) => call(key, { op: "spent", windowSeconds, now }),
+    spent: async (key, windowSeconds, now) =>
+      (await call(key, { op: "spent", windowSeconds, now })).spent,
+    oldestAt: async (key, windowSeconds, now) =>
+      (await call(key, { op: "spent", windowSeconds, now })).oldestAt,
     async record(key, usd, windowSeconds, now) {
       await call(key, { op: "record", windowSeconds, usd, now })
     },

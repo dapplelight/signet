@@ -194,8 +194,8 @@ const ledger = createBudgetLedger(1.0, 3600)
 await ledger.record(0.6)
 ok("ledger tracks spend", Math.abs((await ledger.spentUsd()) - 0.6) < 1e-9)
 ok("ledger reports remaining", Math.abs((await ledger.remainingUsd()) - 0.4) < 1e-9)
-ok("ledger allows within window", await ledger.canSpend(0.3))
-ok("ledger refuses beyond window", !(await ledger.canSpend(0.5)))
+ok("ledger allows within window", (await ledger.canSpend(0.3)).ok)
+ok("ledger refuses beyond window", !(await ledger.canSpend(0.5)).ok)
 await ledger.record(0.5)
 try {
   await createExtractor({ providers: [fakeProvider(good)], ledger }).extract({
@@ -248,9 +248,48 @@ ok("a shared store caps across extractors", (caught as AiError)?.code === BUDGET
 // per-key cap: one user runs out, another still has room
 const perUser = createBudgetLedger(10, 3600, { perKeyUsd: 1 })
 await perUser.record(0.9, Date.now(), "u1")
-ok("per-key cap refuses the spent key", !(await perUser.canSpend(0.2, Date.now(), "u1")))
-ok("per-key cap leaves other keys alone", await perUser.canSpend(0.2, Date.now(), "u2"))
+ok("per-key cap refuses the spent key", !(await perUser.canSpend(0.2, Date.now(), "u1")).ok)
+ok("per-key cap leaves other keys alone", (await perUser.canSpend(0.2, Date.now(), "u2")).ok)
 ok("per-key spend also counts globally", Math.abs((await perUser.spentUsd()) - 0.9) < 1e-9)
+
+// a refusal names the limit that fired and when room opens: the oldest spend leaves the window
+{
+  const t0 = 1_000_000_000_000
+  const l = createBudgetLedger(10, 3600, { perKeyUsd: 1 })
+  await l.record(0.6, t0, "u1") // oldest: leaves at t0 + 1h
+  await l.record(0.3, t0 + 600_000, "u1")
+  const keyHit = await l.canSpend(0.2, t0 + 1_200_000, "u1")
+  ok(
+    "per-key refusal says `key` and the seconds until the oldest spend leaves",
+    !keyHit.ok && keyHit.limit === "key" && keyHit.retryAfterSeconds === 2400,
+    JSON.stringify(keyHit),
+  )
+  const globalHit = await l.canSpend(10, t0 + 1_200_000, "u2")
+  ok(
+    "global refusal says `global`",
+    !globalHit.ok && globalHit.limit === "global" && globalHit.retryAfterSeconds === 2400,
+    JSON.stringify(globalHit),
+  )
+  let hit: unknown = null
+  try {
+    await createExtractor({
+      providers: [fakeProvider(good)],
+      ledger: l,
+      now: () => t0 + 1_200_000,
+    }).extract({
+      ...base,
+      budget: { key: "u1", maxCostUsd: 0.2 },
+    })
+  } catch (e) {
+    hit = e
+  }
+  const he = hit as AiError
+  ok(
+    "extract error names the per-key limit, not the global total, and carries Retry-After",
+    he?.code === BUDGET_EXCEEDED && /per-key/.test(he.message) && he.retryAfter === 2400,
+    he?.message,
+  )
+}
 
 // an unpriced provider with a ledger would count as $0 forever
 try {
@@ -284,7 +323,7 @@ const kv = {
 const k1 = createBudgetLedger(1, 3600, { store: kvBudgetStore(kv) })
 const k2 = createBudgetLedger(1, 3600, { store: kvBudgetStore(kv) })
 await k1.record(0.7)
-ok("kv store shares spend across ledgers", !(await k2.canSpend(0.5)))
+ok("kv store shares spend across ledgers", !(await k2.canSpend(0.5)).ok)
 
 // The same store over a KeyValue (set + ttlSeconds), e.g. upstashKv
 const kvSets: Array<[string, string, number | undefined]> = []
@@ -325,7 +364,21 @@ const d1 = createBudgetLedger(1, 3600, { store: durableObjectBudgetStore(ns), pe
 const d2 = createBudgetLedger(1, 3600, { store: durableObjectBudgetStore(ns), perKeyUsd: 0.5 })
 await d1.record(0.4, Date.now(), "u1")
 ok("durable object store shares spend", Math.abs((await d2.spentUsd()) - 0.4) < 1e-9)
-ok("durable object store keeps a counter per key", !(await d2.canSpend(0.2, Date.now(), "u1")))
+ok("durable object store keeps a counter per key", !(await d2.canSpend(0.2, Date.now(), "u1")).ok)
+{
+  const v = await d2.canSpend(0.2, Date.now(), "u1")
+  ok(
+    "durable object store gives a Retry-After within the window",
+    !v.ok && v.retryAfterSeconds > 3500 && v.retryAfterSeconds <= 3660,
+    JSON.stringify(v),
+  )
+  const kv2 = await k2.canSpend(0.5)
+  ok(
+    "kv store gives a Retry-After to the end of the fixed window",
+    !kv2.ok && kv2.retryAfterSeconds >= 1 && kv2.retryAfterSeconds <= 3600,
+    JSON.stringify(kv2),
+  )
+}
 await d1.record(0.5, Date.now() - 7_200_000)
 ok("durable object store prunes outside the window", Math.abs((await d2.spentUsd()) - 0.4) < 1e-9)
 const busy = createBudgetLedger(1000, 86_400, { store: durableObjectBudgetStore(ns) })
