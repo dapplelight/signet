@@ -41,7 +41,7 @@ await ai.extract({ schema, input, instructions, budget: { key: user.id } })
 | `options.store` | `BudgetStore` | `memoryBudgetStore()` | Where spend is kept |
 | `options.perKeyUsd` | `number` | none | Cap per `budget.key` in the same window |
 
-The ledger fails closed: an exhausted window or an unreachable store refuses the call. Calls in flight are not reserved, so concurrent calls can overshoot by their own cost.
+The ledger fails closed: an exhausted window or an unreachable store refuses the call. Calls in flight are not reserved, so concurrent calls can overshoot by their own cost. A window that is exactly full refuses even a zero estimate. The cap only holds tightly when each call sets `budget.maxCostUsd`: without it `canSpend` checks a 0 estimate, so one call can cross the cap by its own cost before the next is refused.
 
 ### Ledger methods
 | Method | Returns |

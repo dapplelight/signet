@@ -119,7 +119,10 @@ export type SpendVerdict =
  * cannot be reached throws, and the call is refused.
  *
  * Calls already in flight are not reserved against the cap, so concurrent calls
- * can overshoot it by their own cost.
+ * can overshoot it by their own cost. The cap only holds tightly when each call
+ * passes `budget.maxCostUsd` (the estimate `canSpend` checks); a call without it
+ * is checked as a 0 estimate, so it can still cross the cap by its own cost
+ * before the window reads full and refuses the next one.
  */
 export function createBudgetLedger(
   windowUsd: number,
@@ -147,10 +150,13 @@ export function createBudgetLedger(
         const ms = since + windowSeconds * 1000 - now
         return { ok: false, limit, retryAfterSeconds: Math.max(1, Math.ceil(ms / 1000)) }
       }
-      if ((await store.spent(GLOBAL, windowSeconds, now)) + estimateUsd > windowUsd)
+      // A full window refuses even with no estimate (`>=`), else a call without
+      // `maxCostUsd` would slip through at exactly the cap.
+      const over = (spent: number, cap: number) => spent >= cap || spent + estimateUsd > cap
+      if (over(await store.spent(GLOBAL, windowSeconds, now), windowUsd))
         return refuse("global", GLOBAL)
       if (key === undefined || options.perKeyUsd === undefined) return { ok: true }
-      if ((await store.spent(perKey(key), windowSeconds, now)) + estimateUsd > options.perKeyUsd)
+      if (over(await store.spent(perKey(key), windowSeconds, now), options.perKeyUsd))
         return refuse("key", perKey(key))
       return { ok: true }
     },
