@@ -157,6 +157,7 @@ export type Reservation =
  * `reserve` (`kvBudgetStore`) it degrades to `canSpend` and stays best-effort.
  * The hold is only as large as the estimate: a call with an estimate of 0 holds
  * nothing, so pass `budget.maxCostUsd` to `extract` to bound the overshoot.
+ * A window that is exactly full refuses even a 0 estimate.
  */
 export function createBudgetLedger(
   windowUsd: number,
@@ -180,10 +181,13 @@ export function createBudgetLedger(
     now: number,
     key?: string,
   ): Promise<SpendVerdict> => {
-    if ((await store.spent(GLOBAL, windowSeconds, now)) + estimateUsd > windowUsd)
+    // A full window refuses even with no estimate (`>=`), else a call without
+    // `maxCostUsd` would slip through at exactly the cap.
+    const over = (spent: number, cap: number) => spent >= cap || spent + estimateUsd > cap
+    if (over(await store.spent(GLOBAL, windowSeconds, now), windowUsd))
       return refuse("global", GLOBAL, now)
     if (key === undefined || options.perKeyUsd === undefined) return { ok: true }
-    if ((await store.spent(perKey(key), windowSeconds, now)) + estimateUsd > options.perKeyUsd)
+    if (over(await store.spent(perKey(key), windowSeconds, now), options.perKeyUsd))
       return refuse("key", perKey(key), now)
     return { ok: true }
   }

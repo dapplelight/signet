@@ -41,7 +41,7 @@ await ai.extract({ schema, input, instructions, budget: { key: user.id } })
 | `options.store` | `BudgetStore` | `memoryBudgetStore()` | Where spend is kept |
 | `options.perKeyUsd` | `number` | none | Cap per `budget.key` in the same window |
 
-The ledger fails closed: an exhausted window or an unreachable store refuses the call. `extract` holds `budget.maxCostUsd` with `reserve` before the model call and settles it to the real cost after, so parallel calls near the cap cannot all pass. With 20 parallel calls at a ledger one call short of its cap, the memory and Durable Object stores let one through; KV let all 20 through. A call with no `budget.maxCostUsd` holds nothing, so set it.
+The ledger fails closed: an exhausted window or an unreachable store refuses the call. A window that is exactly full refuses even a zero estimate. `extract` holds `budget.maxCostUsd` with `reserve` before the model call and settles it to the real cost after, so parallel calls near the cap cannot all pass. With 20 parallel calls at a ledger one call short of its cap, the memory and Durable Object stores let one through; KV let all 20 through. A call with no `budget.maxCostUsd` holds nothing, so set it.
 
 ### Ledger methods
 | Method | Returns |

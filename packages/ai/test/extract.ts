@@ -202,7 +202,14 @@ ok("ledger tracks spend", Math.abs((await ledger.spentUsd()) - 0.6) < 1e-9)
 ok("ledger reports remaining", Math.abs((await ledger.remainingUsd()) - 0.4) < 1e-9)
 ok("ledger allows within window", (await ledger.canSpend(0.3)).ok)
 ok("ledger refuses beyond window", !(await ledger.canSpend(0.5)).ok)
-await ledger.record(0.5)
+ok("zero estimate allowed below the cap", (await ledger.canSpend(0)).ok)
+ok("estimate that exactly fills the window is allowed", (await ledger.canSpend(0.4)).ok)
+await ledger.record(0.4)
+ok("full window refuses a zero estimate", !(await ledger.canSpend(0)).ok)
+const fullKey = createBudgetLedger(10, 3600, { perKeyUsd: 0.5 })
+await fullKey.record(0.5, Date.now(), "u1")
+ok("full key window refuses a zero estimate", !(await fullKey.canSpend(0, Date.now(), "u1")).ok)
+await ledger.record(0.1)
 try {
   await createExtractor({ providers: [fakeProvider(good)], ledger }).extract({
     ...base,
