@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-ai: a full budget window refuses the next call
+
+- `canSpend` now refuses once spent reaches the cap (global or per key), even with a 0 estimate. Before, a call without `budget.maxCostUsd` got through a window that was exactly full. The cap only holds tightly when calls set `budget.maxCostUsd`; this is now documented.
+
 ### signet-server: choose what `rateLimit` does with a request that has no client IP
 
 - New `onNoIp: "allow" | "reject" | "bucket"` on `rateLimit`. The default, `"bucket"`, is the old behaviour: every request without a usable IP shares one `no-ip` bucket, so once it fills (for example a proxy stops sending `cf-connecting-ip`) everyone without an IP gets 429. `"allow"` lets them through unlimited; `"reject"` answers 400 `BAD_REQUEST` without touching the store. Ignored when `keyFor` is given.
