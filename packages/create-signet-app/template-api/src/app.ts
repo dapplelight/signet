@@ -38,6 +38,7 @@ export function createApp<B extends Record<string, unknown>>(
     // env key: csrfMiddleware({ originEnvKeys: ["WEB_URL"] }), the same keys you
     // give corsMiddleware.
     .use("/api/*", csrfMiddleware())
+    // Smoothing only, not a security control: an in-memory store counts per process or isolate. Use a durable store for login or other limits that must hold.
     .use("/api/*", rateLimit<AppEnv<B>>({ ...limit, max: 60 }))
     .get("/api/health", (c) => c.json({ ok: true }))
     // mcp:begin
