@@ -115,8 +115,22 @@ export function createExtractor(config: ExtractConfig) {
     }
   }
 
+  /** Holds the window budget for one call; whatever is still held when it ends is released. */
   async function extract<S extends z.ZodType>(
     args: ExtractArgs<S>,
+  ): Promise<ExtractResult<z.infer<S>>> {
+    const held: { settle?: (usd: number) => Promise<void> } = {}
+    try {
+      return await run(args, held)
+    } finally {
+      // A failed release leaves the hold in place, which fails closed.
+      await held.settle?.(0).catch(() => {})
+    }
+  }
+
+  async function run<S extends z.ZodType>(
+    args: ExtractArgs<S>,
+    held: { settle?: (usd: number) => Promise<void> },
   ): Promise<ExtractResult<z.infer<S>>> {
     type T = z.infer<S>
     const started = now()
@@ -148,15 +162,17 @@ export function createExtractor(config: ExtractConfig) {
       }
     }
 
-    // Window budget is checked BEFORE spending, whenever a ledger is set. Fails
-    // closed, including when the store cannot be reached.
+    // Window budget is held BEFORE spending, whenever a ledger is set, so
+    // parallel calls cannot all pass the check. Fails closed, including when
+    // the store cannot be reached.
     const budgetKey = args.budget?.key
     if (config.ledger) {
       const ledger = config.ledger
       const room = await budgetStore(() =>
-        ledger.canSpend(args.budget?.maxCostUsd ?? 0, now(), budgetKey),
+        ledger.reserve(args.budget?.maxCostUsd ?? 0, now(), budgetKey),
       )
-      if (!room.ok) {
+      if (room.ok) held.settle = room.settle
+      else {
         const isKey = room.limit === "key"
         const spent = await budgetStore(() => ledger.spentUsd(now(), isKey ? budgetKey : undefined))
         throw new AiError(
@@ -201,8 +217,10 @@ export function createExtractor(config: ExtractConfig) {
             key: budgetKey,
             durationMs: now() - started,
           })
-          const ledger = config.ledger
-          if (ledger) await budgetStore(() => ledger.record(costUsd, now(), budgetKey))
+          // The first settle swaps the hold for the real cost; a retry or a
+          // fallback provider's bill after it is recorded on top.
+          const settle = held.settle
+          if (settle) await budgetStore(() => settle(costUsd))
           if (args.budget?.maxCostUsd !== undefined && costUsd > args.budget.maxCostUsd) {
             throw new AiError(
               `Call cost ${costUsd.toFixed(6)} USD exceeded cap ${args.budget.maxCostUsd} USD`,

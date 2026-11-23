@@ -161,8 +161,15 @@ window is fixed (it resets on the boundary) and concurrent writes can lose a
 record. Any object with `spent` and `record` is a `BudgetStore`, for Redis or a
 database off Workers.
 
-Calls in flight are not reserved, so concurrent calls can overshoot a cap by
-their own cost.
+`extract` holds `budget.maxCostUsd` against the cap before it calls the model
+(`ledger.reserve`) and swaps the hold for the real cost afterwards, so parallel
+calls near a cap cannot all pass the check. Measured with 20 parallel calls at a
+ledger one call short of its cap: the memory and Durable Object stores let one
+through (no overshoot); KV let all 20 through (19 calls' cost over), because it
+cannot check and add in one step. Treat KV as best-effort. A call without
+`budget.maxCostUsd` holds nothing, so set it when parallel calls must not
+overshoot. A store with an atomic `reserve(key, usd, capUsd, windowSeconds, now)`
+gets the same guarantee.
 
 ## Usage reporting
 

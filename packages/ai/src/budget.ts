@@ -19,7 +19,21 @@ export function costOf(usage: Usage | undefined, pricing: Pricing | undefined): 
 export type BudgetStore = {
   /** USD recorded for `key` within the last `windowSeconds`. */
   spent(key: string, windowSeconds: number, now: number): number | Promise<number>
+  /** `usd` may be negative: that releases part of an earlier `reserve`. */
   record(key: string, usd: number, windowSeconds: number, now: number): void | Promise<void>
+  /**
+   * Atomically add `usd` to `key` only if the total then stays within `capUsd`;
+   * false (and nothing added) when it would not. This is what makes a cap hold
+   * under parallel calls. Optional: without it the ledger checks, then records
+   * later, and concurrent calls can all pass the check (best-effort).
+   */
+  reserve?(
+    key: string,
+    usd: number,
+    capUsd: number,
+    windowSeconds: number,
+    now: number,
+  ): boolean | Promise<boolean>
   /**
    * When (ms) the oldest spend still in the window counts from, so `canSpend`
    * can say when room opens. Optional: without it a refusal says to wait a
@@ -34,19 +48,31 @@ export type BudgetStore = {
 
 export function memoryBudgetStore(): BudgetStore {
   const spends = new Map<string, Array<{ at: number; usd: number }>>()
+  const spent = (key: string, windowSeconds: number, now: number) => {
+    const cutoff = now - windowSeconds * 1000
+    const kept = (spends.get(key) ?? []).filter((s) => s.at > cutoff)
+    spends.set(key, kept)
+    return Math.max(
+      0,
+      kept.reduce((n, s) => n + s.usd, 0),
+    )
+  }
+  const record = (key: string, usd: number, now: number) =>
+    spends.set(key, [...(spends.get(key) ?? []), { at: now, usd }])
   return {
-    spent(key, windowSeconds, now) {
-      const cutoff = now - windowSeconds * 1000
-      const kept = (spends.get(key) ?? []).filter((s) => s.at > cutoff)
-      spends.set(key, kept)
-      return kept.reduce((n, s) => n + s.usd, 0)
+    spent,
+    // Synchronous, so the check and the add cannot interleave with another call.
+    reserve(key, usd, capUsd, windowSeconds, now) {
+      if (spent(key, windowSeconds, now) + usd > capUsd) return false
+      record(key, usd, now)
+      return true
     },
     oldestAt(key, windowSeconds, now) {
       const cutoff = now - windowSeconds * 1000
       return (spends.get(key) ?? []).find((s) => s.at > cutoff)?.at
     },
     record(key, usd, _windowSeconds, now) {
-      spends.set(key, [...(spends.get(key) ?? []), { at: now, usd }])
+      record(key, usd, now)
     },
   }
 }
@@ -110,6 +136,11 @@ export type SpendVerdict =
   | { ok: true }
   | { ok: false; limit: "global" | "key"; retryAfterSeconds: number }
 
+/** What `reserve` answers: a refusal like `canSpend`'s, or a hold to `settle`. */
+export type Reservation =
+  | { ok: true; settle(actualUsd: number): Promise<void> }
+  | { ok: false; limit: "global" | "key"; retryAfterSeconds: number }
+
 /**
  * Rolling-window spend ledger.
  *
@@ -118,8 +149,14 @@ export type SpendVerdict =
  * through this package, and "allow on doubt" is how that happens. A store that
  * cannot be reached throws, and the call is refused.
  *
- * Calls already in flight are not reserved against the cap, so concurrent calls
- * can overshoot it by their own cost.
+ * `canSpend` then `record` is a check followed by a later write, so parallel
+ * calls can all pass the check and overshoot the cap by their combined cost.
+ * `reserve` closes that: it holds the estimate against the cap atomically, and
+ * `settle` swaps the hold for the real cost. That is exact on
+ * `memoryBudgetStore` and `durableObjectBudgetStore`; on a store without
+ * `reserve` (`kvBudgetStore`) it degrades to `canSpend` and stays best-effort.
+ * The hold is only as large as the estimate: a call with an estimate of 0 holds
+ * nothing, so pass `budget.maxCostUsd` to `extract` to bound the overshoot.
  */
 export function createBudgetLedger(
   windowUsd: number,
@@ -128,6 +165,33 @@ export function createBudgetLedger(
 ) {
   const store = options.store ?? memoryBudgetStore()
   const perKey = (key: string) => `key:${key}`
+
+  const refuse = async (
+    limit: "global" | "key",
+    storeKey: string,
+    now: number,
+  ): Promise<SpendVerdict & { ok: false }> => {
+    const since = (await store.oldestAt?.(storeKey, windowSeconds, now)) ?? now
+    const ms = since + windowSeconds * 1000 - now
+    return { ok: false, limit, retryAfterSeconds: Math.max(1, Math.ceil(ms / 1000)) }
+  }
+  const canSpend = async (
+    estimateUsd: number,
+    now: number,
+    key?: string,
+  ): Promise<SpendVerdict> => {
+    if ((await store.spent(GLOBAL, windowSeconds, now)) + estimateUsd > windowUsd)
+      return refuse("global", GLOBAL, now)
+    if (key === undefined || options.perKeyUsd === undefined) return { ok: true }
+    if ((await store.spent(perKey(key), windowSeconds, now)) + estimateUsd > options.perKeyUsd)
+      return refuse("key", perKey(key), now)
+    return { ok: true }
+  }
+  const record = async (usd: number, now: number, key?: string): Promise<void> => {
+    if (usd <= 0) return
+    await store.record(GLOBAL, usd, windowSeconds, now)
+    if (key !== undefined) await store.record(perKey(key), usd, windowSeconds, now)
+  }
 
   return {
     windowUsd,
@@ -141,23 +205,53 @@ export function createBudgetLedger(
      * `{ ok: false, limit, retryAfterSeconds }` when the global window, or
      * `key`'s window, has no room for this estimate; `limit` names which.
      */
-    async canSpend(estimateUsd: number, now = Date.now(), key?: string): Promise<SpendVerdict> {
-      const refuse = async (limit: "global" | "key", storeKey: string): Promise<SpendVerdict> => {
-        const since = (await store.oldestAt?.(storeKey, windowSeconds, now)) ?? now
-        const ms = since + windowSeconds * 1000 - now
-        return { ok: false, limit, retryAfterSeconds: Math.max(1, Math.ceil(ms / 1000)) }
+    canSpend: (estimateUsd: number, now = Date.now(), key?: string) =>
+      canSpend(estimateUsd, now, key),
+    record: (usd: number, now = Date.now(), key?: string) => record(usd, now, key),
+    /**
+     * Check and hold `estimateUsd` in one step, so parallel calls cannot all
+     * pass the check. Call `settle(actualUsd)` once the call is billed (it
+     * replaces the hold with the real cost; `settle(0)` releases it). A hold
+     * that is never settled counts against the cap until it leaves the window.
+     * Later `settle` calls just record more spend.
+     */
+    async reserve(estimateUsd: number, now = Date.now(), key?: string): Promise<Reservation> {
+      if (!store.reserve || estimateUsd <= 0) {
+        const verdict = await canSpend(estimateUsd, now, key)
+        if (!verdict.ok) return verdict
+        return { ok: true, settle: (usd) => record(usd, now, key) }
       }
-      if ((await store.spent(GLOBAL, windowSeconds, now)) + estimateUsd > windowUsd)
-        return refuse("global", GLOBAL)
-      if (key === undefined || options.perKeyUsd === undefined) return { ok: true }
-      if ((await store.spent(perKey(key), windowSeconds, now)) + estimateUsd > options.perKeyUsd)
-        return refuse("key", perKey(key))
-      return { ok: true }
-    },
-    async record(usd: number, now = Date.now(), key?: string): Promise<void> {
-      if (usd <= 0) return
-      await store.record(GLOBAL, usd, windowSeconds, now)
-      if (key !== undefined) await store.record(perKey(key), usd, windowSeconds, now)
+      if (!(await store.reserve(GLOBAL, estimateUsd, windowUsd, windowSeconds, now)))
+        return refuse("global", GLOBAL, now)
+      const release = () => store.record(GLOBAL, -estimateUsd, windowSeconds, now)
+      const keyed = key !== undefined && options.perKeyUsd !== undefined
+      if (keyed) {
+        let got = false
+        try {
+          got = await store.reserve(
+            perKey(key),
+            estimateUsd,
+            options.perKeyUsd as number,
+            windowSeconds,
+            now,
+          )
+        } finally {
+          if (!got) await release()
+        }
+        if (!got) return refuse("key", perKey(key), now)
+      }
+      let held = estimateUsd
+      return {
+        ok: true,
+        async settle(usd) {
+          const hold = held
+          held = 0
+          if (usd !== hold) await store.record(GLOBAL, usd - hold, windowSeconds, now)
+          if (key === undefined) return
+          const keyDelta = usd - (keyed ? hold : 0)
+          if (keyDelta !== 0) await store.record(perKey(key), keyDelta, windowSeconds, now)
+        },
+      }
     },
   }
 }
