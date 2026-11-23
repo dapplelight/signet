@@ -38,14 +38,21 @@ export type BudgetNamespace = {
 
 /** Bucket start (ms) to USD. Stored size is bounded by the window, not by call volume. */
 type Buckets = Record<string, number>
-type Body = { op: "spent" | "record"; windowSeconds: number; usd?: number; now: number }
-type Reply = { spent: number; oldestAt?: number }
+type Body = {
+  op: "spent" | "record" | "reserve"
+  windowSeconds: number
+  usd?: number
+  /** `reserve` only: the cap the total must stay within. */
+  capUsd?: number
+  now: number
+}
+type Reply = { spent: number; oldestAt?: number; reserved?: boolean }
 
 export class BudgetCounter {
   constructor(private readonly state: BudgetCounterState) {}
 
   async fetch(request: Request): Promise<Response> {
-    const { op, windowSeconds, usd, now } = (await request.json()) as Body
+    const { op, windowSeconds, usd, capUsd, now } = (await request.json()) as Body
     // 60 buckets per window: the rolling window is exact to 1/60th of its length.
     const bucketMs = Math.max(1000, Math.floor((windowSeconds * 1000) / 60))
     const cutoff = now - windowSeconds * 1000
@@ -54,7 +61,11 @@ export class BudgetCounter {
     for (const [start, total] of Object.entries(all)) {
       if (Number(start) + bucketMs > cutoff) buckets[start] = total
     }
-    if (op === "record" && usd && usd > 0) {
+    const total = () => Object.values(buckets).reduce((n, v) => n + v, 0)
+    let reserved: boolean | undefined
+    if (op === "reserve") reserved = total() + (usd ?? 0) <= (capUsd ?? 0)
+    // `record` takes a negative usd too: it releases part of an earlier reserve.
+    if ((op === "record" || reserved) && usd) {
       const start = String(Math.floor(now / bucketMs) * bucketMs)
       buckets[start] = (buckets[start] ?? 0) + usd
       // Empty the object once its newest spend leaves the window.
@@ -63,7 +74,7 @@ export class BudgetCounter {
     await this.state.storage.put("buckets", buckets)
     // A bucket leaves the window at its start + bucketMs, so that is when its spend "began".
     const starts = Object.keys(buckets).map(Number)
-    const reply: Reply = { spent: Object.values(buckets).reduce((n, v) => n + v, 0) }
+    const reply: Reply = { spent: Math.max(0, total()), reserved }
     if (starts.length) reply.oldestAt = Math.min(...starts) + bucketMs
     return Response.json(reply)
   }
@@ -91,6 +102,10 @@ export function durableObjectBudgetStore(namespace: BudgetNamespace): BudgetStor
       (await call(key, { op: "spent", windowSeconds, now })).oldestAt,
     async record(key, usd, windowSeconds, now) {
       await call(key, { op: "record", windowSeconds, usd, now })
+    },
+    // The object is single-threaded, so check-and-add here cannot interleave.
+    async reserve(key, usd, capUsd, windowSeconds, now) {
+      return (await call(key, { op: "reserve", windowSeconds, usd, capUsd, now })).reserved === true
     },
   }
 }

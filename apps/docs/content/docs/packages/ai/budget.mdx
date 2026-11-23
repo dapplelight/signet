@@ -29,7 +29,7 @@ await ai.extract({ schema, input, instructions, budget: { key: user.id } })
 | `memoryBudgetStore()` | Default store. Per isolate, empty after a cold start |
 | `kvBudgetStore(kv, prefix?)` | Shared store on Workers KV or a `KeyValueLike`. Approximate |
 | `costOf(usage, pricing)` | USD for one call from token usage and `Pricing` |
-| `BudgetStore` | Type: any object with `spent` and `record` (Redis, a database) |
+| `BudgetStore` | Type: any object with `spent` and `record` (Redis, a database); add an atomic `reserve` to make the cap hold under parallel calls |
 | `BudgetKv` | Type: the KV namespace subset `kvBudgetStore` needs |
 | `BudgetLedger`, `BudgetLedgerOptions` | Types |
 
@@ -41,7 +41,7 @@ await ai.extract({ schema, input, instructions, budget: { key: user.id } })
 | `options.store` | `BudgetStore` | `memoryBudgetStore()` | Where spend is kept |
 | `options.perKeyUsd` | `number` | none | Cap per `budget.key` in the same window |
 
-The ledger fails closed: an exhausted window or an unreachable store refuses the call. Calls in flight are not reserved, so concurrent calls can overshoot by their own cost. A window that is exactly full refuses even a zero estimate. The cap only holds tightly when each call sets `budget.maxCostUsd`: without it `canSpend` checks a 0 estimate, so one call can cross the cap by its own cost before the next is refused.
+The ledger fails closed: an exhausted window or an unreachable store refuses the call. A window that is exactly full refuses even a zero estimate. `extract` holds `budget.maxCostUsd` with `reserve` before the model call and settles it to the real cost after, so parallel calls near the cap cannot all pass. With 20 parallel calls at a ledger one call short of its cap, the memory and Durable Object stores let one through; KV let all 20 through. A call with no `budget.maxCostUsd` holds nothing, so set it.
 
 ### Ledger methods
 | Method | Returns |
@@ -50,9 +50,10 @@ The ledger fails closed: an exhausted window or an unreachable store refuses the
 | `remainingUsd(now?)` | USD left globally |
 | `canSpend(estimateUsd, now?, key?)` | `{ ok: true }`, or `{ ok: false, limit: "global" \| "key", retryAfterSeconds }` when the global or the key window has no room. `retryAfterSeconds` is the time until the oldest spend leaves the window (a whole window if the store has no `oldestAt`) |
 | `record(usd, now?, key?)` | Adds spend; ignores values of 0 or less |
+| `reserve(estimateUsd, now?, key?)` | Checks and holds the estimate in one step. Returns the same refusal as `canSpend`, or `{ ok: true, settle(actualUsd) }`. `settle` replaces the hold with the real cost (`settle(0)` releases it). On a store without `reserve` it falls back to `canSpend` |
 
 <Callout type="warn">
-`kvBudgetStore` uses a fixed window and concurrent writes can lose a record. Use the Durable Object store when the cap must hold.
+`kvBudgetStore` is best-effort. It has no atomic check-and-add, so parallel calls can all pass the check (20 parallel calls at a cap one call short all got through), it uses a fixed window, and concurrent writes can lose a record. Use the Durable Object store when the cap must hold.
 </Callout>
 
 ## Examples

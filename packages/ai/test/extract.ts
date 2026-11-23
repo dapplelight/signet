@@ -1,6 +1,12 @@
 import { ApiError } from "@dapplelight/signet-lib/api"
 import { z } from "zod"
-import { costOf, createBudgetLedger, kvBudgetStore, memoryBudgetStore } from "../src/budget"
+import {
+  type BudgetStore,
+  costOf,
+  createBudgetLedger,
+  kvBudgetStore,
+  memoryBudgetStore,
+} from "../src/budget"
 import { BudgetCounter, durableObjectBudgetStore } from "../src/budget-do"
 import { cacheKey, fingerprintSchema, kvCache, memoryCache } from "../src/cache"
 import {
@@ -403,6 +409,131 @@ ok(
   `${Object.keys(stored).length} buckets`,
 )
 
+// 20 calls fired at once at a ledger one call short of its cap. Each costs CALL.
+// A cap that holds lets one through; the overshoot is what the others cost.
+const CALL = 0.1
+async function burst(store: BudgetStore) {
+  const l = createBudgetLedger(1, 3600, { store })
+  await l.record(1 - CALL)
+  const slow = {
+    name: "slow",
+    model: "m",
+    pricing: { perCallUsd: CALL },
+    async generate() {
+      await new Promise((r) => setTimeout(r, 5))
+      return { value: good, usage: { inputTokens: 0, outputTokens: 0 } }
+    },
+  }
+  const x = createExtractor({ providers: [slow as never], ledger: l })
+  const results = await Promise.allSettled(
+    Array.from({ length: 20 }, () =>
+      x.extract({ ...base, cache: false, budget: { maxCostUsd: CALL } }),
+    ),
+  )
+  const through = results.filter((s) => s.status === "fulfilled").length
+  const refused = results.filter(
+    (s) => s.status === "rejected" && (s.reason as AiError).code === BUDGET_EXCEEDED,
+  ).length
+  return { through, refused, overshoot: Math.max(0, (await l.spentUsd()) - 1), l }
+}
+// A real Durable Object runs one request at a time through its storage
+// operations (the input gate), so this fake queues requests per object.
+const freshNs = () => {
+  const objs = new Map<string, { obj: BudgetCounter; tail: Promise<unknown> }>()
+  return {
+    idFromName: (name: string) => name,
+    get: (id: never) => {
+      const name = id as unknown as string
+      if (!objs.has(name))
+        objs.set(name, { obj: new BudgetCounter({ storage: storage() }), tail: Promise.resolve() })
+      const o = objs.get(name) as { obj: BudgetCounter; tail: Promise<unknown> }
+      return {
+        fetch: (url: string, init?: RequestInit) => {
+          const run = o.tail.then(() => o.obj.fetch(new Request(url, init)))
+          o.tail = run.catch(() => {})
+          return run
+        },
+      }
+    },
+  }
+}
+for (const [name, store] of [
+  ["memory", memoryBudgetStore()],
+  ["durable object", durableObjectBudgetStore(freshNs())],
+] as const) {
+  const m = await burst(store)
+  console.log(`  ${name}: ${m.through}/20 through, overshoot ${m.overshoot.toFixed(2)} USD`)
+  ok(
+    `${name} store: 20 parallel calls overshoot by at most one call`,
+    m.overshoot <= CALL + 1e-9,
+    `overshoot ${m.overshoot}`,
+  )
+  ok(
+    `${name} store: exactly one of 20 parallel calls gets through`,
+    m.through === 1 && m.refused === 19,
+  )
+  ok(
+    `${name} store: a refused hold is not billed`,
+    Math.abs((await store.spent("global", 3600, Date.now())) - 1) < 1e-9,
+  )
+}
+{
+  // KV is best-effort: report the overshoot, assert nothing
+  const kvm = new Map<string, string>()
+  const m = await burst(
+    kvBudgetStore({
+      get: async (k) => kvm.get(k) ?? null,
+      put: async (k, v) => void kvm.set(k, v),
+    }),
+  )
+  console.log(
+    `  kv: ${m.through}/20 through, overshoot ${m.overshoot.toFixed(2)} USD (best-effort)`,
+  )
+}
+{
+  // a hold is released when the call fails, and a cheaper call frees the difference
+  const l = createBudgetLedger(1, 3600)
+  const h = await l.reserve(0.6)
+  ok("reserve holds the estimate", h.ok && Math.abs((await l.spentUsd()) - 0.6) < 1e-9)
+  ok("a second hold past the cap is refused", !(await l.reserve(0.6)).ok)
+  if (h.ok) await h.settle(0.2)
+  ok("settle replaces the hold with the actual cost", Math.abs((await l.spentUsd()) - 0.2) < 1e-9)
+  const h2 = await l.reserve(0.5, Date.now(), "u1")
+  if (h2.ok) await h2.settle(0)
+  ok("settle(0) releases a hold", Math.abs((await l.spentUsd()) - 0.2) < 1e-9)
+  const pk = createBudgetLedger(10, 3600, { perKeyUsd: 1 })
+  await pk.record(0.9, Date.now(), "u1")
+  const refusedKey = await pk.reserve(0.5, Date.now(), "u1")
+  ok(
+    "a per-key refusal releases the global hold",
+    !refusedKey.ok && refusedKey.limit === "key" && Math.abs((await pk.spentUsd()) - 0.9) < 1e-9,
+  )
+  let failed = 0
+  const failing = createExtractor({
+    providers: [{ ...slowFail(), pricing: { perCallUsd: 0.5 } } as never],
+    ledger: l,
+    maxRetriesPerProvider: 0,
+  })
+  try {
+    await failing.extract({ ...base, cache: false, budget: { maxCostUsd: 0.5 } })
+  } catch {
+    failed++
+  }
+  ok(
+    "a call that fails before billing releases its hold",
+    failed === 1 && Math.abs((await l.spentUsd()) - 0.2) < 1e-9,
+  )
+  function slowFail() {
+    return {
+      name: "down",
+      model: "m",
+      async generate(): Promise<never> {
+        throw new Error("boom")
+      },
+    }
+  }
+}
+
 // a store that fails on record must not fail over, pay again, or use the fallback
 let paid = 0
 const payOnce = {
@@ -617,6 +748,42 @@ ok(
   ok("KV namespace TTL floored at 60s", store.get("p:short")?.ttl === 60)
   await Bun.sleep(20)
   ok("KV namespace short entry still expires on read", (await kc.get("short")) === undefined)
+}
+
+{
+  // a ledger without reserve (signet-db's ai-spend ledger) still works: canSpend before, record after
+  const inner = createBudgetLedger(1, 3600)
+  const calls: string[] = []
+  const plain = {
+    spentUsd: inner.spentUsd,
+    canSpend: (...a: Parameters<typeof inner.canSpend>) => (
+      calls.push("canSpend"), inner.canSpend(...a)
+    ),
+    record: (...a: Parameters<typeof inner.record>) => (calls.push("record"), inner.record(...a)),
+  }
+  const priced = { ...fakeProvider(good), pricing: { perCallUsd: 0.3 } }
+  const r = await createExtractor({ providers: [priced as never], ledger: plain }).extract({
+    ...base,
+    cache: false,
+  })
+  ok("ledger without reserve: call succeeds", r.value !== undefined)
+  ok(
+    "ledger without reserve: canSpend then one record",
+    calls.join() === "canSpend,record",
+    calls.join(),
+  )
+  ok("ledger without reserve: spend recorded", Math.abs((await inner.spentUsd()) - 0.3) < 1e-9)
+  await inner.record(0.8)
+  let caught: unknown
+  try {
+    await createExtractor({ providers: [priced as never], ledger: plain }).extract({
+      ...base,
+      cache: false,
+    })
+  } catch (e) {
+    caught = e
+  }
+  ok("ledger without reserve: refuses past the cap", (caught as AiError)?.code === BUDGET_EXCEEDED)
 }
 
 const src = await Bun.file(new URL("../src/index.ts", import.meta.url)).text()
