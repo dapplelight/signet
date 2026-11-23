@@ -164,6 +164,7 @@ export function createApp(env: Bindings) {
 | `maxAttempts` | `number` | `5` | Wrong guesses per code. |
 | `perPhone` | `{ max, windowSeconds }` | 3 per 15 min | |
 | `perIp` | `{ max, windowSeconds }` | 10 per hour | |
+| `perUnknownIp` | `{ max, windowSeconds }` | 200 per hour | Used only when `ip` is null; one shared bucket, so keep it high. The per-phone limit still applies. |
 | `verifyFailuresPerIp` | `{ max, windowSeconds }` | 30 per hour | Skipped when no `ip` is passed. |
 | `message` | `(code, ttlSeconds) => string` | built-in text | |
 | `prefix` | `string` | `"signet-otp"` | |
