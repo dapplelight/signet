@@ -16,7 +16,7 @@ Provider-agnostic structured LLM calls with budget caps, caching and failover.
 | `@dapplelight/signet-ai/cache` | cacheKey, fingerprintSchema, memoryCache, kvCache |  |
 | `@dapplelight/signet-ai/chat` | runTools, streamChat, RunToolsOptions, RunToolsResult, ChatMetadata, ChatMessage, … | Tool loops and streaming chat over the Vercel AI SDK |
 | `@dapplelight/signet-ai/errors` | AiError, BUDGET_EXCEEDED, ALL_PROVIDERS_FAILED, SCHEMA_INVALID, NO_PROVIDERS, UNPRICED_PROVIDER, … |  |
-| `@dapplelight/signet-ai/extract` | createExtractor, ExtractConfig, ExtractArgs, Extractor |  |
+| `@dapplelight/signet-ai/extract` | createExtractor, ExtractLedger, ExtractConfig, ExtractArgs, Extractor |  |
 | `@dapplelight/signet-ai/fake` | fakeProvider |  |
 | `@dapplelight/signet-ai/ground` | embedDocuments, searchDocuments, groundedAnswer, Doc, EmbeddedDoc, SearchHit, … | Embeddings, similarity search and grounded answers over app-provided documents |
 | `@dapplelight/signet-ai/jev` | JEV_DEFAULT_MODEL, JEV_DEFAULT_MIN_CONFIDENCE, JEV_DEFAULT_TIMEOUT_MS, JEV_DEFAULT_BASE_URL, createJev, JevJson, … | Jev (TypeSafe System One): a classifier that returns a typed decision, never text |

@@ -5,6 +5,13 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-ai: parallel calls near the budget cap no longer all get through
+
+- Twenty parallel `extract` calls at a ledger one call short of its cap used to all pass the check and run the bill 19 calls' cost over. `extract` now holds `budget.maxCostUsd` with the new `ledger.reserve(estimateUsd, now?, key?)` before calling the model and settles it to the real cost afterwards (a failed call releases its hold). The memory store and the Durable Object store (`BudgetCounter`) let exactly one through; `BudgetStore` gains an optional atomic `reserve`, and `record` accepts a negative amount to release a hold.
+- `kvBudgetStore` has no atomic check-and-add, so it stays best-effort and is documented as such.
+- A call without `budget.maxCostUsd` holds nothing; set it when parallel calls must not overshoot.
+- Migration: none. Redeploy your Worker so the Durable Object class picks up the new `reserve` operation; no migration tag change.
+
 ### server: phone OTP no longer locks out every user when the client IP is unknown
 
 - `requestPhoneOtp` used to count every request with a null `ip` in one shared bucket limited to 10 an hour, so a missing client IP (for example a wrong trust setting) blocked all users. Those requests now count against the new `PhoneOtpOptions.perUnknownIp` (`{ max, windowSeconds }`, default 200 per hour). The per-phone limit is unchanged, and requests with a real IP still use `perIp`.
