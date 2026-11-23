@@ -1,5 +1,5 @@
 import type { z } from "zod"
-import { type BudgetLedger, costOf } from "./budget.js"
+import { type BudgetLedger, costOf, type Reservation } from "./budget.js"
 import { cacheKey, fingerprintSchema } from "./cache.js"
 import {
   AiError,
@@ -14,6 +14,9 @@ import {
 import type { BudgetOptions, Cache, ExtractResult, Provider } from "./types.js"
 import { type OnUsage, reportUsage } from "./usage.js"
 
+export type ExtractLedger = Pick<BudgetLedger, "canSpend" | "record" | "spentUsd"> &
+  Partial<Pick<BudgetLedger, "reserve">>
+
 export type ExtractConfig = {
   /**
    * Tried in order. Failover to the next entry is a config change, not a code
@@ -22,7 +25,12 @@ export type ExtractConfig = {
   providers: Provider[]
   cache?: Cache
   cacheTtlSeconds?: number
-  ledger?: BudgetLedger
+  /**
+   * `createBudgetLedger(...)`, or any ledger with `canSpend`/`record`/`spentUsd`
+   * (signet-db's `createAiSpend().ledger`). Without `reserve` it checks with
+   * `canSpend` before the call and records after, so parallel calls are best-effort.
+   */
+  ledger?: ExtractLedger
   /**
    * With a ledger, every provider must have `pricing`: an unpriced one costs $0
    * to the ledger, so the cap never fills. Set true only when a provider really
@@ -168,9 +176,19 @@ export function createExtractor(config: ExtractConfig) {
     const budgetKey = args.budget?.key
     if (config.ledger) {
       const ledger = config.ledger
-      const room = await budgetStore(() =>
-        ledger.reserve(args.budget?.maxCostUsd ?? 0, now(), budgetKey),
-      )
+      const estimate = args.budget?.maxCostUsd ?? 0
+      const room = await budgetStore(async (): Promise<Reservation> => {
+        if (ledger.reserve) return ledger.reserve(estimate, now(), budgetKey)
+        const verdict = await ledger.canSpend(estimate, now(), budgetKey)
+        return verdict.ok
+          ? {
+              ok: true,
+              settle: async (usd) => {
+                if (usd > 0) await ledger.record(usd, now(), budgetKey)
+              },
+            }
+          : verdict
+      })
       if (room.ok) held.settle = room.settle
       else {
         const isKey = room.limit === "key"

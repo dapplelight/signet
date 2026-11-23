@@ -743,6 +743,42 @@ ok(
   ok("KV namespace short entry still expires on read", (await kc.get("short")) === undefined)
 }
 
+{
+  // a ledger without reserve (signet-db's ai-spend ledger) still works: canSpend before, record after
+  const inner = createBudgetLedger(1, 3600)
+  const calls: string[] = []
+  const plain = {
+    spentUsd: inner.spentUsd,
+    canSpend: (...a: Parameters<typeof inner.canSpend>) => (
+      calls.push("canSpend"), inner.canSpend(...a)
+    ),
+    record: (...a: Parameters<typeof inner.record>) => (calls.push("record"), inner.record(...a)),
+  }
+  const priced = { ...fakeProvider(good), pricing: { perCallUsd: 0.3 } }
+  const r = await createExtractor({ providers: [priced as never], ledger: plain }).extract({
+    ...base,
+    cache: false,
+  })
+  ok("ledger without reserve: call succeeds", r.value !== undefined)
+  ok(
+    "ledger without reserve: canSpend then one record",
+    calls.join() === "canSpend,record",
+    calls.join(),
+  )
+  ok("ledger without reserve: spend recorded", Math.abs((await inner.spentUsd()) - 0.3) < 1e-9)
+  await inner.record(0.8)
+  let caught: unknown
+  try {
+    await createExtractor({ providers: [priced as never], ledger: plain }).extract({
+      ...base,
+      cache: false,
+    })
+  } catch (e) {
+    caught = e
+  }
+  ok("ledger without reserve: refuses past the cap", (caught as AiError)?.code === BUDGET_EXCEEDED)
+}
+
 const src = await Bun.file(new URL("../src/index.ts", import.meta.url)).text()
 ok("barrel imports no provider adapter", !/providers\//.test(src), src)
 
