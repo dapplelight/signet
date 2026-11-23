@@ -86,6 +86,12 @@ export type PhoneOtpOptions = {
   /** Requests per IP. Default 10 per hour. */
   perIp?: { max: number; windowSeconds: number }
   /**
+   * Requests whose IP is unknown (`ip` null or missing), counted in one shared
+   * bucket. Kept far above `perIp` so a missing header cannot lock every user
+   * out; the per-phone limit still applies. Default 200 per hour.
+   */
+  perUnknownIp?: { max: number; windowSeconds: number }
+  /**
    * Verifies per IP, so one address cannot spread guesses across many
    * numbers. Every verify uses a slot, successful ones too (the count is taken
    * before the code is checked, so a parallel burst cannot get past it).
@@ -129,7 +135,9 @@ const keys = (o: PhoneOtpOptions, phone: string) => {
 /**
  * Send a code. A new request replaces any earlier code for that phone and
  * resets its attempts (the per-phone limit bounds the total guesses).
- * `ip` comes from `clientIp(c, trust)`; null shares one "no-ip" bucket.
+ * `ip` comes from `clientIp(c, trust)`. A null `ip` does not share the small
+ * `perIp` bucket (that would let one unknown-IP burst lock out every user): it
+ * counts against `perUnknownIp` (default 200 an hour) instead.
  */
 export async function requestPhoneOtp(
   opts: PhoneOtpOptions,
@@ -140,12 +148,10 @@ export async function requestPhoneOtp(
   const perIp = opts.perIp ?? { max: 10, windowSeconds: 3600 }
   const perPhone = opts.perPhone ?? { max: 3, windowSeconds: 900 }
   // IP first, so a sprayer burns its own bucket before any phone's.
-  const ipHit = await opts.rateLimit.hit(
-    "otp-ip",
-    input.ip ?? "no-ip",
-    perIp.max,
-    perIp.windowSeconds,
-  )
+  const unknown = opts.perUnknownIp ?? { max: 200, windowSeconds: 3600 }
+  const ipHit = input.ip
+    ? await opts.rateLimit.hit("otp-ip", input.ip, perIp.max, perIp.windowSeconds)
+    : await opts.rateLimit.hit("otp-ip-unknown", "all", unknown.max, unknown.windowSeconds)
   if (!ipHit.ok) return { ok: false, code: "RATE_LIMITED", retryAfterSeconds: ipHit.resetSeconds }
   const phoneHit = await opts.rateLimit.hit(
     "otp-phone",

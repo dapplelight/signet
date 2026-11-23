@@ -185,7 +185,10 @@ if (checked.ok) // sign in checked.phone with startSession
   (default 5 minutes). Verify compares in constant time, is single use and
   destroys the code after `maxAttempts` (default 5) wrong guesses.
 - Requests are limited per IP (default 10 an hour) and per phone (default 3 per
-  15 minutes). A new request replaces the old code.
+  15 minutes). A request with no known IP (`ip` null) does not share the
+  per-IP bucket; all of them count against `perUnknownIp` (default 200 an hour),
+  so a missing header cannot lock every user out. Only trust `ip` from
+  `clientIp(c, trust)`. A new request replaces the old code.
 - Verifies are limited per IP with `verifyFailuresPerIp` (default 30 an hour),
   so one address cannot spread 5 guesses across many numbers. The slot is
   taken before the code is checked and the decision comes from the store's
