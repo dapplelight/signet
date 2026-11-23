@@ -100,6 +100,7 @@ app.use("/api/auth/login", rateLimit({
 | `scope` | `string` | `"api"` | Keeps "login" and "api" counters apart. |
 | `max` | `number` | `100` | Requests per window. |
 | `windowSeconds` | `number` | `60` | |
+| `onNoIp` | `"allow" \| "reject" \| "bucket"` | `"bucket"` | A request with no usable client IP: share one `no-ip` bucket (once full, every IP-less caller gets 429), let it through, or answer 400 `BAD_REQUEST`. Ignored with `keyFor`. |
 | `failOpen` | `boolean` | `true` | `false`: a store error is 503 `RATE_LIMIT_UNAVAILABLE`. |
 | `onStoreError` | `(err, c) => void` | none | Hears every store failure. |
 | `getRequestId` | `(c) => string \| undefined` | `c.get("reqId")` | For the error envelope. |
