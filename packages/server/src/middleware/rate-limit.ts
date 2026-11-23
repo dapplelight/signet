@@ -175,6 +175,19 @@ export type RateLimitOptions<E extends Env = any> = {
   /** Defaults to the client IP. Use a user id for per-account limits. */
   keyFor?: (c: Context<E>) => string
   /**
+   * A request with no usable client IP (the header `trust` believes is missing
+   * or not an IP):
+   * - `"bucket"` (default): all of them share one `no-ip` bucket in this limiter's
+   *   scope. Once that bucket is full, every IP-less caller gets 429, including
+   *   bystanders, so use it only where a missing IP is rare.
+   * - `"allow"`: let them through unlimited. Fine for smoothing; an attacker who
+   *   can strip the header escapes the limit, so not for login attempts.
+   * - `"reject"`: answer 400 `BAD_REQUEST` without touching the store, so
+   *   the IP-less cannot fill a bucket for anyone else.
+   * Ignored when `keyFor` is given.
+   */
+  onNoIp?: "allow" | "reject" | "bucket"
+  /**
    * When the store throws (a Durable Object unreachable, D1 down): let the
    * request through (true, the default) or answer 503 (false). A limiter
    * outage should not take the API down with it; set false where the limit is
@@ -204,13 +217,22 @@ export function rateLimit<E extends Env = any>(
   const trust = opts.trust ?? "none"
   if (typeof trust === "object") assertHops(trust.forwardedHops) // fail at startup, not on request 1
 
+  const onNoIp = opts.onNoIp ?? "bucket"
+
   return async (c: Context<E>, next: Next) => {
+    let ip: string | null = null
+    if (!opts.keyFor) {
+      ip = clientIp(c, trust)
+      if (ip === null && onNoIp === "allow") return next()
+      if (ip === null && onNoIp === "reject")
+        return c.json(envelope(c, "Client address unknown", "BAD_REQUEST", opts.getRequestId), 400)
+    }
     const store = fixed ?? (opts.store as (c: Context<E>) => RateLimitStore)(c)
     let result: RateLimitResult
     try {
-      // No IP: one "no-ip" bucket inside this limiter's scope, never a key shared
-      // with other limiters or with a real address.
-      const key = opts.keyFor ? opts.keyFor(c) : (clientIp(c, trust) ?? "no-ip")
+      // No IP ("bucket"): one "no-ip" bucket inside this limiter's scope, never a key
+      // shared with other limiters or with a real address.
+      const key = opts.keyFor ? opts.keyFor(c) : (ip ?? "no-ip")
       result = await store.hit(scope, key, max, windowSeconds)
     } catch (err) {
       opts.onStoreError?.(err, c)

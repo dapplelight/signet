@@ -387,5 +387,61 @@ const throwing: RateLimitStore = {
   ok("ERROR_CODES has nothing the server never emits", unused.length === 0, unused.join())
 }
 
+// --- onNoIp: what a request with no cf-connecting-ip gets once the shared bucket is full ---
+{
+  const build = (onNoIp?: "allow" | "reject" | "bucket") => {
+    let hits = 0
+    const store = memoryStore()
+    const counting: RateLimitStore = {
+      hit: (...a) => (hits++, store.hit(...a)),
+    }
+    const app = new Hono()
+      .use("*", rateLimit({ store: counting, trust: "cloudflare", max: 300, onNoIp }))
+      .get("/", (c) => c.text("ok"))
+    return { app, hits: () => hits }
+  }
+  const real = { headers: { "cf-connecting-ip": "203.0.113.7" } }
+
+  // default and "bucket": 300 IP-less requests fill the shared bucket, so a
+  // bystander who also arrives without the header is locked out; one with an IP is not.
+  for (const mode of [undefined, "bucket"] as const) {
+    const { app } = build(mode)
+    for (let i = 0; i < 300; i++) await app.request("/")
+    const bystander = await app.request("/")
+    ok(`onNoIp ${mode ?? "default"}: bystander without IP gets 429`, bystander.status === 429)
+    ok(
+      `onNoIp ${mode ?? "default"}: a request with an IP is unaffected`,
+      (await app.request("/", real)).status === 200,
+    )
+  }
+
+  const allow = build("allow")
+  const statuses = new Set<number>()
+  for (let i = 0; i < 301; i++) statuses.add((await allow.app.request("/")).status)
+  ok(
+    "onNoIp allow: never limited, store never touched",
+    statuses.size === 1 && statuses.has(200) && allow.hits() === 0,
+  )
+  ok(
+    "onNoIp allow: a real IP is still counted",
+    (await allow.app.request("/", real)).status === 200 && allow.hits() === 1,
+  )
+
+  const reject = build("reject")
+  const res = await reject.app.request("/")
+  const body = (await res.json()) as { code?: string }
+  ok(
+    "onNoIp reject: 400 BAD_REQUEST, store never touched",
+    res.status === 400 && body.code === "BAD_REQUEST" && reject.hits() === 0,
+  )
+  ok("onNoIp reject: a real IP is served", (await reject.app.request("/", real)).status === 200)
+
+  // keyFor wins: onNoIp does not apply
+  const keyed = new Hono()
+    .use("*", rateLimit({ trust: "cloudflare", onNoIp: "reject", keyFor: () => "user-1" }))
+    .get("/", (c) => c.text("ok"))
+  ok("onNoIp is ignored with keyFor", (await keyed.request("/")).status === 200)
+}
+
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail) process.exit(1)

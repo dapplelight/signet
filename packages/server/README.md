@@ -1032,8 +1032,11 @@ makes every client share one bucket per limiter; pass it only if you want that. 
 can set `cf-connecting-ip` itself anywhere but behind Cloudflare, which is why
 it is never read unless you say `"cloudflare"`.
 
-A request with no usable IP is keyed `no-ip` within its limiter's `scope`, never
-a bucket shared with other limiters. IPv6 clients are keyed by their /64. The
+A request with no usable IP is, by default (`onNoIp: "bucket"`), keyed `no-ip`
+within its limiter's `scope`, never a bucket shared with other limiters. Once
+that bucket is full, everyone without an IP gets 429, bystanders included.
+`onNoIp: "allow"` lets IP-less requests through unlimited; `onNoIp: "reject"`
+answers them 400 `BAD_REQUEST` without touching the store. IPv6 clients are keyed by their /64. The
 built-in `memoryStore` is a fixed window, not a sliding one.
 
 429s use the same error envelope as everything else, so the client's `ApiError`

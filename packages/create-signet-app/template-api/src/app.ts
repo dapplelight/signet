@@ -20,7 +20,7 @@ type AppEnv<B> = { Bindings: B; Variables: { reqId: string } }
  * passes its own store and key.
  */
 export function createApp<B extends Record<string, unknown>>(
-  limit: Pick<RateLimitOptions<AppEnv<B>>, "store" | "trust" | "keyFor">,
+  limit: Pick<RateLimitOptions<AppEnv<B>>, "store" | "trust" | "keyFor" | "onNoIp">,
 ) {
   const app = new Hono<AppEnv<B>>()
     // Bindings arrive per request on Workers. Hand them over first, then read
