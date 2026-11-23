@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-ai: budget Durable Object skips idle writes
+
+- `BudgetCounter` now writes to Durable Object storage only when a call recorded spend or pruned an expired bucket. A plain budget check (`spent`, `oldestAt`, a refused `reserve`) no longer writes.
+
 ### signet-ai: parallel calls near the budget cap no longer all get through
 
 - Twenty parallel `extract` calls at a ledger one call short of its cap used to all pass the check and run the bill 19 calls' cost over. `extract` now holds `budget.maxCostUsd` with the new `ledger.reserve(estimateUsd, now?, key?)` before calling the model and settles it to the real cost afterwards (a failed call releases its hold). The memory store and the Durable Object store (`BudgetCounter`) let exactly one through; `BudgetStore` gains an optional atomic `reserve`, and `record` accepts a negative amount to release a hold.
