@@ -198,6 +198,7 @@ try {
     "template-api",
     "base/shared",
     "template-cli",
+    "template-desktop",
     "template-extension",
   ]) {
     const copy = JSON.parse(
