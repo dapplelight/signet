@@ -61,6 +61,8 @@ export class BudgetCounter {
     for (const [start, total] of Object.entries(all)) {
       if (Number(start) + bucketMs > cutoff) buckets[start] = total
     }
+    // Write back only on a change: every budget check calls here, most spend nothing.
+    let dirty = Object.keys(buckets).length !== Object.keys(all).length
     const total = () => Object.values(buckets).reduce((n, v) => n + v, 0)
     let reserved: boolean | undefined
     if (op === "reserve") reserved = total() + (usd ?? 0) <= (capUsd ?? 0)
@@ -68,10 +70,11 @@ export class BudgetCounter {
     if ((op === "record" || reserved) && usd) {
       const start = String(Math.floor(now / bucketMs) * bucketMs)
       buckets[start] = (buckets[start] ?? 0) + usd
+      dirty = true
       // Empty the object once its newest spend leaves the window.
       await this.state.storage.setAlarm(now + windowSeconds * 1000 + bucketMs)
     }
-    await this.state.storage.put("buckets", buckets)
+    if (dirty) await this.state.storage.put("buckets", buckets)
     // A bucket leaves the window at its start + bucketMs, so that is when its spend "began".
     const starts = Object.keys(buckets).map(Number)
     const reply: Reply = { spent: Math.max(0, total()), reserved }
