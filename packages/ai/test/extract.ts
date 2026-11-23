@@ -409,6 +409,39 @@ ok(
   `${Object.keys(stored).length} buckets`,
 )
 
+// A `spent` read writes nothing; a record, or a read that prunes, writes once.
+{
+  let puts = 0
+  const mem = new Map<string, unknown>()
+  const counter = new BudgetCounter({
+    storage: {
+      get: async <T>(k: string) => mem.get(k) as T | undefined,
+      put: async <T>(k: string, v: T) => {
+        puts++
+        mem.set(k, v)
+      },
+      deleteAll: async () => mem.clear(),
+      setAlarm: async () => {},
+    },
+  })
+  const putStore = durableObjectBudgetStore({
+    idFromName: (n: string) => n,
+    get: () => ({
+      fetch: (url: string, init?: RequestInit) => counter.fetch(new Request(url, init)),
+    }),
+  })
+  const T = 1_000_000_000_000
+  await putStore.spent("k", 3600, T)
+  ok("durable object: spent read on an empty object writes nothing", puts === 0, `${puts} puts`)
+  await putStore.record("k", 0.1, 3600, T)
+  ok("durable object: record writes once", puts === 1, `${puts} puts`)
+  await putStore.spent("k", 3600, T + 1000)
+  await putStore.oldestAt?.("k", 3600, T + 2000)
+  ok("durable object: spent read with spend in window writes nothing", puts === 1, `${puts} puts`)
+  await putStore.spent("k", 3600, T + 2 * 3600_000)
+  ok("durable object: spent read that prunes writes once", puts === 2, `${puts} puts`)
+}
+
 // 20 calls fired at once at a ledger one call short of its cap. Each costs CALL.
 // A cap that holds lets one through; the overshoot is what the others cost.
 const CALL = 0.1
