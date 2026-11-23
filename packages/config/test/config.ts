@@ -255,6 +255,35 @@ try {
     const locked = new Set(readFileSync(join(ROOT, "bun.lock"), "utf8").match(/"zod@[^"]+"/g) ?? [])
     ok("bun.lock resolves exactly one zod", locked.size === 1, [...locked].join(", "))
   }
+
+  // ── Internal ranges admit the workspace version ──────────────────────────
+  // A range like "^0.6.0" on a package now at 0.7.0 makes bun skip the
+  // workspace and ask npm, so `bun install --frozen-lockfile` fails on every
+  // open PR after a release bump. (peerDependencies are a compat window for
+  // consumers, so they are not checked.)
+  {
+    const dirs = [
+      ...readdirSync(join(ROOT, "packages")).map((d) => `packages/${d}`),
+      ...readdirSync(join(ROOT, "apps")).map((d) => `apps/${d}`),
+    ]
+    type Manifest = { name?: string; version?: string } & Record<string, Record<string, string>>
+    const manifests: Manifest[] = []
+    for (const d of dirs) {
+      try {
+        manifests.push(JSON.parse(readFileSync(join(ROOT, d, "package.json"), "utf8")))
+      } catch {} // not a package dir
+    }
+    const versions = new Map(manifests.map((m) => [m.name, m.version]))
+    const bad: string[] = []
+    for (const m of manifests)
+      for (const field of ["dependencies", "devDependencies", "optionalDependencies"])
+        for (const [dep, range] of Object.entries(m[field] ?? {})) {
+          const v = versions.get(dep)
+          if (v && !range.startsWith("workspace:") && !Bun.semver.satisfies(v, range))
+            bad.push(`${m.name} ${field}: ${dep}@${range} does not admit workspace ${v}`)
+        }
+    ok("every internal range admits the workspace version", bad.length === 0, bad.join("\n"))
+  }
 } finally {
   rmSync(TMP, { recursive: true, force: true })
 }
