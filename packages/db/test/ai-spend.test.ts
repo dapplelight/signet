@@ -249,6 +249,27 @@ describe.each(backends)("$name", (backend) => {
     expect(paid).toBe(3)
   })
 
+  test("version skew: signet-ai 0.5.x's `if (!room)` gate lets a call through at the cap", async () => {
+    // signet-ai 0.5.x checked `if (!room)` on a boolean `canSpend`. This is its
+    // gate verbatim (packages/ai/src/extract.ts at aa4ae08^), run against this
+    // package's ledger with the cap already full. The ledger now answers an
+    // object, which is always truthy, so the old gate never refuses. Published
+    // 0.5.x cannot be patched; only the peerDependency range (owner's call) or
+    // upgrading signet-ai with signet-db prevents it. See CHANGELOG, canSpend.
+    const spend = await make({ user: { day: 10_000 } })
+    await spend.record({ userId: "a" }, 10_000)
+    const verdict = await spend.ledger.canSpend(0.01, clock.getTime(), "a")
+    expect(verdict.ok).toBe(false) // the cap is full, and the current extractor refuses on this
+    let paid = 0
+    const legacyExtract = async () => {
+      const room = await spend.ledger.canSpend(0, clock.getTime(), "a")
+      if (!room) throw new Error("AI_BUDGET_EXCEEDED")
+      paid++
+    }
+    await legacyExtract()
+    expect(paid).toBe(1)
+  })
+
   test("onUsage records stream spend under the report's key; cache hits cost nothing", async () => {
     const spend = await make()
     await spend.onUsage({ costUsd: 0.002, key: spendKey({ userId: "a" }) })
