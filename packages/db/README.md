@@ -1496,8 +1496,11 @@ await extractor.extract({ ...args, budget: { key: spendKey({ userId, orgId }) } 
 - `check(subject, estimateUnits?)` refuses once a cap is reached, and says
   which (`scope`, `period`, `capUnits`, `usedUnits`, `resetsAt`).
   `usage(scope, id)` and `top("user" | "org", period)` feed an admin screen.
-- Fails closed: a database error refuses the call. Calls in flight are not
-  reserved, so concurrent calls can overshoot by their own cost.
+- Fails closed: a database error refuses the call. `spend.reserve` (and
+  `ledger.reserve`, which signet-ai's extractor uses) holds an estimate against
+  every cap atomically, so parallel calls cannot all pass: pass
+  `budget.maxCostUsd` to `extract`. A call with no estimate holds nothing, so
+  concurrent calls can overshoot by their own cost.
 
 ## Sequences
 
