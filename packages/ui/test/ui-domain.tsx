@@ -66,6 +66,8 @@ await t("formatAmount", () => {
     text(123456789012345678n, { minorUnits: true }),
   )
   ok("junk is zero", text("abc") === "₹0.00")
+  ok("comma string is zero, not 1", text("1,234.50") === "₹0.00", text("1,234.50"))
+  ok("API decimal string is exact", text("1234.5") === "₹1,234.50", text("1234.5"))
   ok("exceptZero signs credits", text(5, { signDisplay: "exceptZero" }) === "+₹5.00")
 })
 

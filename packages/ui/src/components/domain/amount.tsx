@@ -77,7 +77,8 @@ function toMajor(v: AmountValue, digits: number, minor: boolean): number | strin
     const s = (neg ? -v : v).toString().padStart(digits + 1, "0")
     return `${neg ? "-" : ""}${s.slice(0, -digits)}.${s.slice(-digits)}`
   }
-  const n = typeof v === "string" ? Number.parseFloat(v) : v
+  // Number(), not parseFloat: "1,234.50" is NaN (shown as 0), not a silent 1.
+  const n = Number(v)
   if (!Number.isFinite(n)) return 0
   return minor ? n / 10 ** digits : n
 }
