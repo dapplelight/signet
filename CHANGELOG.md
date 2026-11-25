@@ -5,6 +5,11 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-lib: compact currency with 0 decimals
+
+- `createCompactCurrencyFormatter` with `decimals = 0` no longer prints 10 lakh as `₹1L` or 10 crore as `₹1Cr`; trailing zeros are trimmed only after a decimal point.
+- Amounts that round up to the next tier now roll over: 99.96 lakh with 0 decimals is `₹1Cr` (not `₹100L`), and 99,999.6 is `₹1L`.
+
 ### signet-db: AI spend caps hold the estimate before a call
 
 - `createAiSpend` gains `reserve(subject, units)` and `ledger.reserve(estimateUsd, at, key)`. signet-ai's extractor uses it when a call passes `budget.maxCostUsd`, so parallel calls can no longer all pass a cap that has room for one. Without `maxCostUsd` nothing is held and calls can still overshoot by their own cost.
