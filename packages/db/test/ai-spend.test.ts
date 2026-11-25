@@ -17,6 +17,7 @@ import {
 } from "../src/ai-spend"
 import * as pgc from "../src/columns/pg"
 import * as sqc from "../src/columns/sqlite"
+import { createExtractor as createLegacyExtractor } from "./fixtures/signet-ai-0.5.1-extract"
 import { backends, ddl, type Instance } from "./harness"
 
 const code = async (p: Promise<unknown>) => {
@@ -249,25 +250,49 @@ describe.each(backends)("$name", (backend) => {
     expect(paid).toBe(3)
   })
 
-  test("version skew: signet-ai 0.5.x's `if (!room)` gate lets a call through at the cap", async () => {
-    // signet-ai 0.5.x checked `if (!room)` on a boolean `canSpend`. This is its
-    // gate verbatim (packages/ai/src/extract.ts at aa4ae08^), run against this
-    // package's ledger with the cap already full. The ledger now answers an
-    // object, which is always truthy, so the old gate never refuses. Published
-    // 0.5.x cannot be patched; only the peerDependency range (owner's call) or
-    // upgrading signet-ai with signet-db prevents it. See CHANGELOG, canSpend.
+  test("version skew: signet-ai 0.5.x's real extractor lets a call through this ledger at the cap", async () => {
+    // The 0.5.x extractor (fixtures/signet-ai-0.5.1-extract.ts, the published
+    // source) gates on `if (!room)` over a boolean `canSpend`. This ledger now
+    // answers an object, which is always truthy, so the old gate never refuses.
+    // Published 0.5.x cannot be patched; only the peerDependency range (owner's
+    // call) or upgrading signet-ai with signet-db prevents it.
     const spend = await make({ user: { day: 10_000 } })
     await spend.record({ userId: "a" }, 10_000)
     const verdict = await spend.ledger.canSpend(0.01, clock.getTime(), "a")
-    expect(verdict.ok).toBe(false) // the cap is full, and the current extractor refuses on this
-    let paid = 0
-    const legacyExtract = async () => {
-      const room = await spend.ledger.canSpend(0, clock.getTime(), "a")
-      if (!room) throw new Error("AI_BUDGET_EXCEEDED")
-      paid++
+    expect(verdict.ok).toBe(false) // the cap is full
+    const run = async (make: typeof createExtractor) => {
+      let paid = 0
+      const extractor = make({
+        providers: [
+          {
+            name: "p",
+            model: "m",
+            pricing: { perCallUsd: 0.01 },
+            async generate<T>() {
+              paid++
+              return { value: { ok: true } as T }
+            },
+          },
+        ],
+        ledger: spend.ledger,
+        now: () => clock.getTime(),
+      })
+      const outcome = await code(
+        extractor.extract({
+          schema: z.object({ ok: z.boolean() }),
+          input: "x",
+          instructions: "y",
+          budget: { key: "a" },
+        }),
+      )
+      return { outcome, paid }
     }
-    await legacyExtract()
-    expect(paid).toBe(1)
+    // The current extractor refuses; the 0.5.x one pays for the call.
+    expect(await run(createExtractor)).toEqual({ outcome: "AI_BUDGET_EXCEEDED", paid: 0 })
+    expect(await run(createLegacyExtractor as unknown as typeof createExtractor)).toEqual({
+      outcome: "OK",
+      paid: 1,
+    })
   })
 
   test("onUsage records stream spend under the report's key; cache hits cost nothing", async () => {
