@@ -1,6 +1,6 @@
 import { createApiClient, qs, retryAfterSeconds } from "../src/api/client"
 import { isErrorEnvelope } from "../src/api/contract"
-import { ApiError, AuthError } from "../src/api/errors"
+import { ApiError, AuthError, TimeoutError } from "../src/api/errors"
 import { onAuthErrorRedirect, queryDefaults } from "../src/api/query-client"
 
 let pass = 0,
@@ -525,6 +525,66 @@ ok(
 ok(
   "…and the full body is still on .body",
   ((caught as ApiError)?.body as { overlapPct?: number })?.overlapPct === 92,
+)
+
+// --- timeoutMs (opt-in) ---
+const hang = () => {
+  globalThis.fetch = (() => new Promise<Response>(() => {})) as typeof fetch
+}
+hang()
+caught = undefined
+try {
+  await createApiClient({ timeoutMs: 20 }).get("/slow")
+} catch (e) {
+  caught = e
+}
+ok(
+  "timeoutMs: a fetch that never resolves rejects with TimeoutError",
+  caught instanceof TimeoutError && (caught as TimeoutError).status === 408,
+)
+const pending = await Promise.race([
+  createApiClient()
+    .get("/slow")
+    .then(
+      () => "settled",
+      () => "settled",
+    ),
+  new Promise((r) => setTimeout(() => r("pending"), 100)),
+])
+ok("timeoutMs unset: the same stub is still pending", pending === "pending")
+
+const ctl = new AbortController()
+setTimeout(() => ctl.abort(), 10)
+caught = undefined
+try {
+  await createApiClient({ timeoutMs: 1000 }).get("/slow", { signal: ctl.signal })
+} catch (e) {
+  caught = e
+}
+ok(
+  "caller abort stays an abort, not TimeoutError",
+  !(caught instanceof TimeoutError) && (caught as Error)?.name === "AbortError",
+)
+
+stub(200, { a: 1 })
+await createApiClient({ timeoutMs: 1000 }).get("/fast")
+ok("timeoutMs: a fast response passes through", true)
+const mine = new AbortController()
+await createApiClient().get("/x", { signal: mine.signal })
+ok("timeoutMs unset: caller signal reaches fetch untouched", lastInit?.signal === mine.signal)
+
+stub(200, "{not json")
+caught = undefined
+try {
+  await createApiClient().get("/bad")
+} catch (e) {
+  caught = e
+}
+ok(
+  "malformed JSON body on a 200 throws ApiError without the text",
+  caught instanceof ApiError &&
+    (caught as ApiError).status === 200 &&
+    (caught as ApiError).message === "Response was not valid JSON",
 )
 
 console.log(`\n${pass} passed, ${fail} failed`)
