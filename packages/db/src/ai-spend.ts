@@ -25,8 +25,10 @@
  * Fails closed like signet-ai's ledger: a database error on the counters
  * refuses the call. The dated ledger is reporting only, so a failed ledger
  * write is dropped and never fails `record`.
- * Calls in flight are not reserved, so concurrent calls can overshoot a cap by
- * their own cost.
+ * `reserve` (and `ledger.reserve`, which signet-ai's extractor uses) holds an
+ * estimate against every cap atomically, so parallel calls cannot all pass.
+ * A call with no estimate (`budget.maxCostUsd` unset) holds nothing, so
+ * concurrent calls can still overshoot a cap by their own cost.
  */
 
 import { and, eq, getTableColumns, gte, inArray, like, lt, sql, type Table } from "drizzle-orm"
@@ -254,26 +256,39 @@ export function createAiSpend(db: SignetDb<unknown>, options: AiSpendOptions) {
     const n = Number.isFinite(units) && units > 0 ? Math.ceil(units) : 0
     const s = detail.cacheSavedUnits
     const saved = s !== undefined && Number.isFinite(s) && s > 0 ? Math.ceil(s) : 0
-    if (n > 0) {
-      const rows = targets(subject).flatMap(([scope, id]) =>
-        PERIODS.map((p) => ({
-          subject: counterOf(scope, id),
-          key: SPEND_KEY,
-          period: periodOf(p, at),
-          used: n,
-        })),
-      )
-      await o
-        .insert(U)
-        .values(rows)
-        .onConflictDoUpdate({
-          target: [uc.subject, uc.key, uc.period],
-          set: { used: sql`${uc.used} + ${n}` },
-        })
-    }
+    if (n > 0) await bump(subject, n, at)
+    await writeLedger(subject, n, saved, at, detail.model)
+  }
+
+  /** Add `delta` (negative releases a hold) to the subject's counters for this day and month. */
+  async function bump(subject: SpendSubject, delta: number, at: Date): Promise<void> {
+    const rows = targets(subject).flatMap(([scope, id]) =>
+      PERIODS.map((p) => ({
+        subject: counterOf(scope, id),
+        key: SPEND_KEY,
+        period: periodOf(p, at),
+        used: delta,
+      })),
+    )
+    await o
+      .insert(U)
+      .values(rows)
+      .onConflictDoUpdate({
+        target: [uc.subject, uc.key, uc.period],
+        set: { used: sql`${uc.used} + ${delta}` },
+      })
+  }
+
+  async function writeLedger(
+    subject: SpendSubject,
+    n: number,
+    saved: number,
+    at: Date,
+    modelName?: string,
+  ): Promise<void> {
     if (!L || (n === 0 && saved === 0)) return
     const day = periodOf("day", at)
-    const model = detail.model || "unknown"
+    const model = modelName || "unknown"
     // The ledger is reporting only and the counters are already charged, so a
     // failed ledger write (unmigrated table, DB error, rejecting hashSubject)
     // must not fail a call that finished and was paid for.
@@ -308,6 +323,101 @@ export function createAiSpend(db: SignetDb<unknown>, options: AiSpendOptions) {
       prunedOn = day
       await prune(at).catch(() => {})
     }
+  }
+
+  /**
+   * Check and hold `units` against every cap in one step, so parallel calls
+   * cannot all pass the check: each counter is raised only while it stays
+   * within its cap (one conditional upsert), and a hold that fails on a later
+   * counter is released. `settle(actualUnits)` swaps the hold for the real
+   * cost (`settle(0)` releases it); a later `settle` just records more spend.
+   * With no estimate (0) nothing is held and this is `check`.
+   */
+  async function reserve(
+    subject: SpendSubject,
+    units: number,
+    at = now(),
+  ): Promise<SpendRefusal | { ok: true; settle(actualUnits: number): Promise<void> }> {
+    const n = Number.isFinite(units) && units > 0 ? Math.ceil(units) : 0
+    let held = 0
+    const settle = async (actual: number) => {
+      const a = Number.isFinite(actual) && actual > 0 ? Math.ceil(actual) : 0
+      const hold = held
+      held = 0
+      if (a !== hold) await bump(subject, a - hold, at)
+      await writeLedger(subject, a, 0, at)
+    }
+    if (n === 0) {
+      const r = await check(subject, 0, at)
+      return r.ok ? { ok: true, settle } : r
+    }
+    const list = targets(subject)
+    const caps = await capsFor(list)
+    const taken: Array<[SpendScope, string, SpendPeriod]> = []
+    const release = () =>
+      Promise.all(
+        taken.map(([scope, id, p]) =>
+          o
+            .update(U)
+            .set({ used: sql`${uc.used} - ${n}` })
+            .where(
+              and(
+                eq(uc.subject, counterOf(scope, id)),
+                eq(uc.key, SPEND_KEY),
+                eq(uc.period, periodOf(p, at)),
+              ),
+            ),
+        ),
+      )
+    let refused: [SpendScope, string, SpendPeriod, number] | undefined
+    try {
+      all: for (const [scope, id] of list)
+        for (const p of PERIODS) {
+          const cap = caps.get(`${scope}:${id}:${p}`) ?? Number.POSITIVE_INFINITY
+          if (n > cap) {
+            refused = [scope, id, p, cap]
+            break all
+          }
+          const got: unknown[] = await o
+            .insert(U)
+            .values({
+              subject: counterOf(scope, id),
+              key: SPEND_KEY,
+              period: periodOf(p, at),
+              used: n,
+            })
+            .onConflictDoUpdate({
+              target: [uc.subject, uc.key, uc.period],
+              set: { used: sql`${uc.used} + ${n}` },
+              ...(Number.isFinite(cap) ? { setWhere: sql`${uc.used} + ${n} <= ${cap}` } : {}),
+            })
+            .returning({ used: uc.used })
+          if (got.length === 0) {
+            refused = [scope, id, p, cap]
+            break all
+          }
+          taken.push([scope, id, p])
+        }
+    } catch (e) {
+      await release().catch(() => {}) // fails closed either way
+      throw e
+    }
+    if (refused) {
+      await release()
+      const [scope, id, period, cap] = refused
+      const used = await usedFor([[scope, id]], at)
+      return {
+        ok: false,
+        scope,
+        subject: id,
+        period,
+        capUnits: cap,
+        usedUnits: used(scope, id, period),
+        resetsAt: periodEnd(period, at),
+      }
+    }
+    held = n
+    return { ok: true, settle }
   }
 
   /** The first UTC day of the last `days` days, today included. */
@@ -554,6 +664,27 @@ export function createAiSpend(db: SignetDb<unknown>, options: AiSpendOptions) {
     async record(usd: number, at = Date.now(), key?: string): Promise<void> {
       await record(parseSpendKey(key), usdToUnits(usd), new Date(at))
     },
+    /**
+     * Holds `estimateUsd` against every cap atomically (signet-ai's extractor
+     * uses this when present, so parallel calls cannot all pass); `settle(usd)`
+     * swaps the hold for the real cost. Same refusal as `canSpend`.
+     */
+    async reserve(
+      estimateUsd: number,
+      at = Date.now(),
+      key?: string,
+    ): Promise<
+      | { ok: true; settle(actualUsd: number): Promise<void> }
+      | { ok: false; limit: "global" | "key"; retryAfterSeconds: number }
+    > {
+      const r = await reserve(parseSpendKey(key), usdToUnits(estimateUsd), new Date(at))
+      if (r.ok) return { ok: true, settle: (usd) => r.settle(usdToUnits(usd)) }
+      return {
+        ok: false,
+        limit: r.scope === "global" ? "global" : "key",
+        retryAfterSeconds: Math.max(1, Math.ceil((r.resetsAt.getTime() - at) / 1000)),
+      }
+    },
   }
 
   /**
@@ -577,6 +708,7 @@ export function createAiSpend(db: SignetDb<unknown>, options: AiSpendOptions) {
   return {
     check,
     record,
+    reserve,
     usage,
     top,
     caps,

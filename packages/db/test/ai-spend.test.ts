@@ -177,6 +177,34 @@ describe.each(backends)("$name", (backend) => {
     expect((await spend.usage("user", "a")).day.used).toBe(30)
   })
 
+  test("reserve holds against every cap at once: 20 parallel reserves fit one call", async () => {
+    // $0.001 a call is 1,000 units; the user's day cap fits one, the org's three.
+    const spend = await make({ user: { day: 1000 }, org: { day: 3000 } })
+    const at = clock.getTime()
+    const key = spendKey({ userId: "a", orgId: "o" })
+    const got = await Promise.all(
+      Array.from({ length: 20 }, () => spend.ledger.reserve(0.001, at, key)),
+    )
+    const ok = got.filter((r) => r.ok)
+    expect(ok.length).toBe(1)
+    const no = got.find((r) => !r.ok)
+    expect(no).toMatchObject({ ok: false, limit: "key" })
+    // Refused holds were released: only the one hold is on every counter.
+    expect((await spend.usage("user", "a")).day.used).toBe(1000)
+    expect((await spend.usage("org", "o")).day.used).toBe(1000)
+    expect((await spend.usage("global")).month.used).toBe(1000)
+    // Settling swaps the hold for the real cost; 0 releases it.
+    await (ok[0] as { settle(u: number): Promise<void> }).settle(0.0004)
+    expect((await spend.usage("user", "a")).day.used).toBe(400)
+    // Room is 600, so a 1,000 estimate is refused and holds nothing.
+    expect((await spend.ledger.reserve(0.001, at, key)).ok).toBe(false)
+    expect((await spend.usage("org", "o")).day.used).toBe(400)
+    expect((await spend.ledger.reserve(0.0006, at, key)).ok).toBe(true)
+    // A cap smaller than the estimate refuses without a counter row.
+    expect((await spend.reserve({ userId: "t" }, 5000, clock)).ok).toBe(false)
+    expect((await spend.usage("user", "t")).day.used).toBe(0)
+  })
+
   test("signet-ai's extractor: the ledger records cost and refuses over the cap", async () => {
     // $0.01 a call is 10,000 units; the cap allows two calls a day.
     const spend = await make({ user: { day: 20_000 } })

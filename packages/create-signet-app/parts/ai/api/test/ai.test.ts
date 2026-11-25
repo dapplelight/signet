@@ -29,6 +29,22 @@ test("over the caller's cap: 429 with Retry-After, and the route does not run", 
   expect(Number(res.headers.get("retry-after"))).toBeGreaterThan(0)
   expect(((await res.json()) as { code: string }).code).toBe("AI_SPEND_CAP_EXCEEDED")
 })
+
+test("20 parallel calls with room for one: at most one gets through", async () => {
+  const cookie = await signIn("+919000000045")
+  const id = await userId(cookie)
+  // 10,000 units is $0.01: room for one call's hold (route's maxCostUsd), no more.
+  db.orm
+    .insert(spendCaps)
+    .values({ id: `user:${id}:day`, scope: "user", subject: id, period: "day", units: 10_000 })
+    .run()
+  const res = await Promise.all(
+    Array.from({ length: 20 }, () => post("/api/ai/summary", { text: "Some text." }, cookie)),
+  )
+  const statuses = res.map((r) => r.status)
+  expect(statuses.filter((s) => s === 200).length).toBe(1)
+  expect(statuses.filter((s) => s === 429).length).toBe(19)
+})
 // admin:begin
 
 test("admins read AI spend and set caps; everyone else gets 403", async () => {
