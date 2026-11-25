@@ -30,7 +30,8 @@ export type DateFormatOptions = {
   timeZone?: string
 }
 
-const toNumber = (v: Amount): number => (typeof v === "string" ? Number.parseFloat(v) : Number(v))
+// Number(), not parseFloat: "1,234.50" is NaN (shown as 0), not a silent 1.
+const toNumber = (v: Amount): number => Number(v)
 
 /** The currency's own number of fraction digits: JPY 0, USD 2, KWD and BHD 3. */
 const fractionDigits = (currency: string, locale: string): number =>

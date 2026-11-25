@@ -19,6 +19,9 @@ ok("INR whole units", inr(1234).replace(/ /g, " ").includes("1,234"))
 ok("INR precise has decimals", inr(1234.5, true).includes(".50"))
 ok("accepts string amounts", inr("1234") === inr(1234))
 ok("non-finite falls back to zero", inr(Number.NaN).includes("0"))
+ok("API decimal string is exact", inr("1234.5", true).includes("1,234.50"))
+ok("comma string is junk, not 1", inr("1,234.50") === inr(0))
+ok("trailing junk is junk, not the prefix", inr("12abc") === inr(0))
 
 const usd = createCurrencyFormatter("USD", "en-US")
 ok("USD formats with $", usd(1234).includes("$"))
@@ -103,6 +106,7 @@ ok("percent takes bigint", formatPercent(5n) === "+5.0%")
 ok("percent signs positive", formatPercent(4.25) === "+4.3%") // rounds
 ok("percent signs negative", formatPercent(-2) === "-2.0%")
 ok("percent handles junk", formatPercent("abc") === "0%")
+ok("percent comma string is junk, not 1", formatPercent("1,234") === "0%")
 
 const df = createDateFormatter("en-IN")
 ok("formats a date", df("2026-03-15").includes("2026"))
