@@ -5,6 +5,11 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-lib: createApiClient timeoutMs
+
+- `createApiClient({ timeoutMs })` aborts a request whose response headers have not arrived in time and throws `TimeoutError` (408, code `TIMEOUT`). Default none: unset, nothing changes. A caller's own `signal` that aborts stays an abort.
+- A 2xx JSON response whose body does not parse now throws `ApiError("Response was not valid JSON")` instead of a raw `SyntaxError`.
+
 ### signet-lib: compact currency with 0 decimals
 
 - `createCompactCurrencyFormatter` with `decimals = 0` no longer prints 10 lakh as `₹1L` or 10 crore as `₹1Cr`; trailing zeros are trimmed only after a decimal point.
