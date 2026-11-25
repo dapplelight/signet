@@ -92,7 +92,7 @@
     },
     "packages/ai": {
       "name": "@dapplelight/signet-ai",
-      "version": "0.6.2",
+      "version": "0.6.3",
       "devDependencies": {
         "@ai-sdk/react": "^4.0.180",
         "@dapplelight/signet-lib": "^0.4.0",
@@ -155,7 +155,7 @@
     },
     "packages/db": {
       "name": "@dapplelight/signet-db",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "bin": {
         "signet-db-check": "./dist/migrations/cli.js",
       },
