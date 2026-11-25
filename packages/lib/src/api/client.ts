@@ -38,6 +38,13 @@ export type ApiClientOptions = {
    * is retried once with it, or null and the 401 stands. `createSession().refresh` fits.
    */
   refresh?: () => Promise<string | null>
+  /**
+   * Milliseconds to wait for each attempt's response headers before aborting
+   * it with `TimeoutError`. Default none. The body is not timed, so a stream
+   * may run as long as it needs. A caller's own `signal` that aborts stays an
+   * abort, never a `TimeoutError`.
+   */
+  timeoutMs?: number
 }
 
 const bearer = (token: string | null | undefined): Record<string, string> =>
@@ -99,6 +106,29 @@ export function qs(params: Record<string, QueryValue | readonly QueryValue[]>): 
 
 export function createApiClient(opts: ApiClientOptions = {}) {
   const baseUrl = (opts.baseUrl ?? "").replace(/\/$/, "")
+  const ms = opts.timeoutMs ?? 0
+
+  /** `fetch`, with `timeoutMs` applied to the response headers. Unset: plain `fetch`. */
+  async function fetchTimed(url: string, init: RequestInit): Promise<Response> {
+    if (!(ms > 0)) return fetch(url, init)
+    const clock = new AbortController()
+    const timer = setTimeout(() => clock.abort(), ms)
+    const signal = init.signal ? AbortSignal.any([init.signal, clock.signal]) : clock.signal
+    // Raced as well as signalled: a fetch that ignores the signal must still reject.
+    const expired = new Promise<never>((_, reject) => {
+      if (signal.aborted) reject(signal.reason)
+      signal.addEventListener("abort", () => reject(signal.reason), { once: true })
+    })
+    const requestId = new Headers(init.headers).get("x-request-id") ?? undefined
+    try {
+      return await Promise.race([fetch(url, { ...init, signal }), expired])
+    } catch (cause) {
+      // Only our clock makes a TimeoutError; the caller's own abort stays an abort.
+      throw clock.signal.aborted && !init.signal?.aborted ? new TimeoutError(ms, requestId) : cause
+    } finally {
+      clearTimeout(timer)
+    }
+  }
 
   /**
    * The request as sent, the Response untouched: configured headers and
@@ -110,7 +140,7 @@ export function createApiClient(opts: ApiClientOptions = {}) {
   async function send(path: string, init: RequestInit = {}): Promise<Response> {
     const extra = (await opts.headers?.()) ?? {}
     const res = await withToken(opts, (auth) =>
-      fetch(`${baseUrl}${path}`, {
+      fetchTimed(`${baseUrl}${path}`, {
         credentials: opts.credentials ?? "include",
         ...init,
         headers: mergeHeaders(auth, extra, init.headers),
@@ -127,7 +157,7 @@ export function createApiClient(opts: ApiClientOptions = {}) {
   async function request<T>(path: string, init: RequestInit = {}, isForm = false): Promise<T> {
     const extra = (await opts.headers?.()) ?? {}
     const res = await withToken(opts, (auth) =>
-      fetch(`${baseUrl}${path}`, {
+      fetchTimed(`${baseUrl}${path}`, {
         credentials: opts.credentials ?? "include",
         ...init,
         // Merged last so caller headers extend the defaults instead of replacing
@@ -163,7 +193,12 @@ export function createApiClient(opts: ApiClientOptions = {}) {
         res.status,
       )
     }
-    return JSON.parse(text) as T
+    try {
+      return JSON.parse(text) as T
+    } catch {
+      // Never the text as the message: it can be a whole HTML page.
+      throw new ApiError("Response was not valid JSON", res.status)
+    }
   }
 
   return {
