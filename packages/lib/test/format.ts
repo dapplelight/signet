@@ -32,6 +32,15 @@ ok("negative keeps sign", cInr(-1_200_000).startsWith("-"), cInr(-1_200_000))
 ok("below a lakh is not compacted", !cInr(5000).includes("L"), cInr(5000))
 ok("trims trailing zeros", cInr(10_000_000) === "₹1Cr", cInr(10_000_000))
 
+// 0 decimals: trim must not eat the zeros of a whole number, and rounding must roll over tiers
+const c0 = createCompactCurrencyFormatter("INR", "en-IN", 0)
+ok("0 decimals: 10 lakh stays 10L", c0(1_000_000) === "₹10L", c0(1_000_000))
+ok("0 decimals: 10 crore stays 10Cr", c0(100_000_000) === "₹10Cr", c0(100_000_000))
+ok("0 decimals: 99.96 lakh rolls to 1Cr", c0(9_996_000) === "₹1Cr", c0(9_996_000))
+ok("0 decimals: 99,999.6 rolls to 1L", c0(99_999.6) === "₹1L", c0(99_999.6))
+ok("0 decimals: 99,999 stays whole", !c0(99_999).includes("L"), c0(99_999))
+ok("1 decimal: 99.9996 lakh rolls to 1Cr", cInr(9_999_960) === "₹1Cr", cInr(9_999_960))
+
 const cUsd = createCompactCurrencyFormatter("USD", "en-US")
 ok("non-Indian locale uses Intl compact", /K|M/.test(cUsd(1_200_000)), cUsd(1_200_000))
 ok("USD does NOT get lakh/crore", !cUsd(1_200_000).includes("L"), cUsd(1_200_000))

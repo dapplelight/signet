@@ -78,7 +78,11 @@ export function createCurrencyFormatter(
     (exact ? precise : whole).format(toFormattable(amount, digits, minor) as number)
 }
 
-const trim = (n: number, decimals: number): string => n.toFixed(decimals).replace(/\.?0+$/, "")
+// Zeros go only after a decimal point: "10" (0 decimals) must stay "10".
+const trim = (n: number, decimals: number): string => {
+  const s = n.toFixed(decimals)
+  return s.includes(".") ? s.replace(/\.?0+$/, "") : s
+}
 
 /**
  * Compact currency.
@@ -109,8 +113,11 @@ export function createCompactCurrencyFormatter(
       const n = toMajor(amount)
       const sign = n < 0 ? "-" : ""
       const abs = Math.abs(n)
-      if (abs >= 1e7) return `${sign}${symbol}${trim(abs / 1e7, decimals)}Cr`
-      if (abs >= 1e5) return `${sign}${symbol}${trim(abs / 1e5, decimals)}L`
+      // Roll over when rounding reaches the next tier: 99.96L at 0 decimals is 1Cr, not "100L".
+      if (abs >= 1e7 || Number((abs / 1e5).toFixed(decimals)) >= 100)
+        return `${sign}${symbol}${trim(abs / 1e7, decimals)}Cr`
+      // Below a lakh, `full` rounds to whole units, so 99,999.6 would print as "1,00,000".
+      if (Math.round(abs) >= 1e5) return `${sign}${symbol}${trim(abs / 1e5, decimals)}L`
       return full(n)
     }
   }
