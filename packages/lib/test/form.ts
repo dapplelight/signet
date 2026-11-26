@@ -1,4 +1,4 @@
-import { FormApi } from "@tanstack/react-form"
+import { FieldApi, FormApi } from "@tanstack/react-form"
 import { z } from "zod"
 import { ApiError } from "../src/api/errors"
 import {
@@ -138,6 +138,32 @@ ok("first message wins on a path", !nestedErrors("address.city").includes("secon
 ok("array path lands on guests[2].name", nestedErrors("guests[2].name")[0] === "Name required")
 ok("array path leaves siblings clean", nestedErrors("guests[1].name").length === 0)
 ok("nested errors still return formErrors", nestedLeft[0] === "Check the form")
+
+// a server error must not block the form once the user edits the field
+const f7 = new FormApi({ defaultValues: { email: "a@b.co" } })
+f7.mount()
+new FieldApi({ form: f7, name: "email" }).mount()
+applyServerErrors(
+  f7 as never,
+  new ApiError("v", 422, "VALIDATION_FAILED", {
+    formErrors: [],
+    fieldErrors: { email: ["Already taken"] },
+  }),
+)
+f7.setFieldValue("email", "new@b.co")
+let submitted = false
+f7.options.onSubmit = () => {
+  submitted = true
+}
+await f7.handleSubmit()
+ok("edited field submits after a server error", submitted)
+
+// clearServerErrors takes the server's dotted path, like applyServerErrors
+clearServerErrors(nestedForm as never, ["guests.2.name"])
+ok(
+  "clearServerErrors clears guests[2].name from a dotted path",
+  nestedErrors("guests[2].name").length === 0,
+)
 
 // --- submitWithServerErrors ---
 const f4 = makeForm()

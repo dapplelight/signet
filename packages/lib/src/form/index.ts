@@ -53,6 +53,9 @@ export type FieldMeta = {
 /** The minimum of TanStack's FormApi this module needs. Keeps it testable. */
 export type ServerErrorTarget = {
   setFieldMeta(field: never, updater: (meta: FieldMeta | undefined) => unknown): void
+  /** With these two, an applied server error clears itself when its field's value changes. */
+  getFieldValue?(field: never): unknown
+  store?: { subscribe(listener: () => void): { unsubscribe(): void } }
 }
 
 /**
@@ -69,6 +72,21 @@ const withMeta = (meta: FieldMeta | undefined): FieldMeta =>
  * array fields as `guests[2].name` and looks meta up by that exact string.
  */
 const toFieldName = (path: string) => path.replace(/\.(\d+)(?=\.|$)/g, "[$1]")
+
+/**
+ * TanStack only drops an errorMap entry when a validator for that cause runs,
+ * so on a field with no validators "Already taken" would block submit for good.
+ * Clear it ourselves the first time the field's value changes.
+ */
+function clearOnEdit(form: ServerErrorTarget, field: string, key: string) {
+  if (!form.getFieldValue || !form.store) return
+  const before = form.getFieldValue(field as never)
+  const sub = form.store.subscribe(() => {
+    if (Object.is(form.getFieldValue?.(field as never), before)) return
+    sub.unsubscribe()
+    clearServerErrors(form, [field], key)
+  })
+}
 
 export type ServerErrorOptions = {
   /**
@@ -119,6 +137,7 @@ export function applyServerErrors(
         errorMap: { ...meta.errorMap, [key]: messages[0] },
       }
     })
+    clearOnEdit(form, field, key)
   }
 
   const formErrors = details.formErrors?.length ? details.formErrors : []
@@ -132,7 +151,8 @@ export function clearServerErrors(
   fields: readonly string[],
   key = "onServer",
 ): void {
-  for (const field of fields) {
+  for (const path of fields) {
+    const field = toFieldName(path) // accept the server's `guests.2.name` as applyServerErrors does
     form.setFieldMeta(field as never, (raw) => {
       const meta = withMeta(raw)
       const next = { ...meta.errorMap }
