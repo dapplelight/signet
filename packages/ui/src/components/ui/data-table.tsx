@@ -34,7 +34,9 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { useLabels } from "../../lib/labels.js"
 import { cn } from "../../lib/utils.js"
 import { Checkbox } from "./checkbox.js"
+import { ErrorState } from "./error-state.js"
 import { Popover, PopoverContent, PopoverTrigger } from "./popover.js"
+import { Skeleton } from "./skeleton.js"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./table.js"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./tooltip.js"
 
@@ -117,6 +119,16 @@ interface DataTableProps<TData extends RowData> {
   data: TData[]
   onRowClick?: (row: TData) => void
   emptyMessage?: string
+  /**
+   * Show placeholder rows in the body instead of "No data", for a fetch in
+   * flight. Wins over `error`, so a retry shows the placeholders again.
+   */
+  loading?: boolean
+  /**
+   * Show an ErrorState in the body instead of "No data" when the fetch
+   * failed. `true` for the default message, or `{ message, onRetry }`.
+   */
+  error?: boolean | { message?: string; onRetry?: () => void }
   className?: string
   /** Expose the table instance for external control (e.g. row selection) */
   tableRef?: React.MutableRefObject<TanstackTable<DataTableFeatures, TData> | undefined>
@@ -285,12 +297,15 @@ function columnLabel<TData extends RowData>(column: Column<DataTableFeatures, TD
 }
 
 const nf = new Intl.NumberFormat()
+const SKELETON_ROWS = 5
 
 function DataTable<TData extends RowData>({
   columns,
   data,
   onRowClick,
   emptyMessage,
+  loading = false,
+  error,
   className,
   tableRef,
   getRowId,
@@ -610,6 +625,7 @@ function DataTable<TData extends RowData>({
           <Table
             className="table-fixed"
             style={{ width: Math.max(table.getCenterTotalSize(), 0) || "100%" }}
+            aria-busy={loading || undefined}
             {...(virtual ? { "aria-rowcount": rows.length + 1 } : {})}
           >
             <TableHeader className={cn(virtual && "sticky top-0 z-10 bg-bg-surface")}>
@@ -716,7 +732,23 @@ function DataTable<TData extends RowData>({
               ))}
             </TableHeader>
             <TableBody>
-              {rows.length ? (
+              {loading ? (
+                Array.from({ length: SKELETON_ROWS }, (_, i) => (
+                  <TableRow key={i} data-slot="data-table-skeleton">
+                    {table.getVisibleLeafColumns().map((column) => (
+                      <TableCell key={column.id} style={{ width: column.getSize() }}>
+                        <Skeleton className="h-4 w-3/4" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : error ? (
+                <TableRow>
+                  <TableCell colSpan={colSpan}>
+                    <ErrorState {...(error === true ? {} : error)} />
+                  </TableCell>
+                </TableRow>
+              ) : rows.length ? (
                 <>
                   {virtual && start > 0 && (
                     <tr

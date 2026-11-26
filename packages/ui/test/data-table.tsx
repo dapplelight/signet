@@ -479,6 +479,47 @@ await t("csv export", async () => {
   }
 })
 
+await t("loading and error: opt-in body states, default rendering untouched", async () => {
+  const cols = [{ accessorKey: "title", header: "Title" }] as ColumnDef[]
+  const row = [{ id: "a", title: "Row A", company: "", status: "new", tags: [], score: 0 }]
+  const html = (props: object) =>
+    render(<DataTable columns={cols} data={row} {...props} />).container.innerHTML.replace(
+      /_r_[a-z0-9]+_|:r[a-z0-9]+:/g,
+      "ID",
+    )
+  const base = html({})
+  cleanup()
+  ok(
+    "props absent equal loading=false, error=false",
+    html({ loading: false, error: false }) === base,
+  )
+  cleanup()
+  render(<DataTable columns={cols} data={[]} loading />)
+  ok(
+    "loading: skeleton rows, no 'No data'",
+    document.querySelectorAll("[data-slot=data-table-skeleton]").length === 5 &&
+      !screen.queryByText("No data"),
+  )
+  ok(
+    "loading: table is aria-busy",
+    document.querySelector("table")?.getAttribute("aria-busy") === "true",
+  )
+  cleanup()
+  let retried = 0
+  render(
+    <DataTable columns={cols} data={[]} error={{ message: "Boom", onRetry: () => retried++ }} />,
+  )
+  ok(
+    "error: alert with message, no 'No data'",
+    !!screen.getByRole("alert") && !!screen.getByText("Boom") && !screen.queryByText("No data"),
+  )
+  await userEvent.click(screen.getByRole("button", { name: "Try again" }))
+  ok("error: retry button calls onRetry", retried === 1)
+  cleanup()
+  render(<DataTable columns={cols} data={[]} error loading />)
+  ok("loading wins over error", !screen.queryByRole("alert"))
+})
+
 console.log(`\n${pass} passed, ${fail} failed`)
 await GlobalRegistrator.unregister()
 if (fail) throw new Error(`${fail} failed`)
