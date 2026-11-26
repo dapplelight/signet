@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-lib: `telemetry` (opt-in usage stats for CLIs and desktop apps)
+
+- New Node/Bun-only import path `@dapplelight/signet-lib/telemetry` (`createTelemetry`). The app declares every event and field it may send (a list of allowed strings, `"boolean"` or `"int"`); anything else is dropped before it is written or sent. Off until `optIn()`; `DO_NOT_TRACK`, `<APP>_TELEMETRY=off` and `CI` force it off. A random install id, a local sent log written before each send, one try with a timeout, never throws. The body fits `registerIngest`. Nothing changes for existing users.
+
 ### signet-server: MCP `maxToolInputElements`
 
 - `createMcpServer`, `resolveMcpServer` and `mountMcp` take an optional `maxToolInputElements`: the most array elements and object members one `tools/call` may carry in its `arguments`, counted together. A bigger call is refused before the tool's schema or handler run, so a huge nested argument cannot burn CPU or memory. Default: no limit, so nothing changes unless you set it.
