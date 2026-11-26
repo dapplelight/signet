@@ -5,6 +5,11 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-lib: a server error no longer blocks the form after the field is edited
+
+- `applyServerErrors` now clears a field's server error the first time that field's value changes. TanStack only dropped it when a validator ran, so a field without validators stayed blocked on "Already taken" even after the user fixed it.
+- `clearServerErrors` accepts the server's dotted paths (`guests.2.name`), as `applyServerErrors` already did.
+
 ### signet-ui: DataTable loading and error states
 
 - `DataTable` takes an opt-in `loading` prop (placeholder rows, `aria-busy`) and `error` prop (`true`, or `{ message, onRetry }`, rendered as an `ErrorState` in the body), so a slow or failed fetch no longer reads as "No data". Without them, rendering is unchanged.
