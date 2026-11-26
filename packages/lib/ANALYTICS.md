@@ -193,6 +193,34 @@ parts `MetricHeadlineRoot`, `MetricHeadlineValue`, `MetricHeadlineSentence`,
 never red. Under the privacy mask the value and percentages are hidden. For
 a sentence your app composes itself, use `answer-headline`.
 
+## Tier 2b — CLIs and desktop apps (opt-in, allowlisted)
+
+`@dapplelight/signet-lib/telemetry`, Node/Bun only (its own path, like `storage/file`).
+For a program with no browser and no sign-in, where the person must know and
+agree. The app declares every event and field it may send; anything else is
+dropped before it is written or sent.
+
+```ts
+import { createTelemetry } from "@dapplelight/signet-lib/telemetry"
+
+const t = createTelemetry({
+  app: "mycli", version: "1.2.0", dir: join(homedir(), ".config", "mycli"),
+  endpoint: "https://stats.example.workers.dev/events",
+  events: { command_run: { name: ["init", "build"], ok: "boolean", ms: "int" } },
+})
+t.optIn()   // only after asking; Enter = no. optOut() undoes it.
+t.track("command_run", { name: "build", ok: true, ms: 420 })
+await t.flush() // at exit
+```
+
+A field is a list of allowed strings, `"boolean"`, or `"int"` (0 to 1,000,000):
+no free text can be declared. Off until `optIn()`; `DO_NOT_TRACK`,
+`<APP>_TELEMETRY=off` and `CI` force it off whatever was chosen. Every payload
+is appended to `telemetry-sent.jsonl` before it is sent; one try, 3 s timeout,
+never throws. The body is `{ events }` in the `signet-spec/analytics` shape, so
+`registerIngest` can receive it. Ask the person in your setup flow and tell
+them `optOut()` is there: that part is yours, the kit has no UI.
+
 ## Tier 3 — app-a and app-e
 
 **Nothing.** Financial data, and you are the primary user. Sentry covers errors,

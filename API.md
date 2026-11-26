@@ -88,6 +88,7 @@ Signet client primitives. API client, the wire contract, and search.
 | `@dapplelight/signet-lib/storage` | memoryStorage, webStorage, chromeStorage, indexedDbStorage, tauriStorage, StorageAdapter, … | A small async key-value interface for strings, with an adapter per surface: the web (localStorage), a Chrome MV3 extension (chrome.storage.local), a T |
 | `@dapplelight/signet-lib/storage/file` | fileStorage | A JSON file as a `StorageAdapter`, for Node and Bun CLIs |
 | `@dapplelight/signet-lib/sync` | compareHlc, tick, receive, deletedButEdited, conflictOf, apply, … | Conflict rules for local-first sync: devices edit offline, the server (and any device previewing the result) applies their changes in whatever order t |
+| `@dapplelight/signet-lib/telemetry` | forcedOff, check, createTelemetry, FieldSpec, EventSpec, TelemetryEvent, … | Opt-in usage stats for CLIs, desktop and Node and Bun apps (CLIs, desktop) |
 | `@dapplelight/signet-lib/webhooks` | generateWebhookSecret, signWebhook, verifyWebhook, VerifyWebhookOptions | Standard Webhooks signatures (https://www.standardwebhooks.com), Web Crypto only, so the same code signs on a Worker and verifies in any receiver |
 
 ## @dapplelight/signet-mcp
