@@ -268,6 +268,24 @@ await t("Field", async () => {
     (invalid.getAttribute("aria-describedby") ?? "").includes(shown?.id ?? "-"),
   )
   ok("Field: label marked invalid too", screen.getByText("Email").hasAttribute("data-invalid"))
+  ok("Field: one message has no list", !shown?.querySelector("li"))
+
+  rerender(
+    <Field errors={["Use at least 12 characters", "Add a number", "Add a symbol"]}>
+      <FieldLabel>Email</FieldLabel>
+      <FieldControl type="email" />
+      <FieldError />
+    </Field>,
+  )
+  await tick()
+  const items = [...document.querySelectorAll("[data-slot=field-error] li")].map(
+    (li) => li.textContent,
+  )
+  ok(
+    "Field: several errors are all listed",
+    items.join("|") === "Use at least 12 characters|Add a number|Add a symbol",
+    items.join("|"),
+  )
 })
 
 await t("Field: custom control and disabled", async () => {

@@ -372,6 +372,19 @@ export const uiB = {
           <FieldError />
         </Field>
       </Block>
+      <Block title="Three errors">
+        <Field
+          errors={[
+            "Use at least 12 characters",
+            "Add a number",
+            { message: "Add a symbol such as ! or #" },
+          ]}
+        >
+          <FieldLabel>New password</FieldLabel>
+          <FieldControl type="password" defaultValue="hunter" />
+          <FieldError />
+        </Field>
+      </Block>
       <Block title="Disabled">
         <Field disabled>
           <FieldLabel>Account number</FieldLabel>

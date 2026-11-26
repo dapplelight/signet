@@ -75,9 +75,10 @@ function FieldDescription({
 }
 
 /**
- * The field's error. Without children it shows the first of the field's
- * `errors`; with children it shows them whenever the field is invalid, or
- * for one browser validity flag with `match`.
+ * The field's error. Without children it shows the field's `errors`: the one
+ * message as text, or a list when there are several. With children it shows
+ * them whenever the field is invalid, or for one browser validity flag with
+ * `match`.
  */
 function FieldError({
   className,
@@ -93,7 +94,19 @@ function FieldError({
       className={cn("text-sm text-destructive", className)}
       {...props}
     >
-      {own ? messages[0] : children}
+      {own ? (
+        messages.length > 1 ? (
+          <ul className="list-disc pl-4">
+            {messages.map((m) => (
+              <li key={m}>{m}</li>
+            ))}
+          </ul>
+        ) : (
+          messages[0]
+        )
+      ) : (
+        children
+      )}
     </FieldErrorPrimitive>
   )
 }
