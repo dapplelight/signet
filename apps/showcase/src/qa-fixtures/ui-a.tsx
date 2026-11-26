@@ -1163,6 +1163,16 @@ function DataTableFixture() {
           emptyMessage="No invoices match this view."
         />
       </Block>
+      <Block title="Loading">
+        <DataTable columns={tableColumns} data={[]} loading />
+      </Block>
+      <Block title="Error">
+        <DataTable
+          columns={tableColumns}
+          data={[]}
+          error={{ message: "The ledger could not be loaded.", onRetry: () => undefined }}
+        />
+      </Block>
     </Stack>
   )
 }
