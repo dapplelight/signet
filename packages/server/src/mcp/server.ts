@@ -29,6 +29,7 @@ import {
   type ServerContext,
   type StandardSchemaV1,
 } from "@modelcontextprotocol/server"
+import type { SkillsExtension } from "@modelcontextprotocol/server/ext/skills"
 import type { Context } from "hono"
 import type { z } from "zod"
 import { memoryStore, type RateLimitStore } from "../middleware/rate-limit.js"
@@ -51,6 +52,13 @@ import {
   registerPrompts,
   registerResources,
 } from "./primitives.js"
+import {
+  attachTasks,
+  clientSupportsTasks,
+  startTask,
+  type TasksOptions,
+  type TaskToolOptions,
+} from "./tasks.js"
 
 export {
   describeToolError,
@@ -150,6 +158,15 @@ export type ToolDefinition<
    * link here: `{ ui: { resourceUri: "ui://…" } }`.
    */
   _meta?: Record<string, unknown>
+  /**
+   * Run as a task (Tasks extension) for a client that supports them: the call
+   * answers at once with a task handle and the client polls for the result. Other
+   * clients get the ordinary result. Needs `createMcpServer`'s `tasks`. `true` for
+   * the defaults, or `{ ttlMs, pollIntervalMs }`. The handler runs after the
+   * request has ended, so `ctx.signal` ends on `tasks/cancel`, not on disconnect,
+   * and `confirm` is not available in it.
+   */
+  task?: TaskToolOptions
   /** A `z.object(...)`. Omit for a tool that takes no arguments. */
   input?: S
   /**
@@ -195,6 +212,7 @@ export type McpTool = {
   readonly title?: string
   readonly annotations?: ToolAnnotations
   readonly _meta?: Record<string, unknown>
+  readonly task?: TaskToolOptions
   readonly input?: ObjectSchema
   readonly output?: ObjectSchema
   readonly scopes?: readonly string[]
@@ -219,6 +237,7 @@ export type PlainTool = {
   readonly title?: string
   readonly annotations?: ToolAnnotations
   readonly _meta?: Record<string, unknown>
+  readonly task?: TaskToolOptions
   readonly inputSchema?: JsonSchemaType | StandardSchemaV1
   readonly outputSchema?: JsonSchemaType | StandardSchemaV1
   readonly scopes?: readonly string[]
@@ -351,6 +370,33 @@ export type CreateMcpServerOptions = ToolErrorOptions & {
   resources?: readonly McpResource[]
   /** Prompts (`definePrompt`), with the same scopes and error mapping as tools. */
   prompts?: readonly McpPrompt[]
+  /**
+   * Skills over MCP (SEP-2640): a catalog from the SDK's
+   * `@modelcontextprotocol/server/ext/skills`, built once and attached to every
+   * server this builds (so it works behind `mountMcp` and `resolveMcpServer`,
+   * where you never hold the server). Clients then read the skills with
+   * `skills/list`, `skills/get` and `resources/read`. The catalog is shared
+   * across callers: it is the same for everyone, and skill reads skip
+   * `scopes`, `rateLimit` and `onToolCall`. Gate them yourself, e.g. in a
+   * `SkillSource`'s `read`, if a skill must be private.
+   */
+  skills?: SkillsExtension
+  /**
+   * Tasks extension (SEP-2663): where task state lives, shared across requests
+   * (`{ store: memoryTaskStore() }` created once at module scope, or your own
+   * `TaskStore` on shared storage). Declares the extension and serves
+   * `tasks/get`, `tasks/update` and `tasks/cancel`; a tool opts in with `task`.
+   * Only 2026-07-28 clients that declare the extension get tasks.
+   */
+  tasks?: TasksOptions
+  /**
+   * Most array elements and object members one `tools/call` may carry in its
+   * `arguments`, counted together over the whole payload. A bigger call is
+   * refused before the tool's schema or handler run, so a huge nested argument
+   * cannot burn CPU or memory (Workers have a CPU limit). A number of at least
+   * 1. Default: no limit.
+   */
+  maxToolInputElements?: number
   /** Sent to the client (initialize, or `server/discover`): how to use these tools together. */
   instructions?: string
   /** Per-request context for handlers. `mcpHandler` fills this in. */
@@ -405,6 +451,11 @@ export function createMcpServer(options: CreateMcpServerOptions): McpServer {
     throw new Error(
       `signet mcp: tool "${gated.name}" has \`visible\`; serve it through resolveMcpServer or mcpHandler, which check it per caller`,
     )
+  const tasked = tools.find((t) => t.task && !options.tasks)
+  if (tasked)
+    throw new Error(
+      `signet mcp: tool "${tasked.name}" has \`task\`; pass \`tasks: { store }\` to createMcpServer so its tasks have somewhere to live`,
+    )
   const unlisted = new Set(tools.filter((t) => t.listed === false).map((t) => t.name))
   // A fixed tool list says so: a client then opens no `subscriptions/listen`
   // stream (2026-07-28) to wait for a change that cannot come, and a Worker
@@ -437,6 +488,9 @@ export function createMcpServer(options: CreateMcpServerOptions): McpServer {
       // `hideUnlisted` can see it — not in this constructor.
       ...(unlisted.size ? {} : { capabilities: toolsCapability }),
       ...(options.instructions ? { instructions: options.instructions } : {}),
+      ...(options.maxToolInputElements !== undefined
+        ? { maxToolInputElements: options.maxToolInputElements }
+        : {}),
       ...(confirmCodec ? { requestState: { verify: confirmCodec.verify } } : {}),
     },
   )
@@ -450,6 +504,7 @@ export function createMcpServer(options: CreateMcpServerOptions): McpServer {
   const { c, token } = options.context ?? {}
   const caller: McpCaller = { ...(c ? { c } : {}), ...(token ? { token } : {}) }
   const principal = options.principal ? options.principal(caller) : token?.claims.sub
+  if (options.tasks) attachTasks(server, options.tasks.store, principal ?? "")
   const clientId = token?.claims.client_id ?? token?.claims.azp
   const act = token?.claims.act
   const actor =
@@ -469,10 +524,14 @@ export function createMcpServer(options: CreateMcpServerOptions): McpServer {
     const timeoutMs = tool.timeoutMs ?? options.timeoutMs
 
     // Wraps `call` for `onToolCall`: every outcome, error results included.
-    const run = async (input: unknown, mcp: ServerContext): Promise<CallToolResult> => {
+    const run = async (
+      input: unknown,
+      mcp: ServerContext,
+      abort?: AbortSignal,
+    ): Promise<CallToolResult> => {
       const started = Date.now()
       const thrown: { err?: unknown } = {}
-      const result = await call(input, mcp, thrown)
+      const result = await call(input, mcp, thrown, abort)
       if (options.onToolCall) {
         const code = result.isError ? result.structuredContent?.code : undefined
         const event: ToolCallEvent = {
@@ -494,11 +553,13 @@ export function createMcpServer(options: CreateMcpServerOptions): McpServer {
       input: unknown,
       mcp: ServerContext,
       thrown: { err?: unknown },
+      abort?: AbortSignal,
     ): Promise<CallToolResult> => {
       const timeout = timeoutMs ? new AbortController() : undefined
+      const base = abort ?? mcp.mcpReq.signal // a task outlives its request, so it brings its own
       const ctx: ToolContext = {
         tool: tool.name,
-        signal: timeout ? AbortSignal.any([mcp.mcpReq.signal, timeout.signal]) : mcp.mcpReq.signal,
+        signal: timeout ? AbortSignal.any([base, timeout.signal]) : base,
         mcp,
         confirmSupport: {
           getClientCapabilities: () => server.server.getClientCapabilities(),
@@ -573,6 +634,18 @@ export function createMcpServer(options: CreateMcpServerOptions): McpServer {
       }
     }
 
+    // A task tool answers a client that declared the extension with a task handle; everyone else gets the result.
+    const dispatch = (input: unknown, mcp: ServerContext): Promise<CallToolResult> =>
+      tool.task && options.tasks && clientSupportsTasks(server)
+        ? (startTask({
+            options: options.tasks,
+            tool: tool.task,
+            owner: principal ?? "",
+            c,
+            run: (abort) => run(input, mcp, abort),
+          }) as unknown as Promise<CallToolResult>)
+        : run(input, mcp)
+
     register(
       tool.name,
       {
@@ -585,8 +658,8 @@ export function createMcpServer(options: CreateMcpServerOptions): McpServer {
       },
       // Without an input schema the SDK calls back with `ctx` alone.
       tool.input
-        ? (input, mcp) => run(input, mcp as ServerContext)
-        : (mcp) => run({}, mcp as ServerContext),
+        ? (input, mcp) => dispatch(input, mcp as ServerContext)
+        : (mcp) => dispatch({}, mcp as ServerContext),
     )
     restore?.() // the SDK installed its handlers on the first registerTool
     restore = undefined
@@ -601,6 +674,7 @@ export function createMcpServer(options: CreateMcpServerOptions): McpServer {
   }
   if (options.resources?.length) registerResources(server, options.resources, deps)
   if (options.prompts?.length) registerPrompts(server, options.prompts, deps)
+  options.skills?.attach(server) // before connect: it registers methods and declares the capability
   return server
 }
 

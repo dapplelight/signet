@@ -45,3 +45,14 @@ export {
   routeToolName,
 } from "./routes.js"
 export * from "./server.js"
+export {
+  memoryTaskStore,
+  TASKS_EXTENSION_ID,
+  type TaskError,
+  type TaskRecord,
+  type TaskSettle,
+  type TaskStatus,
+  type TaskStore,
+  type TasksOptions,
+  type TaskToolOptions,
+} from "./tasks.js"

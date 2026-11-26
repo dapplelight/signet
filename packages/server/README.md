@@ -1698,7 +1698,7 @@ resource side.
 ## MCP servers
 
 `@dapplelight/signet-server/mcp` and `/mcp/hono`: typed tools on the official MCP
-TypeScript SDK **v2** (`@modelcontextprotocol/server` `^2.1`), served over
+TypeScript SDK **v2** (`@modelcontextprotocol/server` `^2.4`), served over
 streamable HTTP from a Hono route or over stdio. One endpoint serves both
 protocol eras, per request:
 
@@ -1806,6 +1806,71 @@ const prompts = [
   or "prompt". `errorResult` is for tools only.
 - The resources and prompts capabilities are declared only when there are
   some, with `listChanged` as for tools.
+
+**Skills.** A skill is a folder with a `SKILL.md`: a playbook for a job with
+several steps, which Claude loads only when it needs it. Build a catalog with
+the SDK and pass it as `skills`; Signet attaches it to every server it builds,
+so it works behind `mountMcp`, where you never hold the server:
+
+```ts
+import { loadSkills } from "@modelcontextprotocol/server/ext/skills/node"
+
+const skills = await loadSkills("./skills") // ./skills/refunds/SKILL.md, ...
+mountMcp(app, "/mcp", { name, version, tools, skills })
+```
+
+The server declares the `io.modelcontextprotocol/skills` extension, and clients
+read skills with `skills/list`, `skills/get` and `resources/read`. Every caller
+sees the same catalog, and skill reads skip `scopes`, `rateLimit` and
+`onToolCall`. For a skill that must stay private, build the catalog from your
+own `SkillSource` and check the caller in its `read`.
+
+**Cap the size of a call.** `maxToolInputElements` is the most array elements
+and object members one `tools/call` may carry in its `arguments`, counted
+together. A bigger call is refused before the tool's schema or handler run, so
+one huge nested argument cannot burn CPU or memory. It counts items, not text
+length. Default: no limit.
+
+```ts
+mountMcp(app, "/mcp", { name, version, tools, maxToolInputElements: 10_000 })
+```
+
+**Tasks.** A slow tool can hand back a ticket instead of making the client
+wait: the call answers at once with a task id, the tool keeps working in the
+background, and the client checks `tasks/get` until the result is there. Only
+clients that say they support tasks (the `io.modelcontextprotocol/tasks`
+extension, 2026-07-28 only) get a ticket; every other client gets the ordinary
+result, so one tool serves both.
+
+```ts
+import { defineTool, memoryTaskStore } from "@dapplelight/signet-server/mcp"
+
+const tasks = { store: memoryTaskStore() } // once, at module scope: every request shares it
+
+const tools = [
+  defineTool({
+    name: "build_report",
+    description: "Build the yearly report.",
+    task: true, // or { ttlMs: 600_000, pollIntervalMs: 2000 }
+    handler: async (_input, ctx) => buildReport({ signal: ctx.signal }),
+  }),
+]
+mountMcp(app, "/mcp", { name, version, tools, tasks })
+```
+
+- The task id is the key to the result, and Signet checks every `tasks/*` call
+  against the user (`principal`) who made the task: anyone else gets "not
+  found". A client that did not declare the extension gets `-32021`.
+- `ctx.signal` ends when the client cancels (`tasks/cancel`), not when the
+  request ends. A tool that throws finishes as a completed task with an
+  `isError` result, as it does without tasks.
+- `memoryTaskStore` lives in one process and forgets on restart. On Workers or
+  behind a load balancer, implement `TaskStore` (three methods: `create`,
+  `get`, and `settle`, where the first `settle` wins) on KV, a Durable Object or
+  your database.
+- Not here: waiting on client input mid-task (so `confirm` does not work in a
+  task tool; it ends the task as failed), and `notifications/tasks` pushes.
+  Clients poll.
 
 **Confirm before a destructive action, and report progress.** Plain
 functions a handler calls with its `ToolContext` — no new registration shape:
