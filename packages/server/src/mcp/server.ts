@@ -145,6 +145,11 @@ export type ToolDefinition<
   description: string
   title?: string
   annotations?: ToolAnnotations
+  /**
+   * Protocol `_meta` on the tool, sent in `tools/list`. MCP Apps put the view
+   * link here: `{ ui: { resourceUri: "ui://…" } }`.
+   */
+  _meta?: Record<string, unknown>
   /** A `z.object(...)`. Omit for a tool that takes no arguments. */
   input?: S
   /**
@@ -189,6 +194,7 @@ export type McpTool = {
   readonly description: string
   readonly title?: string
   readonly annotations?: ToolAnnotations
+  readonly _meta?: Record<string, unknown>
   readonly input?: ObjectSchema
   readonly output?: ObjectSchema
   readonly scopes?: readonly string[]
@@ -212,6 +218,7 @@ export type PlainTool = {
   readonly description: string
   readonly title?: string
   readonly annotations?: ToolAnnotations
+  readonly _meta?: Record<string, unknown>
   readonly inputSchema?: JsonSchemaType | StandardSchemaV1
   readonly outputSchema?: JsonSchemaType | StandardSchemaV1
   readonly scopes?: readonly string[]
@@ -572,6 +579,7 @@ export function createMcpServer(options: CreateMcpServerOptions): McpServer {
         description: tool.description,
         ...(tool.title ? { title: tool.title } : {}),
         ...(tool.annotations ? { annotations: tool.annotations } : {}),
+        ...(tool._meta ? { _meta: tool._meta } : {}),
         ...(tool.input ? { inputSchema: tool.input } : {}),
         ...(tool.output ? { outputSchema: tool.output } : {}),
       },
