@@ -298,6 +298,11 @@ const tools: McpTool[] = [
     handler: () => z.object({ price: z.number() }).parse({ price: "12" }),
   }),
   defineTool({
+    name: "zod_nested",
+    description: "A zod error on a nested field",
+    handler: () => z.object({ address: z.object({ city: z.string() }) }).parse({ address: {} }),
+  }),
+  defineTool({
     name: "crash",
     description: "Leaks a secret if mapped naively",
     handler: () => {
@@ -812,6 +817,16 @@ for (const era of ["legacy", "modern"] as const) {
     zi.body.result,
   )
   ok(`${p} zod error: not reported as unexpected`, !reported.some((r) => r.tool === "zod_inside"))
+  const zn = await call(app, "zod_nested", undefined, e)
+  const znSc = zn.body.result?.structuredContent as {
+    details?: { fieldErrors?: Record<string, string[]> }
+  }
+  ok(
+    `${p} zod error: nested field keyed by its full path`,
+    Array.isArray(znSc?.details?.fieldErrors?.["address.city"]) &&
+      !znSc.details?.fieldErrors?.address,
+    zn.body.result,
+  )
 
   reported.length = 0
   const crash = await call(app, "crash", undefined, e)
