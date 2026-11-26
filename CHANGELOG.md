@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-ui: Table `scrollX` prop
+
+- `Table` takes an opt-in `scrollX` prop (default `false`). When true, the wrapper gets `overflow-x-auto` so wide tables scroll sideways on phones. It is off by default because an `overflow` wrapper stops `position: sticky` headers from sticking to the page; default output is unchanged.
+
 ### signet-ui: FieldError lists every error
 
 - `FieldError` without children now lists all of the field's `errors` when there is more than one, so users see every problem at once. A single error renders exactly as before.
