@@ -5,6 +5,18 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-server: MCP `maxToolInputElements`
+
+- `createMcpServer`, `resolveMcpServer` and `mountMcp` take an optional `maxToolInputElements`: the most array elements and object members one `tools/call` may carry in its `arguments`, counted together. A bigger call is refused before the tool's schema or handler run, so a huge nested argument cannot burn CPU or memory. Default: no limit, so nothing changes unless you set it.
+
+### signet-server: MCP skills option
+
+- `createMcpServer`, `resolveMcpServer` and `mountMcp` take a `skills` option: a catalog from the SDK's `@modelcontextprotocol/server/ext/skills` (Skills over MCP, SEP-2640), attached to every server they build. Clients then list and read the skills with `skills/list`, `skills/get` and `resources/read`, and the server declares the `io.modelcontextprotocol/skills` extension. The catalog is the same for every caller, and skill reads skip `scopes`, `rateLimit` and `onToolCall`.
+
+### signet-server: MCP Tasks extension
+
+- MCP tools can run as tasks (extension `io.modelcontextprotocol/tasks`, SEP-2663). Pass `tasks: { store }` to `createMcpServer`, `resolveMcpServer` or `mountMcp` and mark a tool `task: true` (or `{ ttlMs, pollIntervalMs }`). A 2026-07-28 client that declares the extension gets a task handle at once and polls `tasks/get` for the result; any other client gets the ordinary result. The server declares the extension and serves `tasks/get`, `tasks/update` and `tasks/cancel`; every task is private to the principal that made it, and a client that did not declare the extension gets -32021. New exports from `./mcp`: `memoryTaskStore`, `TaskStore` (implement it on shared storage for Workers or several instances) and the task types. Tasks never wait on client input, there are no `notifications/tasks`, and `confirm` is not available inside a task tool.
+
 ### signet-server: tool `_meta`
 
 - MCP tools take an optional `_meta` (`defineTool` and `PlainTool`), sent with the tool in `tools/list`. Use it to link an MCP Apps view: `_meta: { ui: { resourceUri: "ui://…" } }`.
