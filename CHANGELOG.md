@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-ui: DataTable loading and error states
+
+- `DataTable` takes an opt-in `loading` prop (placeholder rows, `aria-busy`) and `error` prop (`true`, or `{ message, onRetry }`, rendered as an `ErrorState` in the body), so a slow or failed fetch no longer reads as "No data". Without them, rendering is unchanged.
+
 ### signet-lib, signet-ui: amount strings that are not plain numbers show 0, not their first digits
 
 A string amount such as `"1,234.50"` or `"12abc"` used to be read up to the first
