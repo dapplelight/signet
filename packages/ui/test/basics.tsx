@@ -61,6 +61,7 @@ const {
   BreadcrumbSeparator,
 } = await import("../src/components/ui/breadcrumb")
 const { Spinner } = await import("../src/components/ui/spinner")
+const { Table } = await import("../src/components/ui/table")
 const { Button } = await import("../src/components/ui/button")
 const { SkipLink } = await import("../src/components/ui/skip-link")
 
@@ -796,6 +797,20 @@ await t("SkipLink", async () => {
   )
   await userEvent.tab()
   ok("SkipLink: first Tab focuses it", document.activeElement === a)
+})
+
+await t("Table: scrollX adds overflow-x-auto to the wrapper only when true", () => {
+  const wrapper = (scrollX?: boolean) => {
+    const { container } = render(<Table scrollX={scrollX} />)
+    const cls = (container.firstElementChild as HTMLElement).className
+    cleanup()
+    return cls
+  }
+  const off = wrapper()
+  ok("Table: default wrapper is unchanged", off === "relative w-full", off)
+  ok("Table: scrollX={false} matches default", wrapper(false) === off)
+  const on = wrapper(true)
+  ok("Table: scrollX adds overflow-x-auto", on === `${off} overflow-x-auto`, on)
 })
 
 console.log(`\n${pass} passed, ${fail} failed`)

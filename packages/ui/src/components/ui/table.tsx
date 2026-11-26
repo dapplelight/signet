@@ -1,9 +1,16 @@
 import type * as React from "react"
 import { cn } from "../../lib/utils.js"
 
-function Table({ className, ...props }: React.HTMLAttributes<HTMLTableElement>) {
+function Table({
+  className,
+  scrollX = false,
+  ...props
+}: React.HTMLAttributes<HTMLTableElement> & {
+  /** Wrap the table in `overflow-x-auto` so wide tables scroll on narrow screens. Off by default: it would break sticky headers. */
+  scrollX?: boolean
+}) {
   return (
-    <div className="relative w-full">
+    <div className={cn("relative w-full", scrollX && "overflow-x-auto")}>
       <table className={cn("w-full caption-bottom text-sm", className)} {...props} />
     </div>
   )
