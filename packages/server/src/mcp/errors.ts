@@ -88,7 +88,9 @@ function flatten(err: ZodErrorLike): NonNullable<ToolErrorInfo["details"]> {
   for (const issue of err.issues) {
     if (issue.path.length === 0) formErrors.push(issue.message)
     else {
-      const key = String(issue.path[0])
+      // Same full dotted path as http/validate.ts (`address.city`); not imported
+      // from there because that module needs hono and this one must load without it.
+      const key = issue.path.map(String).join(".")
       fieldErrors[key] = [...(fieldErrors[key] ?? []), issue.message]
     }
   }
