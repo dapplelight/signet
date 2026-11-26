@@ -1383,20 +1383,28 @@ for (const era of ["legacy", "modern"] as const) {
       }),
     ],
   })
-  const client = await connect(m, "modern", { elicitation: true })
-  let asked = ""
-  client.setRequestHandler("elicitation/create", async (req) => {
-    asked = (req.params as { message?: string }).message ?? ""
-    return { action: "accept", content: { confirm: true } }
-  })
-  const r = await client.callTool({ name: "deploy", arguments: { env: "prod" } })
-  ok(
-    "MRTR: inputRequired passes through; the client answers and the retry completes",
-    (r.content as Array<{ text: string }>)[0]?.text === "deployed to prod" &&
-      asked === "Deploy to prod?",
-    { r, asked },
-  )
-  await client.close()
+  for (const era of ["modern", "legacy"] as const) {
+    const client = await connect(m, era, { elicitation: true })
+    let asked = ""
+    client.setRequestHandler("elicitation/create", async (req) => {
+      asked = (req.params as { message?: string }).message ?? ""
+      return { action: "accept", content: { confirm: true } }
+    })
+    const r = await client.callTool({ name: "deploy", arguments: { env: "prod" } })
+    const text = (r.content as Array<{ text: string }>)[0]?.text ?? ""
+    // 2025-era HTTP is stateless here: no channel to ask the client on, so the
+    // SDK refuses the call outright rather than hanging or acting unconfirmed.
+    ok(
+      era === "modern"
+        ? "[modern] MRTR: inputRequired passes through; the client answers and the retry completes"
+        : "[legacy] MRTR: stateless HTTP cannot ask; the call errors and the tool never acts",
+      era === "modern"
+        ? text === "deployed to prod" && asked === "Deploy to prod?"
+        : r.isError === true && text.includes("Cannot request input") && asked === "",
+      JSON.stringify({ r, asked }),
+    )
+    await client.close()
+  }
 }
 
 // --- stdio: serveStdio in a child process, both eras ---
@@ -1405,17 +1413,43 @@ for (const era of ["legacy", "modern"] as const) {
   for (const era of ["legacy", "modern"] as const) {
     const client = new Client(
       { name: "stdio-test", version: "0" },
-      era === "modern" ? { versionNegotiation: { mode: { pin: MODERN_VERSION } } } : {},
+      {
+        ...(era === "modern" ? { versionNegotiation: { mode: { pin: MODERN_VERSION } } } : {}),
+        capabilities: { elicitation: { form: {} } },
+      },
     )
+    const asked: string[] = []
+    client.setRequestHandler("elicitation/create", async (req) => {
+      const message = (req.params as { message?: string }).message ?? ""
+      asked.push(message)
+      return { action: "accept", content: { confirm: message.includes("prod") } }
+    })
     await client.connect(new StdioClientTransport({ command: process.execPath, args: [fixture] }))
     const listed = await client.listTools()
     const r = await client.callTool({ name: "add", arguments: { a: 40, b: 2 } })
     ok(
       `[${era}] stdio: serveStdio(() => createMcpServer(...)) serves the ${era} era`,
       client.getProtocolEra() === era &&
-        listed.tools.length === 2 &&
+        listed.tools.length === 3 &&
         (r.content as Array<{ text: string }>)[0]?.text === '{"sum":42}',
       { era: client.getProtocolEra(), r },
+    )
+    // Two round-trips on one connection: the 2025 era elicits over the open
+    // stdio channel, 2026-07-28 retries with the answer.
+    const text = async (env: string) =>
+      (
+        (await client.callTool({ name: "deploy", arguments: { env } })).content as Array<{
+          text: string
+        }>
+      )[0]?.text
+    const yes = await text("prod")
+    const no = await text("staging")
+    ok(
+      `[${era}] stdio: a tool that asks gets the client's answer, twice`,
+      yes === "deployed to prod" &&
+        no === "cancelled" &&
+        asked.join("|") === "Deploy to prod?|Deploy to staging?",
+      { yes, no, asked },
     )
     const crash = await client.callTool({ name: "crash" })
     ok(
