@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-server: tool `_meta`
+
+- MCP tools take an optional `_meta` (`defineTool` and `PlainTool`), sent with the tool in `tools/list`. Use it to link an MCP Apps view: `_meta: { ui: { resourceUri: "ui://…" } }`.
+
 ### signet-ui: Table `scrollX` prop
 
 - `Table` takes an opt-in `scrollX` prop (default `false`). When true, the wrapper gets `overflow-x-auto` so wide tables scroll sideways on phones. It is off by default because an `overflow` wrapper stops `position: sticky` headers from sticking to the page; default output is unchanged.
