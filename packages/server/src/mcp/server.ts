@@ -29,6 +29,7 @@ import {
   type ServerContext,
   type StandardSchemaV1,
 } from "@modelcontextprotocol/server"
+import type { SkillsExtension } from "@modelcontextprotocol/server/ext/skills"
 import type { Context } from "hono"
 import type { z } from "zod"
 import { memoryStore, type RateLimitStore } from "../middleware/rate-limit.js"
@@ -351,6 +352,25 @@ export type CreateMcpServerOptions = ToolErrorOptions & {
   resources?: readonly McpResource[]
   /** Prompts (`definePrompt`), with the same scopes and error mapping as tools. */
   prompts?: readonly McpPrompt[]
+  /**
+   * Skills over MCP (SEP-2640): a catalog from the SDK's
+   * `@modelcontextprotocol/server/ext/skills`, built once and attached to every
+   * server this builds (so it works behind `mountMcp` and `resolveMcpServer`,
+   * where you never hold the server). Clients then read the skills with
+   * `skills/list`, `skills/get` and `resources/read`. The catalog is shared
+   * across callers: it is the same for everyone, and skill reads skip
+   * `scopes`, `rateLimit` and `onToolCall`. Gate them yourself, e.g. in a
+   * `SkillSource`'s `read`, if a skill must be private.
+   */
+  skills?: SkillsExtension
+  /**
+   * Most array elements and object members one `tools/call` may carry in its
+   * `arguments`, counted together over the whole payload. A bigger call is
+   * refused before the tool's schema or handler run, so a huge nested argument
+   * cannot burn CPU or memory (Workers have a CPU limit). A number of at least
+   * 1. Default: no limit.
+   */
+  maxToolInputElements?: number
   /** Sent to the client (initialize, or `server/discover`): how to use these tools together. */
   instructions?: string
   /** Per-request context for handlers. `mcpHandler` fills this in. */
@@ -437,6 +457,9 @@ export function createMcpServer(options: CreateMcpServerOptions): McpServer {
       // `hideUnlisted` can see it — not in this constructor.
       ...(unlisted.size ? {} : { capabilities: toolsCapability }),
       ...(options.instructions ? { instructions: options.instructions } : {}),
+      ...(options.maxToolInputElements !== undefined
+        ? { maxToolInputElements: options.maxToolInputElements }
+        : {}),
       ...(confirmCodec ? { requestState: { verify: confirmCodec.verify } } : {}),
     },
   )
@@ -601,6 +624,7 @@ export function createMcpServer(options: CreateMcpServerOptions): McpServer {
   }
   if (options.resources?.length) registerResources(server, options.resources, deps)
   if (options.prompts?.length) registerPrompts(server, options.prompts, deps)
+  options.skills?.attach(server) // before connect: it registers methods and declares the capability
   return server
 }
 

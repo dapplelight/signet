@@ -1698,7 +1698,7 @@ resource side.
 ## MCP servers
 
 `@dapplelight/signet-server/mcp` and `/mcp/hono`: typed tools on the official MCP
-TypeScript SDK **v2** (`@modelcontextprotocol/server` `^2.1`), served over
+TypeScript SDK **v2** (`@modelcontextprotocol/server` `^2.4`), served over
 streamable HTTP from a Hono route or over stdio. One endpoint serves both
 protocol eras, per request:
 
@@ -1806,6 +1806,34 @@ const prompts = [
   or "prompt". `errorResult` is for tools only.
 - The resources and prompts capabilities are declared only when there are
   some, with `listChanged` as for tools.
+
+**Skills.** A skill is a folder with a `SKILL.md`: a playbook for a job with
+several steps, which Claude loads only when it needs it. Build a catalog with
+the SDK and pass it as `skills`; Signet attaches it to every server it builds,
+so it works behind `mountMcp`, where you never hold the server:
+
+```ts
+import { loadSkills } from "@modelcontextprotocol/server/ext/skills/node"
+
+const skills = await loadSkills("./skills") // ./skills/refunds/SKILL.md, ...
+mountMcp(app, "/mcp", { name, version, tools, skills })
+```
+
+The server declares the `io.modelcontextprotocol/skills` extension, and clients
+read skills with `skills/list`, `skills/get` and `resources/read`. Every caller
+sees the same catalog, and skill reads skip `scopes`, `rateLimit` and
+`onToolCall`. For a skill that must stay private, build the catalog from your
+own `SkillSource` and check the caller in its `read`.
+
+**Cap the size of a call.** `maxToolInputElements` is the most array elements
+and object members one `tools/call` may carry in its `arguments`, counted
+together. A bigger call is refused before the tool's schema or handler run, so
+one huge nested argument cannot burn CPU or memory. It counts items, not text
+length. Default: no limit.
+
+```ts
+mountMcp(app, "/mcp", { name, version, tools, maxToolInputElements: 10_000 })
+```
 
 **Confirm before a destructive action, and report progress.** Plain
 functions a handler calls with its `ToolContext` — no new registration shape:

@@ -4,6 +4,7 @@
  * Raw JSON-RPC in both protocol eras, plus the SDK's own client.
  */
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client"
+import { memorySkillFiles, SkillsExtension } from "@modelcontextprotocol/server/ext/skills"
 import { Hono } from "hono"
 import { HTTPException } from "hono/http-exception"
 import { z } from "zod"
@@ -648,6 +649,106 @@ await plain.close()
     meta("plainView"),
   )
   ok("tool without _meta has none", meta("bare") === undefined, meta("bare"))
+}
+
+// --- skills over MCP: the `skills` option attaches the SDK's catalog ---
+{
+  const skills = await SkillsExtension.load(
+    memorySkillFiles({
+      "git-workflow/SKILL.md":
+        "---\nname: git-workflow\ndescription: Short branches, small commits.\n---\n\n# Git workflow\nKeep branches short.\n",
+    }),
+  )
+  const a = new Hono()
+  mountMcp(a, "/mcp", { name: "s", version: "1", tools, skills })
+  const uri = "skill://git-workflow/SKILL.md"
+  for (const era of ["legacy", "modern"] as const) {
+    const list = (await rpc(a, era, "skills/list")).result?.skills ?? []
+    ok(
+      `[${era}] skills/list serves the catalog`,
+      list.length === 1 && list[0]?.uri === uri && list[0]?.frontmatter?.name === "git-workflow",
+      list,
+    )
+    const text = (await read(era, uri, a)).result?.contents?.[0]?.text
+    ok(`[${era}] resources/read serves SKILL.md`, text?.includes("# Git workflow"), text)
+  }
+  const c = new Client(
+    { name: "t", version: "0" },
+    { versionNegotiation: { mode: { pin: MODERN } } },
+  )
+  await c.connect(
+    new StreamableHTTPClientTransport(new URL("http://t.local/mcp"), {
+      fetch: async (url, init) => a.fetch(new Request(url, init)),
+    }),
+  )
+  const ext = c.getServerCapabilities()?.extensions?.["io.modelcontextprotocol/skills"]
+  ok("the skills extension is declared in capabilities", ext !== undefined, ext)
+  await c.close()
+  const none = new Hono()
+  mountMcp(none, "/mcp", { name: "n", version: "1", tools })
+  const noSkills = await rpc(none, "legacy", "skills/list")
+  ok("without `skills` the method is not served", noSkills.error !== undefined, noSkills)
+}
+
+// --- maxToolInputElements: an oversized call is refused before the handler runs ---
+{
+  let ran = 0
+  const a = new Hono()
+  mountMcp(a, "/mcp", {
+    name: "cap",
+    version: "1",
+    maxToolInputElements: 5,
+    tools: [
+      defineTool({
+        name: "echo",
+        description: "echo",
+        input: z.object({ items: z.array(z.string()) }),
+        handler: ({ items }) => {
+          ran++
+          return `${items.length}`
+        },
+      }),
+    ],
+  })
+  const call = (era: Era, n: number) =>
+    rpc(a, era, "tools/call", { name: "echo", arguments: { items: Array(n).fill("x") } })
+  for (const era of ["legacy", "modern"] as const) {
+    const before = ran
+    const small = await call(era, 2)
+    ok(
+      `[${era}] a call within the cap runs`,
+      ran === before + 1 && !small.error && !small.result?.isError,
+      small,
+    )
+    const big = await call(era, 50)
+    ok(
+      `[${era}] a call over the cap is refused, the handler does not run`,
+      ran === before + 1 && Boolean(big.error || big.result?.isError),
+      big,
+    )
+  }
+  const open = new Hono()
+  let openRan = 0
+  mountMcp(open, "/mcp", {
+    name: "open",
+    version: "1",
+    tools: [
+      defineTool({
+        name: "echo",
+        description: "echo",
+        input: z.object({ items: z.array(z.string()) }),
+        handler: () => {
+          openRan++
+          return "ok"
+        },
+      }),
+    ],
+  })
+  await rpc(open, "legacy", "tools/call", {
+    name: "echo",
+    arguments: { items: Array(50).fill("x") },
+  })
+  ok("without the option there is no cap", openRan === 1, openRan)
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)
