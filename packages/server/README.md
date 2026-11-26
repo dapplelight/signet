@@ -1835,6 +1835,43 @@ length. Default: no limit.
 mountMcp(app, "/mcp", { name, version, tools, maxToolInputElements: 10_000 })
 ```
 
+**Tasks.** A slow tool can hand back a ticket instead of making the client
+wait: the call answers at once with a task id, the tool keeps working in the
+background, and the client checks `tasks/get` until the result is there. Only
+clients that say they support tasks (the `io.modelcontextprotocol/tasks`
+extension, 2026-07-28 only) get a ticket; every other client gets the ordinary
+result, so one tool serves both.
+
+```ts
+import { defineTool, memoryTaskStore } from "@dapplelight/signet-server/mcp"
+
+const tasks = { store: memoryTaskStore() } // once, at module scope: every request shares it
+
+const tools = [
+  defineTool({
+    name: "build_report",
+    description: "Build the yearly report.",
+    task: true, // or { ttlMs: 600_000, pollIntervalMs: 2000 }
+    handler: async (_input, ctx) => buildReport({ signal: ctx.signal }),
+  }),
+]
+mountMcp(app, "/mcp", { name, version, tools, tasks })
+```
+
+- The task id is the key to the result, and Signet checks every `tasks/*` call
+  against the user (`principal`) who made the task: anyone else gets "not
+  found". A client that did not declare the extension gets `-32021`.
+- `ctx.signal` ends when the client cancels (`tasks/cancel`), not when the
+  request ends. A tool that throws finishes as a completed task with an
+  `isError` result, as it does without tasks.
+- `memoryTaskStore` lives in one process and forgets on restart. On Workers or
+  behind a load balancer, implement `TaskStore` (three methods: `create`,
+  `get`, and `settle`, where the first `settle` wins) on KV, a Durable Object or
+  your database.
+- Not here: waiting on client input mid-task (so `confirm` does not work in a
+  task tool; it ends the task as failed), and `notifications/tasks` pushes.
+  Clients poll.
+
 **Confirm before a destructive action, and report progress.** Plain
 functions a handler calls with its `ToolContext` — no new registration shape:
 
