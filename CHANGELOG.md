@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-ui: FieldError lists every error
+
+- `FieldError` without children now lists all of the field's `errors` when there is more than one, so users see every problem at once. A single error renders exactly as before.
+
 ### signet-server: MCP tool validation errors name the nested field
 
 - A zod error thrown from an MCP tool handler now keys `details.fieldErrors` by the full dotted path (`address.city`, `guests.2.name`), like `zValidator` does over HTTP. Before, it was keyed by the first segment only (`address`), so an agent could not tell which nested field was wrong. A client that read the first-segment key for a nested field must read the dotted key.
