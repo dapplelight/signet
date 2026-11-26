@@ -622,5 +622,33 @@ await plain.close()
   )
 }
 
+// --- tool _meta reaches tools/list (MCP Apps view link) ---
+{
+  const a = new Hono()
+  const ui = { ui: { resourceUri: "ui://view/app.html" } }
+  mountMcp(a, "/mcp", {
+    name: "m",
+    version: "1",
+    tools: [
+      defineTool({ name: "withView", description: "v", _meta: ui, handler: () => "x" }),
+      { name: "plainView", description: "p", _meta: ui, run: () => "y" },
+      defineTool({ name: "bare", description: "b", handler: () => "z" }),
+    ],
+  })
+  const listed = (await rpc(a, "legacy", "tools/list")).result?.tools ?? []
+  const meta = (n: string) => listed.find((t: { name: string }) => t.name === n)?._meta
+  ok(
+    "defineTool _meta reaches tools/list",
+    JSON.stringify(meta("withView")) === JSON.stringify(ui),
+    meta("withView"),
+  )
+  ok(
+    "PlainTool _meta reaches tools/list",
+    JSON.stringify(meta("plainView")) === JSON.stringify(ui),
+    meta("plainView"),
+  )
+  ok("tool without _meta has none", meta("bare") === undefined, meta("bare"))
+}
+
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail) throw new Error(`${fail} failed`)
