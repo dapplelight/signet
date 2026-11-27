@@ -7,7 +7,9 @@
  *
  * Running it is the point: workerd enforces what no typecheck sees — the
  * RateLimitCounter export, the binding, the migration, and that the entry
- * exports only handlers and classes.
+ * exports only handlers and classes. It also fires 20 parallel AI calls at a
+ * cap of 5 units through signet-ai's BudgetCounter Durable Object: exactly 5
+ * may succeed.
  *
  * bun and node: installs, typechecks, lints, then serves src/server.ts under
  * that runtime and checks the limit is keyed by the socket, not a client
@@ -33,7 +35,7 @@ const ok = (n: string, c: boolean, d = "") => {
  * Install, then swap in the LOCAL signet-server as a tarball (as scaffold.ts
  * does for the web template): the template may use what is not on npm yet.
  */
-async function installLocal(dir: string) {
+async function installLocal(dir: string, withAi = false) {
   // Point the dependency at the tarball before the first install: a bumped
   // version is not on npm until the release runs.
   const tgz = (await $`npm pack ${ROOT}/packages/server`.cwd(dir).quiet()).text().trim()
@@ -43,8 +45,59 @@ async function installLocal(dir: string) {
     pkgPath,
     pkg.replace(/("@dapplelight\/signet-server": )"[^"]+"/, `$1"file:./${tgz}"`),
   )
+  if (withAi) {
+    const ai = (await $`npm pack ${ROOT}/packages/ai`.cwd(dir).quiet()).text().trim()
+    const json = JSON.parse(readFileSync(pkgPath, "utf8"))
+    json.dependencies["@dapplelight/signet-ai"] = `file:./${ai}`
+    json.dependencies["@dapplelight/signet-lib"] = "^0.4.0" // signet-ai's peer
+    writeFileSync(pkgPath, JSON.stringify(json, null, 2))
+  }
   await $`bun install`.cwd(dir).quiet()
 }
+
+/** A Worker entry that adds the AI budget Durable Object and one budgeted call on top of the app. */
+const BUDGET_PROBE = `import { createBudgetLedger } from "@dapplelight/signet-ai/budget"
+import { durableObjectBudgetStore } from "@dapplelight/signet-ai/budget-do"
+import { BUDGET_EXCEEDED } from "@dapplelight/signet-ai/errors"
+import { createExtractor } from "@dapplelight/signet-ai/extract"
+import { z } from "zod"
+import app from "./index.ts"
+
+export { BudgetCounter } from "@dapplelight/signet-ai/budget-do"
+export { RateLimitCounter } from "./index.ts"
+
+// A fake provider: no network, every call costs 1 unit.
+const provider = {
+  name: "fake",
+  model: "m",
+  pricing: { perCallUsd: 1 },
+  async generate() {
+    await new Promise((r) => setTimeout(r, 20))
+    return { value: { ok: true }, usage: { inputTokens: 0, outputTokens: 0 } }
+  },
+}
+
+export default {
+  async fetch(req, env, ctx) {
+    if (new URL(req.url).pathname !== "/probe/call") return app.fetch(req, env, ctx)
+    // A cap of 5 units; the Durable Object holds the total, not this isolate.
+    const ledger = createBudgetLedger(5, 3600, { store: durableObjectBudgetStore(env.AI_BUDGET) })
+    const ai = createExtractor({ providers: [provider], ledger })
+    try {
+      await ai.extract({
+        schema: z.object({ ok: z.boolean() }),
+        input: "x",
+        instructions: "x",
+        cache: false,
+        budget: { maxCostUsd: 1 },
+      })
+      return new Response("ok")
+    } catch (err) {
+      return new Response(String(err), { status: err.code === BUDGET_EXCEEDED ? 429 : 500 })
+    }
+  },
+}
+`
 
 rmSync(DIR, { recursive: true, force: true })
 // Kills the whole tree — the shim, node and every workerd — by its path, since
@@ -113,7 +166,7 @@ try {
       !existsSync(join(DIR, "_mcp")),
   )
 
-  await installLocal(DIR)
+  await installLocal(DIR, true)
   ok("typechecks", (await $`bun run typecheck`.cwd(DIR).nothrow().quiet()).exitCode === 0)
   ok("lints clean", (await $`bun run lint`.cwd(DIR).nothrow().quiet()).exitCode === 0)
   const test = await $`bun run test`.cwd(DIR).nothrow().quiet()
@@ -122,6 +175,26 @@ try {
     test.exitCode === 0,
     (test.stdout.toString() + test.stderr.toString()).slice(-800),
   )
+  // After lint and typecheck: the probe is test scaffolding, not part of the template.
+  writeFileSync(join(DIR, "src/budget-probe.ts"), BUDGET_PROBE)
+  const wranglerPath = join(DIR, "wrangler.jsonc")
+  const probed = wrangler
+    .replace('"main": "src/index.ts"', '"main": "src/budget-probe.ts"')
+    .replace(
+      '"class_name": "RateLimitCounter" }]',
+      '"class_name": "RateLimitCounter" }, { "name": "AI_BUDGET", "class_name": "BudgetCounter" }]',
+    )
+    .replace(
+      '["RateLimitCounter"] }]',
+      '["RateLimitCounter"] }, { "tag": "v2", "new_sqlite_classes": ["BudgetCounter"] }]',
+    )
+  ok(
+    "probe entry, AI_BUDGET binding and v2 migration added to wrangler.jsonc",
+    probed.includes("budget-probe") &&
+      probed.includes("AI_BUDGET") &&
+      probed.includes('"tag": "v2"'),
+  )
+  writeFileSync(wranglerPath, probed)
   const bundle = await $`bunx wrangler deploy --dry-run --outdir .out`.cwd(DIR).nothrow().quiet()
   ok("wrangler bundles it", bundle.exitCode === 0, bundle.stderr.toString().slice(0, 400))
 
@@ -201,6 +274,15 @@ try {
         last?.status === 429 &&
           limited.code === "RATE_LIMITED" &&
           !!last?.headers.get("retry-after"),
+      )
+      // 20 budgeted calls at once against a cap of 5 units, one unit each.
+      const codes = await Promise.all(
+        Array.from({ length: 20 }, () => fetch(`${base}/probe/call`).then((r) => r.status)),
+      )
+      ok(
+        "AI cap of 5 units: 20 parallel calls, exactly 5 succeed and 15 are refused",
+        codes.filter((c) => c === 200).length === 5 && codes.filter((c) => c === 429).length === 15,
+        codes.join(","),
       )
     }
   } finally {
