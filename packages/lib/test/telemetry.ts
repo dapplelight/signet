@@ -47,6 +47,15 @@ ok(
   JSON.stringify(check(events, "run", { cmd: "build", ms: 3 })) === '{"cmd":"build","ms":3}',
 )
 
+// inherited names are not declared names
+ok("event named constructor dropped", check(events, "constructor", {}) === undefined)
+ok("event named toString dropped", check(events, "toString", {}) === undefined)
+ok(
+  "field named constructor dropped, no throw",
+  check(events, "run", { constructor: "x" }) === undefined,
+)
+ok("event named __proto__ dropped", check(events, "__proto__", {}) === undefined)
+
 // forced off
 ok("DO_NOT_TRACK forces off", forcedOff("mycli", { DO_NOT_TRACK: "1" }) !== undefined)
 ok("DO_NOT_TRACK=0 does not", forcedOff("mycli", { DO_NOT_TRACK: "0" }) === undefined)
