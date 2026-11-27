@@ -11,6 +11,15 @@
  * cap of 5 units through signet-ai's BudgetCounter Durable Object: exactly 5
  * may succeed.
  *
+ * Web push on Workers is checked the same way: the copy (never the shipped
+ * template) gets one extra route, PUSH_CHECK below, that calls
+ * webCryptoPushSender and encryptAes128gcm inside workerd. This file then
+ * checks the encrypted body against the RFC 8291 Appendix A test vector and the
+ * VAPID JWT signature with its own Web Crypto. CI is the judge: builders have no
+ * workerd. Delivery to a real push service (FCM, Mozilla autopush, Apple) is
+ * NOT tested here: it stays a one-time manual check by the owner, and the goal
+ * can close without it.
+ *
  * bun and node: installs, typechecks, lints, then serves src/server.ts under
  * that runtime and checks the limit is keyed by the socket, not a client
  * header. vercel: installs, typechecks, lints, and calls the default export's
@@ -24,6 +33,65 @@ import { $ } from "bun"
 const ROOT = new URL("../../..", import.meta.url).pathname.replace(/\/$/, "")
 const DIR = join("/tmp", "__scaffold_api_test__")
 const CI = ".github/workflows/ci.yml"
+
+// RFC 8291 Appendix A: the subscriber's keys and the one body they must give.
+const RFC = {
+  plaintext: "When I grow up, I want to be a watermelon",
+  asPrivate: "yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw",
+  asPublic:
+    "BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8",
+  uaPublic:
+    "BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",
+  auth: "BTBZMqHH6r4Tts7J_aSIgg",
+  salt: "DGv6ra1nlYgDCS1FRnbzlw",
+  body: "DGv6ra1nlYgDCS1FRnbzlwAAEABBBP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A_yl95bQpu6cVPTpK4Mqgkf1CXztLVBSt2Ks3oZwbuwXPXLWyouBWLVWGNWQexSgSxsj_Qulcy4a-fN",
+}
+
+/**
+ * The extra route, written into the scaffolded copy as src/push-check.ts. It runs
+ * in workerd and returns what it computed; it checks nothing itself.
+ */
+const PUSH_CHECK = `import {
+  b64urlDecode,
+  b64urlEncode,
+  encryptAes128gcm,
+  webCryptoPushSender,
+} from "@dapplelight/signet-server/notify/push"
+
+const RFC = ${JSON.stringify(RFC)}
+const ENDPOINT = "https://push.example.net/send/abc"
+
+export async function pushCheck() {
+  const pair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign"])
+  const jwk = await crypto.subtle.exportKey("jwk", pair.privateKey)
+  const publicKey = b64urlEncode(new Uint8Array(await crypto.subtle.exportKey("raw", pair.publicKey)))
+  const keys = { p256dh: RFC.uaPublic, auth: RFC.auth }
+
+  // The real sender, with a fetch that records the request instead of sending it.
+  let sent: { url: string; headers: Record<string, string>; body: Uint8Array } | undefined
+  const send = webCryptoPushSender({
+    vapid: { subject: "mailto:ops@example.com", publicKey, privateKey: jwk.d as string },
+    fetch: (async (url: string, init: RequestInit) => {
+      sent = { url, headers: init.headers as Record<string, string>, body: init.body as Uint8Array }
+      return new Response(null, { status: 201 })
+    }) as unknown as typeof fetch,
+  })
+  await send({ id: "1", endpoint: ENDPOINT, keys }, "hello")
+
+  // The encryption with the RFC's fixed salt and server key.
+  const vector = await encryptAes128gcm(new TextEncoder().encode(RFC.plaintext), keys, {
+    salt: b64urlDecode(RFC.salt),
+    serverKey: { publicKey: RFC.asPublic, privateKey: RFC.asPrivate },
+  })
+  return Response.json({
+    vector: b64urlEncode(vector),
+    vapidPublicKey: publicKey,
+    endpoint: sent?.url,
+    headers: sent?.headers,
+    body: sent ? b64urlEncode(sent.body) : null,
+  })
+}
+`
 
 let pass = 0,
   fail = 0
@@ -175,6 +243,25 @@ try {
     test.exitCode === 0,
     (test.stdout.toString() + test.stderr.toString()).slice(-800),
   )
+  // The push route goes in only now: typecheck, lint and the app tests above ran
+  // on the template as shipped.
+  writeFileSync(join(DIR, "src/push-check.ts"), PUSH_CHECK)
+  const appPath = join(DIR, "src/app.ts")
+  const appSrc = readFileSync(appPath, "utf8")
+  const patched = appSrc
+    .replace(
+      'import { env } from "./env.ts"',
+      'import { env } from "./env.ts"\nimport { pushCheck } from "./push-check.ts"',
+    )
+    .replace(
+      "    .onError(errorHandler({ isProduction }))",
+      '    .get("/__push-check", pushCheck)\n    .onError(errorHandler({ isProduction }))',
+    )
+  ok(
+    "push route patched into the copy",
+    patched.includes("pushCheck)") && patched.includes("./push-check.ts"),
+  )
+  writeFileSync(appPath, patched)
   // After lint and typecheck: the probe is test scaffolding, not part of the template.
   writeFileSync(join(DIR, "src/budget-probe.ts"), BUDGET_PROBE)
   const wranglerPath = join(DIR, "wrangler.jsonc")
@@ -275,6 +362,7 @@ try {
           limited.code === "RATE_LIMITED" &&
           !!last?.headers.get("retry-after"),
       )
+      await checkPush(base)
       // 20 budgeted calls at once against a cap of 5 units, one unit each.
       const codes = await Promise.all(
         Array.from({ length: 20 }, () => fetch(`${base}/probe/call`).then((r) => r.status)),
@@ -293,6 +381,74 @@ try {
 } finally {
   await stopWrangler()
   rmSync(DIR, { recursive: true, force: true })
+}
+
+/** Web push inside workerd: RFC 8291 vector, then the VAPID JWT the sender signed. */
+async function checkPush(base: string) {
+  const r = await fetch(`${base}/__push-check`)
+  const out = (await r.json()) as {
+    vector: string
+    vapidPublicKey: string
+    endpoint: string
+    headers: Record<string, string>
+    body: string
+  }
+  ok("push: route ran the sender in workerd", r.status === 200 && !!out.body, JSON.stringify(out))
+  ok("push: RFC 8291 Appendix A body matches byte for byte", out.vector === RFC.body, out.vector)
+
+  const b64 = (s: string) => Buffer.from(s, "base64url")
+  const h = out.headers
+  ok(
+    "push: sender headers",
+    out.endpoint === "https://push.example.net/send/abc" &&
+      h["Content-Encoding"] === "aes128gcm" &&
+      h["Content-Type"] === "application/octet-stream" &&
+      h.TTL === "86400",
+    JSON.stringify(h),
+  )
+  // salt 16 + record size 4 + key length 1 + key 65, then plaintext "hello" + 0x02 + 16 tag.
+  const body = b64(out.body)
+  ok(
+    "push: sender body is one aes128gcm record",
+    body.length === 86 + 5 + 1 + 16 && body.readUInt32BE(16) === 4096 && body[20] === 65,
+    String(body.length),
+  )
+
+  const m = /^vapid t=([\w-]+)\.([\w-]+)\.([\w-]+), k=([\w-]+)$/.exec(h.Authorization ?? "")
+  ok("push: Authorization is vapid t=<jwt>, k=<key>", !!m && m[4] === out.vapidPublicKey)
+  if (!m) return
+  const [, head = "", claims = "", sig = "", k = ""] = m
+  const pub = b64(k)
+  const key = await crypto.subtle.importKey(
+    "jwk",
+    {
+      kty: "EC",
+      crv: "P-256",
+      x: pub.subarray(1, 33).toString("base64url"),
+      y: pub.subarray(33).toString("base64url"),
+    },
+    { name: "ECDSA", namedCurve: "P-256" },
+    false,
+    ["verify"],
+  )
+  const signed = await crypto.subtle.verify(
+    { name: "ECDSA", hash: "SHA-256" },
+    key,
+    b64(sig),
+    new TextEncoder().encode(`${head}.${claims}`),
+  )
+  ok("push: VAPID JWT signature verifies (ES256, raw r||s)", signed)
+  const c = JSON.parse(b64(claims).toString()) as { aud?: string; sub?: string; exp?: number }
+  const now = Date.now() / 1000
+  ok(
+    "push: VAPID claims (aud is the push origin, sub, exp within 24h)",
+    JSON.parse(b64(head).toString()).alg === "ES256" &&
+      c.aud === "https://push.example.net" &&
+      c.sub === "mailto:ops@example.com" &&
+      (c.exp ?? 0) > now &&
+      (c.exp ?? 0) <= now + 86400,
+    JSON.stringify(c),
+  )
 }
 
 // --- the other targets ---

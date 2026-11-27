@@ -340,6 +340,15 @@ to check the envelope and that exactly 60 requests pass before a 429. `bun` and
 export fails it: wrangler refuses to bundle a Worker whose Durable Object is
 not exported.
 
+The same `wrangler dev` run covers web push on Workers. The test adds one route
+to its scaffolded copy (never to the template) that calls `webCryptoPushSender`
+inside workerd, then checks the encrypted body against the RFC 8291 Appendix A
+test vector and verifies the signature of the VAPID JWT. What it cannot check
+is delivery to a real push service (FCM, Mozilla autopush, Apple). That is a
+one-time manual check by the owner: subscribe a browser, send one notification
+from a deployed Worker, see it arrive. The push-on-Workers goal can close
+without it.
+
 ## Two bugs this fixes in the copied setup
 
 **`import.meta.env` did not typecheck.** The copied `tsconfig.app.json` omits
