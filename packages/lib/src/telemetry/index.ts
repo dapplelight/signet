@@ -79,12 +79,12 @@ export function check<E extends EventSpec>(
   name: string,
   props: Record<string, unknown> = {},
 ): Record<string, string | number | boolean> | undefined {
-  const fields = events[name]
+  const fields = Object.hasOwn(events, name) ? events[name] : undefined
   if (!fields) return undefined
   const out: Record<string, string | number | boolean> = {}
   for (const [k, v] of Object.entries(props)) {
     if (v === undefined) continue
-    if (!fields[k] || !valid(fields[k], v)) return undefined
+    if (!Object.hasOwn(fields, k) || !valid(fields[k], v)) return undefined
     out[k] = v as string | number | boolean
   }
   return out
