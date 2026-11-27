@@ -11,6 +11,7 @@
 
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { $ } from "bun"
+import { THEME_OPTIONAL, THEME_REQUIRED, validateTheme } from "../src/theme"
 
 const ROOT = new URL("../../..", import.meta.url).pathname.replace(/\/$/, "")
 const TMP = `${ROOT}/.themebuild`
@@ -258,6 +259,55 @@ for (const t of ["editorial", "cinematic"]) {
 ok(
   "finance provides the money slots",
   OPTIONAL_DOMAIN.every((v) => defines(source("finance"), v)),
+)
+
+// --- validateTheme: names the holes Tailwind drops without a word ---
+const same = (a: readonly string[], b: readonly string[]) => a.join() === b.join()
+ok(
+  "validateTheme's required list equals CONTRACT.md",
+  same(THEME_REQUIRED, REQUIRED),
+  `(${THEME_REQUIRED.length} vs ${REQUIRED.length})`,
+)
+ok(
+  "validateTheme's optional list equals CONTRACT.md",
+  same(THEME_OPTIONAL, OPTIONAL),
+  `(${THEME_OPTIONAL.length} vs ${OPTIONAL.length})`,
+)
+for (const t of THEMES) {
+  const r = validateTheme(source(t))
+  ok(
+    `validateTheme: ${t} is ok`,
+    r.ok && r.missing.length === 0 && r.extra.length === 0,
+    JSON.stringify(r),
+  )
+}
+const empty = validateTheme("")
+ok("validateTheme: empty CSS misses every required var", !empty.ok && empty.missing.length === 78)
+const holes = ["--color-ring", "--color-input", "--color-muted"]
+const holed = validateTheme(
+  source("editorial").replace(new RegExp(`^\\s*(${holes.join("|")}):.*$`, "gm"), ""),
+)
+ok(
+  "validateTheme: three deleted vars are exactly the missing ones",
+  !holed.ok && same(holed.missing, [...holes].sort()),
+  holed.missing.join(" "),
+)
+const typo = validateTheme(
+  source("editorial").replace(/^(\s*)--color-primary:/m, "$1--color-primay:"),
+)
+ok(
+  "validateTheme: a typo'd name is extra and the real one missing",
+  same(typo.extra, ["--color-primay"]) && same(typo.missing, ["--color-primary"]),
+  JSON.stringify(typo),
+)
+const long = `/* --color-ring: #000; */\n${source("finance")}`.replace(/^\s*--color-ring:.*$/gm, "")
+ok(
+  "validateTheme: a commented-out definition does not count",
+  long.length > 10_000 && same(validateTheme(long).missing, ["--color-ring"]),
+)
+ok(
+  "validateTheme: a var set in only one mode counts as present",
+  validateTheme(`:root { ${REQUIRED.map((v) => `${v}: red;`).join(" ")} }`).ok,
 )
 
 rmSync(TMP, { recursive: true, force: true })

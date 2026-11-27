@@ -79,6 +79,21 @@ By hand: copy a theme file, change the values, and keep every variable the
 contract lists. `@dapplelight/signet-ui` reads only these variables, so the
 components follow.
 
+### Check a custom theme
+
+Tailwind drops a utility whose variable is missing without a word, so a hole in
+a hand-made theme shows up as a transparent component. `validateTheme` names
+the holes; `@import`s are not followed, so pass the full text:
+
+```ts
+import { validateTheme } from "@dapplelight/signet-tokens/theme"
+
+const { ok, missing, extra } = validateTheme(css)
+// missing: required variables the CSS never defines. extra: `--color-*` names
+// outside the contract, usually a typo like --color-primay (palette steps such as --color-warm-500 are
+// skipped). ok ignores extra.
+```
+
 ## Density
 
 `data-density="compact"` (or `comfortable`, `spacious`) on any element tightens
