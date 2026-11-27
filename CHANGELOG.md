@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-server: Sentry backs off after a 429
+
+- `createSentry().captureException` now stops sending when Sentry answers 429, until the `Retry-After` window (60 s if the header is missing) has passed. The window is kept per isolate, so a client built per request still respects it. During the window `captureException` resolves `false` without a fetch. Before, an error storm kept posting into the rate limit and Sentry dropped more events.
+
 ### signet-lib: telemetry only accepts own declared names
 
 - `./telemetry` no longer treats inherited object keys (`constructor`, `toString`, `__proto__`) as declared events or fields. Before, an event with one of those names was accepted with empty props, and a field with one of those names threw inside `track()` (which caught it). Now both are dropped like any undeclared name.
