@@ -404,5 +404,35 @@ console.log("sentry traceId tag")
   ok("no tag without traceId", tagsOf(bodies[1]).trace_id === undefined)
 }
 
+console.log("sentry 429 backoff")
+{
+  let calls = 0
+  const realFetch = globalThis.fetch
+  globalThis.fetch = (async () => {
+    calls++
+    return new Response("{}", { status: 429, headers: { "Retry-After": "60" } })
+  }) as typeof fetch
+  const realNow = Date.now
+  try {
+    const dsn = "https://pub@sentry-429.example/7"
+    const results = []
+    // Fresh client per call, as a Worker built per request would.
+    for (let i = 0; i < 10; i++) {
+      results.push(await createSentry({ dsn, enabled: true }).captureException(new Error("e")))
+    }
+    ok("one fetch for ten captures after a 429", calls === 1)
+    ok(
+      "none reported as accepted",
+      results.every((r) => r === false),
+    )
+    Date.now = () => realNow() + 61_000
+    await createSentry({ dsn, enabled: true }).captureException(new Error("e"))
+    ok("sends again once Retry-After has passed", calls === 2)
+  } finally {
+    globalThis.fetch = realFetch
+    Date.now = realNow
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail) process.exit(1)
