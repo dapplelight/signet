@@ -5,6 +5,15 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-tokens: validateTheme lists missing and extra theme variables
+
+- New `validateTheme(css)` in `@dapplelight/signet-tokens/theme`. Tailwind drops
+  a utility whose variable is undefined without a word, so a theme with a hole
+  renders transparent instead of failing. `validateTheme` returns
+  `{ ok, missing, extra }`: the contract-required variables the CSS never
+  defines, and any `--color-*` name that is not in the contract (usually a typo).
+  `ok` is true when nothing required is missing. No migration needed.
+
 ### signet-server: Sentry backs off after a 429
 
 - `createSentry().captureException` now stops sending when Sentry answers 429, until the `Retry-After` window (60 s if the header is missing) has passed. The window is kept per isolate, so a client built per request still respects it. During the window `captureException` resolves `false` without a fetch. Before, an error storm kept posting into the rate limit and Sentry dropped more events.
