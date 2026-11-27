@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-lib: telemetry
+
+- New `./telemetry`: opt-in usage stats for CLIs and desktop apps. The app declares every event, field and allowed value up front, and anything else is dropped before it is written or sent. Off until the person says yes (`optIn()`); `DO_NOT_TRACK`, `<APP>_TELEMETRY=off` and `CI` force it off. Everything that leaves is appended to a local log first, and it never throws, never retries and gives up after `timeoutMs`. Its own import path, so browser bundles never see `node:fs`; web pages use `./analytics`.
+
 ### signet-lib: `telemetry` (opt-in usage stats for CLIs and desktop apps)
 
 - New Node/Bun-only import path `@dapplelight/signet-lib/telemetry` (`createTelemetry`). The app declares every event and field it may send (a list of allowed strings, `"boolean"` or `"int"`); anything else is dropped before it is written or sent. Off until `optIn()`; `DO_NOT_TRACK`, `<APP>_TELEMETRY=off` and `CI` force it off. A random install id, a local sent log written before each send, one try with a timeout, never throws. The body fits `registerIngest`. Nothing changes for existing users.
