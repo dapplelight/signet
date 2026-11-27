@@ -1,0 +1,69 @@
+---
+title: "Telemetry"
+description: "Opt-in usage stats for CLIs and desktop apps: only what you declare is sent, and everything sent is logged locally."
+---
+
+For CLIs, desktop apps, and Node and Bun programs. It has its own import path so browser bundles never pull in `node:fs`. For web pages use [Analytics](/docs/packages/lib/analytics).
+
+## Usage
+```ts
+import { homedir } from "node:os"
+import { join } from "node:path"
+import { createTelemetry } from "@dapplelight/signet-lib/telemetry"
+
+const t = createTelemetry({
+  app: "mycli",
+  version: "1.2.0",
+  dir: join(homedir(), ".config", "mycli"),
+  endpoint: "https://stats.example.workers.dev/events",
+  events: { command_run: { name: ["init", "build"], ok: "boolean", ms: "int" } },
+})
+
+t.optIn() // only after asking the person; the default answer is no
+t.track("command_run", { name: "build", ok: true, ms: 420 })
+await t.flush() // at exit
+```
+
+## What keeps it safe
+- **You declare everything.** Every event, every field and every allowed value is listed up front. An event, field or value that is not declared is dropped before anything is written or sent.
+- **Off until the person says yes.** Nothing is queued before `optIn()`. `DO_NOT_TRACK`, `<APP>_TELEMETRY=off` and `CI` turn it off whatever was chosen.
+- **Everything that leaves is logged first.** Each batch is appended to a local file before it is sent, so the person can read exactly what went out.
+- **It never gets in the way.** It never throws into your code, never retries, and gives up after `timeoutMs`. A batch the server does not take is dropped.
+
+## API
+| Export | What it does |
+| --- | --- |
+| `createTelemetry(config)` | Builds the telemetry object below |
+| `forcedOff(app, env?)` | Why telemetry is forced off (`DO_NOT_TRACK`, `<APP>_TELEMETRY=off` or `CI`), or `undefined` |
+| `check(events, name, props?)` | The props as they may leave, or `undefined` if the name, a field or a value is not declared |
+| `FieldSpec`, `EventSpec`, `TelemetryEvent`, `TelemetryConfig` | Types |
+
+### createTelemetry(config)
+| Option | Type | Default | |
+| --- | --- | --- | --- |
+| `app` | `string` | required | Short lowercase name. Also the env switch: `<APP>_TELEMETRY=off` |
+| `version` | `string` | required | Sent with every event as `v` |
+| `dir` | `string` | required | Folder for the id, the person's choice and the sent log |
+| `events` | `EventSpec` | required | The declared events and their fields |
+| `endpoint` | `string` | none | Must be `https`, or localhost. Empty or missing: nothing is sent |
+| `timeoutMs` | `number` | `3000` | How long `flush` waits for the server |
+| `env`, `fetch`, `now` | | `process.env`, `fetch`, `Date.now` | For tests |
+
+A field is one of: a list of allowed strings, `"boolean"`, or `"int"` (a whole number from 0 to 1,000,000). Every declared field is optional; a field you did not declare is refused.
+
+### The object it returns
+| Member | What it does |
+| --- | --- |
+| `optIn()` | Turns it on and creates a random anonymous id. Call it only after the person said yes |
+| `optOut()` | Stops sending and drops what is queued |
+| `resetId()` | A new random id; what was sent under the old one is not linked to it |
+| `enabled()` | Whether it is on, counting the forced-off switches |
+| `status()` | `{ enabled, forced, id, endpoint, log }` for a "telemetry status" command |
+| `track(name, props?)` | Queues one event. Returns `false` when it is off, anything in it is not declared, or 100 events are already waiting |
+| `pending()` | What the next `flush` would send, exactly |
+| `sentLog()` | The local log of everything that left, or "Nothing has been sent." |
+| `flush()` | Sends up to 50 queued events in one try. Returns whether the server took them |
+
+Every event also carries `app`, `v` (your version) and `os` (`darwin`, `linux`, `win32` or `other`).
+
+The request body is `{ events: [...] }` in the shape of `signet-spec/analytics`, so a Signet `registerIngest` route can receive it.
