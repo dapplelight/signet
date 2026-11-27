@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-lib: telemetry only accepts own declared names
+
+- `./telemetry` no longer treats inherited object keys (`constructor`, `toString`, `__proto__`) as declared events or fields. Before, an event with one of those names was accepted with empty props, and a field with one of those names threw inside `track()` (which caught it). Now both are dropped like any undeclared name.
+
 ### signet-lib: telemetry
 
 - New `./telemetry`: opt-in usage stats for CLIs and desktop apps. The app declares every event, field and allowed value up front, and anything else is dropped before it is written or sent. Off until the person says yes (`optIn()`); `DO_NOT_TRACK`, `<APP>_TELEMETRY=off` and `CI` force it off. Everything that leaves is appended to a local log first, and it never throws, never retries and gives up after `timeoutMs`. Its own import path, so browser bundles never see `node:fs`; web pages use `./analytics`.
