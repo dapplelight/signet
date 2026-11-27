@@ -81,6 +81,11 @@ export const PAIRS: [fg: string, bg: string, min: number][] = [
   ["--accent-amber", "--bg-base", TEXT],
   ["--accent-red", "--bg-base", TEXT],
   ["--accent-blue", "--bg-base", TEXT],
+  // Optional money slots (finance.css only; themes without them are skipped).
+  ["--money-credit", "--bg-base", TEXT],
+  ["--money-credit", "--card", TEXT],
+  ["--money-debit", "--bg-base", TEXT],
+  ["--money-debit", "--card", TEXT],
   ["--ring", "--bg-base", 3],
   ["--input", "--bg-base", 1.3],
 ]
@@ -144,15 +149,19 @@ if (import.meta.main) check()
 
 function check() {
   const TINTED = tinted()
-  for (const [file, darkSel] of [
-    ["editorial.css", /\.dark,\s*\[data-theme="ui"\]\s*\{/],
+  const EDITORIAL_DARK = /\.dark,\s*\[data-theme="ui"\]\s*\{/
+  for (const [file, darkSel, base] of [
+    ["editorial.css", EDITORIAL_DARK],
     ["cinematic.css", /\[data-theme="cinematic"\]\s*\{/],
+    // finance.css is an overlay: it @imports editorial.css, so layer it on top.
+    ["finance.css", EDITORIAL_DARK, "editorial.css"],
   ] as const) {
     const css = readFileSync(new URL(file, dir), "utf8")
-    const light = block(css, /:root\s*\{/)
+    const baseCss = base ? readFileSync(new URL(base, dir), "utf8") : ""
+    const light = { ...block(baseCss, /:root\s*\{/), ...block(css, /:root\s*\{/) }
     const modes: [string, Vars][] = [
       ["light", light],
-      ["dark", { ...light, ...block(css, darkSel) }],
+      ["dark", { ...light, ...block(baseCss, darkSel), ...block(css, darkSel) }],
     ]
     for (const [mode, vars] of modes) {
       for (const [fg, bg, min] of PAIRS) {

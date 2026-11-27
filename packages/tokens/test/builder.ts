@@ -81,7 +81,9 @@ for (const brand of brands) {
         const r = ratio(resolve(v, a ?? ""), resolve(v, b ?? ""))
         if (r === null || r < min) misses.push(`${brand} ${base} ${mode} ${fg} on ${bg}: ${r}`)
       }
-      for (const [fg, bg, min] of PAIRS) need(fg, bg, min)
+      // Optional money slots exist on finance themes only.
+      for (const [fg, bg, min] of PAIRS)
+        if (v[fg] !== undefined || !fg.startsWith("--money-")) need(fg, bg, min)
       for (const x of TINTED) {
         const alpha = mode === "light" ? x.light : x.dark
         const text = v[x.text] as string
