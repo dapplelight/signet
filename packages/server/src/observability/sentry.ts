@@ -174,6 +174,17 @@ function cleanRequest(r: SentryRequest, scrub: (text: string) => string): Sentry
   }
 }
 
+// Per isolate, not per createSentry(): Workers apps often build the client per
+// request, and the blocked window must outlive it. Keyed by envelope URL.
+const blockedUntil = new Map<string, number>()
+
+function retryAfterMs(res: Response): number {
+  const h = res.headers.get("Retry-After")
+  const secs = h === null || h.trim() === "" ? Number.NaN : Number(h)
+  // Sentry sends seconds; absent or unparseable, fall back to a minute.
+  return (Number.isFinite(secs) && secs >= 0 ? secs : 60) * 1000
+}
+
 export function createSentry(config: SentryConfig) {
   const parsed = config.dsn ? parseDsn(config.dsn) : null
 
@@ -235,6 +246,9 @@ export function createSentry(config: SentryConfig) {
         JSON.stringify({ type: "event" }),
         JSON.stringify(event),
       ].join("\n")
+      // Sentry said 429: drop events until its Retry-After passes instead of
+      // sending more into the limit (an error storm would otherwise extend it).
+      if (Date.now() < (blockedUntil.get(parsed.envelopeUrl) ?? 0)) return Promise.resolve(false)
       // Never rethrown: a reporting failure must not take down the request it
       // was reporting on. Returned so the caller can keep the Worker alive.
       return fetch(parsed.envelopeUrl, {
@@ -245,7 +259,11 @@ export function createSentry(config: SentryConfig) {
         },
         body,
       })
-        .then((res) => res.ok)
+        .then((res) => {
+          if (res.status === 429)
+            blockedUntil.set(parsed.envelopeUrl, Date.now() + retryAfterMs(res))
+          return res.ok
+        })
         .catch(() => false)
     },
     get isEnabled() {
