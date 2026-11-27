@@ -686,3 +686,148 @@ export function toFigmaVariables(theme: Theme) {
     ],
   }
 }
+
+// ------------------------------------------------------------------ validate
+
+/**
+ * Check a theme's CSS against CONTRACT.md. Pure string work (no env, no file
+ * reads), so it runs in Workers and the browser.
+ *
+ * Tailwind drops a utility whose variable is undefined without a word, so a
+ * theme with a hole renders transparent instead of failing. This names the holes.
+ */
+
+/** Required slots, mirrored from CONTRACT.md; the tokens test asserts they match. */
+export const THEME_REQUIRED = [
+  "--color-background",
+  "--color-foreground",
+  "--color-card",
+  "--color-card-foreground",
+  "--color-popover",
+  "--color-popover-foreground",
+  "--color-bg-base",
+  "--color-bg-surface",
+  "--color-bg-elevated",
+  "--color-text-primary",
+  "--color-text-secondary",
+  "--color-text-muted",
+  "--color-text-hint",
+  "--color-text-disabled",
+  "--color-text-inverse",
+  "--color-primary",
+  "--color-primary-foreground",
+  "--color-secondary",
+  "--color-secondary-foreground",
+  "--color-muted",
+  "--color-muted-foreground",
+  "--color-accent",
+  "--color-accent-foreground",
+  "--color-destructive",
+  "--color-border",
+  "--color-border-default",
+  "--color-border-subtle",
+  "--color-border-strong",
+  "--color-input",
+  "--color-ring",
+  "--color-accent-green",
+  "--color-accent-green-subtle",
+  "--color-accent-red",
+  "--color-accent-red-subtle",
+  "--color-accent-amber",
+  "--color-accent-amber-subtle",
+  "--color-accent-blue",
+  "--color-accent-blue-subtle",
+  "--text-xs",
+  "--text-sm",
+  "--text-base",
+  "--text-lg",
+  "--text-xl",
+  "--radius",
+  "--radius-sm",
+  "--radius-md",
+  "--radius-lg",
+  "--radius-xl",
+  "--radius-2xl",
+  "--radius-4xl",
+  "--radius-full",
+  "--spacing",
+  "--text-caption",
+  "--text-label",
+  "--text-body",
+  "--text-callout",
+  "--text-subhead",
+  "--text-headline",
+  "--text-title",
+  "--text-display",
+  "--text-hero",
+  "--text-stat",
+  "--font-sans",
+  "--font-display",
+  "--font-mono",
+  "--font-weight-normal",
+  "--font-weight-medium",
+  "--font-weight-semibold",
+  "--font-weight-bold",
+  "--shadow-xs",
+  "--shadow-sm",
+  "--shadow-md",
+  "--shadow-lg",
+  "--shadow-xl",
+  "--ease-default",
+  "--ease-in",
+  "--ease-out",
+  "--ease-spring",
+] as const
+
+/** Optional slots, mirrored from CONTRACT.md. */
+export const THEME_OPTIONAL = [
+  "--color-chart-1",
+  "--color-chart-2",
+  "--color-chart-3",
+  "--color-chart-4",
+  "--color-chart-5",
+  "--color-chart-6",
+  "--color-focus-ring",
+  "--color-focus-ring-offset",
+  "--color-accent-primary",
+  "--color-accent-primary-fg",
+  "--color-accent-primary-subtle",
+  "--color-accent-red-fg",
+  "--leading-display",
+  "--color-money-credit",
+  "--color-money-debit",
+  "--color-money-transfer",
+] as const
+
+export type ThemeCheck = {
+  /** True when nothing required is missing. Extras only warn. */
+  ok: boolean
+  /** Required variables the CSS never defines, sorted, with the leading `--`. */
+  missing: string[]
+  /** `--color-*` names that are neither required nor optional (usually typos), sorted; palette steps like `--color-warm-500` are skipped. */
+  extra: string[]
+}
+
+/**
+ * Report which contract variables a theme's CSS lacks or adds. A variable
+ * defined in only one of the light and dark blocks counts as present;
+ * comments are ignored; `@import`s are not followed.
+ *
+ *   const { missing, extra } = validateTheme(css)
+ *   // Theme is missing 3 required variables: --color-ring, --color-input, --color-muted.
+ *   // Not in the theme contract (typo?): --color-primay.
+ */
+export function validateTheme(css: string): ThemeCheck {
+  const defined = new Set(
+    [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/(?:^|[\s;{}])(--[a-z0-9-]+)\s*:/g)].map(
+      (m) => m[1] as string,
+    ),
+  )
+  const known = new Set<string>([...THEME_REQUIRED, ...THEME_OPTIONAL])
+  const missing = THEME_REQUIRED.filter((v) => !defined.has(v)).sort()
+  // a trailing number is a palette step (--color-warm-500), not a contract slot
+  const extra = [...defined]
+    .filter((v) => v.startsWith("--color-") && !/-\d+$/.test(v) && !known.has(v))
+    .sort()
+  return { ok: missing.length === 0, missing, extra }
+}
