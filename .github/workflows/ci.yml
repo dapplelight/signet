@@ -117,37 +117,15 @@ jobs:
       - run: node test/node-smoke.mjs
         working-directory: packages/server
 
-  # The check-runs and annotations APIs only say "Process completed with exit
-  # code 1", and job logs need a token, so whoever fixes a red PR (a person or
-  # an agent) cannot see why it failed. Post the tail of each failing step's
-  # log on the PR. Fork PRs get a read-only token, so the post may fail there.
+  # A red PR gets one comment with each failed job's log tail, because the
+  # public APIs hide the error text (probe results in failure-comment.yml).
   failure-comment:
-    if: failure() && github.event_name == 'pull_request'
+    if: failure()
     needs: [check, db-postgres, playwright, node-smoke]
-    runs-on: ubuntu-latest
     permissions:
       actions: read
       pull-requests: write
-    env:
-      GH_TOKEN: ${{ github.token }}
-      REPO: ${{ github.repository }}
-      RUN_ID: ${{ github.run_id }}
-      PR: ${{ github.event.pull_request.number }}
-    steps:
-      - run: |
-          body="CI failed. Last 50 lines before each failing step's error (run $GITHUB_SERVER_URL/$REPO/actions/runs/$RUN_ID):"
-          jobs=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" --paginate \
-            --jq '.jobs[] | select(.conclusion=="failure") | [.id, .name] | @tsv')
-          while IFS=$'\t' read -r id name; do
-            [ -n "$id" ] || continue
-            gh api "repos/$REPO/actions/jobs/$id/logs" > job.log || continue
-            # The failing step's log ends at its last ##[error] line; what
-            # follows is post-step cleanup.
-            end=$(grep -n '##\[error\]' job.log | tail -1 | cut -d: -f1)
-            tail=$(head -n "${end:-$(wc -l < job.log)}" job.log | tail -n 50 | sed 's/\x1b\[[0-9;]*m//g')
-            body+=$'\n\n'"**$name**"$'\n~~~\n'"$tail"$'\n~~~'
-          done <<< "$jobs"
-          gh pr comment "$PR" --repo "$REPO" --edit-last --create-if-none --body "$body"
+    uses: ./.github/workflows/failure-comment.yml
 
   scaffolder-e2e:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
