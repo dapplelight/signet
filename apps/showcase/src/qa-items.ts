@@ -34,6 +34,7 @@ const UI = [
   "empty-state",
   "error-state",
   "field",
+  "fold",
   "input-group",
   "input-otp",
   "input",

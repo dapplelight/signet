@@ -154,6 +154,10 @@
       "types": "./dist/components/ui/field.d.ts",
       "import": "./dist/components/ui/field.js"
     },
+    "./components/fold": {
+      "types": "./dist/components/ui/fold.d.ts",
+      "import": "./dist/components/ui/fold.js"
+    },
     "./components/input": {
       "types": "./dist/components/ui/input.d.ts",
       "import": "./dist/components/ui/input.js"
@@ -429,7 +433,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "bun run test/ui.tsx && bun run test/labels.tsx && bun run test/dom.tsx && bun run test/data-table.tsx && bun run test/shortcuts.tsx && bun run test/schema-form.tsx && bun run test/markdown.tsx && bun run test/dom2.tsx && bun run test/domain.tsx && bun run test/basics.tsx && bun run test/behaviors.tsx && bun run test/screens-user.tsx && bun run test/screens-admin.tsx && bun run test/screens-billing.tsx && bun run test/screens-monetisation.tsx && bun run test/screens-growth.tsx && bun run test/screens-api.tsx && bun run test/screens-orgs.tsx && bun run test/screens-workflow.tsx && bun run test/screens-collab.tsx && bun run test/ui-domain.tsx && bun run test/metric-headline.tsx && bun run test/action-row.tsx &&bun run test/realtime.tsx && bun run test/data-edit.tsx && bun run test/screens-experiments.tsx && bun run test/screens-abuse.tsx && bun run test/screens-funnels.tsx && bun run test/screens-charts.tsx && bun run test/screens-cost.tsx &&bun run test/screens-growth.tsx && bun run test/blocks.tsx",
+    "test": "bun run test/ui.tsx && bun run test/labels.tsx && bun run test/dom.tsx && bun run test/data-table.tsx && bun run test/shortcuts.tsx && bun run test/schema-form.tsx && bun run test/markdown.tsx && bun run test/dom2.tsx && bun run test/domain.tsx && bun run test/basics.tsx && bun run test/behaviors.tsx && bun run test/screens-user.tsx && bun run test/screens-admin.tsx && bun run test/screens-billing.tsx && bun run test/screens-monetisation.tsx && bun run test/screens-growth.tsx && bun run test/screens-api.tsx && bun run test/screens-orgs.tsx && bun run test/screens-workflow.tsx && bun run test/screens-collab.tsx && bun run test/ui-domain.tsx && bun run test/metric-headline.tsx && bun run test/action-row.tsx &&bun run test/realtime.tsx && bun run test/data-edit.tsx && bun run test/screens-experiments.tsx && bun run test/screens-abuse.tsx && bun run test/screens-funnels.tsx && bun run test/screens-charts.tsx && bun run test/screens-cost.tsx &&bun run test/screens-growth.tsx && bun run test/blocks.tsx && bun run test/fold.tsx",
     "build": "tsc -p tsconfig.build.json",
     "prepublishOnly": "bun run build"
   },
