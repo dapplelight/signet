@@ -15,6 +15,9 @@ import {
 import { requestId } from "../src/middleware/request-id"
 import { STRICT_CSP, secureHeaders } from "../src/middleware/secure-headers"
 
+// trust "cloudflare" is believed only on Workers: pose as one (origin-spoof.ts covers Bun)
+Object.defineProperty(navigator, "userAgent", { value: "Cloudflare-Workers", configurable: true })
+
 let pass = 0,
   fail = 0
 const ok = (n: string, c: boolean) => {

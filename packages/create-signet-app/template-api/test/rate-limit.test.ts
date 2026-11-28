@@ -2,6 +2,11 @@ import { expect, test } from "bun:test"
 import { memoryStore } from "@dapplelight/signet-server/middleware/rate-limit"
 import { createApp } from "../src/app.ts"
 
+// trust "cloudflare" is believed only on Workers (a Node or Bun origin can be hit
+// directly, where a client sets cf-connecting-ip itself). The cloudflare target
+// runs there, so pose as Workers here.
+Object.defineProperty(navigator, "userAgent", { value: "Cloudflare-Workers", configurable: true })
+
 // Requests that reach the app without cf-connecting-ip (a proxy that strips it,
 // a health checker, a local call) all share one bucket. Once it is full, the
 // next caller without the header is told to back off, whoever they are; callers
