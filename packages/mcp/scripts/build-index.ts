@@ -1582,6 +1582,16 @@ function templateFiles(dir: string, target?: string): TemplateFile[] {
   }))
 }
 const themeNames = /const THEMES = \[([^\]]*)\]/.exec(CSA)?.[1]?.match(/[\w-]+/g) ?? []
+// Each theme's launch colours, as create-signet-app's THEME_BG lists them.
+const themeBg = Object.fromEntries(
+  [
+    ...CSA.matchAll(
+      /^ {2}([\w-]+): \{ light: "(#\w+)", dark: "(#\w+)", launch: "(light|dark)" \},$/gm,
+    ),
+  ].map((m) => [m[1], { light: m[2], dark: m[3], launch: m[4] }]),
+) as SignetIndex["scaffold"]["themeBg"]
+for (const t of themeNames)
+  if (!themeBg[t]) throw new Error(`create-signet-app lost its THEME_BG entry for ${t}`)
 // Starter name and its one-line description, as compose.ts lists them.
 const COMPOSE = read("packages/create-signet-app/src/compose.ts")
 const startersBlock = /export const STARTERS = \{([\s\S]*?)\n\} satisfies/.exec(COMPOSE)?.[1] ?? ""
@@ -1594,6 +1604,7 @@ const starters = Object.fromEntries(
 if (!starters.full || !starters.blank) throw new Error("create-signet-app lost its STARTERS")
 const scaffold: SignetIndex["scaffold"] = {
   themes: themeNames,
+  themeBg,
   starters,
   web: {
     files: templateFiles("packages/create-signet-app/template"),

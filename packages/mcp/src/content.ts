@@ -165,9 +165,15 @@ export function scaffoldFiles(
   theme: string,
 ): TemplateFile[] {
   const t = INDEX.scaffold[template]
+  const bg = INDEX.scaffold.themeBg[theme]
   const files = t.files.map((f) => ({
     path: f.path,
-    content: f.content.replaceAll("__APP_NAME__", name).replaceAll("__THEME__", theme),
+    content: f.content
+      .replaceAll("__APP_NAME__", name)
+      .replaceAll("__THEME__", theme)
+      .replaceAll("__BG_LAUNCH__", bg?.[bg.launch] ?? "")
+      .replaceAll("__BG_LIGHT__", bg?.light ?? "")
+      .replaceAll("__BG_DARK__", bg?.dark ?? ""),
   }))
   const pkg = {
     name,
