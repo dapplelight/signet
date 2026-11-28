@@ -126,7 +126,7 @@ const LOGOS: LogoMark[] = [
 ]
 const DARK_LOGOS: LogoMark[] = [darkLogo("N"), darkLogo("V")]
 
-const LONG_NAME ="Northwind Ltd Quarterly Settlement Account for Regional Distribution Partners"
+const LONG_NAME = "Northwind Ltd Quarterly Settlement Account for Regional Distribution Partners"
 
 const MARKDOWN = [
   "# Settlement report",
