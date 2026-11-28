@@ -68,8 +68,16 @@ export function memoryStore(): RateLimitStore {
  * client can set itself are never read, so a spoofed one cannot pick its own
  * rate-limit bucket.
  *
- * - `"cloudflare"`: read `cf-connecting-ip`, which the Cloudflare edge sets.
- *   Only correct when every request really comes through Cloudflare.
+ * - `"cloudflare"`: read `cf-connecting-ip`, which the Cloudflare edge sets, but
+ *   only when running on Cloudflare Workers (`navigator.userAgent` is
+ *   `"Cloudflare-Workers"`), where nothing reaches the code except through the
+ *   edge. On Node, Bun or Deno the origin can be hit directly and a client sets
+ *   that header itself, so it is ignored and there is no client IP (`onNoIp`
+ *   applies). Use `{ cloudflare: { originLocked: true } }` there instead.
+ * - `{ cloudflare: { originLocked: true } }`: read `cf-connecting-ip` on any
+ *   runtime. You promise the origin only accepts connections from Cloudflare's
+ *   IP ranges (firewall, Authenticated Origin Pulls, a tunnel). If it does not,
+ *   a client can pick its own rate-limit bucket.
  * - `{ forwardedHops: n }`: `n` trusted proxies each append the address they
  *   saw to `x-forwarded-for`; the client is the n-th entry from the right.
  *   Entries further left are client-supplied and ignored, and so is
@@ -77,7 +85,15 @@ export function memoryStore(): RateLimitStore {
  * - `"none"`: trust nothing; there is no client IP. `clientIp` defaults to it;
  *   `rateLimit` has no default and makes you choose.
  */
-export type ClientIpTrust = "cloudflare" | { forwardedHops: number } | "none"
+export type ClientIpTrust =
+  | "cloudflare"
+  | { cloudflare: { originLocked: true } }
+  | { forwardedHops: number }
+  | "none"
+
+/** Read per call, never at module scope: only Workers sets this user agent. */
+const onWorkers = () =>
+  typeof navigator !== "undefined" && navigator.userAgent === "Cloudflare-Workers"
 
 const V4 = /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)$/
 
@@ -130,7 +146,8 @@ function assertHops(hops: number) {
 
 /**
  * The client IP under a trust setting, or null when there is none: the header
- * the setting trusts is missing or not an IP, or `"none"`. IPv6 comes back as
+ * the setting trusts is missing or not an IP, `"none"`, or `"cloudflare"` off
+ * Workers (see `ClientIpTrust`). IPv6 comes back as
  * its /64 (`2001:db8:0:1::/64`), so a client cannot dodge a limit by rotating
  * through the addresses of its own prefix.
  *
@@ -142,7 +159,10 @@ export function clientIp<E extends Env = any>(
   c: Context<E>,
   trust: ClientIpTrust = "none",
 ): string | null {
-  if (trust === "cloudflare") return normalizeIp(c.req.header("cf-connecting-ip"))
+  if (trust === "cloudflare" && !onWorkers()) return null
+  if (trust === "cloudflare" || (typeof trust === "object" && "cloudflare" in trust)) {
+    return normalizeIp(c.req.header("cf-connecting-ip"))
+  }
   if (typeof trust === "object" && trust !== null) {
     const hops = trust.forwardedHops
     assertHops(hops)
@@ -215,7 +235,7 @@ export function rateLimit<E extends Env = any>(
     )
   }
   const trust = opts.trust ?? "none"
-  if (typeof trust === "object") assertHops(trust.forwardedHops) // fail at startup, not on request 1
+  if (typeof trust === "object" && "forwardedHops" in trust) assertHops(trust.forwardedHops) // fail at startup, not on request 1
 
   const onNoIp = opts.onNoIp ?? "bucket"
 

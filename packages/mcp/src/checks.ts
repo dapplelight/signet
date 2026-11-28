@@ -223,7 +223,7 @@ function envSchemaKeys(src: string): { key: string; optional: boolean }[] | null
 }
 
 const TEMPLATE_RATE_LIMIT =
-  'app.use("/api/*", rateLimit({ max: 60, trust: "cloudflare" }))   // from "@dapplelight/signet-server/middleware/rate-limit"; off Cloudflare: trust: { forwardedHops: n }'
+  'app.use("/api/*", rateLimit({ max: 60, trust: "cloudflare" }))   // from "@dapplelight/signet-server/middleware/rate-limit"; off Workers: trust: { forwardedHops: n }, or { cloudflare: { originLocked: true } } if the origin only accepts Cloudflare IP ranges'
 const TEMPLATE_CSRF =
   'app.use("/api/*", csrfMiddleware({ originEnvKeys: ["WEB_URL"] }))   // from "@dapplelight/signet-server/middleware/csrf"'
 
@@ -310,7 +310,7 @@ export function checkApp(files: Record<string, string>): CheckResult {
         line: lineOf(text(l.p), l.index),
         message:
           "rateLimit without `trust` or `keyFor` throws at construction (signet-server 0.4.0).",
-        fix: 'Pass trust: "cloudflare" on Cloudflare, trust: { forwardedHops: n } behind n proxies of your own, or trust: "none" to put every client in one bucket.',
+        fix: 'Pass trust: "cloudflare" on Cloudflare Workers, trust: { cloudflare: { originLocked: true } } on another runtime whose origin only accepts Cloudflare IP ranges, trust: { forwardedHops: n } behind n proxies of your own, or trust: "none" to put every client in one bucket.',
       })
     }
   }

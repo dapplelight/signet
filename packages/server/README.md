@@ -1026,14 +1026,17 @@ ApiException(503, "Store unreachable", "STORE_UNAVAILABLE")`. `ApiException`
 accepts 502, 503 and 504 for this, and does not go to `onError`.
 
 **Tell the limiter which proxy to believe.** `rateLimit({ trust })` (and
-`clientIp(c, trust)`) takes `"cloudflare"` (read `cf-connecting-ip`, only
-correct when every request comes through Cloudflare), `{ forwardedHops: n }`
+`clientIp(c, trust)`) takes `"cloudflare"` (read `cf-connecting-ip`, but only on
+Cloudflare Workers, where every request comes through the edge),
+`{ cloudflare: { originLocked: true } }` (read it on any runtime; you promise the
+origin accepts connections only from Cloudflare's IP ranges), `{ forwardedHops: n }`
 (`n` proxies of yours append to `x-forwarded-for`; the client is the n-th entry
 from the right, and `cf-connecting-ip` is ignored) or `"none"`. `rateLimit`
 throws at construction unless you give `trust` or `keyFor`, because `"none"`
 makes every client share one bucket per limiter; pass it only if you want that. A client
-can set `cf-connecting-ip` itself anywhere but behind Cloudflare, which is why
-it is never read unless you say `"cloudflare"`.
+can set `cf-connecting-ip` itself anywhere but behind Cloudflare, so on Node, Bun
+or Deno plain `"cloudflare"` ignores it and there is no client IP (`onNoIp`
+applies, below). Workers is detected by `navigator.userAgent === "Cloudflare-Workers"`.
 
 A request with no usable IP is, by default (`onNoIp: "bucket"`), keyed `no-ip`
 within its limiter's `scope`, never a bucket shared with other limiters. Once

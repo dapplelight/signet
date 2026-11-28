@@ -105,7 +105,7 @@ app.use("/api/auth/login", rateLimit({
 | `onStoreError` | `(err, c) => void` | none | Hears every store failure. |
 | `getRequestId` | `(c) => string \| undefined` | `c.get("reqId")` | For the error envelope. |
 
-`ClientIpTrust` is `"cloudflare"` (read `cf-connecting-ip`), `{ forwardedHops: n }` (the n-th `x-forwarded-for` entry from the right) or `"none"` (one shared bucket).
+`ClientIpTrust` is `"cloudflare"` (read `cf-connecting-ip`, on Cloudflare Workers only; on Node, Bun or Deno it is ignored and `onNoIp` applies), `{ cloudflare: { originLocked: true } }` (read it on any runtime, when the origin accepts only Cloudflare's IP ranges), `{ forwardedHops: n }` (the n-th `x-forwarded-for` entry from the right) or `"none"` (one shared bucket).
 
 ### corsMiddleware(options)
 

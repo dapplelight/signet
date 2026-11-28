@@ -102,7 +102,10 @@ export const templates = defineTemplates({
 
 /**
  * Where the client IP comes from: server.ts overwrites x-forwarded-for with the
- * socket's address, so one hop. Behind your own proxy, see server.ts.
+ * socket's address, so one hop. Behind your own proxy, see server.ts. Behind
+ * Cloudflare with the origin firewalled to Cloudflare's IP ranges, use
+ * `{ cloudflare: { originLocked: true } }`; plain `"cloudflare"` is believed only
+ * on Workers, because anywhere else a client can send `cf-connecting-ip` itself.
  */
 export const TRUST = { forwardedHops: 1 } as const
 // admin:begin
