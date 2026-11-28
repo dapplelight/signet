@@ -1,3 +1,4 @@
+import { ActionRow } from "@dapplelight/signet-ui/components/action-row"
 import { Alert, AlertDescription, AlertTitle } from "@dapplelight/signet-ui/components/alert"
 import {
   AlertDialog,
@@ -84,8 +85,11 @@ import {
   CreditCardIcon,
   DownloadIcon,
   FileTextIcon,
+  GitMergeIcon,
   InfoIcon,
+  MessageCircleQuestionIcon,
   PlusIcon,
+  RocketIcon,
   SettingsIcon,
   SlashIcon,
   Trash2Icon,
@@ -1177,7 +1181,50 @@ function DataTableFixture() {
   )
 }
 
+function ActionRowFixture() {
+  return (
+    <Stack>
+      <ActionRow
+        icon={<GitMergeIcon />}
+        title="Merge PR #482"
+        description="CI passed and two people approved. Merging adds 3 commits to main."
+        actions={
+          <>
+            <Button variant="outline">View diff</Button>
+            <Button>Merge</Button>
+          </>
+        }
+      />
+      <ActionRow
+        tone="ask"
+        icon={<MessageCircleQuestionIcon />}
+        title="Which database should the new service use?"
+        description="The agent paused the setup and is waiting for your pick."
+        actions={
+          <>
+            <Button variant="outline">Postgres</Button>
+            <Button>SQLite</Button>
+          </>
+        }
+      />
+      <ActionRow
+        tone="warn"
+        icon={<RocketIcon />}
+        title="Approve deploy to production"
+        description="Build 9f3c2e1 failed one smoke test in staging. Approving ships it anyway."
+        actions={
+          <>
+            <Button variant="outline">Reject</Button>
+            <Button>Approve</Button>
+          </>
+        }
+      />
+    </Stack>
+  )
+}
+
 export const uiA = {
+  "action-row": () => <ActionRowFixture />,
   "alert-dialog": () => <AlertDialogFixture />,
   alert: () => <AlertFixture />,
   "answer-headline": () => <AnswerHeadlineFixture />,

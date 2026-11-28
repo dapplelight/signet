@@ -1,0 +1,173 @@
+---
+title: "Action Row"
+description: "One item that waits on the user: an icon, a title, one sentence and the buttons that settle it."
+---
+
+import { ActionRowDemo, ActionRowAskDemo, ActionRowWarnDemo } from "@/components/demos/action-row"
+
+<Preview>
+  <ActionRowDemo />
+
+```tsx
+import { ActionRow } from "@dapplelight/signet-ui/components/action-row"
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { GitMergeIcon } from "lucide-react"
+
+export function Demo() {
+  return (
+    <ActionRow
+      icon={<GitMergeIcon />}
+      title="Merge PR #482"
+      description="CI passed and two people approved. Merging adds 3 commits to main."
+      actions={
+        <>
+          <Button variant="outline">View diff</Button>
+          <Button>Merge</Button>
+        </>
+      }
+    />
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+bun path/to/signet/packages/cli/src/index.ts add action-row
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { ActionRow } from "@dapplelight/signet-ui/components/action-row"
+
+<ActionRow title="Approve deploy" description="Build 9f3c2e1 is ready." actions={<Button>Approve</Button>} />
+```
+
+On a screen narrower than `sm` the buttons move under the text, full width, and every Signet `Button` in the row is at least 44px tall. The row is a `group` named by its title. Keyboard focus is the Button's own ring.
+
+## Examples
+
+### Answer a question
+
+<Preview>
+  <ActionRowAskDemo />
+
+```tsx
+import { ActionRow } from "@dapplelight/signet-ui/components/action-row"
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { MessageCircleQuestionIcon } from "lucide-react"
+
+<ActionRow
+  tone="ask"
+  icon={<MessageCircleQuestionIcon />}
+  title="Which database should the new service use?"
+  description="The agent paused the setup and is waiting for your pick."
+  actions={
+    <>
+      <Button variant="outline">Postgres</Button>
+      <Button>SQLite</Button>
+    </>
+  }
+/>
+```
+
+</Preview>
+
+### Approve a deploy
+
+<Preview>
+  <ActionRowWarnDemo />
+
+```tsx
+import { ActionRow } from "@dapplelight/signet-ui/components/action-row"
+import { Button } from "@dapplelight/signet-ui/components/button"
+import { RocketIcon } from "lucide-react"
+
+<ActionRow
+  tone="warn"
+  icon={<RocketIcon />}
+  title="Approve deploy to production"
+  description="Build 9f3c2e1 failed one smoke test in staging. Approving ships it anyway."
+  actions={
+    <>
+      <Button variant="outline">Reject</Button>
+      <Button>Approve</Button>
+    </>
+  }
+/>
+```
+
+</Preview>
+
+## Customising
+
+Five levels, use the lowest that does the job.
+
+1. **Tokens.** The row reads `--color-bg-surface`, `--color-border-subtle`, `--color-primary` (ask) and `--color-accent-amber` (warn), plus `--radius-xl`. A theme changes it everywhere.
+2. **Props and text.** `tone` (`neutral`, `ask`, `warn`), `icon`, `title`, `description`, `actions`. Every string is yours; there is no built-in copy. `warn` is amber, never red: red means destructive.
+3. **className and data-\* hooks.** `className` and any `data-*` or `aria-*` prop go on the root. `classNames={{ icon, body, title, description, actions }}` styles one part. Style from CSS with `[data-slot=action-row]`, `[data-tone=warn]` and `[data-slot=action-row-title]`.
+4. **Parts.** Build your own layout from `ActionRowRoot`, `ActionRowIcon`, `ActionRowBody`, `ActionRowTitle`, `ActionRowDescription` and `ActionRowActions`.
+5. **Copy-in.** `signet add action-row` copies the file into your app to edit.
+
+```tsx
+import {
+  ActionRowActions,
+  ActionRowBody,
+  ActionRowDescription,
+  ActionRowRoot,
+  ActionRowTitle,
+} from "@dapplelight/signet-ui/components/action-row"
+
+<ActionRowRoot tone="warn" data-testid="deploy-row">
+  <ActionRowBody>
+    <ActionRowTitle>Approve deploy</ActionRowTitle>
+    <ActionRowDescription>Build 9f3c2e1 is ready.</ActionRowDescription>
+  </ActionRowBody>
+  <ActionRowActions>
+    <Button>Approve</Button>
+  </ActionRowActions>
+</ActionRowRoot>
+```
+
+## API Reference
+
+### ActionRow
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| tone | `"neutral" \| "ask" \| "warn"` | `"neutral"` | `ask`: the app needs an answer. `warn`: needs a look, amber. |
+| icon | `ReactNode` | - | Leading icon. Decorative, hidden from screen readers. |
+| title | `ReactNode` | - | What waits on the user. |
+| description | `ReactNode` | - | One plain sentence under the title. |
+| actions | `ReactNode` | - | The buttons. Stack under the text on narrow screens. |
+| classNames | `{ icon?; body?; title?; description?; actions? }` | - | Class per part. |

@@ -11,6 +11,7 @@ const DIR = "packages/ui/src/components"
 
 /** One item per file: the file's primitives rendered together. Id is the file stem. */
 const UI = [
+  "action-row",
   "alert-dialog",
   "alert",
   "answer-headline",
