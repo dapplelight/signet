@@ -140,7 +140,7 @@
     },
     "packages/create-signet-app": {
       "name": "create-signet-app",
-      "version": "0.9.2",
+      "version": "0.9.4",
       "bin": {
         "create-signet-app": "./src/index.ts",
       },
@@ -234,7 +234,7 @@
     },
     "packages/server": {
       "name": "@dapplelight/signet-server",
-      "version": "0.6.9",
+      "version": "0.7.0",
       "bin": {
         "signet-doctor": "./dist/doctor/cli.js",
       },
