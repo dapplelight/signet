@@ -1,3 +1,5 @@
+"use client"
+
 // shadcn/ui `chart` (registry: styles/base-nova/chart), on recharts 3 as that
 // registry item is: tooltip props typed from recharts' DefaultTooltipContentProps,
 // legend props from DefaultLegendContentProps, and a ResponsiveContainer
@@ -10,7 +12,12 @@
 import * as React from "react"
 import * as RechartsPrimitive from "recharts"
 import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent"
+import { DESKTOP_QUERY, useMediaQuery } from "../../hooks/use-media-query.js"
 import { cn } from "../../lib/utils.js"
+import { Card, CardContent, CardHeader, CardTitle } from "./card.js"
+import { EmptyState } from "./empty-state.js"
+import { ErrorState } from "./error-state.js"
+import { Skeleton } from "./skeleton.js"
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const
@@ -542,6 +549,348 @@ function getPayloadConfigFromPayload(config: ChartConfig, payload: unknown, key:
   }
 
   return configLabelKey in config ? config[configLabelKey] : config[key]
+}
+
+// ---------------------------------------------------------------------------
+// PaceChart: usage against an even pace and a limit. Built on ChartContainer.
+
+export type PacePart = "pace" | "used" | "projected" | "now" | "limit"
+
+/** One period (a day, a week). `used` is the running total at it; leave it out after Now. */
+export type PacePoint = {
+  /** On the axis. Keep it short ("Thu"). */
+  label: string
+  /** What a screen reader says ("Thursday"). Default: `label`. */
+  name?: string
+  used?: number | null
+}
+
+export type PaceModel = {
+  /** Index of Now in the data, or -1 when nothing has been used yet. */
+  nowIndex: number
+  used: number
+  /** x of the limit point: where the projection crosses the limit, else the last period. */
+  limitX: number
+  /** The projection runs from Now to here, or is null (no limit, over it, or no use yet). */
+  projection: { endX: number; endValue: number; reachesLimit: boolean } | null
+  /** One row per period, plus one at the projection end when it falls between two periods. */
+  rows: { x: number; used: number | null; pace: number | null; projected: number | null }[]
+}
+
+/**
+ * The numbers behind a PaceChart. Use is assumed to continue at its average
+ * rate so far; even pace is `limit / periods` per period.
+ */
+export function paceModel(data: PacePoint[], limit: number | undefined, now?: string): PaceModel {
+  const last = data.length - 1
+  let nowIndex = now === undefined ? -1 : data.findIndex((d) => d.label === now)
+  if (nowIndex < 0 && now === undefined) {
+    nowIndex = data.reduce((at, d, i) => (d.used != null ? i : at), -1)
+  }
+  const used = data[nowIndex]?.used ?? 0
+  const rate = nowIndex >= 0 ? used / (nowIndex + 1) : 0
+  let projection: PaceModel["projection"] = null
+  let limitX = last
+  if (limit !== undefined && nowIndex >= 0 && nowIndex < last && rate > 0 && used < limit) {
+    const hit = nowIndex + (limit - used) / rate
+    const reachesLimit = hit <= last
+    const endX = reachesLimit ? hit : last
+    projection = {
+      endX,
+      endValue: reachesLimit ? limit : used + rate * (last - nowIndex),
+      reachesLimit,
+    }
+    if (reachesLimit) limitX = hit
+  }
+  const rows: PaceModel["rows"] = data.map((d, x) => ({
+    x,
+    used: d.used ?? null,
+    pace: limit === undefined ? null : (limit * (x + 1)) / data.length,
+    projected: projection && x === nowIndex ? used : null,
+  }))
+  if (projection) {
+    const end = rows.find((r) => r.x === projection?.endX)
+    if (end) end.projected = projection.endValue
+    else rows.push({ x: projection.endX, used: null, pace: null, projected: projection.endValue })
+  }
+  rows.sort((a, b) => a.x - b.x)
+  return { nowIndex, used, limitX, projection, rows }
+}
+
+export type PaceLabels = {
+  [P in PacePart]: string
+} & {
+  /** State texts. */
+  emptyTitle: string
+  emptyDescription: string
+  errorMessage: string
+  loading: string
+}
+
+export const DEFAULT_PACE_LABELS: PaceLabels = {
+  pace: "On pace",
+  used: "Used",
+  projected: "Projected",
+  now: "Now",
+  limit: "limit",
+  emptyTitle: "No usage yet",
+  emptyDescription: "Usage appears here once it starts.",
+  errorMessage: "Couldn't load usage",
+  loading: "Loading usage",
+}
+
+const PACE_COLORS: Record<PacePart, string> = {
+  pace: "var(--color-text-muted)",
+  used: CHART_COLORS[0],
+  projected: "var(--color-accent-amber)",
+  now: "var(--color-border-strong)",
+  limit: "var(--color-accent-amber)",
+}
+
+const PACE_PARTS = ["pace", "used", "projected", "now", "limit"] as const
+
+/** SVG text cannot ellipsize, so cut by length; the full text is in the description. */
+const clip = (text: string, max = 24) => (text.length > max ? `${text.slice(0, max - 1)}…` : text)
+
+export type PaceChartProps = {
+  /** One point per period, in order: `[{ label: "Mon", used: 90 }, ...]`. */
+  data?: PacePoint[]
+  /** The cap. Without it there is no pace line, projection or limit point. */
+  limit?: number
+  /** Label of the period that is Now. Default: the last period with a `used` value. */
+  now?: string
+  title?: React.ReactNode
+  /** Right of the title (below it on phones): a Day / Week / Month selector, say. Any node. */
+  slot?: React.ReactNode
+  yAxisTitle?: string
+  /** Formats numbers on the axis, the limit label and the descriptions. */
+  format?: (n: number) => string
+  state?: "ready" | "loading" | "error"
+  onRetry?: () => void
+  /** Label per part, plus the state texts. English defaults. */
+  labels?: Partial<PaceLabels>
+  /** A CSS colour per part. Defaults are theme tokens. */
+  colors?: Partial<Record<PacePart, string>>
+  /** Hide a part. The pace line, projection and limit point also hide without a `limit`. */
+  hide?: Partial<Record<PacePart, boolean>>
+  /** Replace the screen-reader sentence of a part. */
+  descriptions?: Partial<Record<PacePart, string>>
+  /** className per part (on the line or dot itself), the header and the chart area. */
+  classNames?: Partial<Record<PacePart | "header" | "chart", string>>
+  className?: string
+}
+
+export function PaceChart({
+  data = [],
+  limit,
+  now,
+  title,
+  slot,
+  yAxisTitle,
+  format = (n) => n.toLocaleString(),
+  state = "ready",
+  onRetry,
+  labels: labelOverrides,
+  colors,
+  hide,
+  descriptions,
+  classNames,
+  className,
+}: PaceChartProps) {
+  const l = { ...DEFAULT_PACE_LABELS, ...labelOverrides }
+  const desktop = useMediaQuery(DESKTOP_QUERY)
+  const model = React.useMemo(() => paceModel(data, limit, now), [data, limit, now])
+  const { nowIndex, projection, limitX, rows } = model
+  const last = data.length - 1
+  const hasLimit = limit !== undefined
+  const shown = {
+    pace: hasLimit && !hide?.pace,
+    used: nowIndex >= 0 && !hide?.used,
+    projected: !!projection && !hide?.projected,
+    now: nowIndex >= 0 && !hide?.now,
+    limit: hasLimit && !hide?.limit,
+  }
+  const config: ChartConfig = Object.fromEntries(
+    PACE_PARTS.map((p) => [p, { label: l[p], color: colors?.[p] ?? PACE_COLORS[p] }]),
+  )
+  const chartClass = cn("aspect-auto h-45 w-full md:h-60", classNames?.chart)
+
+  const said = (i: number) => data[i]?.name ?? data[i]?.label
+  const nowLabel = said(nowIndex) ?? ""
+  const sentences: Record<PacePart, string | null> = {
+    pace: shown.pace
+      ? `${l.pace}: even use reaches ${format(limit as number)} by ${said(last)}.`
+      : null,
+    used: shown.used ? `${l.used} so far: ${format(model.used)} by ${nowLabel}.` : null,
+    projected:
+      shown.projected && projection
+        ? projection.reachesLimit
+          ? `${l.projected}: reaches ${format(limit as number)} on ${said(Math.floor(projection.endX))}.`
+          : `${l.projected}: reaches ${format(Math.round(projection.endValue))} by ${said(last)}, under the limit.`
+        : null,
+    now: shown.now ? `${l.now}: ${nowLabel}.` : null,
+    limit: shown.limit
+      ? `${l.limit[0]?.toUpperCase()}${l.limit.slice(1)}: ${format(limit as number)}.`
+      : null,
+  }
+  const summary = PACE_PARTS.map((p) => descriptions?.[p] ?? sentences[p])
+    .filter(Boolean)
+    .join(" ")
+
+  // Phones show about four ticks; labels sit inside the plot so they never clip.
+  const step = desktop ? 1 : Math.max(1, Math.ceil(last / 3))
+  const ticks = data.map((_, i) => i).filter((i) => i % step === 0 || i === last)
+  const max = Math.max(limit ?? 0, model.used, ...rows.map((r) => r.projected ?? 0))
+  const nowSide = last > 0 && nowIndex / last > 0.7 ? "insideTopLeft" : "insideTopRight"
+  const limitSide = last > 0 && limitX / last > 0.6 ? "left" : "top"
+  const limitText = limit === undefined ? "" : `${format(limit)} ${l.limit}`
+
+  let body: React.ReactNode
+  if (state === "error") {
+    body = <ErrorState message={l.errorMessage} onRetry={onRetry} />
+  } else if (state === "loading") {
+    body = <Skeleton className={chartClass} />
+  } else if (!data.length) {
+    body = (
+      <div className="[&>div]:min-h-0 [&>div]:py-16">
+        <EmptyState title={l.emptyTitle} description={l.emptyDescription} />
+      </div>
+    )
+  } else {
+    body = (
+      <>
+        <ChartContainer config={config} role="img" aria-label={summary} className={chartClass}>
+          <RechartsPrimitive.LineChart data={rows} margin={{ left: 8, right: 8, top: 8 }}>
+            <RechartsPrimitive.CartesianGrid vertical={false} />
+            <RechartsPrimitive.XAxis
+              dataKey="x"
+              type="number"
+              domain={[0, Math.max(last, 1)]}
+              ticks={ticks}
+              tickFormatter={(i: number) => clip(data[i]?.label ?? "")}
+              padding={{ left: 16, right: 16 }}
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+            />
+            <RechartsPrimitive.YAxis
+              type="number"
+              domain={[0, Math.ceil(max * 1.1) || 1]}
+              tickCount={desktop ? 5 : 4}
+              tickFormatter={(n: number) => format(n)}
+              width={yAxisTitle ? 64 : 48}
+              tickLine={false}
+              axisLine={false}
+              tickMargin={4}
+              label={
+                yAxisTitle
+                  ? {
+                      value: clip(yAxisTitle),
+                      angle: -90,
+                      position: "insideLeft",
+                      style: { textAnchor: "middle", fill: "var(--color-text-muted)" },
+                    }
+                  : undefined
+              }
+            />
+            {shown.pace && (
+              <RechartsPrimitive.Line
+                dataKey="pace"
+                type="linear"
+                stroke="var(--color-pace)"
+                strokeWidth={1.5}
+                strokeDasharray="4 4"
+                dot={false}
+                connectNulls
+                isAnimationActive={false}
+                className={classNames?.pace}
+              />
+            )}
+            {shown.used && (
+              <RechartsPrimitive.Line
+                dataKey="used"
+                type="linear"
+                stroke="var(--color-used)"
+                strokeWidth={2}
+                dot={false}
+                connectNulls
+                isAnimationActive={false}
+                className={classNames?.used}
+              />
+            )}
+            {shown.projected && (
+              <RechartsPrimitive.Line
+                dataKey="projected"
+                type="linear"
+                stroke="var(--color-projected)"
+                strokeWidth={2}
+                strokeDasharray="4 4"
+                dot={false}
+                connectNulls
+                isAnimationActive={false}
+                className={classNames?.projected}
+              />
+            )}
+            {shown.now && (
+              <RechartsPrimitive.ReferenceLine
+                x={nowIndex}
+                stroke="var(--color-now)"
+                strokeDasharray="4 4"
+                className={classNames?.now}
+                label={{
+                  value: clip(l.now),
+                  position: nowSide,
+                  fill: "var(--color-text-muted)",
+                  fontSize: 12,
+                }}
+              />
+            )}
+            {shown.limit && (
+              <RechartsPrimitive.ReferenceDot
+                x={limitX}
+                y={limit}
+                r={4}
+                fill="var(--color-limit)"
+                stroke="none"
+                className={classNames?.limit}
+                label={{
+                  value: clip(limitText),
+                  position: limitSide,
+                  offset: 8,
+                  fill: "var(--color-text-primary)",
+                  fontSize: 12,
+                }}
+              />
+            )}
+          </RechartsPrimitive.LineChart>
+        </ChartContainer>
+        <ul data-slot="pace-descriptions" className="sr-only">
+          {PACE_PARTS.map((p) => {
+            const text = descriptions?.[p] ?? sentences[p]
+            return text ? <li key={p}>{text}</li> : null
+          })}
+        </ul>
+      </>
+    )
+  }
+
+  return (
+    <Card
+      data-slot="pace-chart"
+      data-state={state}
+      aria-busy={state === "loading" || undefined}
+      className={className}
+    >
+      <CardHeader
+        data-slot="pace-chart-header"
+        className={cn("flex flex-wrap items-center justify-between gap-2", classNames?.header)}
+      >
+        <CardTitle className="min-w-0 truncate">{title}</CardTitle>
+        {slot}
+      </CardHeader>
+      <CardContent>{body}</CardContent>
+    </Card>
+  )
 }
 
 export {

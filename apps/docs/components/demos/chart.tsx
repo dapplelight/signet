@@ -6,7 +6,9 @@ import {
   ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
+  PaceChart,
 } from "@dapplelight/signet-ui/components/chart"
+import { Tabs, TabsList, TabsTrigger } from "@dapplelight/signet-ui/components/tabs"
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, XAxis } from "recharts"
 
 // Docs shows `from "recharts"`; this app does not depend on it, so the demo reuses the copy signet-ui resolves (one instance, as chart context needs).
@@ -96,5 +98,42 @@ export function ChartLegendDemo() {
         <Bar dataKey="expenses" fill="var(--color-expenses)" radius={4} isAnimationActive={false} />
       </BarChart>
     </ChartContainer>
+  )
+}
+
+const week = [
+  { label: "Mon", name: "Monday", used: 60 },
+  { label: "Tue", name: "Tuesday", used: 130 },
+  { label: "Wed", name: "Wednesday", used: 220 },
+  { label: "Thu", name: "Thursday", used: 320 },
+  { label: "Fri", name: "Friday" },
+  { label: "Sat", name: "Saturday" },
+  { label: "Sun", name: "Sunday" },
+]
+
+export function ChartPaceDemo() {
+  return (
+    <PaceChart
+      className="w-full max-w-xl"
+      title="API requests"
+      yAxisTitle="Requests"
+      data={week}
+      limit={500}
+      slot={
+        <Tabs defaultValue="week">
+          <TabsList className="group-data-[orientation=horizontal]/tabs:h-auto md:group-data-[orientation=horizontal]/tabs:h-8">
+            <TabsTrigger value="day" className="h-11 md:h-[calc(100%-1px)]">
+              Day
+            </TabsTrigger>
+            <TabsTrigger value="week" className="h-11 md:h-[calc(100%-1px)]">
+              Week
+            </TabsTrigger>
+            <TabsTrigger value="month" className="h-11 md:h-[calc(100%-1px)]">
+              Month
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      }
+    />
   )
 }
