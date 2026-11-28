@@ -260,9 +260,9 @@ Signet design tokens. One theme file per design system; all themes satisfy CONTR
 
 Signet component kit — token-driven React primitives.
 
-`import { X } from "@dapplelight/signet-ui/components/<name>"` — 61 components:
+`import { X } from "@dapplelight/signet-ui/components/<name>"` — 62 components:
 
-`action-row` · `alert` · `alert-dialog` · `answer-headline` · `avatar` · `badge` · `breadcrumb` · `button` · `calendar` · `card` · `chart` · `checkbox` · `combobox` · `command` · `data-grid` · `data-table` · `decision-callout` · `dialog` · `drawer` · `dropdown-menu` · `emoji-picker` · `empty-state` · `error-state` · `field` · `fold` · `input` · `input-group` · `input-otp` · `kbd` · `label` · `markdown` · `metric-headline` · `pagination` · `pill-group` · `popover` · `privacy-mask` · `progress` · `radio-group` · `responsive-sheet` · `rich-text-editor` · `schema-form` · `search-input` · `select` · `shortcuts` · `sidebar` · `skeleton` · `skip-link` · `slider` · `spinner` · `stage-rail` · `stat-strip` · `stepper` · `switch` · `table` · `tabs` · `textarea` · `theme-provider` · `theme-toggle` · `timeline` · `toast` · `tooltip`
+`action-row` · `alert` · `alert-dialog` · `answer-headline` · `avatar` · `badge` · `breadcrumb` · `button` · `calendar` · `card` · `chart` · `checkbox` · `combobox` · `command` · `data-grid` · `data-table` · `decision-callout` · `dialog` · `drawer` · `dropdown-menu` · `emoji-picker` · `empty-state` · `error-state` · `field` · `fold` · `input` · `input-group` · `input-otp` · `kbd` · `label` · `logo-stack` · `markdown` · `metric-headline` · `pagination` · `pill-group` · `popover` · `privacy-mask` · `progress` · `radio-group` · `responsive-sheet` · `rich-text-editor` · `schema-form` · `search-input` · `select` · `shortcuts` · `sidebar` · `skeleton` · `skip-link` · `slider` · `spinner` · `stage-rail` · `stat-strip` · `stepper` · `switch` · `table` · `tabs` · `textarea` · `theme-provider` · `theme-toggle` · `timeline` · `toast` · `tooltip`
 
 Barrel import also works: `import { Button, Card } from "@dapplelight/signet-ui"`.
 
