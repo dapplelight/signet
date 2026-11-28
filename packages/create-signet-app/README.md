@@ -266,16 +266,21 @@ files are written:
 | `--target` | Entry | Config | Rate limit store |
 |---|---|---|---|
 | `cloudflare` (default) | `src/index.ts` (Worker) | `wrangler.jsonc` | `RateLimitCounter` Durable Object: exact across all instances |
-| `bun` | `src/server.ts` (`Bun.serve`) | `Dockerfile` | in-process: exact for one process only |
-| `node` | `src/server.ts` (`node:http`) | `engines.node >= 22.18` | in-process: exact for one process only |
-| `vercel` | `index.ts` (default export) | `vercel.json` (Hono preset) | in-process: per function instance, so not exact |
+| `bun` | `src/server.ts` (`Bun.serve`) | `Dockerfile` | `memoryStore`: per process, swap in `upstashRateLimitStore` for more than one instance |
+| `deno` | `src/server.ts` (`Deno.serve`) | `Dockerfile` | `memoryStore`: per process, swap in `upstashRateLimitStore` for more than one instance |
+| `node` | `src/server.ts` (`node:http`) | `engines.node >= 22.18` | `memoryStore`: per process, swap in `upstashRateLimitStore` for more than one instance |
+| `vercel` | `index.ts` (default export) | `vercel.json` (Hono preset) | `upstashRateLimitStore` (exact, shared) when `KV_REST_API_URL` and `KV_REST_API_TOKEN` are set; `memoryStore` (per instance) until then |
 
-**Rate limits are not equivalent across targets.** An in-process store is safe
-for a single `bun` or `node` process. Run more than one instance (replicas,
-serverless, a load balancer) and each keeps its own count, so the real limit is
-the configured one times the number of instances. When the limit is an abuse or
-security control, use `cloudflare`, or pass a shared `store` (Redis; Vercel KV is
-[Upstash](https://vercel.com/docs/redis)) to `rateLimit`. Behind a proxy,
+**Rate limits are not equivalent across targets.** The `memoryStore` that `bun`,
+`deno` and `node` start with counts per process: right for a single process.
+Run more than one instance (replicas, a load balancer) and each keeps its own
+count, so the real limit is the configured one times the number of instances.
+For that, pass `upstashRateLimitStore({ url, token })` from
+`@dapplelight/signet-server/adapters/upstash` as the `store` in `src/server.ts`
+(exact, shared, anywhere `fetch` runs), or use `cloudflare`. On `vercel` the
+scaffold already does this: add Upstash Redis from the
+[Vercel Marketplace](https://vercel.com/docs/redis), which sets the two env vars;
+without them `index.ts` falls back to the per-instance `memoryStore`. Behind a proxy,
 the client IP is trusted only as far as you say: on `bun` and `node` set
 `TRUSTED_PROXY_HOPS` to the number of proxies in front, otherwise the socket
 address is used; on Vercel one forwarded hop is trusted.
@@ -286,8 +291,8 @@ from 22.18), so relative imports in the template carry `.ts`. It bridges
 `@hono/node-server`. `vercel` follows [Hono on
 Vercel](https://vercel.com/docs/frameworks/backend/hono); Vercel overwrites
 `x-forwarded-for` with the client IP, so one forwarded hop is trusted. On Vercel
-the in-memory count is per instance; share it through Redis (Vercel KV is
-[Upstash](https://vercel.com/docs/redis)) when it must be exact.
+the count is shared through Upstash Redis once its env vars are set, and per
+instance (`memoryStore`) until then.
 
 The `cloudflare` target is a Hono Worker with:
 
