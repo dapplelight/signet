@@ -44,3 +44,12 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy apps/docs/out --project-name signet-docs --branch main
+
+  # A red PR gets one comment with the failed job's log tail (failure-comment.yml).
+  failure-comment:
+    if: failure()
+    needs: [build]
+    permissions:
+      actions: read
+      pull-requests: write
+    uses: ./.github/workflows/failure-comment.yml

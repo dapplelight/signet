@@ -67,3 +67,12 @@ jobs:
       - run: bun run build:all
       - run: bun run test:runtime
         working-directory: packages/create-signet-app
+
+  # A red PR gets one comment with each failed job's log tail (failure-comment.yml).
+  failure-comment:
+    if: failure()
+    needs: [parts, package-managers, runtimes]
+    permissions:
+      actions: read
+      pull-requests: write
+    uses: ./.github/workflows/failure-comment.yml

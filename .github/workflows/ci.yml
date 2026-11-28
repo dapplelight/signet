@@ -117,6 +117,16 @@ jobs:
       - run: node test/node-smoke.mjs
         working-directory: packages/server
 
+  # A red PR gets one comment with each failed job's log tail, because the
+  # public APIs hide the error text (probe results in failure-comment.yml).
+  failure-comment:
+    if: failure()
+    needs: [check, db-postgres, playwright, node-smoke]
+    permissions:
+      actions: read
+      pull-requests: write
+    uses: ./.github/workflows/failure-comment.yml
+
   scaffolder-e2e:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest

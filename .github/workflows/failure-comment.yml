@@ -1,0 +1,62 @@
+# Called by ci, docs and scaffolder-parts when a PR run fails: posts the tail of
+# each failed job's log as one PR comment (per workflow), so whoever fixes a red
+# PR (a person or an agent with no log access) can see why it failed.
+#
+# Why a comment: the public check-runs and annotations APIs do not carry the
+# error text. Probed 2026-11-28 with no token on a failed `check` job of PR 188
+# (check-runs/137272452798): output.title and output.summary were null, and the
+# annotations were only a Node.js 20 deprecation warning and "Process completed
+# with exit code 1." Job logs need a token even on a public repo.
+#
+# Safe by construction: it runs only on a pull_request from this repo (a fork
+# gets a read-only token, so it is skipped there), asks for the least the
+# default GITHUB_TOKEN needs (read logs, write the comment) and a failed post
+# never turns the job red, because the PR is already red for the real reason.
+name: failure-comment
+
+on:
+  workflow_call:
+
+jobs:
+  comment:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      RUN_ID: ${{ github.run_id }}
+      PR: ${{ github.event.pull_request.number }}
+      SHA: ${{ github.event.pull_request.head.sha }}
+      WORKFLOW: ${{ github.workflow }}
+      # First line of the comment; finds it again so a new push edits it, not adds one.
+      MARKER: "<!-- failure-comment:${{ github.workflow }} -->"
+    steps:
+      - continue-on-error: true
+        run: |
+          body="$MARKER"$'\n'"**$WORKFLOW** failed on commit \`${SHA:0:7}\` ([run]($GITHUB_SERVER_URL/$REPO/actions/runs/$RUN_ID)). Last 50 lines before each failing step's error. If the PR has a newer commit, this log may be out of date."
+          jobs=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" --paginate \
+            --jq '.jobs[] | select(.conclusion=="failure") | [.id, .name] | @tsv')
+          while IFS=$'\t' read -r id name; do
+            [ -n "$id" ] || continue
+            gh api "repos/$REPO/actions/jobs/$id/logs" > "$RUNNER_TEMP/job.log" || continue
+            # The failing step's log ends at its last ##[error] line; what
+            # follows is post-step cleanup.
+            end=$(grep -n '##\[error\]' "$RUNNER_TEMP/job.log" | tail -1 | cut -d: -f1)
+            # Strip colour codes; break up ~~~ so log text cannot close the
+            # fence; cut long lines (50 lines x 200 chars x 5 jobs stays well
+            # under GitHub's 65536 character comment limit).
+            lines=$(head -n "${end:-$(wc -l < "$RUNNER_TEMP/job.log")}" "$RUNNER_TEMP/job.log" | tail -n 50 \
+              | sed -e 's/\x1b\[[0-9;]*m//g' -e 's/~~~/~ ~ ~/g' | cut -c1-200)
+            body+=$'\n\n'"**$name**"$'\n~~~\n'"$lines"$'\n~~~'
+          done <<< "$jobs"
+          body=${body:0:65000}
+          id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith(env.MARKER))) | .id' | tail -1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body" > /dev/null
+          else
+            gh api "repos/$REPO/issues/$PR/comments" -f body="$body" > /dev/null
+          fi
