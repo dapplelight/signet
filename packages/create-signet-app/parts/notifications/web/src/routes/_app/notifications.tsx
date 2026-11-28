@@ -66,7 +66,8 @@ function Notifications() {
         ))}
       </div>
     )
-  } else if (inbox.isError) {
+  } else if (!inbox.data) {
+    // a failed refetch or load-more keeps the old data: only show the error when there is none
     inboxView = (
       <div data-state="error" className={SURFACE}>
         <ErrorState message="Your notifications did not load." onRetry={() => inbox.refetch()} />
@@ -110,7 +111,7 @@ function Notifications() {
         <div data-state="loading" role="status" aria-label="Loading notification settings">
           <Skeleton className="h-40" />
         </div>
-      ) : prefsQuery.isError ? (
+      ) : prefsQuery.isError && !prefs ? (
         <div data-state="error" className={SURFACE}>
           <ErrorState
             message="Your notification settings did not load."
