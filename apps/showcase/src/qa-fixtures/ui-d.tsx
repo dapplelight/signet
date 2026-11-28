@@ -1,6 +1,12 @@
 import { Badge } from "@dapplelight/signet-ui/components/badge"
 import { Button } from "@dapplelight/signet-ui/components/button"
+import {
+  DecisionCallout,
+  DecisionCalloutReason,
+  DecisionCalloutTitle,
+} from "@dapplelight/signet-ui/components/decision-callout"
 import { Spinner } from "@dapplelight/signet-ui/components/spinner"
+import { StageRail } from "@dapplelight/signet-ui/components/stage-rail"
 import { StatStrip } from "@dapplelight/signet-ui/components/stat-strip"
 import { Stepper } from "@dapplelight/signet-ui/components/stepper"
 import { Switch } from "@dapplelight/signet-ui/components/switch"
@@ -175,6 +181,96 @@ function StepperItem() {
           current={1}
           renderIndicator={(i, status) => (status === "complete" ? <CheckIcon /> : `${i + 1}.`)}
         />
+      </Block>
+    </>
+  )
+}
+
+const RUN_STAGES = ["Plan", "Build", "Verify", "Review", "Ship"]
+
+/** The docs' "Run trace" example: a StageRail over a vertical Timeline with one decision. */
+function RunTrace() {
+  return (
+    <div className="max-w-md space-y-6">
+      <StageRail aria-label="Run progress" stages={RUN_STAGES} current={2} />
+      <Timeline aria-label="Run trace">
+        <TimelineItem status="complete">
+          <TimelineMarker />
+          <TimelineConnector />
+          <TimelineTitle>Plan</TimelineTitle>
+          <TimelineTime>09:02</TimelineTime>
+          <TimelineDescription>Split the ticket into 4 tasks</TimelineDescription>
+        </TimelineItem>
+        <TimelineItem status="complete">
+          <TimelineMarker />
+          <TimelineConnector />
+          <TimelineTitle>Build</TimelineTitle>
+          <TimelineTime>09:14</TimelineTime>
+          <TimelineDescription>Changed 7 files, +184 −36</TimelineDescription>
+          <DecisionCallout>
+            <DecisionCalloutTitle>Ran 42 affected tests instead of the full suite</DecisionCalloutTitle>
+            <DecisionCalloutReason>
+              The diff touches 3 of 61 packages; 18 s instead of 6 min.
+            </DecisionCalloutReason>
+          </DecisionCallout>
+        </TimelineItem>
+        <TimelineItem status="current">
+          <TimelineMarker />
+          <TimelineConnector />
+          <TimelineTitle>Verify</TimelineTitle>
+          <TimelineDescription>Running 42 tests</TimelineDescription>
+        </TimelineItem>
+        <TimelineItem status="upcoming">
+          <TimelineMarker />
+          <TimelineConnector />
+          <TimelineTitle>Review</TimelineTitle>
+        </TimelineItem>
+        <TimelineItem status="upcoming">
+          <TimelineMarker />
+          <TimelineConnector />
+          <TimelineTitle>Ship</TimelineTitle>
+        </TimelineItem>
+      </Timeline>
+    </div>
+  )
+}
+
+function StageRailItem() {
+  return (
+    <>
+      <Block title="Run trace (also the docs example)">
+        <RunTrace />
+      </Block>
+      <Block title="Start, and all done">
+        <div className="space-y-4">
+          <StageRail aria-label="Not started" stages={RUN_STAGES} current={0} />
+          <StageRail aria-label="Finished" stages={RUN_STAGES} current={5} />
+        </div>
+      </Block>
+      <Block title="Twelve stages">
+        <StageRail
+          aria-label="Long run"
+          stages={Array.from({ length: 12 }, (_, i) => `Stage ${i + 1}`)}
+          current={7}
+        />
+      </Block>
+    </>
+  )
+}
+
+function DecisionCalloutItem() {
+  return (
+    <>
+      <Block title="In a timeline step">
+        <RunTrace />
+      </Block>
+      <Block title="Long text wraps, never truncates">
+        <DecisionCallout className="max-w-xs">
+          <DecisionCalloutTitle>{`Held the release for ${LONG_NAME} until the migration finished`}</DecisionCalloutTitle>
+          <DecisionCalloutReason>
+            {`${LONG_NAME} has 2,431 rows left to move; the next window opens in 3 h 20 min.`}
+          </DecisionCalloutReason>
+        </DecisionCallout>
       </Block>
     </>
   )
@@ -917,7 +1013,9 @@ function UploadItem() {
 }
 
 export const uiD = {
+  "decision-callout": () => <DecisionCalloutItem />,
   spinner: () => <SpinnerItem />,
+  "stage-rail": () => <StageRailItem />,
   "stat-strip": () => <StatStripItem />,
   stepper: () => <StepperItem />,
   switch: () => <SwitchItem />,

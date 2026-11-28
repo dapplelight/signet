@@ -65,6 +65,9 @@
     "addItem": "Add",
     "removeItem": "Remove",
     "chooseOption": "Choose…",
-    "skipToContent": "Skip to content"
+    "skipToContent": "Skip to content",
+    "stageDone": "done",
+    "stageCurrent": "in progress",
+    "stageUpcoming": "not started"
   }
 }

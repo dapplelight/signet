@@ -1,0 +1,160 @@
+---
+title: "Stage rail"
+description: "A thin row of segments that shows how far a run has got."
+---
+
+import { StageRailDemo, RunTraceDemo } from "@/components/demos/run-trace"
+
+<Preview>
+  <StageRailDemo />
+
+```tsx
+import { StageRail } from "@dapplelight/signet-ui/components/stage-rail"
+
+export function Demo() {
+  return (
+    <StageRail
+      aria-label="Run progress"
+      stages={["Plan", "Build", "Verify", "Review", "Ship"]}
+      current={2}
+      className="max-w-md"
+    />
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+bun path/to/signet/packages/cli/src/index.ts add stage-rail
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { StageRail } from "@dapplelight/signet-ui/components/stage-rail"
+
+<StageRail aria-label="Run progress" stages={["Plan", "Build", "Ship"]} current={1} />
+```
+
+Done stages are filled, the current one is filled and pulses, later ones are empty. The pulse stops when the user prefers reduced motion. Each segment has screen-reader text such as "Verify: in progress"; the rail itself is not interactive and has no tab stop. It uses [Stepper](/docs/components/stepper)'s status rule, so the same `current` works for both.
+
+## Examples
+
+### Run trace
+
+A rail above a vertical [Timeline](/docs/components/timeline) of the same five stages, with a [DecisionCallout](/docs/components/decision-callout) under the step where a decision was made.
+
+<Preview>
+  <RunTraceDemo />
+
+```tsx
+import { DecisionCallout, DecisionCalloutReason, DecisionCalloutTitle } from "@dapplelight/signet-ui/components/decision-callout"
+import { StageRail } from "@dapplelight/signet-ui/components/stage-rail"
+import { Timeline, TimelineConnector, TimelineDescription, TimelineItem, TimelineMarker, TimelineTime, TimelineTitle } from "@dapplelight/signet-ui/components/timeline"
+
+const stages = ["Plan", "Build", "Verify", "Review", "Ship"]
+
+export function Demo() {
+  return (
+    <div className="w-full max-w-md space-y-6">
+      <StageRail aria-label="Run progress" stages={stages} current={2} />
+      <Timeline aria-label="Run trace">
+        <TimelineItem status="complete">
+          <TimelineMarker />
+          <TimelineConnector />
+          <TimelineTitle>Plan</TimelineTitle>
+          <TimelineTime>09:02</TimelineTime>
+          <TimelineDescription>Split the ticket into 4 tasks</TimelineDescription>
+        </TimelineItem>
+        <TimelineItem status="complete">
+          <TimelineMarker />
+          <TimelineConnector />
+          <TimelineTitle>Build</TimelineTitle>
+          <TimelineTime>09:14</TimelineTime>
+          <TimelineDescription>Changed 7 files, +184 −36</TimelineDescription>
+          <DecisionCallout>
+            <DecisionCalloutTitle>Ran 42 affected tests instead of the full suite</DecisionCalloutTitle>
+            <DecisionCalloutReason>
+              The diff touches 3 of 61 packages; 18 s instead of 6 min.
+            </DecisionCalloutReason>
+          </DecisionCallout>
+        </TimelineItem>
+        <TimelineItem status="current">
+          <TimelineMarker />
+          <TimelineConnector />
+          <TimelineTitle>Verify</TimelineTitle>
+          <TimelineDescription>Running 42 tests</TimelineDescription>
+        </TimelineItem>
+        <TimelineItem status="upcoming">
+          <TimelineMarker />
+          <TimelineConnector />
+          <TimelineTitle>Review</TimelineTitle>
+        </TimelineItem>
+        <TimelineItem status="upcoming">
+          <TimelineMarker />
+          <TimelineConnector />
+          <TimelineTitle>Ship</TimelineTitle>
+        </TimelineItem>
+      </Timeline>
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## Customising
+
+1. **Tokens.** The segments use `bg-primary` and `bg-bg-elevated`; change those in your theme.
+2. **Props.** `stages` and `current`. The words screen readers hear (`stageDone`, `stageCurrent`, `stageUpcoming`) come from `LabelsProvider`, so an app can translate them.
+3. **`className`.** Merged onto the root, for example `max-w-md`.
+4. **`classNames`.** `segment` and `label` replace or extend the classes of every segment and of its screen-reader text.
+5. **Own the source.** `signet add stage-rail` copies the file into your project.
+
+## API Reference
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `stages` | `ReactNode[]` | `-` | One title per stage, read out by screen readers. Empty renders nothing. |
+| `current` | `number` | `-` | Index of the current stage, from 0. Earlier stages are done; past the end, all are; below 0, none. |
+| `aria-label` | `string` | `-` | Required. Names the rail for screen readers, like "Run progress". |
+| `classNames` | `Partial<Record<"segment" \| "label", string>>` | `{}` | Classes for each segment and its screen-reader text. |
+| `className` | `string` | `-` | Merged onto the root. |
+
+Plus every native `<div>` prop except `children`.
+
+| Label key | Default |
+| --- | --- |
+| `stageDone` | `"done"` |
+| `stageCurrent` | `"in progress"` |
+| `stageUpcoming` | `"not started"` |
