@@ -68,6 +68,8 @@
     "skipToContent": "Skip to content",
     "stageDone": "done",
     "stageCurrent": "in progress",
-    "stageUpcoming": "not started"
+    "stageUpcoming": "not started",
+    "showMore": "Show more",
+    "showLess": "Show less"
   }
 }

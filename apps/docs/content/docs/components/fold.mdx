@@ -1,0 +1,134 @@
+---
+title: "Fold"
+description: "Long text behind one row, with a Show more link. Opens in place, no popup."
+---
+
+import { FoldDemo, FoldOpenDemo, FoldCopyDemo } from "@/components/demos/fold"
+
+<Preview>
+  <FoldDemo />
+
+```tsx
+import { Fold } from "@dapplelight/signet-ui/components/fold"
+
+const notes = `Changed **packages/ui** only.
+
+- Added the Fold component and its tests
+- Reused Markdown for the body`
+
+export function Demo() {
+  return (
+    <Fold title="Builder notes" detail="12 lines, written by the builder">
+      {notes}
+    </Fold>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+bun path/to/signet/packages/cli/src/index.ts add fold
+```
+
+</Tab>
+</Tabs>
+
+The body is rendered by [Markdown](/docs/components/markdown), so Fold needs its optional peers (`react-markdown`, `remark-gfm`, `remark-parse`, `unified`, `github-slugger`). That is why it is imported from `components/fold` and not the barrel.
+
+## Usage
+
+```tsx
+import { Fold } from "@dapplelight/signet-ui/components/fold"
+
+<Fold title="Builder notes" detail="12 lines, written by the builder">
+  {markdown}
+</Fold>
+```
+
+The toggle is a real button: Enter and Space work, `aria-expanded` announces open or closed, and `aria-controls` points at the text. The text is capped at about 66 characters wide.
+
+## Examples
+
+### Open at first
+
+<Preview>
+  <FoldOpenDemo />
+
+```tsx
+<Fold title="Builder notes" detail="12 lines, written by the builder" defaultOpen>
+  {markdown}
+</Fold>
+```
+
+</Preview>
+
+### Your own words and styles
+
+<Preview>
+  <FoldCopyDemo />
+
+```tsx
+<Fold
+  title="Release notes"
+  detail="written by the team"
+  showMoreLabel="Read on"
+  showLessLabel="Fold up"
+  classNames={{ detail: "italic" }}
+>
+  {markdown}
+</Fold>
+```
+
+</Preview>
+
+## Customising
+
+- **Tokens:** it uses theme utilities only, so a theme change restyles it.
+- **Words:** `showMoreLabel` / `showLessLabel`, or `showMore` / `showLess` once for the app through `LabelsProvider`.
+- **Classes and state:** `className`, `classNames` per part (`header`, `title`, `detail`, `toggle`, `body`, `markdown`) and `data-state="open|closed"`.
+- **Parts:** `FoldRoot`, `FoldHeader`, `FoldTitle`, `FoldDetail`, `FoldToggle`, `FoldBody` to build your own row (a badge in the header, plain text in the body).
+- **Own the code:** `signet add fold` copies the file in.
+
+## API Reference
+
+### Fold
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| title | `ReactNode` | - | The row's title. |
+| detail | `ReactNode` | - | Muted text beside the title. |
+| children | `string` | - | The long text, as Markdown. |
+| open | `boolean` | - | Controlled state. |
+| defaultOpen | `boolean` | `false` | Start open. |
+| onOpenChange | `(open: boolean) => void` | - | Called when the link is used. |
+| showMoreLabel | `string` | `"Show more"` | Link text while closed. |
+| showLessLabel | `string` | `"Show less"` | Link text while open. |
+| markdown | `Omit<MarkdownProps, "children">` | - | Passed to the Markdown renderer. |
+| classNames | `{ header?; title?; detail?; toggle?; body?; markdown? }` | - | Class per part. |

@@ -62,6 +62,8 @@ export const defaultLabels = {
   stageDone: "done",
   stageCurrent: "in progress",
   stageUpcoming: "not started",
+  showMore: "Show more",
+  showLess: "Show less",
 }
 
 export type Labels = typeof defaultLabels

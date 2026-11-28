@@ -52,6 +52,7 @@ import {
   InputGroupText,
   InputGroupTextarea,
 } from "@dapplelight/signet-ui/components/input-group"
+import { Fold } from "@dapplelight/signet-ui/components/fold"
 import {
   InputOTP,
   InputOTPGroup,
@@ -147,6 +148,14 @@ const MARKDOWN = [
   "",
   "A [bad link](javascript:alert(1)) keeps its text but loses the link.",
 ].join("\n")
+
+const FOLD_NOTES = `Changed \`packages/ui\` only.
+
+- Added the **Fold** component and its tests
+- Reused \`Markdown\` for the body, so links and lists render safely
+- Left every existing component as it was
+
+Run \`bun run test\` in \`packages/ui\` to check it.`
 
 export const uiB = {
   dialog: () => (
@@ -679,6 +688,17 @@ export const uiB = {
         className="md:w-56 md:shrink-0"
       />
       <Markdown className="min-w-0 flex-1">{MARKDOWN}</Markdown>
+    </div>
+  ),
+
+  fold: () => (
+    <div className="grid max-w-xl gap-6">
+      <Fold title="Builder notes" detail="12 lines, written by the builder">
+        {FOLD_NOTES}
+      </Fold>
+      <Fold title="Builder notes" detail="12 lines, written by the builder" defaultOpen>
+        {FOLD_NOTES}
+      </Fold>
     </div>
   ),
 

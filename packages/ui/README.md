@@ -65,7 +65,7 @@ Optional (`peerDependenciesMeta`), needed only for the component named:
 |---|---|---|
 | `recharts` | `>=3.8.0 <4` | `chart`, `screens/cost-dashboard`, `screens/subscription-charts` |
 | `@tanstack/react-hotkeys` | `>=0.12.0 <0.13.0` | `shortcuts` |
-| `react-markdown`, `remark-gfm`, `remark-parse`, `unified`, `github-slugger` | `>=10.0.0`, `>=4.0.0`, `>=11.0.0`, `>=11.0.0`, `>=2.0.0` | `markdown` |
+| `react-markdown`, `remark-gfm`, `remark-parse`, `unified`, `github-slugger` | `>=10.0.0`, `>=4.0.0`, `>=11.0.0`, `>=11.0.0`, `>=2.0.0` | `markdown`, `fold` |
 | `@tiptap/react`, `@tiptap/pm`, `@tiptap/starter-kit`, `@tiptap/extension-mention`, `@tiptap/extension-link` | `>=3.34.0 <4` | `rich-text-editor` |
 | `@autoform/react`, `@autoform/zod`, `@tanstack/react-form`, `zod` | `^5.0.0`, `^6.0.0`, `^1.0.0`, `^4.0.0` | `schema-form` |
 
@@ -75,7 +75,8 @@ Optional (`peerDependenciesMeta`), needed only for the component named:
   and the rest. There is no `sheet` component: use `drawer` or
   `responsive-sheet` for sheets.
 - Extras: a virtualised `data-table`, `combobox`, `stat-strip`,
-  `responsive-sheet`, `markdown` (safe by default), `emoji-picker`.
+  `responsive-sheet`, `markdown` (safe by default), `fold` (long text behind a Show more link),
+  `emoji-picker`.
 - Basics on UI SDK behaviours (see below): `toast`, `alert-dialog`, `field`,
   `avatar`, `radio-group`, `command` (with a ⌘K `CommandDialog`), `timeline`,
   `stepper`, `sidebar`, `breadcrumb`, `spinner`. `toast` has sonner's API
