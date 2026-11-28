@@ -5,6 +5,16 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### ui: StageRail and DecisionCallout
+
+- `StageRail` (from `stage-rail`): a row of equal segments, one per stage of a run. Done stages are filled, the current one is filled and pulses (not under reduced motion), later ones are empty. Each segment has screen-reader text ("Verify: in progress"). Takes `stages`, `current`, a required `aria-label` and `classNames` (`segment`, `label`).
+- `DecisionCallout`, `DecisionCalloutTitle`, `DecisionCalloutReason` (from `decision-callout`): a tinted box for a timeline step, with one bold line for what was decided and one quieter line for why. A plain div, not an Alert, so it is not announced.
+- `defaultLabels` gains `stageDone`, `stageCurrent` and `stageUpcoming`. Nothing existing changes.
+
+### create-signet-app: locale keys for StageRail
+
+`src/locales/en.json` gains the `signet` keys `stageDone`, `stageCurrent` and `stageUpcoming`. Needs the new `@dapplelight/signet-ui`.
+
 ### signet-ui: action row
 
 - New `./components/action-row`: `ActionRow` shows one item that waits on the user: an icon, a title, one sentence and a button group. On narrow screens the buttons move under the text, full width and at least 44px tall. `tone` is `neutral`, `ask` or `warn` (amber, never red). Parts (`ActionRowRoot`, `ActionRowIcon`, `ActionRowBody`, `ActionRowTitle`, `ActionRowDescription`, `ActionRowActions`), `classNames` and `data-*` hooks; `signet add action-row` copies it in.
