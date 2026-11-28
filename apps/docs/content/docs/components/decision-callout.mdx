@@ -1,0 +1,133 @@
+---
+title: "Decision callout"
+description: "A tinted note inside a timeline step: what was decided, and why."
+---
+
+import { RunTraceDemo } from "@/components/demos/run-trace"
+
+<Preview>
+  <RunTraceDemo />
+
+```tsx
+import { DecisionCallout, DecisionCalloutReason, DecisionCalloutTitle } from "@dapplelight/signet-ui/components/decision-callout"
+import { StageRail } from "@dapplelight/signet-ui/components/stage-rail"
+import { Timeline, TimelineConnector, TimelineDescription, TimelineItem, TimelineMarker, TimelineTime, TimelineTitle } from "@dapplelight/signet-ui/components/timeline"
+
+const stages = ["Plan", "Build", "Verify", "Review", "Ship"]
+
+export function Demo() {
+  return (
+    <div className="w-full max-w-md space-y-6">
+      <StageRail aria-label="Run progress" stages={stages} current={2} />
+      <Timeline aria-label="Run trace">
+        <TimelineItem status="complete">
+          <TimelineMarker />
+          <TimelineConnector />
+          <TimelineTitle>Plan</TimelineTitle>
+          <TimelineTime>09:02</TimelineTime>
+          <TimelineDescription>Split the ticket into 4 tasks</TimelineDescription>
+        </TimelineItem>
+        <TimelineItem status="complete">
+          <TimelineMarker />
+          <TimelineConnector />
+          <TimelineTitle>Build</TimelineTitle>
+          <TimelineTime>09:14</TimelineTime>
+          <TimelineDescription>Changed 7 files, +184 −36</TimelineDescription>
+          <DecisionCallout>
+            <DecisionCalloutTitle>Ran 42 affected tests instead of the full suite</DecisionCalloutTitle>
+            <DecisionCalloutReason>
+              The diff touches 3 of 61 packages; 18 s instead of 6 min.
+            </DecisionCalloutReason>
+          </DecisionCallout>
+        </TimelineItem>
+        <TimelineItem status="current">
+          <TimelineMarker />
+          <TimelineConnector />
+          <TimelineTitle>Verify</TimelineTitle>
+          <TimelineDescription>Running 42 tests</TimelineDescription>
+        </TimelineItem>
+        <TimelineItem status="upcoming">
+          <TimelineMarker />
+          <TimelineConnector />
+          <TimelineTitle>Review</TimelineTitle>
+        </TimelineItem>
+        <TimelineItem status="upcoming">
+          <TimelineMarker />
+          <TimelineConnector />
+          <TimelineTitle>Ship</TimelineTitle>
+        </TimelineItem>
+      </Timeline>
+    </div>
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+bun path/to/signet/packages/cli/src/index.ts add decision-callout
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { DecisionCallout, DecisionCalloutReason, DecisionCalloutTitle } from "@dapplelight/signet-ui/components/decision-callout"
+
+<TimelineItem status="complete">
+  <TimelineMarker />
+  <TimelineTitle>Build</TimelineTitle>
+  <DecisionCallout>
+    <DecisionCalloutTitle>Ran 42 affected tests instead of the full suite</DecisionCalloutTitle>
+    <DecisionCalloutReason>The diff touches 3 of 61 packages; 18 s instead of 6 min.</DecisionCalloutReason>
+  </DecisionCallout>
+</TimelineItem>
+```
+
+It sits in the text column of a [Timeline](/docs/components/timeline) item, under the step's own text. It is a plain `div`, not an [Alert](/docs/components/alert), so screen readers do not announce each decision as it appears. Long text wraps. The reason line uses `text-text-secondary`, because `text-text-muted` does not reach 4.5:1 on the tint in every theme.
+
+## Customising
+
+1. **Tokens.** The box is tinted with `accent-primary-subtle`, so it follows your primary colour.
+2. **Props.** Children only: a title line and a reason line. Add an icon from lucide inside the title if you want one.
+3. **`className`.** Every part takes one, merged over the defaults.
+4. **Parts.** `DecisionCallout`, `DecisionCalloutTitle` and `DecisionCalloutReason` each carry a `data-slot` (`decision-callout`, `decision-callout-title`, `decision-callout-reason`) to target from CSS.
+5. **Own the source.** `signet add decision-callout` copies the file into your project.
+
+## API Reference
+
+| Part | Element | Default classes |
+| --- | --- | --- |
+| `DecisionCallout` | `div` | `col-start-2 mt-2 rounded-md bg-accent-primary-subtle px-3 py-2` |
+| `DecisionCalloutTitle` | `p` | `text-sm font-semibold text-text-primary` |
+| `DecisionCalloutReason` | `p` | `text-xs text-text-secondary tabular-nums` |
+
+Each takes `className` and every native prop of its element.

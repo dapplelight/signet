@@ -20,7 +20,7 @@ import {
   toDesignTokens,
   toFigmaVariables,
 } from "../src/theme"
-import { block, over, PAIRS, ratio, resolve, tinted } from "./contrast"
+import { block, CALLOUT_TEXT, CALLOUT_TINT, over, PAIRS, ratio, resolve, tinted } from "./contrast"
 
 let pass = 0,
   fail = 0
@@ -93,6 +93,16 @@ for (const brand of brands) {
           need(`${x.name} (${x.text})`, on, 4.5, f, b)
         }
       }
+      // DecisionCallout text over its tint of --primary.
+      for (const fg of CALLOUT_TEXT)
+        for (const on of ["--bg-base", "--bg-surface"])
+          need(
+            `DecisionCallout ${fg}`,
+            on,
+            4.5,
+            v[fg],
+            over(v["--primary"] as string, v[on] as string, CALLOUT_TINT),
+          )
       // Pairs the shipped themes pass by inspection, guaranteed here.
       for (const bg of ["--bg-surface", "--bg-elevated", "--card", "--popover"])
         for (const fg of ["--text-primary", "--text-secondary", "--text-muted"]) need(fg, bg, 4.5)
