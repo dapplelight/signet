@@ -61,6 +61,7 @@ import {
 } from "@dapplelight/signet-ui/components/input-otp"
 import { Kbd, KeySequence } from "@dapplelight/signet-ui/components/kbd"
 import { Label } from "@dapplelight/signet-ui/components/label"
+import { LogoStack, type LogoStackMarkData } from "@dapplelight/signet-ui/components/logo-stack"
 import {
   DEFAULT_ID_PREFIX,
   Markdown,
@@ -99,7 +100,33 @@ function Block({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
-const LONG_NAME = "Northwind Ltd Quarterly Settlement Account for Regional Distribution Partners"
+type LogoMark = LogoStackMarkData
+
+const svg = (body: string) => `data:image/svg+xml,${encodeURIComponent(body)}`
+const logo = (letter: string, fill: string): LogoMark => ({
+  src: svg(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" fill="${fill}"/><text x="16" y="22.5" font-family="sans-serif" font-size="18" font-weight="700" text-anchor="middle" fill="#fff">${letter}</text></svg>`,
+  ),
+  alt: `${letter} project`,
+})
+const darkLogo = (letter: string): LogoMark => ({
+  src: svg(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><text x="16" y="24" font-family="sans-serif" font-size="26" font-weight="800" text-anchor="middle" fill="#111">${letter}</text></svg>`,
+  ),
+  alt: `${letter} project`,
+  lightTile: true,
+})
+const LOGOS: LogoMark[] = [
+  logo("A", "#2563eb"),
+  logo("G", "#059669"),
+  logo("H", "#d97706"),
+  logo("I", "#7c3aed"),
+  logo("U", "#dc2626"),
+  logo("S", "#0891b2"),
+]
+const DARK_LOGOS: LogoMark[] = [darkLogo("N"), darkLogo("V")]
+
+const LONG_NAME ="Northwind Ltd Quarterly Settlement Account for Regional Distribution Partners"
 
 const MARKDOWN = [
   "# Settlement report",
@@ -675,6 +702,26 @@ export const uiB = {
           <Label htmlFor="qa-label-long">{`Legal name of the registered entity as it appears on ${LONG_NAME}`}</Label>
           <Input id="qa-label-long" defaultValue={LONG_NAME} />
         </div>
+      </Block>
+    </div>
+  ),
+
+  "logo-stack": () => (
+    <div className="grid max-w-md gap-6">
+      <Block title="Four marks: no +N">
+        <LogoStack marks={LOGOS.slice(0, 4)} />
+      </Block>
+      <Block title="Six marks: four and +2">
+        <LogoStack marks={LOGOS} />
+      </Block>
+      <Block title="Dark marks with lightTile, sizes sm and lg">
+        <div className="flex flex-col items-start gap-3">
+          <LogoStack size="sm" marks={[LOGOS[0] as LogoMark, ...DARK_LOGOS]} />
+          <LogoStack size="lg" marks={[LOGOS[0] as LogoMark, ...DARK_LOGOS]} />
+        </div>
+      </Block>
+      <Block title="Broken image: initials stand in">
+        <LogoStack marks={[{ src: "data:,", alt: "Northwind Ltd" }, ...LOGOS.slice(0, 2)]} />
       </Block>
     </div>
   ),

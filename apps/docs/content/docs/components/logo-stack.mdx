@@ -1,0 +1,176 @@
+---
+title: "Logo Stack"
+description: "An overlapping row of square project marks, with a +N mark when there are more."
+---
+
+import { LogoStackDemo, LogoStackMoreDemo, LogoStackDarkMarksDemo, LogoStackSizesDemo } from "@/components/demos/logo-stack"
+
+<Preview>
+  <LogoStackDemo />
+
+```tsx
+import { LogoStack } from "@dapplelight/signet-ui/components/logo-stack"
+
+export function Demo() {
+  return (
+    <LogoStack
+      marks={[
+        { src: "/logos/acme-billing.svg", alt: "Acme Billing" },
+        { src: "/logos/globex-mobile.svg", alt: "Globex Mobile" },
+        { src: "/logos/hooli-search.svg", alt: "Hooli Search" },
+      ]}
+    />
+  )
+}
+```
+
+</Preview>
+
+## Installation
+
+<Tabs items={["npm", "pnpm", "bun", "copy source"]}>
+<Tab value="npm">
+
+```bash
+npm i @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="bun">
+
+```bash
+bun add @dapplelight/signet-ui
+```
+
+</Tab>
+<Tab value="copy source">
+
+```bash
+bun path/to/signet/packages/cli/src/index.ts add logo-stack
+```
+
+</Tab>
+</Tabs>
+
+## Usage
+
+```tsx
+import { LogoStack } from "@dapplelight/signet-ui/components/logo-stack"
+
+<LogoStack marks={[{ src: "/logos/acme-billing.svg", alt: "Acme Billing" }]} />
+```
+
+Built on [Avatar](/docs/components/avatar): each mark is a real `img` the browser can fetch before hydration, and the initials of its `alt` show until it loads or if it fails. Marks are square with 5px corners and a 2px ring in the page colour (`ring-background`), so put the stack on the page background or set `ring-*` for another surface. Later marks sit on top of earlier ones.
+
+## Examples
+
+### More than four
+
+Past `max` (4) the rest collapse into one "+N" mark. Its accessible name is "2 more".
+
+<Preview>
+  <LogoStackMoreDemo />
+
+```tsx
+import { LogoStack } from "@dapplelight/signet-ui/components/logo-stack"
+
+<LogoStack
+  marks={[
+    { src: "/logos/acme-billing.svg", alt: "Acme Billing" },
+    { src: "/logos/globex-mobile.svg", alt: "Globex Mobile" },
+    { src: "/logos/hooli-search.svg", alt: "Hooli Search" },
+    { src: "/logos/initech-reports.svg", alt: "Initech Reports" },
+    { src: "/logos/umbrella-docs.svg", alt: "Umbrella Docs" },
+    { src: "/logos/stark-console.svg", alt: "Stark Console" },
+  ]}
+/>
+```
+
+</Preview>
+
+### Dark marks on a dark page
+
+A mark that is dark on a dark page disappears. Set `lightTile` on that mark and it gets a light tile behind it in dark mode. Signet never guesses from the image: you know which of your logos are dark. On a light page `lightTile` does nothing. Switch the docs theme to dark to see the first and third mark.
+
+<Preview>
+  <LogoStackDarkMarksDemo />
+
+```tsx
+import { LogoStack } from "@dapplelight/signet-ui/components/logo-stack"
+
+<LogoStack
+  marks={[
+    { src: "/logos/northwind-ledger.svg", alt: "Northwind Ledger", lightTile: true },
+    { src: "/logos/globex-mobile.svg", alt: "Globex Mobile" },
+    { src: "/logos/vandelay-import.svg", alt: "Vandelay Import", lightTile: true },
+  ]}
+/>
+```
+
+</Preview>
+
+### Size
+
+<Preview>
+  <LogoStackSizesDemo />
+
+```tsx
+import { LogoStack } from "@dapplelight/signet-ui/components/logo-stack"
+
+<LogoStack size="sm" marks={marks} />
+<LogoStack marks={marks} />
+<LogoStack size="lg" marks={marks} />
+```
+
+</Preview>
+
+## Customising
+
+Five levels, use the lowest that does the job.
+
+1. **Tokens.** The marks read `--color-background` (the ring), `--color-bg-elevated` (the tile while an image loads and behind the "+N"), and `--color-text-secondary`. The 5px corner is fixed. A theme changes the colours everywhere.
+2. **Props and text.** `marks` (`{ src, alt, lightTile? }`), `max`, `size` (`sm`, `default`, `lg`) and `moreLabel` for the "+N" mark's accessible name. The only built-in copy is the default "N more".
+3. **className and data-\* hooks.** `className` and any `data-*` or `aria-*` prop go on the root. `classNames={{ mark, more }}` styles every mark or the "+N". Style from CSS with `[data-slot=logo-stack]`, `[data-logo-mark]`, `[data-light-tile=true]` and `[data-slot=logo-stack-more]`.
+4. **Parts.** Build your own row from `LogoStackRoot`, `LogoStackMark` and `LogoStackMore`, for example to link each mark or to show a different cap.
+5. **Copy-in.** `signet add logo-stack` copies the file into your app to edit.
+
+```tsx
+import {
+  LogoStackMark,
+  LogoStackMore,
+  LogoStackRoot,
+} from "@dapplelight/signet-ui/components/logo-stack"
+
+<LogoStackRoot data-testid="projects">
+  <LogoStackMark src="/logos/acme-billing.svg" alt="Acme Billing" size="lg" />
+  <LogoStackMark src="/logos/northwind-ledger.svg" alt="Northwind Ledger" size="lg" lightTile />
+  <LogoStackMore count={7} size="lg" />
+</LogoStackRoot>
+```
+
+## API Reference
+
+### LogoStack
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| marks | `{ src: string; alt: string; lightTile?: boolean }[]` | - | The marks, in order. `alt` is the project name. `lightTile`: light tile behind a dark mark on a dark page. |
+| max | `number` | `4` | Most marks shown before the "+N" mark. |
+| size | `"sm" \| "default" \| "lg"` | `"default"` | 24px, 32px or 40px. |
+| moreLabel | `(count: number) => string` | `` `${n} more` `` | Accessible name of the "+N" mark. |
+| classNames | `{ mark?; more? }` | - | Class per part. |
+
+### LogoStackMark
+
+Takes `src`, `alt`, `lightTile`, `size` and every `Avatar` prop.
+
+### LogoStackMore
+
+Takes `count`, `size` and every `span` prop. `children` replaces the "+N" text.

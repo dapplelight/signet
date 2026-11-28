@@ -41,6 +41,7 @@ const UI = [
   "input",
   "kbd",
   "label",
+  "logo-stack",
   "markdown",
   "metric-headline",
   "pagination",
