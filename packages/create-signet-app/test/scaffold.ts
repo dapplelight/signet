@@ -82,6 +82,50 @@ try {
   ok("theme substituted", appCss.includes("cinematic.css"))
   const html = readFileSync(join(DIR, "index.html"), "utf8")
   ok("app name substituted", html.includes(`<title>${NAME}</title>`))
+
+  // Install launch screen: colours follow the theme's own --background tokens
+  // (cinematic launches dark), and every icon the manifest names ships.
+  const bg = (theme: string) => {
+    const css = readFileSync(join(ROOT, `packages/tokens/src/themes/${theme}.css`), "utf8")
+    // A value may be var(--color-warm-50); resolve it to the hex it names.
+    const hex = (v: string) => {
+      const ref = v.match(/var\((--[\w-]+)\)/)?.[1]
+      return ref ? css.match(new RegExp(`${ref}:\\s*(#[0-9a-f]{6})`, "i"))?.[1] : v
+    }
+    const v = [...css.matchAll(/--background:\s*([^;]+);/g)].map((m) =>
+      hex(m[1].trim())?.toLowerCase(),
+    )
+    return { light: v[0], dark: v[1] }
+  }
+  const cine = bg("cinematic")
+  const vite = readFileSync(join(DIR, "vite.config.ts"), "utf8")
+  ok(
+    "manifest launches on the theme's dark background",
+    vite.includes(`background_color: "${cine.dark}"`),
+  )
+  ok("manifest theme_color set", vite.includes(`theme_color: "${cine.dark}"`))
+  ok(
+    "theme-color meta per scheme",
+    html.includes(`content="${cine.light}" media="(prefers-color-scheme: light)"`) &&
+      html.includes(`content="${cine.dark}" media="(prefers-color-scheme: dark)"`),
+  )
+  const icons = [...vite.matchAll(/src: "\/([\w-]+\.png)"/g)].map((m) => m[1])
+  ok(
+    "manifest icons ship in public/",
+    icons.length === 3 &&
+      [...icons, "apple-touch-icon.png"].every((f) => existsSync(join(DIR, "public", f))),
+    icons.join(","),
+  )
+  // THEME_BG in src/index.ts must match the token files for every theme.
+  const src = readFileSync(join(ROOT, "packages/create-signet-app/src/index.ts"), "utf8")
+  for (const t of ["editorial", "cinematic"]) {
+    const { light, dark } = bg(t)
+    ok(
+      `THEME_BG.${t} matches tokens`,
+      src.includes(`${t}: { light: "${light}", dark: "${dark}"`),
+      `${light} ${dark}`,
+    )
+  }
   // Check the real placeholder tokens, not any "__" — the test app is named
   // __scaffold_test__, which legitimately contains double underscores.
   const anyPlaceholder = (t: string) => t.includes("__APP_NAME__") || t.includes("__THEME__")

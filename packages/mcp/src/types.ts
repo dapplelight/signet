@@ -122,6 +122,8 @@ export type SignetIndex = {
   blocks: BlockInfo[]
   scaffold: {
     themes: string[]
+    /** Each theme's `--background` for the install manifest, as create-signet-app fills `__BG_*__`. */
+    themeBg: Record<string, { light: string; dark: string; launch: "light" | "dark" }>
     /** create-signet-app's starters: name to its one-line description. */
     starters: Record<string, string>
     web: ScaffoldTemplate

@@ -60,6 +60,17 @@ import {
 
 const THEMES = ["editorial", "cinematic", "finance"] as const
 type Theme = (typeof THEMES)[number]
+/**
+ * Each theme's `--background` (light, dark) from packages/tokens/src/themes,
+ * for the install manifest and theme-color: an installed app launches on this
+ * colour instead of a white flash. `launch` is the theme's own first mode.
+ * test/scaffold.ts fails if these drift from the token files.
+ */
+const THEME_BG: Record<Theme, { light: string; dark: string; launch: "light" | "dark" }> = {
+  editorial: { light: "#faf9f7", dark: "#0d0d0b", launch: "light" },
+  cinematic: { light: "#ffffff", dark: "#08080c", launch: "dark" },
+  finance: { light: "#faf9f7", dark: "#0d0d0b", launch: "light" },
+}
 // --template is the old name for --platform, kept working; its `full` is now `--starter full`.
 const TEMPLATES = [...PLATFORMS, "full"] as const
 type Template = (typeof TEMPLATES)[number]
@@ -890,6 +901,9 @@ async function main() {
     __APP_NAME__: appName,
     __APP_ID__: appId(appName),
     __THEME__: theme,
+    __BG_LAUNCH__: THEME_BG[theme][THEME_BG[theme].launch],
+    __BG_LIGHT__: THEME_BG[theme].light,
+    __BG_DARK__: THEME_BG[theme].dark,
     __PM_INSTALL__: PM[pm].install,
     __PM_RUN__: PM[pm].run,
     __PM_X__: PM[pm].x,

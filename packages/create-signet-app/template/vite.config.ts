@@ -13,8 +13,9 @@ export default defineConfig({
     react(),
     tailwindcss(),
     // Installable app + offline: src/sw.ts is the service worker (precache,
-    // public/offline.html fallback, update on "Reload", web push). Add icons
-    // (192 and 512 px PNGs in public/) to the manifest for the install prompt.
+    // public/offline.html fallback, update on "Reload", web push). The icons in
+    // public/ are neutral placeholders: replace them with your own at the same
+    // sizes. background_color is the launch screen an installed app opens on.
     VitePWA({
       registerType: "prompt",
       strategies: "injectManifest",
@@ -26,7 +27,13 @@ export default defineConfig({
         display: "standalone",
         start_url: "/",
         scope: "/",
-        icons: [],
+        background_color: "__BG_LAUNCH__",
+        theme_color: "__BG_LAUNCH__",
+        icons: [
+          { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
+          { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+          { src: "/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+        ],
       },
     }),
   ],
