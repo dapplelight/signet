@@ -46,7 +46,7 @@
     "prepublishOnly": "bun run build"
   },
   "dependencies": {
-    "@dapplelight/signet-server": "^0.6.0"
+    "@dapplelight/signet-server": "^0.7.0"
   },
   "peerDependencies": {
     "@modelcontextprotocol/server": "^2.4.0",
