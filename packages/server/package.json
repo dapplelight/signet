@@ -1,6 +1,6 @@
 {
   "name": "@dapplelight/signet-server",
-  "version": "0.6.9",
+  "version": "0.7.0",
   "license": "MIT",
   "description": "Signet backend primitives. Auth first.",
   "keywords": [

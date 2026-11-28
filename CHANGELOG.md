@@ -5,6 +5,12 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-server (minor): trust "cloudflare" is believed only on Cloudflare Workers
+
+- **Breaking for apps that run `trust: "cloudflare"` off Workers.** `clientIp(c, "cloudflare")`, `rateLimit({ trust: "cloudflare" })`, `requireCaptcha` and `clientLoginRoutes` now read `cf-connecting-ip` only when `navigator.userAgent` is `"Cloudflare-Workers"`. On Node, Bun or Deno the origin can be reached directly, where a client sets that header itself and picks its own rate-limit bucket; there the header is ignored and the client has no IP, so `onNoIp` applies (default `"bucket"`: one shared bucket per limiter).
+- New `trust: { cloudflare: { originLocked: true } }` reads `cf-connecting-ip` on any runtime. Use it only when the origin accepts connections solely from Cloudflare's IP ranges (firewall, Authenticated Origin Pulls or a tunnel); otherwise it is as spoofable as before.
+- **Migration:** on Workers nothing changes. On Node, Bun or Deno behind Cloudflare, lock the origin to Cloudflare's ranges and switch to `{ cloudflare: { originLocked: true } }`, or use `{ forwardedHops: n }` for your own proxies. Tests that run `trust: "cloudflare"` with a `cf-connecting-ip` header under Bun or Node must pose as Workers: `Object.defineProperty(navigator, "userAgent", { value: "Cloudflare-Workers", configurable: true })`.
+
 ### create-signet-app: notifications screen shows loading and error states
 
 - The scaffolded notifications route no longer says "You're all caught up" while loading or after a failed load. It shows skeletons while loading and an error with a retry button when the inbox or the settings fail to load, each section independently.
