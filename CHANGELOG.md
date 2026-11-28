@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-ui: pace chart
+
+- New `PaceChart` in `./components/chart`: usage against an even pace and a limit, with a dashed on-pace line, the solid used line, a dashed amber projection from Now to the limit, a Now marker, a limit point, a slot in the header for a Day / Week / Month selector, and one screen-reader sentence per part. Label, colour, className and hide per part. `ChartContainer` and the existing charts are unchanged.
+
 ### ui: StageRail and DecisionCallout
 
 - `StageRail` (from `stage-rail`): a row of equal segments, one per stage of a run. Done stages are filled, the current one is filled and pulses (not under reduced motion), later ones are empty. Each segment has screen-reader text ("Verify: in progress"). Takes `stages`, `current`, a required `aria-label` and `classNames` (`segment`, `label`).

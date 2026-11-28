@@ -3,7 +3,7 @@ title: "Chart"
 description: "Beautiful charts built on recharts, coloured by the active theme."
 ---
 
-import { ChartDemo, ChartLineDemo, ChartAreaDemo, ChartLegendDemo } from "@/components/demos/chart"
+import { ChartDemo, ChartLineDemo, ChartAreaDemo, ChartLegendDemo, ChartPaceDemo } from "@/components/demos/chart"
 
 <Preview>
   <ChartDemo />
@@ -177,6 +177,50 @@ import { ChartLegend, ChartLegendContent } from "@dapplelight/signet-ui/componen
 
 </Preview>
 
+### Pace
+
+`PaceChart` shows usage against an even pace and a limit: the even-pace line (dashed, grey), what is used so far (solid), a projection from Now to where use would hit the limit (dashed, amber), a Now marker and the limit point. Segments are straight, gridlines are horizontal, and the card header takes any node in `slot`, here Day, Week and Month tabs.
+
+<Preview>
+  <ChartPaceDemo />
+
+```tsx
+import { PaceChart } from "@dapplelight/signet-ui/components/chart"
+import { Tabs, TabsList, TabsTrigger } from "@dapplelight/signet-ui/components/tabs"
+
+const week = [
+  { label: "Mon", name: "Monday", used: 60 },
+  { label: "Tue", name: "Tuesday", used: 130 },
+  { label: "Wed", name: "Wednesday", used: 220 },
+  { label: "Thu", name: "Thursday", used: 320 },
+  { label: "Fri", name: "Friday" },
+  { label: "Sat", name: "Saturday" },
+  { label: "Sun", name: "Sunday" },
+]
+
+<PaceChart
+  title="API requests"
+  yAxisTitle="Requests"
+  data={week}
+  limit={500}
+  slot={
+    <Tabs defaultValue="week">
+      <TabsList>
+        <TabsTrigger value="day">Day</TabsTrigger>
+        <TabsTrigger value="week">Week</TabsTrigger>
+        <TabsTrigger value="month">Month</TabsTrigger>
+      </TabsList>
+    </Tabs>
+  }
+/>
+```
+
+</Preview>
+
+Use is assumed to continue at its average rate so far, and even pace is `limit` divided evenly over the periods. Below the chart a visually hidden list gives one sentence per part (for example "Projected: reaches 500 on Saturday."), and the chart itself carries them as its `aria-label`.
+
+Without a `limit` there is no pace line, projection or limit point. Once use is over the limit there is no projection and the limit point stays at the end. With nothing used there is no Now marker.
+
 ## API Reference
 
 Import from `@dapplelight/signet-ui/components/chart` only. It is not in the barrel because `recharts` (version 3.8 up to 4) is an optional peer dependency. Colours come from the theme's optional `--chart-1` to `--chart-6`, each falling back to a core token.
@@ -191,6 +235,28 @@ Import from `@dapplelight/signet-ui/components/chart` only. It is not in the bar
 | `className` | `string` | - | Merged last. Default is `aspect-video`. |
 
 A series with neither `color` nor `theme` takes the palette entry at its position, wrapping after six.
+
+### PaceChart
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `data` | `{ label: string; name?: string; used?: number \| null }[]` | `[]` | One point per period, with the running total in `used` up to Now. `label` is the axis tick, `name` is what a screen reader says (default `label`). |
+| `limit` | `number` | - | The cap. Without it, only the used line and Now show. |
+| `now` | `string` | last period with `used` | The `label` of the Now period. |
+| `title` | `ReactNode` | - | Card title. |
+| `slot` | `ReactNode` | - | Any node, right of the title; below it on phones. |
+| `yAxisTitle` | `string` | - | Title of the Y axis. |
+| `format` | `(n: number) => string` | `toLocaleString` | Formats axis ticks, the limit label and the descriptions. |
+| `state` | `ready` \| `loading` \| `error` | `ready` | Loading shows a skeleton; the header and slot stay. Empty `data` shows an empty state. |
+| `onRetry` | `() => void` | - | Retry button of the error state. |
+| `labels` | `Partial<PaceLabels>` | English | Text of each part (`pace`, `used`, `projected`, `now`, `limit`) and of the states. The limit label reads `<value> <labels.limit>`. |
+| `colors` | `Partial<Record<part, string>>` | theme tokens | A CSS colour per part. |
+| `hide` | `Partial<Record<part, boolean>>` | - | Hide a part. |
+| `descriptions` | `Partial<Record<part, string>>` | - | Replace the screen-reader sentence of a part. |
+| `classNames` | `Partial<Record<part \| "header" \| "chart", string>>` | - | className per part, the header and the chart area. |
+| `className` | `string` | - | On the card. |
+
+`part` is one of `pace`, `used`, `projected`, `now`, `limit`. `paceModel(data, limit, now)` returns the numbers behind the chart.
 
 ### ChartConfig
 
