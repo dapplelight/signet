@@ -1,6 +1,6 @@
 {
   "name": "create-signet-app",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "license": "MIT",
   "description": "Scaffold a Vite + React + Tailwind app wired to Signet.",
   "keywords": [
