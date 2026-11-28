@@ -144,6 +144,11 @@ export const tinted = (): Tinted[] => [
   })),
 ]
 
+// DecisionCallout: text-primary and text-secondary over bg-accent-primary-subtle,
+// a tint of --primary. Themes use 10-14% (theme.ts, cinematic.css); 14% is the worst case.
+export const CALLOUT_TINT = 0.14
+export const CALLOUT_TEXT = ["--text-primary", "--text-secondary"]
+
 const dir = new URL("../src/themes/", import.meta.url)
 if (import.meta.main) check()
 
@@ -188,6 +193,22 @@ function check() {
           )
         }
       }
+      for (const fg of CALLOUT_TEXT)
+        for (const on of ["--bg-base", "--bg-surface"]) {
+          const bg = over(
+            resolve(vars, vars["--primary"] ?? ""),
+            resolve(vars, vars[on] ?? ""),
+            CALLOUT_TINT,
+          )
+          const a = resolve(vars, vars[fg] ?? "")
+          const r = ratio(a, bg)
+          if (r === null) continue
+          ok(
+            `${file} ${mode} DecisionCallout ${fg} on tinted ${on} >= ${TEXT}`,
+            r >= TEXT,
+            `${a} on ${bg} = ${r.toFixed(2)}`,
+          )
+        }
     }
   }
 

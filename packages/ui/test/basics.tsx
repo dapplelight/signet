@@ -64,6 +64,11 @@ const { Spinner } = await import("../src/components/ui/spinner")
 const { Table } = await import("../src/components/ui/table")
 const { Button } = await import("../src/components/ui/button")
 const { SkipLink } = await import("../src/components/ui/skip-link")
+const { StageRail } = await import("../src/components/ui/stage-rail")
+const { DecisionCallout, DecisionCalloutReason, DecisionCalloutTitle } = await import(
+  "../src/components/ui/decision-callout"
+)
+const { LabelsProvider } = await import("../src/lib/labels")
 
 let pass = 0,
   fail = 0
@@ -797,6 +802,117 @@ await t("SkipLink", async () => {
   )
   await userEvent.tab()
   ok("SkipLink: first Tab focuses it", document.activeElement === a)
+})
+
+await t("StageRail", async () => {
+  const stages = ["Plan", "Build", "Verify", "Review", "Ship"]
+  render(<StageRail aria-label="Run progress" stages={stages} current={2} />)
+  const group = screen.getByRole("group", { name: "Run progress" })
+  const segs = [...group.querySelectorAll("[data-slot=stage-rail-segment]")]
+  ok("StageRail: one segment per stage", segs.length === 5)
+  ok(
+    "StageRail: screen readers get a state word per stage",
+    segs.map((x) => x.textContent).join("|") ===
+      "Plan: done|Build: done|Verify: in progress|Review: not started|Ship: not started",
+    segs.map((x) => x.textContent),
+  )
+  ok(
+    "StageRail: done and current are filled, later ones empty",
+    segs.map((x) => x.className.includes("bg-primary")).join() === "true,true,true,false,false" &&
+      segs[3]?.className.includes("bg-bg-elevated"),
+  )
+  ok(
+    "StageRail: only the current one pulses, and not under reduced motion",
+    segs.map((x) => x.className.includes("animate-pulse")).join() ===
+      "false,false,true,false,false" && !!segs[2]?.className.includes("motion-reduce:animate-none"),
+  )
+  ok("StageRail: not interactive", !group.querySelector("[tabindex],button,a"))
+  cleanup()
+
+  const states = (current: number) => {
+    const { container } = render(
+      <StageRail aria-label="Run" stages={["A", "B"]} current={current} />,
+    )
+    const out = [...container.querySelectorAll("[data-status]")].map((x) =>
+      x.getAttribute("data-status"),
+    )
+    cleanup()
+    return out.join()
+  }
+  ok("StageRail: past the end, all done", states(5) === "complete,complete")
+  ok("StageRail: below 0, all upcoming", states(-1) === "upcoming,upcoming")
+
+  const { container } = render(<StageRail aria-label="Run" stages={[]} current={0} />)
+  ok("StageRail: no stages renders nothing", container.innerHTML === "")
+  cleanup()
+
+  render(
+    <LabelsProvider labels={{ stageDone: "fertig", stageCurrent: "läuft", stageUpcoming: "offen" }}>
+      <StageRail
+        aria-label="Lauf"
+        stages={["A", "B", "C"]}
+        current={1}
+        className="mine"
+        classNames={{ segment: "seg", label: "lbl" }}
+      />
+    </LabelsProvider>,
+  )
+  const root = screen.getByRole("group", { name: "Lauf" })
+  ok(
+    "StageRail: words come from LabelsProvider",
+    root.textContent === "A: fertigB: läuftC: offen",
+    root.textContent,
+  )
+  ok(
+    "StageRail: className and classNames merge",
+    root.className.includes("mine") &&
+      root.querySelectorAll(".seg").length === 3 &&
+      root.querySelectorAll(".lbl").length === 3,
+  )
+})
+
+await t("DecisionCallout", async () => {
+  render(
+    <DecisionCallout className="mine" data-testid="box">
+      <DecisionCalloutTitle>Ran 42 tests</DecisionCalloutTitle>
+      <DecisionCalloutReason className="why">3 of 61 packages changed</DecisionCalloutReason>
+    </DecisionCallout>,
+  )
+  const box = screen.getByTestId("box")
+  ok("DecisionCallout: plain div, not an alert", box.tagName === "DIV" && !box.hasAttribute("role"))
+  ok("DecisionCallout: no live region announces it", !box.querySelector("[role=alert],[aria-live]"))
+  ok(
+    "DecisionCallout: tinted, sits under a timeline item's text",
+    box.className.includes("bg-accent-primary-subtle") && box.className.includes("col-start-2"),
+  )
+  ok("DecisionCallout: className merges", box.className.includes("mine"))
+  const title = box.querySelector("[data-slot=decision-callout-title]")
+  const reason = box.querySelector("[data-slot=decision-callout-reason]")
+  ok("DecisionCallout: title is bold", !!title?.className.includes("font-semibold"))
+  ok(
+    "DecisionCallout: reason is secondary-coloured (muted fails contrast on the tint) with tabular numbers, className merges",
+    !!reason?.className.includes("text-text-secondary") &&
+      reason.className.includes("tabular-nums") &&
+      reason.className.includes("why"),
+  )
+  ok("DecisionCallout: root has a data-slot", box.getAttribute("data-slot") === "decision-callout")
+  cleanup()
+
+  render(
+    <Timeline aria-label="Run">
+      <TimelineItem status="complete">
+        <TimelineTitle>Build</TimelineTitle>
+        <DecisionCallout>
+          <DecisionCalloutTitle>Skipped the full suite</DecisionCalloutTitle>
+        </DecisionCallout>
+      </TimelineItem>
+    </Timeline>,
+  )
+  await tick()
+  ok(
+    "DecisionCallout: works inside a TimelineItem",
+    !!screen.getByRole("listitem", { name: "Build" }).querySelector("[data-slot=decision-callout]"),
+  )
 })
 
 await t("Table: scrollX adds overflow-x-auto to the wrapper only when true", () => {

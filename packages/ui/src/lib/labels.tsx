@@ -59,6 +59,9 @@ export const defaultLabels = {
   removeItem: "Remove",
   chooseOption: "Choose…",
   skipToContent: "Skip to content",
+  stageDone: "done",
+  stageCurrent: "in progress",
+  stageUpcoming: "not started",
 }
 
 export type Labels = typeof defaultLabels
