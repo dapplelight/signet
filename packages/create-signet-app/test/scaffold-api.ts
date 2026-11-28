@@ -592,6 +592,33 @@ console.log(JSON.stringify({ health: h.status, rid: !!h.headers.get("x-request-i
         r.health === 200 && r.rid && r.bad === 400 && r.code === "VALIDATION_FAILED",
         out.stdout.toString() + out.stderr.toString().slice(-400),
       )
+      // With the Marketplace env vars set, the limit is counted in Upstash: a
+      // fake one here records the commands the default export sends it.
+      const seen: string[] = []
+      const fake = Bun.serve({
+        port: 0,
+        async fetch(req) {
+          seen.push(JSON.stringify(await req.json()))
+          return Response.json([{ result: "OK" }, { result: 1 }])
+        },
+      })
+      const shared = await $`bun -e ${`const app = (await import("./index.ts")).default
+const h = await app.fetch(new Request("http://x/api/health", { headers: { "x-forwarded-for": "198.51.100.7" } }))
+console.log(h.status)`}`
+        .cwd(dir)
+        .env({
+          ...process.env,
+          KV_REST_API_URL: `http://localhost:${fake.port}`,
+          KV_REST_API_TOKEN: "t",
+        })
+        .nothrow()
+        .quiet()
+      fake.stop(true)
+      ok(
+        "vercel: KV_REST_API_URL and KV_REST_API_TOKEN switch the limiter to Upstash",
+        shared.stdout.toString().trim() === "200" && seen.some((s) => s.includes("INCR")),
+        `${shared.stdout.toString()}${shared.stderr.toString().slice(-300)} ${seen.join(" ")}`,
+      )
     }
   } catch (err) {
     ok(`${target}: scaffold run completed`, false, String(err))

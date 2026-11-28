@@ -18,8 +18,8 @@ declare const Deno: {
 const hops = Deno.env.get("TRUSTED_PROXY_HOPS")
 
 const app = createApp<Record<string, never>>({
-  // One process, so an in-memory count is exact. Running several replicas?
-  // Share the count: upstashRateLimitStore from @dapplelight/signet-server/adapters/upstash.
+  // The memory store counts per process, so with more than one instance each keeps
+  // its own count. Swap in upstashRateLimitStore from @dapplelight/signet-server/adapters/upstash.
   store: memoryStore(),
   // Behind proxies of your own (a load balancer, a PaaS router), set
   // TRUSTED_PROXY_HOPS to how many, and the client IP comes from

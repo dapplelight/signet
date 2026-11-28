@@ -239,20 +239,27 @@ const API_TARGETS: Record<
     // Runs src/server.ts as is: type stripping is on by default from 22.18.
     engines: { node: ">=22.18" },
   },
-  vercel: { scripts: { dev: "bunx vercel dev", deploy: "bunx vercel deploy" } },
+  vercel: {
+    scripts: { dev: "bunx vercel dev", deploy: "bunx vercel deploy" },
+    devDeps: { "@types/node": "^26.6.6" },
+  },
 }
 
 const API_NEXT_STEPS: Record<Target, string> = {
   cloudflare: `Rate limiting is exact and per IP, backed by the RateLimitCounter Durable
   Object in wrangler.jsonc. Append migration tags; never edit a deployed one.`,
   bun: `bun run start serves src/server.ts under Bun.serve; the Dockerfile runs the same.
-  Rate limiting is in-process and keyed by the socket address.`,
+  Rate limiting is in-process and keyed by the socket address; per process, so for
+  more than one instance pass upstashRateLimitStore (see the comment in src/server.ts).`,
   deno: `bun run start serves src/server.ts under Deno.serve (Deno 2); the Dockerfile runs the same.
-  Rate limiting is in-process and keyed by the socket address.`,
+  Rate limiting is in-process and keyed by the socket address; per process, so for
+  more than one instance pass upstashRateLimitStore (see the comment in src/server.ts).`,
   node: `bun run start runs src/server.ts with node 22.18+ (node:http, no extra dependency).
-  Rate limiting is in-process and keyed by the socket address.`,
+  Rate limiting is in-process and keyed by the socket address; per process, so for
+  more than one instance pass upstashRateLimitStore (see the comment in src/server.ts).`,
   vercel: `index.ts is the Vercel entry (Hono preset, vercel.json). Deploy with bun run deploy.
-  Rate limiting is per function instance; see the comment in index.ts.`,
+  Rate limiting is shared through Upstash Redis once KV_REST_API_URL and KV_REST_API_TOKEN
+  are set (Vercel Marketplace); until then it is per function instance. See index.ts.`,
 }
 
 const DEPS = {
