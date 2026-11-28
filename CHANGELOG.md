@@ -5,6 +5,10 @@ a package at the version it had when the repository was opened to the public.
 
 ## Unreleased
 
+### signet-ui: Fold
+
+- New `./components/fold`: `Fold` shows one row (a title, a muted detail and a Show more / Show less link) that opens long Markdown text in place. Keyboard and screen reader friendly, text capped near 66 characters wide. Parts `FoldRoot`, `FoldHeader`, `FoldTitle`, `FoldDetail`, `FoldToggle` and `FoldBody`; words through `showMoreLabel` / `showLessLabel` or the new `showMore` / `showLess` labels.
+
 ### signet-ui: pace chart
 
 - New `PaceChart` in `./components/chart`: usage against an even pace and a limit, with a dashed on-pace line, the solid used line, a dashed amber projection from Now to the limit, a Now marker, a limit point, a slot in the header for a Day / Week / Month selector, and one screen-reader sentence per part. Label, colour, className and hide per part. `ChartContainer` and the existing charts are unchanged.
